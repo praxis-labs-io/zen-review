@@ -1,0 +1,228 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this repo is
+
+Drew's local code review engine, at `zen-review/zen-review` (`origin`). A review
+engine with a TUI attached, not a diff viewer with review features bolted on.
+
+It answers one question a diff viewer cannot: which of these machine-generated
+changes have I personally inspected, and are they still the ones I inspected.
+Agents write code faster than anyone can read it and rewrite code you already
+read, so reviewed state is stored as line ranges and translated through every
+new generation of the changeset.
+
+Bare `zen-review` opens one changeset: `merge-base(base, HEAD)` through the
+working tree, untracked files included. There is no `--staged` and no
+`--working-tree`; both would be a second answer to "what am I looking at".
+
+**`main` is the product branch.** Feature work flows ticket → branch → PR on `origin`.
+
+Two things skip the PR and commit straight to `main`:
+
+- Genuinely trivial tweaks. A typo, a one-liner.
+- **Doc-only changes with no code.** Markdown, comments, `CLAUDE.md`, rules files. A PR for prose is ceremony.
+
+A tracked pre-push hook rejects pushes to `main`, so an agent commits these and Drew pushes them. Don't reach for `--no-verify`.
+
+The installed binary is built from here to `~/.local/bin/zen-review`; **rebuild after changes or Drew keeps running the old code**:
+
+```sh
+make install
+```
+
+Anything published under Drew's name (PR bodies, issues, README) must be shown to him word-for-word before pushing. His voice: terse, considerate, stoic, no strong adverbs, no em-dashes.
+
+## Conventions
+
+@.claude/rules/code-quality.md
+
+That file holds only the Go and Bubble Tea specifics. The principles and voice rules are global and load automatically; don't copy them in here, that only creates drift.
+
+## Commands
+
+```sh
+make all              # lint (gofmt + mod-tidy + golangci-lint) + test + build
+make test             # go test -race -coverprofile ./...
+make lint             # includes gofmt check and go.mod tidiness
+make fmt-fix          # gofmt -w .
+make install          # build to ~/.local/bin/zen-review
+go test ./internal/review/ -run TestName   # single test
+```
+
+Run checks directly, never through a pipe that swallows exit codes. `make lint | tail` reports success on failure.
+
+### Lint version pin
+
+CI pins golangci-lint to match the local brew version (`.github/workflows/ci.yml`). Keep the pin current with the local version, or CI and local runs stop agreeing.
+
+### Git hooks
+
+`.githooks/pre-push` is tracked and rejects pushes to `main`. `git config core.hooksPath .githooks` wires it up; the SessionStart hook does this on every session so a fresh clone is covered. Untracked `.git/hooks/` files don't survive a clone, which is why the hook lives here instead.
+
+## zen-kit
+
+The visual layer is a separate module, `github.com/zen-kit/zen-kit`: `theme`,
+`syntax`, and the `paint` diff-line painter. zen-octo paints from the same one.
+
+A rendering change that both tools want belongs there. A change only this tool
+wants belongs in `tui/diffpane`. zen-kit holds no model, no state, no layout and
+no keys, and pushing any of those into it is how it stops being reusable.
+
+It is pre-1.0 and both consumers are ours, so a breaking change there is a bump
+and two import fixes, not a deprecation cycle. `go run ./cmd/kitdemo` in that
+repo is how a theme change is judged.
+
+## Charm module paths
+
+The Charm v2 line lives under `charm.land/*`, not `github.com/charmbracelet/*`. `github.com/charmbracelet/bubbletea/v2` does not resolve. Version numbers are the same across both paths.
+
+```
+charm.land/bubbletea/v2
+charm.land/lipgloss/v2
+charm.land/bubbles/v2
+charm.land/glamour/v2
+```
+
+`github.com/charmbracelet/fang` (v1 line) keeps its github path and pulls an older beta of `charm.land/lipgloss/v2`. Requiring v2.0.5 directly upgrades past it; there is no two-lipgloss problem as long as nothing imports the github v2 path.
+
+## Project Management
+
+Work is tracked in Linear: Praxis Labs workspace, **Zen Review** team (key `ZNR`, tickets `ZNR-###`), reached through the `linear-zen-review` MCP server declared in `.mcp.json`. zen-kit's tickets live here too. Address projects and statuses **by name, never a UUID**; ids don't survive workspace moves.
+
+The bucket names are shared with other teams, so `save_issue` resolving a bare project name can land on another team's copy and fail the call. Pass the Zen Review project id in that one argument when it does.
+
+### Projects
+
+Five long-running buckets plus the current epic. Every ticket belongs to exactly one:
+
+- **Polish & Bugs**: bugs and rough edges in surfaces that already ship. The dogfood inbox.
+- **Feature Backlog**: net-new capabilities. Ideas live here until promoted.
+- **Performance and Code-Quality**: improves the code, no user-visible change.
+- **Website**: the public site, its copy, its SEO.
+- **Release & Distribution**: how the binary gets from `main` to a user and stays current.
+- **Zen Review v0.1**: the current epic, M0 through M6. An epic is a Linear Project, never a tracking issue. When it closes, follow-ups move to the matching bucket.
+
+### Tickets
+
+- Every ticket gets the team, exactly one project, a priority, and a status. No orphans.
+- Create tickets as we go; never dump a full backlog up front.
+- PR-sized scoping: 1 ticket = 1 branch = 1 PR as the rule of thumb. A ticket spanning both repos gets one PR in each.
+- Keep descriptions lean: clear title, short goal and scope. No boilerplate acceptance criteria.
+- Use Linear's generated branch name (`gitBranchName` from the MCP), never an invented one.
+- Reference the ticket id in commits and the PR title/body so Linear auto-links.
+- Status ladder: agent drives Backlog → Todo → In Progress. The GitHub integration owns In Review and Done; never write those by hand.
+
+### Shipping
+
+Feature-complete work ships via the `ship-feature` skill at `.claude/skills/ship-feature/SKILL.md`: `make all` green, push, draft PR, Copilot + `/code-review`, triage with no tech debt, push then mark ready as separate actions. Manual invocation only.
+
+**That file is a copy, and the copy is deliberate.** The source of truth lives in Drew's global skills; every repo carries a real copy rather than a symlink, because a cloud session clones this repo alone and a link into a sibling checkout would dangle. Propagation is manual. Never edit the copy here: the next copy-out discards the change silently. Edit the source, then copy it in.
+
+### Specs
+
+`docs/superpowers/specs/` holds the design docs that shaped a milestone. `docs/` otherwise describes only what is true today. Durable context lives in Linear project descriptions and tickets.
+
+## Architecture
+
+`cmd/zen-review` is the entrypoint (fang over cobra). Everything else lives in `internal/`.
+
+```
+internal/
+  git/         plumbing only. Returns bytes and structs, never opinions.
+  diff/        unified diff text -> files, hunks, lines. Knows nothing of review.
+  review/      the engine. Sessions, generations, review state, comments, remapping.
+  store/       SQLite and migrations. Nothing above it imports database/sql.
+  cli/         the review subcommands. A thin shell over review/.
+  tui/         app, tree, diffpane, compose, comp.
+```
+
+The boundaries are in `.claude/rules/code-quality.md` and breaking one is a review-stopper. The short version: the CLI has to be able to answer any question the TUI can.
+
+Note that zen-octo has a `store` package holding in-memory fetch state. Same name, different job: this one is the database.
+
+### Sessions and generations
+
+A session is one repo plus one branch, resumable days later. A generation is a
+snapshot of the whole changeset written into git as a real commit under
+`refs/zen-review/sessions/<id>`, so a comment always knows the exact bytes it was
+about and `git gc` cannot take them.
+
+Reviewed state is line ranges, never hunk indices: an agent inserting twenty
+lines above hunk 3 leaves different code wearing the same label. A range that
+fails to translate through a blob diff disappears, and that is what makes
+`changed after review` fall out of the mechanism rather than be tracked.
+
+Deletion-only hunks have no head-side lines and anchor to base-side ranges.
+
+### Storage
+
+`$(git rev-parse --git-common-dir)/zen-review/state.db`, so a worktree and its
+parent checkout share one database and a throwaway worktree does not take the
+review with it. Nothing lands in the working tree.
+
+`modernc.org/sqlite`, pure Go: the cgo driver is faster but puts a C toolchain in
+the path of every cross-compile and CI runner, for a few thousand rows. WAL with
+a busy timeout so two instances on one repo do not deadlock.
+
+`.git` not writable is a startup error, not a degraded mode where the review
+silently is not saved.
+
+## Keys
+
+The keymap is shared with zen-octo by convention, written down in both
+`CLAUDE.md` files rather than in shared code, so the two tools feel the same
+without either being hostage to the other's release cycle. zen-kit holds no keys.
+
+```
+j k g G ctrl+u ctrl+d    movement
+h l                      tree pane / diff pane
+tab shift+tab            the ring: next / prev hunk
+space                    fold / unfold
+} {                      next / prev file
+n N                      next / prev unreviewed hunk
+] [                      next / prev comment
+
+r                        mark hunk reviewed, advance to next unreviewed
+R                        mark whole file reviewed
+c                        comment on the selection
+v                        range selection, j/k extend
+C                        session summary note
+x                        resolve a comment
+enter                    tree: open file. comment: jump to its line
+
+p                        full-file preview
+|                        unified / side-by-side
+/                        filter the tree
+b                        change the base
+s                        reload
+? q ctrl+c               help, quit, quit from anywhere
+```
+
+`n` is the one that matters. A review is a burn-down and `n` is the key held
+until the count reaches zero. `r` advances after marking, so `r r r r` walks the
+whole thing.
+
+Four divergences from zen-octo, all deliberate:
+
+- `space` folds, replacing `o`. zen-octo adopts this too.
+- `]` / `[` are tabs in zen-octo and comments here. zen-octo has tabs and zen-review never will.
+- `r` is reply in zen-octo and mark-reviewed here. Neither tool has the other's concept.
+- `v` is jump-to-diff in zen-octo, scoped to the conversation, and range selection here. They do not collide.
+
+The diff pane opens focused on the first unreviewed hunk. zen-octo's
+conversation opens unfocused because the reader came to read; you came here to
+burn a review down.
+
+## Rendering traps
+
+zen-kit's `CLAUDE.md` holds the painter's traps: per-cell backgrounds, clipping
+before wrapping, tokenising a side whole. These are this repo's own.
+
+- **A viewport offset is a line, and a row is not.** Once rows are two lines, scroll arithmetic that lands on the row it wants opens the window on that row's second line with its title cut off above. Round the offset up to the next item boundary, and size the viewport to a whole number of rows or the end-of-list clamp lands back between two lines.
+- **`viewport.EnsureVisible` is not a scroll-to-cursor.** It acts only once the line is already outside the window, then puts it on the top row. Move the offset by hand.
+- **The shortest scroll onto the screen is the wrong one.** A key that lands on a block is taking the reader somewhere, so put the block at the top row, and leave it alone when it already fits on screen whole.
+- **A block that answers the line above it cannot go to the top row.** A comment hangs under the code it was written against, so topping the card scrolls that code away. Open a few lines above it, never above the file's heading.
+- **A pane clips overflow silently.** A row wider than the pane loses its trailing columns mid-cell with no ellipsis, and a width test still passes. The row has to fit before the pane sees it.
+- **Nothing moves on a refresh until the key is pressed.** A formatter running on save would otherwise reshuffle the page while a comment is being written.
