@@ -27,8 +27,9 @@ diff-line painter covering the gutter, marker, background, token painting, tab
 expansion and width clipping. The painter is a pure function over a line. No
 model, no state, no layout, no keys.
 
-`theme` and `syntax` move out of zen-octo's `internal/` and zen-octo imports
-them back in the same change, so two copies never coexist.
+`theme` and `syntax` start as copies of zen-octo's, and zen-kit proves itself
+here rather than there. zen-octo swaps its own copies out under ZNO-43, on its
+own schedule. M0 has its own spec.
 
 Behaviour is deliberately not shared. Each tool owns its renderer, layout,
 folding and scroll. Keys are a convention written down in both `CLAUDE.md`
@@ -450,8 +451,7 @@ is the only width that proves anything.
 
 ## Open items
 
-- Linear team key for zen-review. zen-octo uses `ZNO`.
-- zen-kit's release cadence. `go.work` locally keeps early API churn cheap;
-  tags happen when something ships.
+- zen-kit's release cadence past v0.1.0, which M0 tags. It stays pre-1.0 while
+  both consumers are ours, so a breaking change is a bump and two import fixes.
 - Whether `zen-review export` output has a stable format worth documenting, or
   stays deliberately loose until an agent consumes it in anger.
