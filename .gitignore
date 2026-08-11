@@ -8,8 +8,8 @@
 # Test binary, built with `go test -c`
 *.test
 
-# Code coverage profiles and other test artifacts
-*.out
+# Code coverage profiles and other test artifacts. Not a bare *.out: that
+# swallows a testdata fixture, and coverage.out already matches coverage.*.
 coverage.*
 *.coverprofile
 profile.cov
