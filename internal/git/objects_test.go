@@ -24,7 +24,7 @@ var sig = Signature{
 func entries(t *testing.T, f *fixture, tree string) map[string]string {
 	t.Helper()
 
-	out := f.git("ls-tree", "-r", tree)
+	out := f.Git("ls-tree", "-r", tree)
 	got := map[string]string{}
 	if out == "" {
 		return got
@@ -56,7 +56,7 @@ func snapshot(t *testing.T, f *fixture) (*Repo, Snapshot) {
 func exists(t *testing.T, f *fixture, sha string) bool {
 	t.Helper()
 
-	_, code, err := runStatus(t.Context(), f.dir, 1, "cat-file", "-e", sha)
+	_, code, err := runStatus(t.Context(), f.Dir(), 1, "cat-file", "-e", sha)
 	if err != nil {
 		t.Fatalf("checking for %s: %v", sha, err)
 	}
@@ -68,26 +68,26 @@ func exists(t *testing.T, f *fixture, sha string) bool {
 // nobody sees.
 func TestASnapshotHoldsEveryChangeInTheWorkTree(t *testing.T) {
 	f := newFixture(t)
-	f.write(".gitignore", "ignored.log\n")
-	f.write("kept.txt", "unchanged\n")
-	f.write("edited.txt", "before\n")
-	f.write("staged.txt", "before\n")
-	f.write("gone.txt", "doomed\n")
-	f.write("old-name.txt", "renamed content\n")
-	f.write("exec.sh", "#!/bin/sh\n")
-	f.commit("first")
+	f.Write(".gitignore", "ignored.log\n")
+	f.Write("kept.txt", "unchanged\n")
+	f.Write("edited.txt", "before\n")
+	f.Write("staged.txt", "before\n")
+	f.Write("gone.txt", "doomed\n")
+	f.Write("old-name.txt", "renamed content\n")
+	f.Write("exec.sh", "#!/bin/sh\n")
+	f.Commit("first")
 
-	f.write("edited.txt", "after\n")
-	f.write("staged.txt", "after\n")
-	f.git("add", "staged.txt")
-	f.git("rm", "-q", "gone.txt")
-	f.git("mv", "old-name.txt", "new-name.txt")
-	f.write("untracked.txt", "never added\n")
-	f.write("ignored.log", "noise\n")
-	if err := os.Chmod(filepath.Join(f.dir, "exec.sh"), 0o755); err != nil {
+	f.Write("edited.txt", "after\n")
+	f.Write("staged.txt", "after\n")
+	f.Git("add", "staged.txt")
+	f.Git("rm", "-q", "gone.txt")
+	f.Git("mv", "old-name.txt", "new-name.txt")
+	f.Write("untracked.txt", "never added\n")
+	f.Write("ignored.log", "noise\n")
+	if err := os.Chmod(filepath.Join(f.Dir(), "exec.sh"), 0o755); err != nil {
 		t.Fatalf("setting the exec bit: %v", err)
 	}
-	if err := os.Symlink("kept.txt", filepath.Join(f.dir, "link.txt")); err != nil {
+	if err := os.Symlink("kept.txt", filepath.Join(f.Dir(), "link.txt")); err != nil {
 		t.Fatalf("creating the symlink: %v", err)
 	}
 
@@ -106,7 +106,7 @@ func TestASnapshotHoldsEveryChangeInTheWorkTree(t *testing.T) {
 	}
 
 	// The work tree's content, not HEAD's, is what the tree has to carry.
-	want := f.git("hash-object", "edited.txt")
+	want := f.Git("hash-object", "edited.txt")
 	if !strings.HasSuffix(got["edited.txt"], want) {
 		t.Errorf("edited.txt = %q, want the work tree blob %s", got["edited.txt"], want)
 	}
@@ -119,7 +119,7 @@ func TestASnapshotHoldsEveryChangeInTheWorkTree(t *testing.T) {
 	if !strings.HasPrefix(got["link.txt"], "120000 ") {
 		t.Errorf("link.txt = %q, want mode 120000", got["link.txt"])
 	}
-	if target := f.git("cat-file", "blob", strings.Fields(got["link.txt"])[1]); target != "kept.txt" {
+	if target := f.Git("cat-file", "blob", strings.Fields(got["link.txt"])[1]); target != "kept.txt" {
 		t.Errorf("the symlink blob = %q, want the target path", target)
 	}
 	if len(snap.Skipped) != 0 {
@@ -131,18 +131,18 @@ func TestASnapshotHoldsEveryChangeInTheWorkTree(t *testing.T) {
 // so a snapshot that disturbed it would break the tool it is watching.
 func TestASnapshotLeavesTheRealIndexAlone(t *testing.T) {
 	f := newFixture(t)
-	f.write("a.txt", "one\n")
-	f.commit("first")
-	f.write("b.txt", "staged\n")
-	f.git("add", "b.txt")
-	f.write("c.txt", "untracked\n")
+	f.Write("a.txt", "one\n")
+	f.Commit("first")
+	f.Write("b.txt", "staged\n")
+	f.Git("add", "b.txt")
+	f.Write("c.txt", "untracked\n")
 
-	index := filepath.Join(f.dir, ".git", "index")
+	index := filepath.Join(f.Dir(), ".git", "index")
 	before, err := os.ReadFile(index)
 	if err != nil {
 		t.Fatalf("reading the index: %v", err)
 	}
-	status := f.git("status", "--porcelain")
+	status := f.Git("status", "--porcelain")
 
 	snapshot(t, f)
 
@@ -153,7 +153,7 @@ func TestASnapshotLeavesTheRealIndexAlone(t *testing.T) {
 	if string(before) != string(after) {
 		t.Error("the snapshot rewrote the real index")
 	}
-	if got := f.git("status", "--porcelain"); got != status {
+	if got := f.Git("status", "--porcelain"); got != status {
 		t.Errorf("status changed after the snapshot:\n got %q\nwant %q", got, status)
 	}
 	if _, err := os.Stat(index + ".lock"); !errors.Is(err, os.ErrNotExist) {
@@ -165,22 +165,22 @@ func TestASnapshotLeavesTheRealIndexAlone(t *testing.T) {
 // index is the state git refuses to write a tree from.
 func TestASnapshotWorksWithAConflictedIndex(t *testing.T) {
 	f := newFixture(t)
-	f.write("a.txt", "base\n")
-	f.commit("first")
+	f.Write("a.txt", "base\n")
+	f.Commit("first")
 
-	f.git("checkout", "-q", "-b", "side")
-	f.write("a.txt", "theirs\n")
-	f.commit("side")
+	f.Git("checkout", "-q", "-b", "side")
+	f.Write("a.txt", "theirs\n")
+	f.Commit("side")
 
-	f.git("checkout", "-q", "main")
-	f.write("a.txt", "ours\n")
-	f.commit("ours")
+	f.Git("checkout", "-q", "main")
+	f.Write("a.txt", "ours\n")
+	f.Commit("ours")
 
 	// The merge is meant to fail. What is under test is the state it leaves.
 	merge := exec.Command("git", "merge", "side")
-	merge.Dir = f.dir
+	merge.Dir = f.Dir()
 	_ = merge.Run()
-	if !strings.HasPrefix(f.git("status", "--porcelain", "a.txt"), "UU") {
+	if !strings.HasPrefix(f.Git("status", "--porcelain", "a.txt"), "UU") {
 		t.Fatal("a.txt is not conflicted, so this test proves nothing")
 	}
 
@@ -189,7 +189,7 @@ func TestASnapshotWorksWithAConflictedIndex(t *testing.T) {
 	if _, ok := entries(t, f, snap.Tree)["a.txt"]; !ok {
 		t.Error("the conflicted file is missing from the snapshot")
 	}
-	if !strings.HasPrefix(f.git("status", "--porcelain", "a.txt"), "UU") {
+	if !strings.HasPrefix(f.Git("status", "--porcelain", "a.txt"), "UU") {
 		t.Error("the snapshot resolved the conflict in the real index")
 	}
 }
@@ -198,7 +198,7 @@ func TestASnapshotWorksWithAConflictedIndex(t *testing.T) {
 // read-tree has nothing to read.
 func TestASnapshotOfARepositoryWithNoCommits(t *testing.T) {
 	f := newFixture(t)
-	f.write("a.txt", "first ever\n")
+	f.Write("a.txt", "first ever\n")
 
 	_, snap := snapshot(t, f)
 
@@ -215,11 +215,11 @@ func TestASnapshotNamesWhatItCouldNotRead(t *testing.T) {
 	}
 
 	f := newFixture(t)
-	f.write("a.txt", "one\n")
-	f.commit("first")
-	f.write("locked.txt", "secret\n")
+	f.Write("a.txt", "one\n")
+	f.Commit("first")
+	f.Write("locked.txt", "secret\n")
 
-	locked := filepath.Join(f.dir, "locked.txt")
+	locked := filepath.Join(f.Dir(), "locked.txt")
 	if err := os.Chmod(locked, 0o000); err != nil {
 		t.Fatalf("removing the permissions: %v", err)
 	}
@@ -243,11 +243,11 @@ func TestASnapshotNamesADirectoryItCouldNotOpen(t *testing.T) {
 	}
 
 	f := newFixture(t)
-	f.write("a.txt", "one\n")
-	f.commit("first")
-	f.write("locked/inside.txt", "unreachable\n")
+	f.Write("a.txt", "one\n")
+	f.Commit("first")
+	f.Write("locked/inside.txt", "unreachable\n")
 
-	locked := filepath.Join(f.dir, "locked")
+	locked := filepath.Join(f.Dir(), "locked")
 	if err := os.Chmod(locked, 0o000); err != nil {
 		t.Fatalf("removing the permissions: %v", err)
 	}
@@ -269,9 +269,9 @@ func TestASnapshotNamesADirectoryItCouldNotOpen(t *testing.T) {
 // than an error.
 func TestConcurrentSnapshotsDoNotCollide(t *testing.T) {
 	f := newFixture(t)
-	f.write("a.txt", "one\n")
-	f.commit("first")
-	f.write("b.txt", "untracked\n")
+	f.Write("a.txt", "one\n")
+	f.Commit("first")
+	f.Write("b.txt", "untracked\n")
 
 	repo := f.open()
 	const runs = 8
@@ -303,8 +303,8 @@ func TestConcurrentSnapshotsDoNotCollide(t *testing.T) {
 // else ever comes back for it. One a live build is still writing has to survive.
 func TestASnapshotSweepsAbandonedIndexes(t *testing.T) {
 	f := newFixture(t)
-	f.write("a.txt", "one\n")
-	f.commit("first")
+	f.Write("a.txt", "one\n")
+	f.Commit("first")
 
 	repo := f.open()
 	dir := filepath.Join(repo.CommonDir(), "zen-review")
@@ -344,10 +344,10 @@ func TestASnapshotSweepsAbandonedIndexes(t *testing.T) {
 // pinned signature is what keeps a generation attributable.
 func TestACommitTakesTheSignatureItIsGiven(t *testing.T) {
 	f := newFixture(t)
-	f.write("a.txt", "one\n")
-	f.commit("first")
-	f.git("config", "--unset", "user.name")
-	f.git("config", "--unset", "user.email")
+	f.Write("a.txt", "one\n")
+	f.Commit("first")
+	f.Git("config", "--unset", "user.name")
+	f.Git("config", "--unset", "user.email")
 
 	repo, snap := snapshot(t, f)
 
@@ -356,7 +356,7 @@ func TestACommitTakesTheSignatureItIsGiven(t *testing.T) {
 		t.Fatalf("committing the tree: %v", err)
 	}
 
-	body := f.git("cat-file", "commit", commit)
+	body := f.Git("cat-file", "commit", commit)
 	if !strings.Contains(body, "author zen-review <zen-review@localhost>") {
 		t.Errorf("the commit is not attributed to the signature:\n%s", body)
 	}
@@ -370,8 +370,8 @@ func TestACommitTakesTheSignatureItIsGiven(t *testing.T) {
 
 func TestACommitChainsOntoItsParents(t *testing.T) {
 	f := newFixture(t)
-	f.write("a.txt", "one\n")
-	base := f.commit("first")
+	f.Write("a.txt", "one\n")
+	base := f.Commit("first")
 
 	repo, snap := snapshot(t, f)
 
@@ -379,7 +379,7 @@ func TestACommitChainsOntoItsParents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("committing the tree: %v", err)
 	}
-	if got := f.git("rev-parse", commit+"^"); got != base {
+	if got := f.Git("rev-parse", commit+"^"); got != base {
 		t.Errorf("the parent = %s, want the base %s", got, base)
 	}
 }
@@ -388,10 +388,10 @@ func TestACommitChainsOntoItsParents(t *testing.T) {
 // has to hear about it rather than write over the other's generation.
 func TestUpdateRefSwapsOnlyFromWhereItWasTold(t *testing.T) {
 	f := newFixture(t)
-	f.write("a.txt", "one\n")
-	first := f.commit("first")
-	f.write("a.txt", "two\n")
-	second := f.commit("second")
+	f.Write("a.txt", "one\n")
+	first := f.Commit("first")
+	f.Write("a.txt", "two\n")
+	second := f.Commit("second")
 
 	repo := f.open()
 	const ref = "refs/zen-review/sessions/abc"
@@ -399,7 +399,7 @@ func TestUpdateRefSwapsOnlyFromWhereItWasTold(t *testing.T) {
 	if err := repo.UpdateRef(t.Context(), ref, first, ""); err != nil {
 		t.Fatalf("creating the ref: %v", err)
 	}
-	if got := f.git("rev-parse", ref); got != first {
+	if got := f.Git("rev-parse", ref); got != first {
 		t.Errorf("%s = %s, want %s", ref, got, first)
 	}
 
@@ -413,7 +413,7 @@ func TestUpdateRefSwapsOnlyFromWhereItWasTold(t *testing.T) {
 		if err := repo.UpdateRef(t.Context(), ref, second, second); !errors.Is(err, ErrRefMoved) {
 			t.Errorf("err = %v, want ErrRefMoved", err)
 		}
-		if got := f.git("rev-parse", ref); got != first {
+		if got := f.Git("rev-parse", ref); got != first {
 			t.Errorf("a lost race moved the ref to %s", got)
 		}
 	})
@@ -422,7 +422,7 @@ func TestUpdateRefSwapsOnlyFromWhereItWasTold(t *testing.T) {
 		if err := repo.UpdateRef(t.Context(), ref, second, first); err != nil {
 			t.Fatalf("moving the ref: %v", err)
 		}
-		if got := f.git("rev-parse", ref); got != second {
+		if got := f.Git("rev-parse", ref); got != second {
 			t.Errorf("%s = %s, want %s", ref, got, second)
 		}
 	})
@@ -455,13 +455,13 @@ func TestUpdateRefSwapsOnlyFromWhereItWasTold(t *testing.T) {
 // the base stays readable after the branch it came from is destroyed.
 func TestAGenerationSurvivesGarbageCollection(t *testing.T) {
 	f := newFixture(t)
-	f.write("tracked.txt", "before\n")
-	base := f.commit("first")
+	f.Write("tracked.txt", "before\n")
+	base := f.Commit("first")
 
-	f.write("tracked.txt", "after\n")
-	f.write("untracked.txt", "never added\n")
-	edited := f.git("hash-object", "tracked.txt")
-	added := f.git("hash-object", "untracked.txt")
+	f.Write("tracked.txt", "after\n")
+	f.Write("untracked.txt", "never added\n")
+	edited := f.Git("hash-object", "tracked.txt")
+	added := f.Git("hash-object", "untracked.txt")
 
 	repo, snap := snapshot(t, f)
 	commit, err := repo.CommitTree(t.Context(), snap.Tree, []string{base}, "generation 1", sig)
@@ -474,21 +474,21 @@ func TestAGenerationSurvivesGarbageCollection(t *testing.T) {
 
 	// A blob nothing points at, so a collection that keeps everything proves as
 	// little as one that keeps nothing.
-	f.write("control.txt", "unreferenced\n")
-	control := f.git("hash-object", "-w", "control.txt")
+	f.Write("control.txt", "unreferenced\n")
+	control := f.Git("hash-object", "-w", "control.txt")
 
 	// Now take away every other way to reach the generation's contents: the
 	// branch, the index, the files and the reflog.
-	f.git("checkout", "--orphan", "wiped")
-	f.git("rm", "-q", "-rf", "--cached", ".")
+	f.Git("checkout", "--orphan", "wiped")
+	f.Git("rm", "-q", "-rf", "--cached", ".")
 	for _, name := range []string{"tracked.txt", "untracked.txt", "control.txt"} {
-		if err := os.Remove(filepath.Join(f.dir, name)); err != nil {
+		if err := os.Remove(filepath.Join(f.Dir(), name)); err != nil {
 			t.Fatalf("removing %s: %v", name, err)
 		}
 	}
-	f.git("branch", "-D", "main")
-	f.git("reflog", "expire", "--expire=now", "--expire-unreachable=now", "--all")
-	f.git("gc", "--prune=now")
+	f.Git("branch", "-D", "main")
+	f.Git("reflog", "expire", "--expire=now", "--expire-unreachable=now", "--all")
+	f.Git("gc", "--prune=now")
 
 	for _, sha := range []string{commit, snap.Tree, edited, added, base} {
 		if !exists(t, f, sha) {
@@ -498,7 +498,7 @@ func TestAGenerationSurvivesGarbageCollection(t *testing.T) {
 	if exists(t, f, control) {
 		t.Error("the unreferenced control blob survived, so the collection proves nothing")
 	}
-	if out := f.git("fsck"); strings.Contains(out, "error") {
+	if out := f.Git("fsck"); strings.Contains(out, "error") {
 		t.Errorf("fsck complains after the collection:\n%s", out)
 	}
 }

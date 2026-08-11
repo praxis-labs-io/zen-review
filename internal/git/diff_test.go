@@ -24,13 +24,13 @@ func twentyLines(marker string) string {
 // and a file it left in the working tree are one changeset.
 func TestDiffCombinesStagedAndUnstagedChanges(t *testing.T) {
 	f := newFixture(t)
-	f.write("staged.txt", "before\n")
-	f.write("loose.txt", "before\n")
-	base := f.commit("first")
+	f.Write("staged.txt", "before\n")
+	f.Write("loose.txt", "before\n")
+	base := f.Commit("first")
 
-	f.write("staged.txt", "after\n")
-	f.git("add", "staged.txt")
-	f.write("loose.txt", "after\n")
+	f.Write("staged.txt", "after\n")
+	f.Git("add", "staged.txt")
+	f.Write("loose.txt", "after\n")
 
 	out, err := f.open().Diff(t.Context(), base)
 	if err != nil {
@@ -47,12 +47,12 @@ func TestDiffCombinesStagedAndUnstagedChanges(t *testing.T) {
 // A file committed and then edited again is one set of hunks, not two.
 func TestDiffAcrossACommitAndAFurtherEditIsOneChange(t *testing.T) {
 	f := newFixture(t)
-	f.write("a.txt", "one\n")
-	base := f.commit("first")
+	f.Write("a.txt", "one\n")
+	base := f.Commit("first")
 
-	f.write("a.txt", "two\n")
-	f.commit("committed by the agent")
-	f.write("a.txt", "three\n")
+	f.Write("a.txt", "two\n")
+	f.Commit("committed by the agent")
+	f.Write("a.txt", "three\n")
 
 	out, err := f.open().Diff(t.Context(), base)
 	if err != nil {
@@ -75,16 +75,16 @@ func TestDiffAcrossACommitAndAFurtherEditIsOneChange(t *testing.T) {
 // prefixes or with seven lines of context parses into the wrong thing.
 func TestDiffPinsTheFlagsUserConfigCouldMove(t *testing.T) {
 	f := newFixture(t)
-	f.write("a.txt", twentyLines("before"))
-	f.write("café.txt", "one\n")
-	base := f.commit("first")
+	f.Write("a.txt", twentyLines("before"))
+	f.Write("café.txt", "one\n")
+	base := f.Commit("first")
 
-	f.git("config", "diff.noprefix", "true")
-	f.git("config", "diff.context", "7")
-	f.git("config", "core.quotePath", "true")
+	f.Git("config", "diff.noprefix", "true")
+	f.Git("config", "diff.context", "7")
+	f.Git("config", "core.quotePath", "true")
 
-	f.write("a.txt", twentyLines("after"))
-	f.write("café.txt", "two\n")
+	f.Write("a.txt", twentyLines("after"))
+	f.Write("café.txt", "two\n")
 
 	out, err := f.open().Diff(t.Context(), base)
 	if err != nil {
@@ -142,12 +142,12 @@ func assertFullIndex(t *testing.T, diff string) {
 
 func TestUntrackedSkipsIgnoredFilesAndReachesIntoNewDirectories(t *testing.T) {
 	f := newFixture(t)
-	f.write(".gitignore", "ignored.txt\n")
-	f.commit("first")
+	f.Write(".gitignore", "ignored.txt\n")
+	f.Commit("first")
 
-	f.write("ignored.txt", "invisible\n")
-	f.write("loose.txt", "new\n")
-	f.write("fresh/dir/deep.txt", "new\n")
+	f.Write("ignored.txt", "invisible\n")
+	f.Write("loose.txt", "new\n")
+	f.Write("fresh/dir/deep.txt", "new\n")
 
 	got, err := f.open().Untracked(t.Context())
 	if err != nil {
@@ -169,9 +169,9 @@ func TestUntrackedSkipsIgnoredFilesAndReachesIntoNewDirectories(t *testing.T) {
 // Reading that as a failure makes every untracked file fatal.
 func TestDiffNoIndexTreatsADifferenceAsAnAnswer(t *testing.T) {
 	f := newFixture(t)
-	f.write("a.txt", "one\n")
-	f.commit("first")
-	f.write("new.txt", "fresh\n")
+	f.Write("a.txt", "one\n")
+	f.Commit("first")
+	f.Write("new.txt", "fresh\n")
 
 	out, err := f.open().DiffNoIndex(t.Context(), os.DevNull, "new.txt")
 	if err != nil {
@@ -189,16 +189,16 @@ func TestDiffNoIndexTreatsADifferenceAsAnAnswer(t *testing.T) {
 // must not write to it. `git add --intent-to-add` would.
 func TestDiffNoIndexLeavesTheIndexAlone(t *testing.T) {
 	f := newFixture(t)
-	f.write("a.txt", "one\n")
-	f.commit("first")
-	f.write("new.txt", "fresh\n")
+	f.Write("a.txt", "one\n")
+	f.Commit("first")
+	f.Write("new.txt", "fresh\n")
 
-	before := f.git("status", "--porcelain")
+	before := f.Git("status", "--porcelain")
 	if _, err := f.open().DiffNoIndex(t.Context(), os.DevNull, "new.txt"); err != nil {
 		t.Fatalf("diffing an untracked file: %v", err)
 	}
 
-	if after := f.git("status", "--porcelain"); after != before {
+	if after := f.Git("status", "--porcelain"); after != before {
 		t.Errorf("status changed from %q to %q", before, after)
 	}
 }
@@ -208,9 +208,9 @@ func TestDiffNoIndexLeavesTheIndexAlone(t *testing.T) {
 // will not diff leaves the changeset with no row and no reason.
 func TestDiffNoIndexSeparatesADifferenceFromAFailure(t *testing.T) {
 	f := newFixture(t)
-	f.write("a.txt", "one\n")
-	f.commit("first")
-	f.write("sub/f.txt", "inside a directory\n")
+	f.Write("a.txt", "one\n")
+	f.Commit("first")
+	f.Write("sub/f.txt", "inside a directory\n")
 
 	tests := []struct {
 		name    string
@@ -240,22 +240,22 @@ func TestDiffNoIndexSeparatesADifferenceFromAFailure(t *testing.T) {
 // repository the caller never asked for.
 func TestAnInheritedGitDirDoesNotMoveTheRepository(t *testing.T) {
 	elsewhere := newFixture(t)
-	elsewhere.write("a.txt", "one\n")
-	elsewhere.commit("first")
+	elsewhere.Write("a.txt", "one\n")
+	elsewhere.Commit("first")
 
 	f := newFixture(t)
-	f.write("a.txt", "one\n")
-	want := f.commit("first")
+	f.Write("a.txt", "one\n")
+	want := f.Commit("first")
 
-	t.Setenv("GIT_DIR", filepath.Join(elsewhere.dir, ".git"))
-	t.Setenv("GIT_WORK_TREE", elsewhere.dir)
+	t.Setenv("GIT_DIR", filepath.Join(elsewhere.Dir(), ".git"))
+	t.Setenv("GIT_WORK_TREE", elsewhere.Dir())
 
-	repo, err := Open(t.Context(), f.dir)
+	repo, err := Open(t.Context(), f.Dir())
 	if err != nil {
 		t.Fatalf("opening with GIT_DIR set elsewhere: %v", err)
 	}
-	if repo.Root() != f.dir {
-		t.Errorf("root = %q, want %q", repo.Root(), f.dir)
+	if repo.Root() != f.Dir() {
+		t.Errorf("root = %q, want %q", repo.Root(), f.Dir())
 	}
 
 	head, err := repo.Head(t.Context())

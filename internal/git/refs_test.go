@@ -7,8 +7,8 @@ import (
 
 func TestHeadReportsTheBranchAndTheCommit(t *testing.T) {
 	f := newFixture(t)
-	f.write("a.txt", "one\n")
-	sha := f.commit("first")
+	f.Write("a.txt", "one\n")
+	sha := f.Commit("first")
 
 	head, err := f.open().Head(t.Context())
 	if err != nil {
@@ -27,9 +27,9 @@ func TestHeadReportsTheBranchAndTheCommit(t *testing.T) {
 // rather than an error.
 func TestADetachedHeadHasNoBranch(t *testing.T) {
 	f := newFixture(t)
-	f.write("a.txt", "one\n")
-	sha := f.commit("first")
-	f.git("checkout", "--detach", sha)
+	f.Write("a.txt", "one\n")
+	sha := f.Commit("first")
+	f.Git("checkout", "--detach", sha)
 
 	head, err := f.open().Head(t.Context())
 	if err != nil {
@@ -46,9 +46,9 @@ func TestADetachedHeadHasNoBranch(t *testing.T) {
 
 func TestRevParsePeelsATagToItsCommit(t *testing.T) {
 	f := newFixture(t)
-	f.write("a.txt", "one\n")
-	sha := f.commit("first")
-	f.git("tag", "-a", "v1", "-m", "release")
+	f.Write("a.txt", "one\n")
+	sha := f.Commit("first")
+	f.Git("tag", "-a", "v1", "-m", "release")
 
 	got, err := f.open().RevParse(t.Context(), "v1")
 	if err != nil {
@@ -62,16 +62,16 @@ func TestRevParsePeelsATagToItsCommit(t *testing.T) {
 
 func TestMergeBaseFindsTheForkPoint(t *testing.T) {
 	f := newFixture(t)
-	f.write("a.txt", "one\n")
-	fork := f.commit("first")
+	f.Write("a.txt", "one\n")
+	fork := f.Commit("first")
 
-	f.git("checkout", "-b", "side")
-	f.write("b.txt", "side\n")
-	f.commit("on the side")
+	f.Git("checkout", "-b", "side")
+	f.Write("b.txt", "side\n")
+	f.Commit("on the side")
 
-	f.git("checkout", "main")
-	f.write("c.txt", "main\n")
-	f.commit("on main")
+	f.Git("checkout", "main")
+	f.Write("c.txt", "main\n")
+	f.Commit("on main")
 
 	got, err := f.open().MergeBase(t.Context(), "main", "side")
 	if err != nil {
@@ -87,13 +87,13 @@ func TestMergeBaseFindsTheForkPoint(t *testing.T) {
 // like from here, and the spec answers it with a new base rather than a crash.
 func TestMergeBaseReportsUnrelatedHistories(t *testing.T) {
 	f := newFixture(t)
-	f.write("a.txt", "one\n")
-	f.commit("first")
+	f.Write("a.txt", "one\n")
+	f.Commit("first")
 
-	f.git("checkout", "--orphan", "unrelated")
-	f.git("rm", "-rf", ".")
-	f.write("b.txt", "other\n")
-	f.commit("a history of its own")
+	f.Git("checkout", "--orphan", "unrelated")
+	f.Git("rm", "-rf", ".")
+	f.Write("b.txt", "other\n")
+	f.Commit("a history of its own")
 
 	_, err := f.open().MergeBase(t.Context(), "main", "unrelated")
 
@@ -102,47 +102,15 @@ func TestMergeBaseReportsUnrelatedHistories(t *testing.T) {
 	}
 }
 
-func TestIsAncestor(t *testing.T) {
-	f := newFixture(t)
-	f.write("a.txt", "one\n")
-	first := f.commit("first")
-	f.write("a.txt", "two\n")
-	second := f.commit("second")
-
-	repo := f.open()
-
-	tests := []struct {
-		name string
-		a, b string
-		want bool
-	}{
-		{"a parent is an ancestor", first, second, true},
-		{"a child is not", second, first, false},
-		{"a commit is its own ancestor", first, first, true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := repo.IsAncestor(t.Context(), tt.a, tt.b)
-			if err != nil {
-				t.Fatalf("checking ancestry: %v", err)
-			}
-			if got != tt.want {
-				t.Errorf("IsAncestor = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 // The refs are written by hand rather than by cloning: this is the state a clone
 // leaves behind, and what is under test is whether origin/HEAD is read, not
 // whether git can fetch.
 func TestDefaultRemoteBranchReadsOriginHead(t *testing.T) {
 	f := newFixture(t)
-	f.write("a.txt", "one\n")
-	sha := f.commit("first")
-	f.git("update-ref", "refs/remotes/origin/main", sha)
-	f.git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+	f.Write("a.txt", "one\n")
+	sha := f.Commit("first")
+	f.Git("update-ref", "refs/remotes/origin/main", sha)
+	f.Git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
 
 	got, err := f.open().DefaultRemoteBranch(t.Context())
 	if err != nil {
@@ -156,8 +124,8 @@ func TestDefaultRemoteBranchReadsOriginHead(t *testing.T) {
 
 func TestDefaultRemoteBranchSaysSoWhenThereIsNoRemote(t *testing.T) {
 	f := newFixture(t)
-	f.write("a.txt", "one\n")
-	f.commit("first")
+	f.Write("a.txt", "one\n")
+	f.Commit("first")
 
 	_, err := f.open().DefaultRemoteBranch(t.Context())
 
@@ -168,10 +136,10 @@ func TestDefaultRemoteBranchSaysSoWhenThereIsNoRemote(t *testing.T) {
 
 func TestLocalBranchesListsEveryHeadWithItsCommit(t *testing.T) {
 	f := newFixture(t)
-	f.write("a.txt", "one\n")
-	main := f.commit("first")
-	f.git("branch", "side")
-	f.git("branch", "feature/nested-name")
+	f.Write("a.txt", "one\n")
+	main := f.Commit("first")
+	f.Git("branch", "side")
+	f.Git("branch", "feature/nested-name")
 
 	got, err := f.open().LocalBranches(t.Context())
 	if err != nil {
@@ -190,5 +158,99 @@ func TestLocalBranchesListsEveryHeadWithItsCommit(t *testing.T) {
 		if got[i] != want[i] {
 			t.Errorf("branch %d = %v, want %v", i, got[i], want[i])
 		}
+	}
+}
+
+// The first-parent chain is what tells a branch HEAD was cut from apart from one
+// merged into it. Both are ancestors of HEAD, and only the first is on the chain.
+func TestFirstParentsSkipsWhatWasMergedIn(t *testing.T) {
+	f := newFixture(t)
+	f.Write("a.txt", "one\n")
+	base := f.Commit("first")
+
+	f.Git("checkout", "-q", "-b", "feature")
+	f.Write("a.txt", "two\n")
+	cut := f.Commit("on the branch")
+
+	f.Git("checkout", "-q", "-b", "side")
+	f.Write("side.txt", "aside\n")
+	merged := f.Commit("on the side")
+
+	f.Git("checkout", "-q", "feature")
+	f.Git("merge", "-q", "--no-ff", "-m", "merge side", "side")
+
+	chain, err := f.open().FirstParents(t.Context(), base, "feature")
+	if err != nil {
+		t.Fatalf("walking the first parents: %v", err)
+	}
+
+	on := make(map[string]bool, len(chain))
+	for _, sha := range chain {
+		on[sha] = true
+	}
+	if !on[cut] {
+		t.Errorf("the commit the branch was cut at is not on the chain: %v", chain)
+	}
+	if on[merged] {
+		t.Errorf("a merged side branch's commit is on the chain: %v", chain)
+	}
+}
+
+// An empty range is an answer, not a failure: a branch sitting at its base has
+// nothing above it.
+func TestFirstParentsOfNothingIsEmpty(t *testing.T) {
+	f := newFixture(t)
+	f.Write("a.txt", "one\n")
+	sha := f.Commit("first")
+
+	chain, err := f.open().FirstParents(t.Context(), sha, sha)
+	if err != nil {
+		t.Fatalf("walking the first parents: %v", err)
+	}
+	if len(chain) != 0 {
+		t.Errorf("chain = %v, want empty", chain)
+	}
+}
+
+func TestAheadCountsWhatTheTipHasBeyondTheBase(t *testing.T) {
+	f := newFixture(t)
+	f.Write("a.txt", "one\n")
+	base := f.Commit("first")
+
+	f.Git("checkout", "-q", "-b", "feature")
+	for _, n := range []string{"two", "three", "four"} {
+		f.Write("a.txt", n+"\n")
+		f.Commit(n)
+	}
+	repo := f.open()
+
+	got, err := repo.Ahead(t.Context(), base, "feature")
+	if err != nil {
+		t.Fatalf("counting ahead: %v", err)
+	}
+	if got != 3 {
+		t.Errorf("ahead = %d, want 3", got)
+	}
+
+	// The count is one-directional. Reading it the wrong way round would sort
+	// every stack candidate the same distance from HEAD.
+	behind, err := repo.Ahead(t.Context(), "feature", base)
+	if err != nil {
+		t.Fatalf("counting the other way: %v", err)
+	}
+	if behind != 0 {
+		t.Errorf("ahead of the tip = %d, want 0", behind)
+	}
+}
+
+// A ref that does not resolve has to fail rather than answer 0, which would read
+// as no distance and sort a typo to the front of the candidate list.
+func TestAheadRefusesARefThatDoesNotResolve(t *testing.T) {
+	f := newFixture(t)
+	f.Write("a.txt", "one\n")
+	f.Commit("first")
+
+	if _, err := f.open().Ahead(t.Context(), "no-such-ref", "HEAD"); err == nil {
+		t.Fatal("counting from a ref that does not exist should fail")
 	}
 }
