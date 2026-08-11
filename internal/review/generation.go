@@ -74,10 +74,16 @@ type TooLargeError struct {
 
 func (e *TooLargeError) Error() string {
 	if e.Dir == "" {
-		return fmt.Sprintf("the changeset holds %d files, past the %d a review can be", e.Count, e.Limit)
+		return fmt.Sprintf("%d files is past the %d a review can be", e.Count, e.Limit)
 	}
-	return fmt.Sprintf("the changeset holds %d files, past the %d a review can be: %d of them are under %s, so gitignore it or measure from a nearer base",
+	return fmt.Sprintf("%d files is past the %d a review can be: %d of them are under %s, so gitignore it or measure from a nearer base",
 		e.Count, e.Limit, e.InDir, e.Dir)
+}
+
+// tooLarge is the refusal, naming where the files came from.
+func tooLarge(files []string) *TooLargeError {
+	dir, n := crowded(files)
+	return &TooLargeError{Count: len(files), Limit: maxFiles, Dir: dir, InDir: n}
 }
 
 // Ref is where this session's generations are chained, one commit per
@@ -99,7 +105,7 @@ func (s *Session) Refresh(ctx context.Context) (Generation, error) {
 		return Generation{}, err
 	}
 
-	snap, err := s.repo.SnapshotTree(ctx)
+	snap, err := s.snapshot(ctx)
 	if err != nil {
 		return Generation{}, err
 	}
@@ -118,16 +124,16 @@ func (s *Session) Refresh(ctx context.Context) (Generation, error) {
 		}
 	}
 
-	// Against the tree rather than a commit, so the ceiling refuses before
-	// anything at all has been written.
+	// Against the tree rather than a commit, so the ceiling refuses before a
+	// commit, a ref or a row exists. The objects are already written by here,
+	// which is what the check in snapshot is for.
 	patch, err := s.repo.DiffTrees(ctx, s.base.SHA, snap.Tree)
 	if err != nil {
 		return Generation{}, err
 	}
 	files := diff.Parse(patch)
 	if len(files) > maxFiles {
-		dir, n := crowded(files)
-		return Generation{}, &TooLargeError{Count: len(files), Limit: maxFiles, Dir: dir, InDir: n}
+		return Generation{}, tooLarge(paths(files))
 	}
 
 	old, hadRef, err := s.repo.RefSha(ctx, s.Ref())
@@ -191,7 +197,7 @@ func (s *Session) Status(ctx context.Context) (Status, error) {
 		Base:      s.base,
 	}
 
-	snap, err := s.repo.SnapshotTree(ctx)
+	snap, err := s.snapshot(ctx)
 	if err != nil {
 		return Status{}, err
 	}
@@ -233,6 +239,30 @@ func (s *Session) Files(ctx context.Context, g Generation) ([]diff.File, error) 
 	return diff.Parse(patch), nil
 }
 
+// snapshot writes the work tree into a tree object, refusing first if it is
+// carrying more untracked files than a review can be.
+//
+// The refusal has to come before the snapshot and not only after the diff.
+// SnapshotTree runs `git add -A`, which hashes every untracked file into the
+// object store, so a checkout with an unignored node_modules in it pays for the
+// whole directory on every invocation and leaves the objects there, reachable
+// from nothing, for gc's prune window to hold. Counting the changeset
+// afterwards refuses the review and keeps the bill.
+//
+// The tree is the work tree and not HEAD. `add -A` reconciles the index to what
+// is on disk, so what HEAD was seeded from does not decide the contents, and
+// head_sha is the branch tip at the time rather than a claim about the tree.
+func (s *Session) snapshot(ctx context.Context) (git.Snapshot, error) {
+	untracked, err := s.repo.Untracked(ctx)
+	if err != nil {
+		return git.Snapshot{}, err
+	}
+	if len(untracked) > maxFiles {
+		return git.Snapshot{}, tooLarge(untracked)
+	}
+	return s.repo.SnapshotTree(ctx)
+}
+
 // holds says a generation still describes what is on disk: same base, same tree.
 //
 // Without this every status would write a commit. HEAD moving is deliberately
@@ -252,19 +282,24 @@ func (s *Session) holds(ctx context.Context, g store.Generation, tree string) (b
 
 // parents chain the generation, and keep the base reachable.
 //
-// The first generation hangs off the base commit, so a force-push of the branch
-// the base was on cannot take it away. Every later one hangs off the ref's
-// previous commit, plus the base again whenever the base moved, for the same
-// reason. A parent that is already reachable costs nothing, and
-// `git log --first-parent` still walks generations alone.
+// The chain comes off the ref and the base comes off the database, and the two
+// can disagree: a crash between the swap and the insert leaves a generation the
+// ref holds and no row describing it. The base is therefore pinned unless the
+// commit being hung off is known to reach it already, which takes both sources
+// agreeing. Deciding from the row alone leaves the base unpinned in exactly the
+// window the swap ordering above creates.
+//
+// A parent that is already reachable costs nothing, and `git log --first-parent`
+// still walks generations alone.
 func (s *Session) parents(old string, hadRef bool, latest store.Generation, found bool) []string {
-	if !hadRef {
-		return []string{s.base.SHA}
+	var parents []string
+	if hadRef {
+		parents = append(parents, old)
 	}
-	if found && latest.BaseSha != s.base.SHA {
-		return []string{old, s.base.SHA}
+	if !hadRef || !found || latest.BaseSha != s.base.SHA {
+		parents = append(parents, s.base.SHA)
 	}
-	return []string{old}
+	return parents
 }
 
 // message is what `git log` on the session ref shows.
@@ -298,6 +333,15 @@ func generationOf(row store.Generation, skipped []string) Generation {
 	}
 }
 
+// paths is the path of each file, which is all the ceiling needs.
+func paths(files []diff.File) []string {
+	out := make([]string, 0, len(files))
+	for _, f := range files {
+		out = append(out, f.Path)
+	}
+	return out
+}
+
 // crowded is the directory holding the most of these paths, and how many.
 //
 // Every ancestor is counted, not just the immediate parent: a build directory
@@ -308,10 +352,10 @@ func generationOf(row store.Generation, skipped []string) Generation {
 //
 // Paths come from git and are always slash-separated, so this is path and not
 // filepath.
-func crowded(files []diff.File) (string, int) {
+func crowded(files []string) (string, int) {
 	counts := make(map[string]int)
-	for _, f := range files {
-		for dir := path.Dir(f.Path); dir != "." && dir != "/"; dir = path.Dir(dir) {
+	for _, file := range files {
+		for dir := path.Dir(file); dir != "." && dir != "/"; dir = path.Dir(dir) {
 			counts[dir]++
 		}
 	}

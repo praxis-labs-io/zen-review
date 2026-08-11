@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -94,6 +95,26 @@ func (f *fixture) sessionRefs() []string {
 		return nil
 	}
 	return strings.Split(out, "\n")
+}
+
+// looseObjects is how many objects the repository has hashed and not packed,
+// which is what a snapshot of a directory nobody wanted to review costs.
+func (f *fixture) looseObjects() int {
+	f.t.Helper()
+
+	for _, line := range strings.Split(f.Git("count-objects", "-v"), "\n") {
+		rest, ok := strings.CutPrefix(line, "count: ")
+		if !ok {
+			continue
+		}
+		n, err := strconv.Atoi(strings.TrimSpace(rest))
+		if err != nil {
+			f.t.Fatalf("reading the object count from %q: %v", line, err)
+		}
+		return n
+	}
+	f.t.Fatal("count-objects said nothing about loose objects")
+	return 0
 }
 
 // signatureEmail is what Refresh attributes a generation commit to. Counting
@@ -358,16 +379,21 @@ func TestAFileMovedInTheWorkTreeIsOneRename(t *testing.T) {
 	}
 }
 
-// A directory somebody forgot to ignore is not a review. The refusal has to name
-// it, because the fix is one line in .gitignore, and it has to leave nothing
-// behind.
-func TestAChangesetPastTheCeilingRefusesAndWritesNothing(t *testing.T) {
+// A directory somebody forgot to ignore is not a review, and refusing it after
+// the snapshot is too late: `git add -A` hashes the whole directory into the
+// object store first, and those objects are reachable from nothing, so gc holds
+// them for its prune window. The refusal has to cost nothing, and it has to name
+// the directory, because the fix is one line in .gitignore.
+func TestUntrackedFilesPastTheCeilingRefuseBeforeAnythingIsHashed(t *testing.T) {
 	f := branched(t)
 	for i := 0; i <= 5000; i++ {
-		f.Write(fmt.Sprintf("generated/pack/%d.txt", i), "x\n")
+		// Distinct content, so the object count reflects what the hashing costs
+		// rather than what git deduplicates.
+		f.Write(fmt.Sprintf("generated/pack/%d.txt", i), fmt.Sprintf("%d\n", i))
 	}
 
 	s := f.mustOpen("")
+	before := f.looseObjects()
 	_, err := s.Refresh(t.Context())
 
 	var tooLarge *review.TooLargeError
@@ -381,11 +407,67 @@ func TestAChangesetPastTheCeilingRefusesAndWritesNothing(t *testing.T) {
 		t.Errorf("err = %v, want it to name the directory", err)
 	}
 
+	if after := f.looseObjects(); after != before {
+		t.Errorf("loose objects went from %d to %d, so the refusal paid for the whole directory", before, after)
+	}
 	if refs := f.sessionRefs(); refs != nil {
 		t.Errorf("refs = %v, want none written", refs)
 	}
 	if _, found := f.latest(s.ID()); found {
 		t.Error("a refused changeset wrote a generation row")
+	}
+}
+
+// The count above is of untracked files, so it does not see a branch that
+// rewrote the world in commits. That one is caught after the diff, which is
+// still before any commit, ref or row.
+func TestATrackedChangesetPastTheCeilingRefuses(t *testing.T) {
+	f := newFixture(t)
+	f.Write("a.txt", "one\n")
+	f.Commit("first")
+	f.TrackOrigin("main")
+
+	f.Git("checkout", "-q", "-b", "feature")
+	for i := 0; i <= 5000; i++ {
+		f.Write(fmt.Sprintf("generated/pack/%d.txt", i), "x\n")
+	}
+	f.Commit("committed the world")
+
+	s := f.mustOpen("")
+	_, err := s.Refresh(t.Context())
+
+	var tooLarge *review.TooLargeError
+	if !errors.As(err, &tooLarge) {
+		t.Fatalf("err = %v, want a TooLargeError", err)
+	}
+	if tooLarge.Dir != "generated" {
+		t.Errorf("Dir = %q, want the directory the changeset is mostly made of", tooLarge.Dir)
+	}
+	if refs := f.sessionRefs(); refs != nil {
+		t.Errorf("refs = %v, want none written", refs)
+	}
+	if _, found := f.latest(s.ID()); found {
+		t.Error("a refused changeset wrote a generation row")
+	}
+}
+
+// The ref and the database disagree after a crash between the swap and the
+// insert: the ref holds a generation no row describes. Deciding whether to pin
+// the base from the row alone leaves it unpinned in exactly that window, and a
+// base that moved would then hang off nothing.
+func TestAGenerationTheDatabaseDoesNotKnowStillPinsTheBase(t *testing.T) {
+	f := edited(t)
+	s := f.mustOpen("")
+
+	// Stand in for the crash: a ref pointing at a commit with no row behind it.
+	orphan := f.Git("rev-parse", "HEAD")
+	f.Git("update-ref", s.Ref(), orphan)
+
+	g := f.refresh(s)
+
+	want := []string{orphan, s.Base().SHA}
+	if got := f.parents(g.CommitSha); len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
+		t.Errorf("parents = %v, want the orphan and the base %v", got, want)
 	}
 }
 

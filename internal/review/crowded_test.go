@@ -1,37 +1,25 @@
 package review
 
-import (
-	"testing"
-
-	"github.com/zen-review/zen-review/internal/diff"
-)
+import "testing"
 
 // crowded has no public surface, and the refusal it feeds is only reachable
 // through a changeset of several thousand files. Testing it through that costs
 // a second and proves one shape; this proves the search.
 
-func paths(names ...string) []diff.File {
-	files := make([]diff.File, 0, len(names))
-	for _, name := range names {
-		files = append(files, diff.File{Path: name})
-	}
-	return files
-}
-
 func TestCrowdedNamesTheDirectoryWorthIgnoring(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
-		files []diff.File
+		files []string
 		dir   string
 		n     int
 	}{
 		{
 			name:  "nothing but root files, so there is nothing to name",
-			files: paths("a.txt", "b.txt"),
+			files: []string{"a.txt", "b.txt"},
 		},
 		{
 			name:  "the busiest of two directories",
-			files: paths("src/a.go", "vendor/x.go", "vendor/y.go", "vendor/z.go"),
+			files: []string{"src/a.go", "vendor/x.go", "vendor/y.go", "vendor/z.go"},
 			dir:   "vendor",
 			n:     3,
 		},
@@ -39,7 +27,7 @@ func TestCrowdedNamesTheDirectoryWorthIgnoring(t *testing.T) {
 			// The immediate parent of every path is a leaf holding one file, and
 			// naming one of those is useless advice.
 			name:  "a tree spread over leaves reports its root",
-			files: paths("node_modules/a/i.js", "node_modules/b/i.js", "node_modules/c/i.js", "src/main.go"),
+			files: []string{"node_modules/a/i.js", "node_modules/b/i.js", "node_modules/c/i.js", "src/main.go"},
 			dir:   "node_modules",
 			n:     3,
 		},
@@ -47,7 +35,7 @@ func TestCrowdedNamesTheDirectoryWorthIgnoring(t *testing.T) {
 			// A directory and its only child hold the same count, and only the
 			// outer one is a line worth adding to .gitignore.
 			name:  "a tie with a child goes to the parent",
-			files: paths("build/out/one.o", "build/out/two.o"),
+			files: []string{"build/out/one.o", "build/out/two.o"},
 			dir:   "build",
 			n:     2,
 		},
@@ -56,7 +44,7 @@ func TestCrowdedNamesTheDirectoryWorthIgnoring(t *testing.T) {
 			// always a prefix. Between two of the same length the name decides, so
 			// the answer does not depend on map order.
 			name:  "a tie between siblings of one length goes to the first by name",
-			files: paths("zeta/one.txt", "beta/one.txt"),
+			files: []string{"zeta/one.txt", "beta/one.txt"},
 			dir:   "beta",
 			n:     1,
 		},
