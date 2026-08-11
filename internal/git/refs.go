@@ -83,10 +83,9 @@ func (r *Repo) IsAncestor(ctx context.Context, a, b string) (bool, error) {
 	return code == 0, nil
 }
 
-// DefaultRemoteBranch is what origin/HEAD points at, usually "origin/main".
-//
-// The remote-tracking default beats local main as a base proposal: in an agentic
-// workflow local main is never checked out and goes stale within a day.
+// DefaultRemoteBranch is what origin/HEAD points at, usually "origin/main". It
+// beats local main as a base proposal: in an agentic workflow local main is never
+// checked out and goes stale within a day.
 func (r *Repo) DefaultRemoteBranch(ctx context.Context) (string, error) {
 	out, code, err := runStatus(ctx, r.root, 1, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
 	if err != nil {

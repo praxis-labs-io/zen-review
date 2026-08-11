@@ -20,8 +20,8 @@ import (
 	"github.com/zen-review/zen-review/internal/version"
 )
 
-// NewRoot builds the command. A bare invocation prints the changeset; at M4 it
-// opens the TUI on the same thing.
+// NewRoot builds the command. A bare invocation prints the changeset, and the TUI
+// will open on the same thing.
 func NewRoot() *cobra.Command {
 	var baseRef string
 
@@ -34,8 +34,8 @@ func NewRoot() *cobra.Command {
 		Version:      version.Version,
 		SilenceUsage: true,
 
-		// An explicit range gets its own session, and a session is M2. Refusing the
-		// argument beats accepting and ignoring it.
+		// An explicit range gets its own session, so refusing it beats accepting and
+		// ignoring it until sessions exist.
 		Args: cobra.NoArgs,
 
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -47,8 +47,8 @@ func NewRoot() *cobra.Command {
 	return cmd
 }
 
-// base is where a changeset is measured from: the ref that named it, and the
-// merge base the diff actually runs against.
+// base is the ref that named the starting point, and the merge base the diff
+// actually runs against.
 type base struct {
 	ref string
 	sha string
@@ -80,9 +80,8 @@ func overview(ctx context.Context, out io.Writer, baseRef string) error {
 // resolveBase settles what the changeset is measured from: the flag, or the
 // branch the remote considers default.
 //
-// The rest of the spec's order needs a session to hold it. A base that sticks to
-// a branch for days, and a picker offering the nearest stacked branch, move into
-// review/ along with the session that remembers the answer.
+// A base that sticks to a branch for days, and a picker for a stacked branch,
+// move into review/ with the session that can remember the answer.
 func resolveBase(ctx context.Context, repo *git.Repo, ref string) (base, error) {
 	if ref == "" {
 		found, err := repo.DefaultRemoteBranch(ctx)
@@ -107,10 +106,8 @@ func resolveBase(ctx context.Context, repo *git.Repo, ref string) (base, error) 
 //
 // The tracked half is a single diff. Each untracked file needs its own, because
 // git diff cannot see a file it has never been told about and
-// `add --intent-to-add` would write to the index the agent is also using.
-//
-// At M2 a generation writes every head-side file into a tree and both halves
-// become one diff against it.
+// `add --intent-to-add` would write to the index the agent is also using. A
+// generation replaces both halves with one diff against its tree.
 func changeset(ctx context.Context, repo *git.Repo, from string) ([]diff.File, error) {
 	patch, err := repo.Diff(ctx, from)
 	if err != nil {
@@ -133,17 +130,15 @@ func changeset(ctx context.Context, repo *git.Repo, from string) ([]diff.File, e
 		files = append(files, diff.Parse(one)...)
 	}
 
-	// git orders a diff by path, and the untracked half arrives after it. Sorting
-	// the whole list keeps one order rather than two.
+	// git orders a diff by path and the untracked half arrives after it, so the
+	// whole list is sorted to keep one order rather than two.
 	slices.SortStableFunc(files, func(a, b diff.File) int { return strings.Compare(a.Path, b.Path) })
 	return files, nil
 }
 
-// write prints the changeset.
-//
-// This is a smoke test for the plumbing rather than the product. At M4 a bare
-// invocation opens the TUI, and `status` and `files` become the subcommands that
-// answer this in prose and in JSON.
+// write prints the changeset. This is a smoke test for the plumbing rather than
+// the product: the TUI takes the bare invocation, and `status` and `files` answer
+// this in prose and in JSON.
 func write(out io.Writer, from base, files []diff.File) error {
 	if _, err := fmt.Fprintf(out, "base  %s (%s)\n", from.ref, short(from.sha)); err != nil {
 		return err
@@ -194,8 +189,8 @@ func letter(s diff.Status) string {
 	}
 }
 
-// name shows a rename as both of its names: the old one is how the reader knows
-// which file this used to be.
+// name shows a rename as both of its names, because the old one is how a reader
+// knows which file this used to be.
 func name(f diff.File) string {
 	if f.OldPath == "" {
 		return f.Path
@@ -203,7 +198,6 @@ func name(f diff.File) string {
 	return f.OldPath + " -> " + f.Path
 }
 
-// extent is the hunk count, or why there is none.
 func extent(f diff.File) string {
 	if f.Omitted != "" {
 		return f.Omitted

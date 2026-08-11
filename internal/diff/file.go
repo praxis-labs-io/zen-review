@@ -4,12 +4,9 @@
 // imports the engine above it, and nothing here decides what a changeset is.
 package diff
 
-// Kind is what a line does in the diff.
-//
-// The values are strings so that a parsed diff reads as English in a golden file
-// and in an error message. The painter above maps them to its own kind with a
-// switch, rather than two packages agreeing to declare their constants in the
-// same order.
+// Kind is what a line does in the diff. The values are strings so a parsed diff
+// reads as English in a golden file, and so the painter maps them with a switch
+// rather than two packages agreeing to declare their constants in one order.
 type Kind string
 
 const (
@@ -34,17 +31,16 @@ const (
 type Line struct {
 	Kind Kind `json:"kind"`
 
-	// Old and New are the line's number on each side, zero on the side it does
-	// not belong to.
+	// Old and New are zero on the side the line does not belong to.
 	Old int `json:"old,omitempty"`
 	New int `json:"new,omitempty"`
 
 	// Text is the content with the diff marker removed.
 	Text string `json:"text"`
 
-	// NoEOL records the "\ No newline at end of file" that followed this line.
-	// That annotation occupies no line number of its own, so it is carried here
-	// rather than becoming a line the file does not have.
+	// NoEOL is the "\ No newline at end of file" that followed this line. The
+	// annotation takes no line number of its own, so it is carried here rather
+	// than becoming a line the file does not have.
 	NoEOL bool `json:"noEol,omitempty"`
 }
 
@@ -66,8 +62,8 @@ type Hunk struct {
 type File struct {
 	Path string `json:"path"`
 
-	// OldPath is set on a rename or a copy, and empty otherwise. A deleted file
-	// carries its own path in Path.
+	// OldPath is set on a rename or a copy. A deleted file carries its own path in
+	// Path.
 	OldPath string `json:"oldPath,omitempty"`
 
 	Status Status `json:"status"`
@@ -75,10 +71,8 @@ type File struct {
 	OldMode string `json:"oldMode,omitempty"`
 	NewMode string `json:"newMode,omitempty"`
 
-	// OldBlob and NewBlob are the full shas from the index line, which is where a
-	// generation's blob identity comes from. The side a file does not exist on is
-	// empty rather than forty zeros, so a caller never has to recognise git's null
-	// sha.
+	// OldBlob and NewBlob are the full shas off the index line. The side a file
+	// does not exist on is empty rather than forty zeros.
 	OldBlob string `json:"oldBlob,omitempty"`
 	NewBlob string `json:"newBlob,omitempty"`
 

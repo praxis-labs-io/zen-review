@@ -43,8 +43,7 @@ type parser struct {
 	// are what everything else falls back to.
 	oldSide, newSide string
 
-	// inBody says the first @@ of this file has been read, after which no line is
-	// a header.
+	// inBody says the first @@ has been read, after which no line is a header.
 	inBody bool
 
 	// combined says this file arrived as a combined diff, whose two-column body
@@ -85,7 +84,6 @@ func (p *parser) line(line string) {
 	}
 }
 
-// begin closes the file being read and starts a fresh one.
 func (p *parser) begin() {
 	p.flush()
 	p.file = &File{Status: FileModified}

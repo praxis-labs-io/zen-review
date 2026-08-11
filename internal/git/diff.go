@@ -5,14 +5,11 @@ import (
 	"fmt"
 )
 
-// diffFlags pin what the parser sees. Every one of them defends against a config
-// key a user or a repository is entitled to set: diff.external and a textconv
-// filter would hand back something that is not a diff, diff.noprefix and
-// diff.context would move the parts the parser reads, and core.quotePath would
-// escape every non-ASCII path.
-//
-// --full-index is not cosmetic. The index line is where a generation's blob shas
-// come from, and an abbreviated sha is not an identity.
+// diffFlags pin what the parser sees. Each one defends against a config key a
+// user or a repository is entitled to set: diff.external and a textconv filter
+// return something that is not a diff, diff.noprefix and diff.context move the
+// parts the parser reads, core.quotePath escapes every non-ASCII path, and an
+// abbreviated index line is not the blob identity a generation anchors to.
 var diffFlags = []string{
 	"--no-color",
 	"--no-ext-diff",
@@ -31,11 +28,8 @@ func diffArgv(extra ...string) []string {
 }
 
 // Diff is the unified diff from a commit to the working tree, staged and unstaged
-// changes together.
-//
-// Whether the agent committed is an accident of its behaviour rather than
-// something a reviewer should have to think about, so a file committed and then
-// edited again arrives as one set of hunks.
+// changes together, so a file the agent committed and then edited again arrives as
+// one set of hunks.
 //
 // Untracked files are not in it. Untracked lists them; DiffNoIndex diffs one.
 func (r *Repo) Diff(ctx context.Context, from string) ([]byte, error) {
@@ -48,8 +42,7 @@ func (r *Repo) Diff(ctx context.Context, from string) ([]byte, error) {
 
 // DiffNoIndex diffs two paths outside the index, which is how an untracked file
 // becomes a diff without `git add --intent-to-add` writing to the index the user
-// and their agent are both using. Pass os.DevNull as from and the file arrives as
-// a plain add.
+// and their agent are both using. Pass os.DevNull as from for a plain add.
 //
 // --no-index implies --exit-code, so 1 means the files differ and only 2 and up
 // are failures. Reading 1 as an error makes every untracked file fatal.
