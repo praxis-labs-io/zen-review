@@ -9,15 +9,15 @@ import (
 
 func TestOpenResolvesTheWorkTreeAndTheCommonDir(t *testing.T) {
 	f := newFixture(t)
-	f.write("a.txt", "one\n")
-	f.commit("first")
+	f.Write("a.txt", "one\n")
+	f.Commit("first")
 
 	repo := f.open()
 
-	if repo.Root() != f.dir {
-		t.Errorf("root = %q, want %q", repo.Root(), f.dir)
+	if repo.Root() != f.Dir() {
+		t.Errorf("root = %q, want %q", repo.Root(), f.Dir())
 	}
-	if want := filepath.Join(f.dir, ".git"); repo.CommonDir() != want {
+	if want := filepath.Join(f.Dir(), ".git"); repo.CommonDir() != want {
 		t.Errorf("common dir = %q, want %q", repo.CommonDir(), want)
 	}
 }
@@ -27,18 +27,18 @@ func TestOpenResolvesTheWorkTreeAndTheCommonDir(t *testing.T) {
 // unless it is asked for an absolute path.
 func TestOpenFromASubdirectoryStillAnswersAbsolutePaths(t *testing.T) {
 	f := newFixture(t)
-	f.write("deep/nested/a.txt", "one\n")
-	f.commit("first")
+	f.Write("deep/nested/a.txt", "one\n")
+	f.Commit("first")
 
-	repo, err := Open(t.Context(), filepath.Join(f.dir, "deep", "nested"))
+	repo, err := Open(t.Context(), filepath.Join(f.Dir(), "deep", "nested"))
 	if err != nil {
 		t.Fatalf("opening a subdirectory: %v", err)
 	}
 
-	if repo.Root() != f.dir {
-		t.Errorf("root = %q, want %q", repo.Root(), f.dir)
+	if repo.Root() != f.Dir() {
+		t.Errorf("root = %q, want %q", repo.Root(), f.Dir())
 	}
-	if want := filepath.Join(f.dir, ".git"); repo.CommonDir() != want {
+	if want := filepath.Join(f.Dir(), ".git"); repo.CommonDir() != want {
 		t.Errorf("common dir = %q, want %q", repo.CommonDir(), want)
 	}
 }
@@ -56,11 +56,11 @@ func TestOpenRejectsADirectoryOutsideARepo(t *testing.T) {
 // the worktree.
 func TestALinkedWorktreeSharesTheParentsCommonDir(t *testing.T) {
 	f := newFixture(t)
-	f.write("a.txt", "one\n")
-	f.commit("first")
+	f.Write("a.txt", "one\n")
+	f.Commit("first")
 
-	linked := filepath.Join(filepath.Dir(f.dir), "linked")
-	f.git("worktree", "add", "-b", "side", linked)
+	linked := filepath.Join(filepath.Dir(f.Dir()), "linked")
+	f.Git("worktree", "add", "-b", "side", linked)
 
 	repo, err := Open(t.Context(), linked)
 	if err != nil {
@@ -70,7 +70,7 @@ func TestALinkedWorktreeSharesTheParentsCommonDir(t *testing.T) {
 	if repo.Root() != linked {
 		t.Errorf("root = %q, want %q", repo.Root(), linked)
 	}
-	if want := filepath.Join(f.dir, ".git"); repo.CommonDir() != want {
+	if want := filepath.Join(f.Dir(), ".git"); repo.CommonDir() != want {
 		t.Errorf("common dir = %q, want the parent's %q", repo.CommonDir(), want)
 	}
 }
@@ -79,8 +79,8 @@ func TestALinkedWorktreeSharesTheParentsCommonDir(t *testing.T) {
 // is a TUI that can only show the string.
 func TestAFailedCommandReportsTheArgvAndGitsStderr(t *testing.T) {
 	f := newFixture(t)
-	f.write("a.txt", "one\n")
-	f.commit("first")
+	f.Write("a.txt", "one\n")
+	f.Commit("first")
 
 	_, err := f.open().RevParse(t.Context(), "nope")
 	if err == nil {

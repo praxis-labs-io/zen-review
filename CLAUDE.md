@@ -137,6 +137,7 @@ internal/
   store/       SQLite and migrations. Nothing above it imports database/sql.
   cli/         the review subcommands. A thin shell over review/.
   tui/         app, tree, diffpane, compose, comp.
+  testrepo/    real git repos for tests. Test-only, imports nothing of ours.
 ```
 
 The boundaries are in `.claude/rules/code-quality.md` and breaking one is a review-stopper. The short version: the CLI has to be able to answer any question the TUI can.

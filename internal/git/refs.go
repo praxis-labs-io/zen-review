@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -81,6 +82,25 @@ func (r *Repo) IsAncestor(ctx context.Context, a, b string) (bool, error) {
 		return false, fmt.Errorf("checking whether %s is an ancestor of %s: %w", a, b, err)
 	}
 	return code == 0, nil
+}
+
+// Ahead is how many commits tip has that base does not.
+//
+// Sorting stack candidates nearest first is what it is for: of two branches
+// HEAD sits on top of, the one fewer commits back is the one it was branched
+// from. It errors on a ref that does not resolve rather than answering 0, which
+// would read as "no distance" and sort a typo to the front.
+func (r *Repo) Ahead(ctx context.Context, base, tip string) (int, error) {
+	out, err := run(ctx, r.root, "rev-list", "--count", "--end-of-options", base+".."+tip)
+	if err != nil {
+		return 0, fmt.Errorf("counting the commits %s has beyond %s: %w", tip, base, err)
+	}
+
+	n, err := strconv.Atoi(trim(out))
+	if err != nil {
+		return 0, fmt.Errorf("counting the commits %s has beyond %s: rev-list answered %q", tip, base, trim(out))
+	}
+	return n, nil
 }
 
 // DefaultRemoteBranch is what origin/HEAD points at, usually "origin/main". It

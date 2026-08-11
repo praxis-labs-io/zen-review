@@ -66,7 +66,7 @@ exists to prevent.
 
 - Tests ship in the same PR as the logic, never a follow-up.
 - Test through the real interface: drive key messages and assert rendered frames, not model fields. A test that only reads internal state stays green while the thing it renders is broken.
-- **`internal/git` runs against real temporary repos, no mocks.** What is under test is whether git is being called correctly.
+- **`internal/git` runs against real temporary repos, no mocks.** What is under test is whether git is being called correctly. `internal/testrepo` builds them, and every package wanting one uses it rather than growing its own.
 - **Remapping gets a case per way it goes bad**, over fixture repos: a line inserted above a reviewed hunk, a reviewed line deleted, a region rewritten wholesale, a rename, a delete, a rebase to identical content, a base change, a base force-push that loses the fork point.
 - `diff` gets golden files on unified diff text. `cli` gets golden JSON.
 - TUI render tests run at widths where something actually overflows, which is the only width that proves anything.
