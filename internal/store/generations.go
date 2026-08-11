@@ -44,6 +44,11 @@ type GenFile struct {
 	Status diff.Status
 
 	// BaseBlob and HeadBlob are empty on the side the file does not exist on.
+	//
+	// An embedded repository is the exception to their name: git records one as a
+	// mode 160000 gitlink, so the sha here is that repository's commit and is not
+	// an object in this one. It is kept because it is the identity that changed,
+	// and a caller resolving these has to allow for one that does not.
 	BaseBlob string
 	HeadBlob string
 }

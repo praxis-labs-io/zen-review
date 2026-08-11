@@ -254,3 +254,39 @@ func TestAheadRefusesARefThatDoesNotResolve(t *testing.T) {
 		t.Fatal("counting from a ref that does not exist should fail")
 	}
 }
+
+// A session that has never refreshed has no ref, and that is its normal first
+// state rather than a failure to report.
+func TestRefShaAnswersFalseForARefThatDoesNotExist(t *testing.T) {
+	f := newFixture(t)
+	f.Write("a.txt", "one\n")
+	f.Commit("first")
+
+	sha, found, err := f.open().RefSha(t.Context(), "refs/zen-review/sessions/nothing")
+	if err != nil {
+		t.Fatalf("reading a ref that does not exist: %v", err)
+	}
+	if found {
+		t.Errorf("found = true for a ref that was never written, sha %q", sha)
+	}
+}
+
+func TestRefShaReadsARefThatExists(t *testing.T) {
+	f := newFixture(t)
+	f.Write("a.txt", "one\n")
+	want := f.Commit("first")
+
+	const ref = "refs/zen-review/sessions/abc"
+	f.Git("update-ref", ref, want)
+
+	sha, found, err := f.open().RefSha(t.Context(), ref)
+	if err != nil {
+		t.Fatalf("reading the ref: %v", err)
+	}
+	if !found {
+		t.Fatal("found = false for a ref that was just written")
+	}
+	if sha != want {
+		t.Errorf("sha = %q, want %q", sha, want)
+	}
+}

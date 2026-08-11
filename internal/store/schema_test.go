@@ -5,6 +5,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/zen-review/zen-review/internal/diff"
 )
 
 // These tests are inside the package because what they check has no public
@@ -200,5 +203,35 @@ func TestTheSchemaIsTheFiveTablesTheSpecNames(t *testing.T) {
 		if got[i] != want[i] {
 			t.Fatalf("tables = %v, want %v", got, want)
 		}
+	}
+}
+
+// The vocabulary is closed, so a status outside it is a bug above this layer
+// rather than a row to keep. The gitlink was the case that held this constraint
+// back, and it needs no value of its own: git records an embedded repository as
+// a mode 160000 entry that diffs as an ordinary added, modified or deleted file.
+func TestGenFileStatusIsConstrainedToTheVocabulary(t *testing.T) {
+	db := openHere(t)
+	ctx := t.Context()
+
+	now := time.Now().UTC().Truncate(time.Second)
+	if err := db.SaveSession(ctx, Session{ID: "s", RepoPath: "/repo", Kind: KindBranch, Branch: "main", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("saving the session: %v", err)
+	}
+
+	add := func(status diff.Status) error {
+		_, err := db.AddGeneration(ctx,
+			Generation{SessionID: "s", BaseSha: "b", HeadSha: "h", CommitSha: "c", CreatedAt: now},
+			[]GenFile{{Path: "a.txt", Status: status}})
+		return err
+	}
+
+	for _, status := range []diff.Status{diff.FileAdded, diff.FileModified, diff.FileDeleted, diff.FileRenamed, diff.FileCopied} {
+		if err := add(status); err != nil {
+			t.Errorf("status %q was refused: %v", status, err)
+		}
+	}
+	if err := add(diff.Status("submodule")); err == nil {
+		t.Error("a status outside the vocabulary should be refused")
 	}
 }

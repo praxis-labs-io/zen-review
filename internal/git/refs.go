@@ -61,6 +61,24 @@ func (r *Repo) RevParse(ctx context.Context, ref string) (string, error) {
 	return trim(out), nil
 }
 
+// RefSha is the object a ref points at, and false for a ref that does not
+// exist. Absence is an answer here and not a failure: a session that has never
+// refreshed has no ref yet, and that is its normal first state.
+//
+// It does not peel. The value is what a compare-and-swap has to be given, and
+// update-ref compares against what the ref holds rather than what it resolves
+// to.
+func (r *Repo) RefSha(ctx context.Context, ref string) (string, bool, error) {
+	out, code, err := runStatus(ctx, r.root, 1, "rev-parse", "--verify", "--quiet", "--end-of-options", ref)
+	if err != nil {
+		return "", false, fmt.Errorf("reading %s: %w", ref, err)
+	}
+	if code == 1 {
+		return "", false, nil
+	}
+	return trim(out), true, nil
+}
+
 // MergeBase is the best common ancestor of two commits: the fork point a
 // changeset is measured from.
 func (r *Repo) MergeBase(ctx context.Context, a, b string) (string, error) {

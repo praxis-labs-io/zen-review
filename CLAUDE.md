@@ -117,9 +117,9 @@ Five long-running buckets plus the current epic. Every ticket belongs to exactly
 
 ### Shipping
 
-Feature-complete work ships via the `ship-feature` skill at `.claude/skills/ship-feature/SKILL.md`: `make all` green, push, draft PR, Copilot + `/code-review`, triage with no tech debt, push then mark ready as separate actions. Manual invocation only.
+Feature-complete work ships via the global `ship-feature` skill: `make all` green, push, draft PR, Copilot + `/code-review`, triage with no tech debt, push then mark ready as separate actions. Manual invocation only.
 
-**That file is a copy, and the copy is deliberate.** The source of truth lives in Drew's global skills; every repo carries a real copy rather than a symlink, because a cloud session clones this repo alone and a link into a sibling checkout would dangle. Propagation is manual. Never edit the copy here: the next copy-out discards the change silently. Edit the source, then copy it in.
+**There is no copy of it in this repo.** Drew's global skills are a symlink into drucial-dots and load in every repo, so a copy here only shadows the real one and drifts behind it, which is what the copy this repo used to carry did. Edit the skill at its source.
 
 ### Specs
 
@@ -150,6 +150,12 @@ A session is one repo plus one branch, resumable days later. A generation is a
 snapshot of the whole changeset written into git as a real commit under
 `refs/zen-review/sessions/<id>`, so a comment always knows the exact bytes it was
 about and `git gc` cannot take them.
+
+A refresh moves the ref before it writes the row, and swaps against the ref's
+own previous value rather than the last `commit_sha` stored. Two instances
+refreshing one session both build, one wins the swap, and the loser writes
+nothing. The other order lets both write rows and leaves the ref pointing at one
+of them.
 
 Reviewed state is line ranges, never hunk indices: an agent inserting twenty
 lines above hunk 3 leaves different code wearing the same label. A range that
