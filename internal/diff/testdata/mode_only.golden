@@ -1,0 +1,11 @@
+[
+  {
+    "path": "run.sh",
+    "status": "modified",
+    "oldMode": "100644",
+    "newMode": "100755",
+    "omitted": "mode change only",
+    "additions": 0,
+    "deletions": 0
+  }
+]

@@ -1,0 +1,31 @@
+[
+  {
+    "path": "new.txt",
+    "status": "added",
+    "newMode": "100644",
+    "newBlob": "9d8f9d4a378dc2d307900fd0f88963a1134af213",
+    "hunks": [
+      {
+        "header": "@@ -0,0 +1,2 @@",
+        "oldStart": 0,
+        "oldLines": 0,
+        "newStart": 1,
+        "newLines": 2,
+        "lines": [
+          {
+            "kind": "added",
+            "new": 1,
+            "text": "fresh"
+          },
+          {
+            "kind": "added",
+            "new": 2,
+            "text": "file"
+          }
+        ]
+      }
+    ],
+    "additions": 2,
+    "deletions": 0
+  }
+]

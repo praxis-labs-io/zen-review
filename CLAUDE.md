@@ -47,6 +47,7 @@ make all              # lint (gofmt + mod-tidy + golangci-lint) + test + build
 make test             # go test -race -coverprofile ./...
 make lint             # includes gofmt check and go.mod tidiness
 make fmt-fix          # gofmt -w .
+make golden           # regenerate internal/diff's golden files
 make install          # build to ~/.local/bin/zen-review
 go test ./internal/review/ -run TestName   # single test
 ```

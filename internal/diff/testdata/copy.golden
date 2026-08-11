@@ -1,0 +1,10 @@
+[
+  {
+    "path": "b.txt",
+    "oldPath": "a.txt",
+    "status": "copied",
+    "omitted": "copied, contents unchanged",
+    "additions": 0,
+    "deletions": 0
+  }
+]

@@ -1,0 +1,12 @@
+[
+  {
+    "path": "say\"hi\".bin",
+    "status": "added",
+    "newMode": "100644",
+    "newBlob": "57ac8dfea0a9e139b853b7046845ac161d6d2bd5",
+    "binary": true,
+    "omitted": "binary",
+    "additions": 0,
+    "deletions": 0
+  }
+]

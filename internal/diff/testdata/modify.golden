@@ -1,0 +1,69 @@
+[
+  {
+    "path": "a.txt",
+    "status": "modified",
+    "oldMode": "100644",
+    "newMode": "100644",
+    "oldBlob": "c4352f8b46de5cdb88d0cc96958316db42dd2398",
+    "newBlob": "91706dbe6e88432305514d17435ee4be78945e64",
+    "hunks": [
+      {
+        "header": "@@ -7,7 +7,7 @@ line 6",
+        "oldStart": 7,
+        "oldLines": 7,
+        "newStart": 7,
+        "newLines": 7,
+        "lines": [
+          {
+            "kind": "context",
+            "old": 7,
+            "new": 7,
+            "text": "line 7"
+          },
+          {
+            "kind": "context",
+            "old": 8,
+            "new": 8,
+            "text": "line 8"
+          },
+          {
+            "kind": "context",
+            "old": 9,
+            "new": 9,
+            "text": "line 9"
+          },
+          {
+            "kind": "removed",
+            "old": 10,
+            "text": "line 10"
+          },
+          {
+            "kind": "added",
+            "new": 10,
+            "text": "changed"
+          },
+          {
+            "kind": "context",
+            "old": 11,
+            "new": 11,
+            "text": "line 11"
+          },
+          {
+            "kind": "context",
+            "old": 12,
+            "new": 12,
+            "text": "line 12"
+          },
+          {
+            "kind": "context",
+            "old": 13,
+            "new": 13,
+            "text": "line 13"
+          }
+        ]
+      }
+    ],
+    "additions": 1,
+    "deletions": 1
+  }
+]

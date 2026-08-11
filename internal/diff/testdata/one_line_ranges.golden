@@ -1,0 +1,33 @@
+[
+  {
+    "path": "a.txt",
+    "status": "modified",
+    "oldMode": "100644",
+    "newMode": "100644",
+    "oldBlob": "90be1f3056c4f471f977a28497b8d4b392c55a02",
+    "newBlob": "294186e497a23bf3fbfde12aacc7f720f668fe9a",
+    "hunks": [
+      {
+        "header": "@@ -1 +1 @@",
+        "oldStart": 1,
+        "oldLines": 1,
+        "newStart": 1,
+        "newLines": 1,
+        "lines": [
+          {
+            "kind": "removed",
+            "old": 1,
+            "text": "before"
+          },
+          {
+            "kind": "added",
+            "new": 1,
+            "text": "after"
+          }
+        ]
+      }
+    ],
+    "additions": 1,
+    "deletions": 1
+  }
+]

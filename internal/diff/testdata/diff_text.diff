@@ -1,0 +1,11 @@
+diff --git a/notes.md b/notes.md
+index 0bfa233e49677ae65f0c0940d26636769c6b9f48..e5de98d47c271f1ee35efb282d1e0b20bfa14cb2 100644
+--- a/notes.md
++++ b/notes.md
+@@ -2,5 +2,5 @@ diff --git a/one b/one
+ --- a/one
+ +++ b/one
+ @@ -1 +1 @@
+--- a sql comment
++-- replaced
+ ++ not a header

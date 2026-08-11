@@ -1,0 +1,9 @@
+diff --git a/gone.txt b/gone.txt
+deleted file mode 100644
+index 04ec35a6dc0776b83fdb3d9d238007c7dea360c8..0000000000000000000000000000000000000000
+--- a/gone.txt
++++ /dev/null
+@@ -1,3 +0,0 @@
+-x
+-y
+-z

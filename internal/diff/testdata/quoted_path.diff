@@ -1,0 +1,7 @@
+diff --git "a/say\"hi\".txt" "b/say\"hi\".txt"
+new file mode 100644
+index 0000000000000000000000000000000000000000..b04fedbe6c307caf738551314749c0819e238e97
+--- /dev/null
++++ "b/say\"hi\".txt"
+@@ -0,0 +1 @@
++quoted
