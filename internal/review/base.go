@@ -78,13 +78,21 @@ func (s *Session) resolveBase(ctx context.Context, head git.Head, stored, flag s
 		ref = found
 	}
 
-	// A stored ref that no longer names anything is said out loud rather than
-	// replaced by a fresh detection. Falling back silently changes what the
-	// review is measuring, and everything already reviewed was measured from the
-	// ref that just went away.
+	return s.mergeBase(ctx, ref, head.SHA, fromStore)
+}
+
+// mergeBase turns a ref into a fork point, and the two ways that goes wrong
+// into errors the command above can print.
+//
+// stored says the ref came from the session rather than from the reader. A
+// stored ref that no longer names anything is said out loud rather than
+// replaced by a fresh detection: falling back silently changes what the review
+// is measuring, and everything already reviewed was measured from the ref that
+// just went away.
+func (s *Session) mergeBase(ctx context.Context, ref, headSHA string, stored bool) (Base, error) {
 	tip, err := s.repo.RevParse(ctx, ref)
 	if err != nil {
-		if fromStore {
+		if stored {
 			return Base{}, &UnresolvableBaseError{Ref: ref}
 		}
 		return Base{}, err
@@ -95,7 +103,7 @@ func (s *Session) resolveBase(ctx context.Context, head git.Head, stored, flag s
 	// move it, which would leave the changeset measured from a commit nothing
 	// here ever checked. The name stays only as what the session stores and
 	// prints.
-	sha, err := s.repo.MergeBase(ctx, tip, head.SHA)
+	sha, err := s.repo.MergeBase(ctx, tip, headSHA)
 	if err != nil {
 		if errors.Is(err, git.ErrNoMergeBase) {
 			return Base{}, &NoMergeBaseError{Ref: ref}
@@ -103,6 +111,20 @@ func (s *Session) resolveBase(ctx context.Context, head git.Head, stored, flag s
 		return Base{}, err
 	}
 	return Base{Ref: ref, SHA: sha}, nil
+}
+
+// rebase re-derives the fork point from the ref the session already settled on.
+//
+// base_ref is what sticks; base_sha follows the branch. A rebase onto a newer
+// origin/main moves the fork point, and measuring from the old one shows every
+// commit the rebase brought in as this branch's work.
+func (s *Session) rebase(ctx context.Context, head git.Head) error {
+	base, err := s.mergeBase(ctx, s.base.Ref, head.SHA, true)
+	if err != nil {
+		return err
+	}
+	s.base = base
+	return nil
 }
 
 // detect proposes a base, and refuses rather than guess on a stacked branch.

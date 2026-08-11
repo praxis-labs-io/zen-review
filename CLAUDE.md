@@ -151,6 +151,12 @@ snapshot of the whole changeset written into git as a real commit under
 `refs/zen-review/sessions/<id>`, so a comment always knows the exact bytes it was
 about and `git gc` cannot take them.
 
+A refresh moves the ref before it writes the row, and swaps against the ref's
+own previous value rather than the last `commit_sha` stored. Two instances
+refreshing one session both build, one wins the swap, and the loser writes
+nothing. The other order lets both write rows and leaves the ref pointing at one
+of them.
+
 Reviewed state is line ranges, never hunk indices: an agent inserting twenty
 lines above hunk 3 leaves different code wearing the same label. A range that
 fails to translate through a blob diff disappears, and that is what makes

@@ -266,3 +266,65 @@ func TestAnInheritedGitDirDoesNotMoveTheRepository(t *testing.T) {
 		t.Errorf("HEAD = %q, want this repository's %q", head.SHA, want)
 	}
 }
+
+// The generation path diffs a tree that has no commit yet, which is what lets a
+// caller see the whole changeset before deciding to write one.
+func TestDiffTreesReadsATreeWithNoCommit(t *testing.T) {
+	f := newFixture(t)
+	f.Write("a.txt", "before\n")
+	base := f.Commit("first")
+
+	f.Write("a.txt", "after\n")
+	f.Write("new.txt", "untracked\n")
+
+	repo := f.open()
+	snap, err := repo.SnapshotTree(t.Context())
+	if err != nil {
+		t.Fatalf("snapshotting: %v", err)
+	}
+
+	out, err := repo.DiffTrees(t.Context(), base, snap.Tree)
+	if err != nil {
+		t.Fatalf("diffing the base against the snapshot: %v", err)
+	}
+	for _, want := range []string{"b/a.txt", "+after", "b/new.txt", "+untracked"} {
+		if !strings.Contains(string(out), want) {
+			t.Errorf("diff does not mention %s:\n%s", want, out)
+		}
+	}
+}
+
+// diff.submodule=log writes an embedded repository as a bare "Submodule x"
+// line with no "diff --git" header, so the parser above sees no file at all and
+// the changeset silently loses a row. The pinned flag is the whole defence.
+func TestDiffTreesKeepsAnEmbeddedRepositoryVisible(t *testing.T) {
+	inner := newFixture(t)
+	inner.Write("f.txt", "inner\n")
+	inner.Commit("inner")
+
+	f := newFixture(t)
+	f.Write("a.txt", "one\n")
+	base := f.Commit("first")
+
+	f.Git("config", "diff.submodule", "log")
+	if err := os.Rename(inner.Dir(), filepath.Join(f.Dir(), "sub")); err != nil {
+		t.Fatalf("moving a repository inside the work tree: %v", err)
+	}
+
+	repo := f.open()
+	snap, err := repo.SnapshotTree(t.Context())
+	if err != nil {
+		t.Fatalf("snapshotting: %v", err)
+	}
+
+	out, err := repo.DiffTrees(t.Context(), base, snap.Tree)
+	if err != nil {
+		t.Fatalf("diffing the base against the snapshot: %v", err)
+	}
+	if !strings.Contains(string(out), "diff --git a/sub b/sub") {
+		t.Errorf("the embedded repository has no file header:\n%s", out)
+	}
+	if !strings.Contains(string(out), "new file mode 160000") {
+		t.Errorf("the embedded repository is not recorded as a gitlink:\n%s", out)
+	}
+}
