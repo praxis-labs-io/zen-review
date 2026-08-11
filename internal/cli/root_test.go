@@ -275,3 +275,52 @@ func TestTheVersionFlagReportsTheBuildVersion(t *testing.T) {
 		t.Errorf("version output = %q, want it to carry %q", got, version.Version)
 	}
 }
+
+// git lists a repository embedded in the work tree as a single directory entry and
+// then refuses to diff it. Dropping it is the failure this tool exists to prevent,
+// so it is listed with the reason instead.
+func TestAnEmbeddedRepositoryIsListedRatherThanDropped(t *testing.T) {
+	r := newRepo(t)
+	r.write("a.txt", "one\n")
+	r.commit("first")
+	r.trackOrigin()
+
+	r.write("vendored/f.txt", "inside\n")
+	r.git("init", "-q", "-b", "main", "vendored")
+	r.write("plain.txt", "beside it\n")
+
+	out := mustRun(t, r.dir)
+
+	if !strings.Contains(out, "vendored/") {
+		t.Errorf("the embedded repository is missing from the changeset:\n%s", out)
+	}
+	if !strings.Contains(out, "a repository of its own") {
+		t.Errorf("output does not say why it has no hunks:\n%s", out)
+	}
+	if !strings.Contains(out, "2 files") {
+		t.Errorf("output does not count both entries:\n%s", out)
+	}
+}
+
+// A symlink is diffed rather than skipped. git stores the target path as the
+// content and hands back the blob it would record on commit, so one added line
+// naming the target is the whole change.
+func TestAnUntrackedSymlinkIsDiffedAsItsTargetPath(t *testing.T) {
+	r := newRepo(t)
+	r.write("target.txt", "one\ntwo\nthree\n")
+	r.commit("first")
+	r.trackOrigin()
+
+	if err := os.Symlink("target.txt", filepath.Join(r.dir, "link.txt")); err != nil {
+		t.Fatalf("creating the symlink: %v", err)
+	}
+
+	out := mustRun(t, r.dir)
+
+	if !strings.Contains(out, "A  link.txt") {
+		t.Errorf("the symlink is missing from the changeset:\n%s", out)
+	}
+	if !strings.Contains(out, "+1 -0") {
+		t.Errorf("output = %q, want one added line, the target path rather than its contents", out)
+	}
+}

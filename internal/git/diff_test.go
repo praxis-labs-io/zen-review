@@ -2,6 +2,7 @@ package git
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -199,5 +200,69 @@ func TestDiffNoIndexLeavesTheIndexAlone(t *testing.T) {
 
 	if after := f.git("status", "--porcelain"); after != before {
 		t.Errorf("status changed from %q to %q", before, after)
+	}
+}
+
+// `git diff --no-index` exits 1 both for "the files differ" and for a path it
+// could not read. Reading the second as an answer means an untracked entry git
+// will not diff leaves the changeset with no row and no reason.
+func TestDiffNoIndexSeparatesADifferenceFromAFailure(t *testing.T) {
+	f := newFixture(t)
+	f.write("a.txt", "one\n")
+	f.commit("first")
+	f.write("sub/f.txt", "inside a directory\n")
+
+	tests := []struct {
+		name    string
+		to      string
+		wantErr bool
+	}{
+		{"a file that differs", "a.txt", false},
+		{"a directory", "sub", true},
+		{"a path that is not there", "nope.txt", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out, err := f.open().DiffNoIndex(t.Context(), os.DevNull, tt.to)
+			switch {
+			case tt.wantErr && err == nil:
+				t.Errorf("got no error and %d bytes of diff, want a failure", len(out))
+			case !tt.wantErr && err != nil:
+				t.Errorf("diffing %s: %v", tt.to, err)
+			}
+		})
+	}
+}
+
+// A hook and `git rebase --exec` both run with GIT_DIR set, and git honours it over
+// the process's directory. Inheriting it means every command answers about a
+// repository the caller never asked for.
+func TestAnInheritedGitDirDoesNotMoveTheRepository(t *testing.T) {
+	elsewhere := newFixture(t)
+	elsewhere.write("a.txt", "one\n")
+	elsewhere.commit("first")
+
+	f := newFixture(t)
+	f.write("a.txt", "one\n")
+	want := f.commit("first")
+
+	t.Setenv("GIT_DIR", filepath.Join(elsewhere.dir, ".git"))
+	t.Setenv("GIT_WORK_TREE", elsewhere.dir)
+
+	repo, err := Open(t.Context(), f.dir)
+	if err != nil {
+		t.Fatalf("opening with GIT_DIR set elsewhere: %v", err)
+	}
+	if repo.Root() != f.dir {
+		t.Errorf("root = %q, want %q", repo.Root(), f.dir)
+	}
+
+	head, err := repo.Head(t.Context())
+	if err != nil {
+		t.Fatalf("reading HEAD: %v", err)
+	}
+	if head.SHA != want {
+		t.Errorf("HEAD = %q, want this repository's %q", head.SHA, want)
 	}
 }

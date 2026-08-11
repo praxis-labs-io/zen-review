@@ -130,6 +130,7 @@ func TestEveryFileWithoutHunksSaysWhy(t *testing.T) {
 		{"copy", "copied, contents unchanged"},
 		{"binary", "binary"},
 		{"binary_quoted_path", "binary"},
+		{"binary_backslash_path", "binary"},
 		{"empty_file", "the new file is empty"},
 		{"empty_file_removed", "the removed file was empty"},
 		{"conflicted_cc", "conflicted, not yet merged"},
@@ -172,6 +173,7 @@ func TestPathsSurviveEveryHeaderForm(t *testing.T) {
 		{fixture: "binary_with_space", path: "my file.bin"},
 		{fixture: "quoted_path", path: `say"hi".txt`},
 		{fixture: "binary_quoted_path", path: `say"hi".bin`},
+		{fixture: "binary_backslash_path", path: `back\`},
 		{fixture: "submodule", path: "sub"},
 		{fixture: "conflicted_cc", path: "a.txt"},
 	}

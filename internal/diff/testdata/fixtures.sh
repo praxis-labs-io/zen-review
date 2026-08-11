@@ -171,3 +171,9 @@ rm "$d/blank.txt";                                                capture "$d" e
 d=$(fresh binary_quoted_path); echo one > "$d/a.txt"; commit "$d"
 printf '\x00\x01binary\x00' > "$d/say\"hi\".bin"; git -C "$d" add -A
                                                                   capture "$d" binary_quoted_path
+
+# A path ending in a backslash puts a real backslash immediately before its closing
+# quote, which is indistinguishable from an escaped quote by the byte before it.
+d=$(fresh binary_backslash_path); echo one > "$d/a.txt"; commit "$d"
+printf '\x00\x01binary\x00' > "$d/back\\"; git -C "$d" add -A
+                                                                  capture "$d" binary_backslash_path

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"text/tabwriter"
@@ -120,10 +121,15 @@ func changeset(ctx context.Context, repo *git.Repo, from string) ([]diff.File, e
 		return nil, err
 	}
 	for _, path := range untracked {
+		// A path git will not diff is still a change the reader has to know about,
+		// so it is listed with the reason rather than dropped.
+		if reason := undiffable(repo.Root(), path); reason != "" {
+			files = append(files, diff.File{Path: path, Status: diff.FileAdded, Omitted: reason})
+			continue
+		}
+
 		one, err := repo.DiffNoIndex(ctx, os.DevNull, path)
 		if err != nil {
-			// A path git will not diff is still a change the reader has to know
-			// about, so it is listed with the reason rather than dropped.
 			files = append(files, diff.File{Path: path, Status: diff.FileAdded, Omitted: "could not be diffed"})
 			continue
 		}
@@ -134,6 +140,34 @@ func changeset(ctx context.Context, repo *git.Repo, from string) ([]diff.File, e
 	// whole list is sorted to keep one order rather than two.
 	slices.SortStableFunc(files, func(a, b diff.File) int { return strings.Compare(a.Path, b.Path) })
 	return files, nil
+}
+
+// undiffable names what an untracked entry is when git will not diff it, and is
+// empty for one git will.
+//
+// ls-files reports a repository embedded in the work tree as a single directory
+// entry, and `diff --no-index` on a directory fails. Without this it leaves the
+// changeset with no row and no reason, which is the failure this tool exists to
+// prevent.
+//
+// A symlink is diffed, not skipped: git stores the target path as the content and
+// hands back the same blob it would record on commit.
+func undiffable(root, path string) string {
+	info, err := os.Lstat(filepath.Join(root, path))
+	switch {
+	case err != nil:
+		return "could not be read"
+	case info.Mode()&os.ModeSymlink != 0:
+		return ""
+	case info.IsDir():
+		if _, err := os.Stat(filepath.Join(root, path, ".git")); err == nil {
+			return "a repository of its own"
+		}
+		return "a directory git lists as one entry"
+	case !info.Mode().IsRegular():
+		return "not a regular file"
+	}
+	return ""
 }
 
 // write prints the changeset. This is a smoke test for the plumbing rather than

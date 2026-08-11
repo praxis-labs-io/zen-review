@@ -250,11 +250,19 @@ func (p *parser) body(line string) {
 // splits exactly.
 func splitPaths(rest string) (string, string) {
 	if strings.HasPrefix(rest, `"`) {
-		// Inside a quoted path a literal quote is escaped, so an unescaped quote
-		// followed by a space and another quote is the boundary.
-		for i := 1; i+2 < len(rest); i++ {
-			if rest[i] == '"' && rest[i-1] != '\\' && rest[i+1] == ' ' && rest[i+2] == '"' {
+		// The scan steps over an escape and whatever it escapes. Looking only at the
+		// byte before a quote cannot tell an escaped quote from the closing quote of
+		// a path that ends in a backslash, which git writes as "a/back\\".
+		for i := 1; i < len(rest); i++ {
+			switch {
+			case rest[i] == '\\':
+				i++
+			case rest[i] != '"':
+			case i+2 < len(rest) && rest[i+1] == ' ' && rest[i+2] == '"':
 				return strings.TrimPrefix(unquote(rest[:i+1]), "a/"), strings.TrimPrefix(unquote(rest[i+2:]), "b/")
+			default:
+				// The first side closed without a second following it.
+				return "", ""
 			}
 		}
 		return "", ""

@@ -87,17 +87,36 @@ func runStatus(ctx context.Context, dir string, allow int, args ...string) ([]by
 	if !errors.As(err, &exit) {
 		return nil, -1, fmt.Errorf("running git %s: %w", strings.Join(args, " "), err)
 	}
-	if code := exit.ExitCode(); code == allow {
+	// An allowed status that also wrote to stderr is a failure wearing the same
+	// number. `git diff --no-index` exits 1 both for "the files differ" and for a
+	// path it could not read, and only the second says anything on stderr. Neither
+	// `--is-ancestor` nor `symbolic-ref --quiet` writes any, so the rule holds for
+	// every command that passes an allow.
+	if code := exit.ExitCode(); code == allow && stderr.Len() == 0 {
 		return stdout.Bytes(), code, nil
 	}
 	return nil, exit.ExitCode(), fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, stderrOf(&stderr))
 }
 
-// env pins two variables. LC_ALL keeps git's fatal messages in the wording Open
-// matches on, and GIT_OPTIONAL_LOCKS stops a read-only diff from taking the index
-// lock an agent running git in the same repository is entitled to be holding.
+// env pins two variables and drops three.
+//
+// LC_ALL keeps git's fatal messages in the wording Open matches on, and
+// GIT_OPTIONAL_LOCKS stops a read-only diff from taking the index lock an agent
+// running git in the same repository is entitled to be holding.
+//
+// The three that go are the ones that beat cmd.Dir. A hook and `git rebase --exec`
+// both run with GIT_DIR set, and inheriting it means every command answers about
+// a repository the caller never asked for.
 func env() []string {
-	return append(os.Environ(), "LC_ALL=C", "GIT_OPTIONAL_LOCKS=0")
+	out := make([]string, 0, len(os.Environ())+2)
+	for _, kv := range os.Environ() {
+		switch key, _, _ := strings.Cut(kv, "="); key {
+		case "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE":
+		default:
+			out = append(out, kv)
+		}
+	}
+	return append(out, "LC_ALL=C", "GIT_OPTIONAL_LOCKS=0")
 }
 
 // stderrOf is git's own complaint, on one line and never empty: an error with
