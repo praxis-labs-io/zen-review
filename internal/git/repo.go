@@ -60,19 +60,47 @@ func (r *Repo) Root() string { return r.root }
 // parent agree about which repository they are in.
 func (r *Repo) CommonDir() string { return r.commonDir }
 
+// invocation is what a git call needs beyond its arguments.
+type invocation struct {
+	// extra holds variables set after the three that beat cmd.Dir are stripped.
+	// The stripping is what makes setting GIT_INDEX_FILE here safe.
+	extra []string
+
+	// allow names the one non-zero status that means something: `--is-ancestor`
+	// says no with 1, and `--no-index` implies `--exit-code`.
+	allow int
+
+	// allowStderr says the allowed status can carry a complaint with it.
+	// `add --ignore-errors` names every file it skipped and still writes a
+	// usable index, which is the one command where the two arrive together.
+	allowStderr bool
+}
+
+// result is what a git call produced. stderr is kept because a command that
+// succeeded partway names what it skipped there and nowhere else.
+type result struct {
+	stdout []byte
+	stderr []byte
+	code   int
+}
+
 // run executes git in dir, treating any non-zero exit as a failure.
 func run(ctx context.Context, dir string, args ...string) ([]byte, error) {
-	out, _, err := runStatus(ctx, dir, 0, args...)
-	return out, err
+	res, err := runIn(ctx, dir, invocation{}, args...)
+	return res.stdout, err
 }
 
 // runStatus is run for a command whose non-zero exit is an answer rather than a
-// failure. allow names the one status that means something: `--is-ancestor` says
-// no with 1, and `--no-index` implies `--exit-code`.
+// failure.
 func runStatus(ctx context.Context, dir string, allow int, args ...string) ([]byte, int, error) {
+	res, err := runIn(ctx, dir, invocation{allow: allow}, args...)
+	return res.stdout, res.code, err
+}
+
+func runIn(ctx context.Context, dir string, in invocation, args ...string) (result, error) {
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = dir
-	cmd.Env = env()
+	cmd.Env = append(env(), in.extra...)
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -80,22 +108,21 @@ func runStatus(ctx context.Context, dir string, allow int, args ...string) ([]by
 
 	err := cmd.Run()
 	if err == nil {
-		return stdout.Bytes(), 0, nil
+		return result{stdout: stdout.Bytes(), stderr: stderr.Bytes()}, nil
 	}
 
 	var exit *exec.ExitError
 	if !errors.As(err, &exit) {
-		return nil, -1, fmt.Errorf("running git %s: %w", strings.Join(args, " "), err)
+		return result{code: -1}, fmt.Errorf("running git %s: %w", strings.Join(args, " "), err)
 	}
-	// An allowed status that also wrote to stderr is a failure wearing the same
-	// number. `git diff --no-index` exits 1 both for "the files differ" and for a
-	// path it could not read, and only the second says anything on stderr. Neither
-	// `--is-ancestor` nor `symbolic-ref --quiet` writes any, so the rule holds for
-	// every command that passes an allow.
-	if code := exit.ExitCode(); code == allow && stderr.Len() == 0 {
-		return stdout.Bytes(), code, nil
+	// An allowed status that also wrote to stderr is usually a failure wearing the
+	// same number. `git diff --no-index` exits 1 both for "the files differ" and
+	// for a path it could not read, and only the second says anything on stderr.
+	// A command that means both has to ask for allowStderr.
+	if code := exit.ExitCode(); code == in.allow && (in.allowStderr || stderr.Len() == 0) {
+		return result{stdout: stdout.Bytes(), stderr: stderr.Bytes(), code: code}, nil
 	}
-	return nil, exit.ExitCode(), fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, stderrOf(&stderr))
+	return result{code: exit.ExitCode()}, fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, stderrOf(stderr.Bytes()))
 }
 
 // env pins two variables and drops three.
@@ -106,7 +133,8 @@ func runStatus(ctx context.Context, dir string, allow int, args ...string) ([]by
 //
 // The three that go are the ones that beat cmd.Dir. A hook and `git rebase --exec`
 // both run with GIT_DIR set, and inheriting it means every command answers about
-// a repository the caller never asked for.
+// a repository the caller never asked for. Dropping GIT_INDEX_FILE is also what
+// lets a snapshot set its own and know nothing else is in the way.
 func env() []string {
 	out := make([]string, 0, len(os.Environ())+2)
 	for _, kv := range os.Environ() {
@@ -121,8 +149,8 @@ func env() []string {
 
 // stderrOf is git's own complaint, on one line and never empty: an error with
 // nothing after the colon reads like a bug in this package.
-func stderrOf(stderr *bytes.Buffer) string {
-	s := strings.TrimSpace(stderr.String())
+func stderrOf(stderr []byte) string {
+	s := strings.TrimSpace(string(stderr))
 	if s == "" {
 		return "no stderr"
 	}
