@@ -53,10 +53,10 @@ land.
 cmd/zen-review/         cobra + fang, same shape as zen-octo
 
 internal/
-  git/                  plumbing only. merge-base, diff, cat-file,
-                        hash-object, update-ref, mktree. Returns bytes
-                        and structs, never opinions.
-  diff/                 unified diff text -> FileDiff / Hunk / DiffLine.
+  git/                  plumbing only. merge-base, rev-list, diff,
+                        snapshot tree, commit-tree, update-ref. Returns
+                        bytes and structs, never opinions.
+  diff/                 unified diff text -> File / Hunk / Line.
                         Knows nothing about review.
   review/               the engine. Sessions, generations, review state,
                         comments, remapping. Depends on git + diff + store.
@@ -116,10 +116,15 @@ Auto-detect prefers the remote-tracking default branch (`origin/HEAD`, usually
 `origin/main`) over local `main`. In an agentic workflow local `main` is never
 checked out and goes stale within a day.
 
-Before accepting it, check whether any other local branch tip is an ancestor
-of HEAD. If one is, the branch is stacked, and zen-review opens the base picker
-with the nearest such branch preselected rather than guessing. One prompt, the
-first time that branch is opened. `b` reopens the picker.
+Before accepting it, check whether any other local branch tip sits on HEAD's
+first-parent chain above the detected base. If one does the branch is stacked,
+and zen-review refuses rather than guessing, naming the candidates nearest
+first. Plain ancestry is not enough: a branch merged with `--no-ff` is an
+ancestor of HEAD and not of the base, and measuring from it gives a changeset
+nobody asked for.
+
+v0.1 refuses with one line saying to pass `--base`. The picker on `b` lands in
+M5 and reads the same candidate list.
 
 No `git config` key for this in v0.1. Session stickiness covers the same
 ground and a second place to look is a second place to be wrong.
@@ -156,14 +161,20 @@ base commit (merge-base)
       +-- gen 3   reloaded Wednesday 09:30, 12 files
 ```
 
-Each generation's tree holds the head-side content of every changed file.
-Everything written anchors to the generation it was written against, so a
-comment always knows the exact bytes it was about. The ref chain keeps those
-blobs alive through `git gc`, and the review history is walkable with plain
-`git log`.
+Each generation's tree is the whole work tree, not only the changed files, so
+`git diff <base> <generation>` is exactly the changeset. Everything written
+anchors to the generation it was written against, so a comment always knows the
+exact bytes it was about. The ref chain keeps those blobs alive through
+`git gc`, and the review history is walkable with plain `git log`.
 
 The first generation's parent is the base commit, which keeps the base
-reachable even if the branch it came from is later rewritten.
+reachable even if the branch it came from is later rewritten. Every later one
+hangs off the previous generation, plus the base again whenever the base moved.
+
+A changeset over 5,000 files refuses rather than builds. It names the directory
+holding the most of them and says to gitignore it or measure from a nearer
+base. The count runs against the tree before the commit is written, so a
+refusal leaves nothing behind.
 
 Reloading is one operation: build generation N+1, `git diff` each file's blob
 from N to N+1, translate everything through the result.
