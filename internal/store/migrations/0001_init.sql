@@ -24,8 +24,9 @@ CREATE TABLE sessions (
     -- HEAD keys on.
     range_spec TEXT NOT NULL DEFAULT '',
 
-    -- Set once and sticks for the life of the session. Re-detecting it on every
-    -- run is how a base moves under a half-finished review.
+    -- Never re-detected. A saved session keeps the base it has until the reader
+    -- names another one, and re-detecting it on every run is how a base moves
+    -- under a half-finished review.
     base_ref   TEXT NOT NULL DEFAULT '',
 
     summary    TEXT NOT NULL DEFAULT '',

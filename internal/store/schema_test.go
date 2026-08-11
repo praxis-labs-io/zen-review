@@ -70,6 +70,50 @@ func TestTheSchemaVersionMatchesTheLastMigration(t *testing.T) {
 	}
 }
 
+// The embedded files sort as text and apply in that order, so a number that is
+// not zero-padded to the same width silently reorders the run. 10 lands before
+// 2, the version recorded makes 2 look already applied, and it never runs. The
+// check is against the parsed list rather than the real embed.FS, because there
+// is one migration today and the failure has to be catchable before a second one
+// is written badly.
+func TestMigrationsWhoseNumbersDoNotClimbAreRefused(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		files []migration
+		ok    bool
+	}{
+		{
+			name:  "padded to one width",
+			files: []migration{{name: "0001_init.sql", version: 1}, {name: "0002_next.sql", version: 2}},
+			ok:    true,
+		},
+		{
+			name:  "unpadded, so ten sorts before two",
+			files: []migration{{name: "1_init.sql", version: 1}, {name: "10_next.sql", version: 10}, {name: "2_later.sql", version: 2}},
+		},
+		{
+			name:  "two files claiming one version",
+			files: []migration{{name: "0001_init.sql", version: 1}, {name: "0001_again.sql", version: 1}},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := ordered(tc.files)
+			if tc.ok {
+				if err != nil {
+					t.Fatalf("ordered = %v, want it accepted", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("the migrations should have been refused")
+			}
+			if !strings.Contains(err.Error(), "out of order") {
+				t.Errorf("err = %v, want it to say what is wrong", err)
+			}
+		})
+	}
+}
+
 // A database a newer build migrated is refused rather than half read. The
 // worktree case is real: one checkout on a released binary, another on a build
 // from source, both against the database the common dir holds.

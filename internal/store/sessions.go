@@ -32,7 +32,9 @@ type Session struct {
 	// RangeSpec is the key for a session that is not a branch.
 	RangeSpec string
 
-	// BaseRef is what the changeset is measured from. Set once, and it sticks.
+	// BaseRef is what the changeset is measured from. It is never re-detected: a
+	// saved session keeps the base it has until the reader names another one,
+	// which SaveSession then writes over the old value.
 	BaseRef string
 
 	// Summary is the session-level note.

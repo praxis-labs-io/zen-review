@@ -342,6 +342,102 @@ func TestOpeningANewDatabaseFromEveryDirectionAtOnce(t *testing.T) {
 	}
 }
 
+// The DSN is built through net/url for exactly these two characters, and the
+// driver splits its own parameters off at the first '?' it sees. A path holding
+// one has to open the file it names rather than a truncated one, and a space has
+// to survive the escaping.
+func TestADatabaseOpensUnderAPathThatNeedsEscaping(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("a question mark is not a legal path character on windows")
+	}
+
+	path := filepath.Join(t.TempDir(), "a dir? and more", "zen-review", "state.db")
+
+	db, err := store.Open(t.Context(), path)
+	if err != nil {
+		t.Fatalf("opening under an awkward path: %v", err)
+	}
+	want := session(t, db, "escaped")
+	if err := db.Close(); err != nil {
+		t.Fatalf("closing the database: %v", err)
+	}
+
+	// The file has to be where it was asked for. A DSN that lost the tail of the
+	// path would have opened a different database and still passed everything
+	// above.
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("the database is not at the path it was opened with: %v", err)
+	}
+
+	reopened, err := store.Open(t.Context(), path)
+	if err != nil {
+		t.Fatalf("reopening under an awkward path: %v", err)
+	}
+	defer func() { _ = reopened.Close() }()
+
+	got, found, err := reopened.Session(t.Context(), want.ID)
+	if err != nil {
+		t.Fatalf("reading the session: %v", err)
+	}
+	if !found || got != want {
+		t.Errorf("session = %+v, found = %v, want %+v", got, found, want)
+	}
+}
+
+// Two instances on one repository is the case _txlock=immediate exists for:
+// AddGeneration reads MAX(seq) and writes seq+1, and without the write lock held
+// from BEGIN both would read the same number. One handle cannot show this,
+// because a single pool serialises the calls before they reach SQLite.
+func TestTwoInstancesNumberGenerationsWithoutColliding(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "zen-review", "state.db")
+
+	first, err := store.Open(t.Context(), path)
+	if err != nil {
+		t.Fatalf("opening the first instance: %v", err)
+	}
+	defer func() { _ = first.Close() }()
+
+	second, err := store.Open(t.Context(), path)
+	if err != nil {
+		t.Fatalf("opening the second instance: %v", err)
+	}
+	defer func() { _ = second.Close() }()
+
+	s := session(t, first, "contended")
+
+	var wg sync.WaitGroup
+	var start sync.WaitGroup
+	start.Add(1)
+
+	seqs := make([]int, 2)
+	errs := make([]error, 2)
+	for i, db := range []*store.DB{first, second} {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			start.Wait()
+			g, err := db.AddGeneration(t.Context(), store.Generation{
+				SessionID: s.ID, BaseSha: "base", HeadSha: "head", CommitSha: "commit", CreatedAt: epoch,
+			}, nil)
+			seqs[i], errs[i] = g.Seq, err
+		}()
+	}
+	start.Done()
+	wg.Wait()
+
+	for i, err := range errs {
+		if err != nil {
+			t.Fatalf("instance %d: %v", i, err)
+		}
+	}
+	if seqs[0] == seqs[1] {
+		t.Fatalf("both instances took seq %d", seqs[0])
+	}
+	if seqs[0]+seqs[1] != 3 {
+		t.Errorf("seqs = %v, want 1 and 2 in some order", seqs)
+	}
+}
+
 // .git not writable is a startup error, never a degraded mode where the review
 // silently is not saved, so the line has to name the path that would not open.
 func TestADatabaseThatCannotBeWrittenSaysWhere(t *testing.T) {

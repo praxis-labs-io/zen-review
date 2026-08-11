@@ -92,7 +92,29 @@ func embedded() ([]migration, error) {
 		}
 		files = append(files, migration{name: name, version: version})
 	}
+
+	if err := ordered(files); err != nil {
+		return nil, err
+	}
 	return files, nil
+}
+
+// ordered rejects a set of migrations whose numbers do not climb.
+//
+// The names sort as text, and text order is not number order: 10 comes before 2.
+// Applying them in that order records version 10, which makes 2 look already
+// done, and it is skipped with nothing said. Requiring each number to be larger
+// than the last catches that and rejects two files claiming one version with the
+// same line.
+func ordered(files []migration) error {
+	for i := 1; i < len(files); i++ {
+		if files[i].version <= files[i-1].version {
+			return fmt.Errorf(
+				"the migrations are out of order: %s follows %s, so pad the numbers to the same width",
+				files[i].name, files[i-1].name)
+		}
+	}
+	return nil
 }
 
 // schemaVersion is the version recorded in the database file.

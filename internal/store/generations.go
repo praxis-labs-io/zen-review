@@ -32,7 +32,8 @@ type Generation struct {
 // GenFile is one file in the changeset at one generation. Its blob shas are
 // real objects, because the generation commit wrote them.
 type GenFile struct {
-	// GenerationID is filled in by AddGeneration.
+	// GenerationID is ignored on the way in, because AddGeneration writes the
+	// generation it just numbered. GenFiles sets it on what it reads back.
 	GenerationID int64
 
 	Path string
