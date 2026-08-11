@@ -213,6 +213,29 @@ func TestALocalBranchAlreadyInTheBaseIsNotACandidate(t *testing.T) {
 	}
 }
 
+// A branch merged into HEAD is an ancestor of HEAD and not of the base, which is
+// every test ancestry alone can apply, and it is not a stack. Merging local main
+// into a feature branch to catch up is the everyday version, and reading it as a
+// stack refuses to open a branch there is nothing wrong with.
+func TestABranchMergedIntoHeadIsNotACandidate(t *testing.T) {
+	f := branched(t)
+
+	f.Git("checkout", "-q", "-b", "side")
+	f.commit("on the side")
+	f.Git("checkout", "-q", "feature")
+	f.Git("merge", "-q", "--no-ff", "-m", "merge side", "side")
+
+	s, err := f.open("")
+	if err != nil {
+		t.Fatalf("a merged branch is not a stack, but opening failed: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	if s.Base().Ref != "origin/main" {
+		t.Errorf("base = %s, want origin/main", s.Base().Ref)
+	}
+}
+
 // Measuring from a branch sitting exactly at HEAD leaves an empty changeset, so
 // it is not something to offer.
 func TestABranchTipAtHeadIsNotACandidate(t *testing.T) {
@@ -324,6 +347,51 @@ func TestStartupFailuresSayWhatToDo(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "no-such-ref") {
 			t.Errorf("err = %v, want it to name the ref", err)
+		}
+	})
+
+	// origin/HEAD is symbolic and outlives what it points at, so renaming the
+	// remote's default branch leaves it naming a ref that is gone. The reader
+	// gets the flag, not a merge-base fatal about an object name.
+	t.Run("with an origin/HEAD pointing at nothing", func(t *testing.T) {
+		f := branched(t)
+		f.Git("update-ref", "-d", "refs/remotes/origin/main")
+
+		_, err := f.open("")
+		if err == nil {
+			t.Fatal("a dangling origin/HEAD should fail")
+		}
+		if !strings.Contains(err.Error(), "--base") {
+			t.Errorf("err = %v, want it to name the flag", err)
+		}
+		if strings.Contains(err.Error(), "fatal:") {
+			t.Errorf("err = %v, want guidance rather than raw git plumbing", err)
+		}
+	})
+
+	// A database that will not open is not always a permissions problem. A corrupt
+	// file and one written by a newer build both arrive here, and blaming
+	// permissions tells the reader to fix something that is already fine.
+	t.Run("with a database that is not a database", func(t *testing.T) {
+		f := branched(t)
+
+		path := filepath.Join(f.Dir(), ".git", "zen-review", "state.db")
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("creating the database directory: %v", err)
+		}
+		if err := os.WriteFile(path, []byte("not a database"), 0o644); err != nil {
+			t.Fatalf("writing over the database: %v", err)
+		}
+
+		_, err := f.open("")
+		if err == nil {
+			t.Fatal("a corrupt database should not open")
+		}
+		if strings.Contains(err.Error(), "writable") {
+			t.Errorf("err = %v, want it not to blame permissions", err)
+		}
+		if !strings.Contains(err.Error(), path) {
+			t.Errorf("err = %v, want it to name %s", err, path)
 		}
 	})
 }

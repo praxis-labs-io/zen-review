@@ -102,38 +102,6 @@ func TestMergeBaseReportsUnrelatedHistories(t *testing.T) {
 	}
 }
 
-func TestIsAncestor(t *testing.T) {
-	f := newFixture(t)
-	f.Write("a.txt", "one\n")
-	first := f.Commit("first")
-	f.Write("a.txt", "two\n")
-	second := f.Commit("second")
-
-	repo := f.open()
-
-	tests := []struct {
-		name string
-		a, b string
-		want bool
-	}{
-		{"a parent is an ancestor", first, second, true},
-		{"a child is not", second, first, false},
-		{"a commit is its own ancestor", first, first, true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := repo.IsAncestor(t.Context(), tt.a, tt.b)
-			if err != nil {
-				t.Fatalf("checking ancestry: %v", err)
-			}
-			if got != tt.want {
-				t.Errorf("IsAncestor = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 // The refs are written by hand rather than by cloning: this is the state a clone
 // leaves behind, and what is under test is whether origin/HEAD is read, not
 // whether git can fetch.
@@ -190,6 +158,57 @@ func TestLocalBranchesListsEveryHeadWithItsCommit(t *testing.T) {
 		if got[i] != want[i] {
 			t.Errorf("branch %d = %v, want %v", i, got[i], want[i])
 		}
+	}
+}
+
+// The first-parent chain is what tells a branch HEAD was cut from apart from one
+// merged into it. Both are ancestors of HEAD, and only the first is on the chain.
+func TestFirstParentsSkipsWhatWasMergedIn(t *testing.T) {
+	f := newFixture(t)
+	f.Write("a.txt", "one\n")
+	base := f.Commit("first")
+
+	f.Git("checkout", "-q", "-b", "feature")
+	f.Write("a.txt", "two\n")
+	cut := f.Commit("on the branch")
+
+	f.Git("checkout", "-q", "-b", "side")
+	f.Write("side.txt", "aside\n")
+	merged := f.Commit("on the side")
+
+	f.Git("checkout", "-q", "feature")
+	f.Git("merge", "-q", "--no-ff", "-m", "merge side", "side")
+
+	chain, err := f.open().FirstParents(t.Context(), base, "feature")
+	if err != nil {
+		t.Fatalf("walking the first parents: %v", err)
+	}
+
+	on := make(map[string]bool, len(chain))
+	for _, sha := range chain {
+		on[sha] = true
+	}
+	if !on[cut] {
+		t.Errorf("the commit the branch was cut at is not on the chain: %v", chain)
+	}
+	if on[merged] {
+		t.Errorf("a merged side branch's commit is on the chain: %v", chain)
+	}
+}
+
+// An empty range is an answer, not a failure: a branch sitting at its base has
+// nothing above it.
+func TestFirstParentsOfNothingIsEmpty(t *testing.T) {
+	f := newFixture(t)
+	f.Write("a.txt", "one\n")
+	sha := f.Commit("first")
+
+	chain, err := f.open().FirstParents(t.Context(), sha, sha)
+	if err != nil {
+		t.Fatalf("walking the first parents: %v", err)
+	}
+	if len(chain) != 0 {
+		t.Errorf("chain = %v, want empty", chain)
 	}
 }
 

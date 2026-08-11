@@ -82,14 +82,20 @@ func (s *Session) resolveBase(ctx context.Context, head git.Head, stored, flag s
 	// replaced by a fresh detection. Falling back silently changes what the
 	// review is measuring, and everything already reviewed was measured from the
 	// ref that just went away.
-	if _, err := s.repo.RevParse(ctx, ref); err != nil {
+	tip, err := s.repo.RevParse(ctx, ref)
+	if err != nil {
 		if fromStore {
 			return Base{}, &UnresolvableBaseError{Ref: ref}
 		}
 		return Base{}, err
 	}
 
-	sha, err := s.repo.MergeBase(ctx, ref, head.SHA)
+	// The merge base runs against the commit that just resolved, not the ref
+	// again. A ref is mutable and an agent in another worktree is entitled to
+	// move it, which would leave the changeset measured from a commit nothing
+	// here ever checked. The name stays only as what the session stores and
+	// prints.
+	sha, err := s.repo.MergeBase(ctx, tip, head.SHA)
 	if err != nil {
 		if errors.Is(err, git.ErrNoMergeBase) {
 			return Base{}, &NoMergeBaseError{Ref: ref}
@@ -109,6 +115,14 @@ func (s *Session) detect(ctx context.Context, head git.Head) (string, error) {
 		return "", err
 	}
 
+	// origin/HEAD is a symbolic ref and outlives what it points at: rename the
+	// remote's default branch and it names a ref that is gone. Checking here
+	// rather than after the stack walk is what keeps that arriving as guidance
+	// instead of a merge-base fatal about an object name.
+	if _, err := s.repo.RevParse(ctx, detected); err != nil {
+		return "", fmt.Errorf("origin/HEAD points at %s, which no longer exists, so pass --base <ref>", detected)
+	}
+
 	candidates, err := s.stack(ctx, head, detected)
 	if err != nil {
 		return "", err
@@ -119,18 +133,38 @@ func (s *Session) detect(ctx context.Context, head git.Head) (string, error) {
 	return detected, nil
 }
 
-// stack is every local branch HEAD sits on top of, nearest first.
+// stack is every local branch HEAD was branched from, nearest first.
 //
-// A tip qualifies when it is an ancestor of HEAD and **not** an ancestor of the
-// detected base. The second half is the load-bearing one: a local main left
-// behind origin/main is an ancestor of HEAD and is nothing anyone stacked on,
-// and in a workflow where local main is never checked out that is the common
-// case rather than the odd one.
+// A tip qualifies when it sits on HEAD's first-parent chain above the detected
+// base, which is one `rev-list` for the whole question rather than two
+// ancestry calls per branch. A checkout in an agentic workflow accumulates
+// branches, and 200 of them was 600 processes before the first frame.
+//
+// The chain is doing two jobs. Being above the base is what keeps a local main
+// left behind origin/main out: it is an ancestor of HEAD and nothing anyone
+// stacked on, and where local main is never checked out that is the common case
+// rather than the odd one. Being on the *first-parent* chain is what keeps a
+// branch merged into HEAD out: `git merge --no-ff side` leaves side an ancestor
+// of HEAD and not of the base, so ancestry alone reads it as a stack and
+// measuring from it gives a changeset nobody asked for.
 //
 // The current branch is excluded because HEAD is trivially on top of itself, and
 // a tip sitting exactly at HEAD is excluded because measuring from it leaves an
 // empty changeset.
 func (s *Session) stack(ctx context.Context, head git.Head, detected string) ([]Candidate, error) {
+	chain, err := s.repo.FirstParents(ctx, detected, head.SHA)
+	if err != nil {
+		return nil, err
+	}
+	if len(chain) == 0 {
+		return nil, nil
+	}
+
+	mainline := make(map[string]bool, len(chain))
+	for _, sha := range chain {
+		mainline[sha] = true
+	}
+
 	branches, err := s.repo.LocalBranches(ctx)
 	if err != nil {
 		return nil, err
@@ -138,23 +172,7 @@ func (s *Session) stack(ctx context.Context, head git.Head, detected string) ([]
 
 	var candidates []Candidate
 	for _, b := range branches {
-		if b.Name == head.Branch || b.SHA == head.SHA {
-			continue
-		}
-
-		under, err := s.repo.IsAncestor(ctx, b.SHA, head.SHA)
-		if err != nil {
-			return nil, err
-		}
-		if !under {
-			continue
-		}
-
-		merged, err := s.repo.IsAncestor(ctx, b.SHA, detected)
-		if err != nil {
-			return nil, err
-		}
-		if merged {
+		if b.Name == head.Branch || b.SHA == head.SHA || !mainline[b.SHA] {
 			continue
 		}
 

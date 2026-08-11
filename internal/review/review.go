@@ -13,7 +13,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"path/filepath"
 	"strings"
 	"time"
@@ -63,11 +62,17 @@ func Open(ctx context.Context, path string, opts Options) (*Session, error) {
 		return nil, err
 	}
 
+	// The store's own error is passed through rather than wrapped. It already
+	// names the path it could not open, or says the database came from a newer
+	// build, and asserting a cause on top of that produces a line that
+	// contradicts itself: telling a reader to fix permissions that are fine,
+	// in the same breath as telling them to upgrade.
+	//
+	// Either way this is a startup failure and never a mode where the review is
+	// silently not being saved.
 	db, err := store.Open(ctx, databasePath(repo))
 	if err != nil {
-		// Not writable is a startup failure, never a mode where the review is
-		// silently not being saved, so the line says what has to change.
-		return nil, fmt.Errorf(".git has to be writable to save a review: %w", err)
+		return nil, err
 	}
 
 	s := &Session{repo: repo, db: db}

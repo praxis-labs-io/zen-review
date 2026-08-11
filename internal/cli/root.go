@@ -81,8 +81,10 @@ func overview(ctx context.Context, out io.Writer, baseRef string) error {
 // resolveBase settles what the changeset is measured from: the flag, or the
 // branch the remote considers default.
 //
-// A base that sticks to a branch for days, and a picker for a stacked branch,
-// move into review/ with the session that can remember the answer.
+// review.Open already does this properly, with a base that sticks to a branch
+// for days and a refusal on a stacked one. Nothing here calls it yet: the
+// command still has no session to hang a generation off, and the wiring lands
+// with the one that does. This function goes when it arrives.
 func resolveBase(ctx context.Context, repo *git.Repo, ref string) (base, error) {
 	if ref == "" {
 		found, err := repo.DefaultRemoteBranch(ctx)
