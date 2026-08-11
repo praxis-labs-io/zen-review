@@ -2,11 +2,11 @@ package git
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -235,27 +235,108 @@ func TestASnapshotNamesWhatItCouldNotRead(t *testing.T) {
 	}
 }
 
-// A lock left by a killed process makes every later build fatal, so the recovery
-// has to happen without anyone being told to delete a file.
-func TestASnapshotRecoversFromAStaleLock(t *testing.T) {
+// A directory git cannot open takes every file under it out of the tree, and it
+// says so in a warning while exiting 0. Nothing else marks their absence.
+func TestASnapshotNamesADirectoryItCouldNotOpen(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root opens a directory with no permissions, so there is nothing to skip")
+	}
+
+	f := newFixture(t)
+	f.write("a.txt", "one\n")
+	f.commit("first")
+	f.write("locked/inside.txt", "unreachable\n")
+
+	locked := filepath.Join(f.dir, "locked")
+	if err := os.Chmod(locked, 0o000); err != nil {
+		t.Fatalf("removing the permissions: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
+
+	_, snap := snapshot(t, f)
+
+	if len(snap.Skipped) != 1 || !strings.HasPrefix(snap.Skipped[0], "locked") {
+		t.Errorf("Skipped = %v, want the locked directory", snap.Skipped)
+	}
+	if _, ok := entries(t, f, snap.Tree)["locked/inside.txt"]; ok {
+		t.Error("the unreachable file is in the tree, so this test proves nothing")
+	}
+}
+
+// Repo promises a value is safe to call from more than one goroutine, and the
+// TUI will refresh while a build is already running. Two builds sharing an index
+// clear each other halfway through, and the bad outcome is a wrong tree rather
+// than an error.
+func TestConcurrentSnapshotsDoNotCollide(t *testing.T) {
+	f := newFixture(t)
+	f.write("a.txt", "one\n")
+	f.commit("first")
+	f.write("b.txt", "untracked\n")
+
+	repo := f.open()
+	const runs = 8
+	trees := make([]string, runs)
+	errs := make([]error, runs)
+
+	var wg sync.WaitGroup
+	for i := range runs {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			snap, err := repo.SnapshotTree(t.Context())
+			trees[i], errs[i] = snap.Tree, err
+		}()
+	}
+	wg.Wait()
+
+	for i, err := range errs {
+		if err != nil {
+			t.Fatalf("snapshot %d failed: %v", i, err)
+		}
+		if trees[i] != trees[0] {
+			t.Errorf("snapshot %d built tree %s, snapshot 0 built %s", i, trees[i], trees[0])
+		}
+	}
+}
+
+// An index left by a killed process is the size of the work tree and nothing
+// else ever comes back for it. One a live build is still writing has to survive.
+func TestASnapshotSweepsAbandonedIndexes(t *testing.T) {
 	f := newFixture(t)
 	f.write("a.txt", "one\n")
 	f.commit("first")
 
 	repo := f.open()
-	lock := filepath.Join(repo.CommonDir(), "zen-review", fmt.Sprintf("index.%d.tmp.lock", os.Getpid()))
-	if err := os.MkdirAll(filepath.Dir(lock), 0o755); err != nil {
-		t.Fatalf("preparing the lock directory: %v", err)
+	dir := filepath.Join(repo.CommonDir(), "zen-review")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("preparing the directory: %v", err)
 	}
-	if err := os.WriteFile(lock, nil, 0o644); err != nil {
-		t.Fatalf("planting the stale lock: %v", err)
+
+	abandoned := filepath.Join(dir, "index-999.tmp")
+	fresh := filepath.Join(dir, "index-111.tmp")
+	for _, path := range []string{abandoned, abandoned + ".lock", fresh} {
+		if err := os.WriteFile(path, nil, 0o644); err != nil {
+			t.Fatalf("planting %s: %v", path, err)
+		}
+	}
+	old := time.Now().Add(-2 * time.Hour)
+	for _, path := range []string{abandoned, abandoned + ".lock"} {
+		if err := os.Chtimes(path, old, old); err != nil {
+			t.Fatalf("ageing %s: %v", path, err)
+		}
 	}
 
 	if _, err := repo.SnapshotTree(t.Context()); err != nil {
-		t.Fatalf("a stale lock should not survive a snapshot: %v", err)
+		t.Fatalf("snapshotting: %v", err)
 	}
-	if _, err := os.Stat(lock); !errors.Is(err, os.ErrNotExist) {
-		t.Error("the snapshot left its own lock behind")
+
+	for _, path := range []string{abandoned, abandoned + ".lock"} {
+		if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("%s survived the sweep", filepath.Base(path))
+		}
+	}
+	if _, err := os.Stat(fresh); err != nil {
+		t.Errorf("the sweep took an index a live build could still be writing: %v", err)
 	}
 }
 
@@ -343,6 +424,28 @@ func TestUpdateRefSwapsOnlyFromWhereItWasTold(t *testing.T) {
 		}
 		if got := f.git("rev-parse", ref); got != second {
 			t.Errorf("%s = %s, want %s", ref, got, second)
+		}
+	})
+
+	// git wraps both a lost race and a lock left by a crashed process in the same
+	// "cannot lock ref". Only the first clears on its own, so a caller told to
+	// reload and retry on the second retries forever.
+	t.Run("blocked by a lock nobody will clear", func(t *testing.T) {
+		lock := filepath.Join(repo.CommonDir(), ref+".lock")
+		if err := os.MkdirAll(filepath.Dir(lock), 0o755); err != nil {
+			t.Fatalf("preparing the lock directory: %v", err)
+		}
+		if err := os.WriteFile(lock, nil, 0o644); err != nil {
+			t.Fatalf("planting the stale lock: %v", err)
+		}
+		t.Cleanup(func() { _ = os.Remove(lock) })
+
+		err := repo.UpdateRef(t.Context(), ref, first, second)
+		if err == nil {
+			t.Fatal("a stale lock should stop the write")
+		}
+		if errors.Is(err, ErrRefMoved) {
+			t.Errorf("err = %v, want a plain failure rather than ErrRefMoved", err)
 		}
 	})
 }

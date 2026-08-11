@@ -122,7 +122,7 @@ func runIn(ctx context.Context, dir string, in invocation, args ...string) (resu
 	if code := exit.ExitCode(); code == in.allow && (in.allowStderr || stderr.Len() == 0) {
 		return result{stdout: stdout.Bytes(), stderr: stderr.Bytes(), code: code}, nil
 	}
-	return result{code: exit.ExitCode()}, fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, stderrOf(&stderr))
+	return result{code: exit.ExitCode()}, fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, stderrOf(stderr.Bytes()))
 }
 
 // env pins two variables and drops three.
@@ -149,8 +149,8 @@ func env() []string {
 
 // stderrOf is git's own complaint, on one line and never empty: an error with
 // nothing after the colon reads like a bug in this package.
-func stderrOf(stderr *bytes.Buffer) string {
-	s := strings.TrimSpace(stderr.String())
+func stderrOf(stderr []byte) string {
+	s := strings.TrimSpace(string(stderr))
 	if s == "" {
 		return "no stderr"
 	}

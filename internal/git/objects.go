@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strings"
 	"time"
 )
 
@@ -15,10 +14,24 @@ import (
 // session ref means another instance advanced it first.
 var ErrRefMoved = errors.New("the ref moved")
 
-// unindexable matches how `add --ignore-errors` names a file it gave up on. It
-// says so on stderr and nowhere else, and a snapshot that dropped a file without
-// saying which is the failure this tool exists to prevent.
-var unindexable = regexp.MustCompile(`unable to index file '(.*)'`)
+// unreadable matches the two ways `add` says it gave up on something. It says so
+// on stderr and nowhere else, and a snapshot that dropped a file without saying
+// which is the failure this tool exists to prevent.
+//
+// The directory case is the quieter one: it is a warning and the status stays 0,
+// so every file underneath disappears from the tree with nothing else to show
+// for it.
+var unreadable = regexp.MustCompile(`(?:unable to index file|could not open directory) '([^\n]*)'`)
+
+// refMismatch is how git says a ref was not where the caller said it was. The
+// wider "cannot lock ref" it comes wrapped in also covers a lock left by a
+// crashed process, which is not a race and will not clear on a retry.
+var refMismatch = regexp.MustCompile(`is at [0-9a-f]+ but expected|reference already exists`)
+
+// staleIndex is how long a temporary index sits untouched before another build
+// reads it as abandoned. Well past the slowest snapshot, because the cost of
+// guessing early is deleting an index a live build is still writing.
+const staleIndex = time.Hour
 
 // Signature is who a commit is attributed to. It is passed in because this
 // package holds no opinion about what the commit is for.
@@ -66,15 +79,22 @@ func (r *Repo) SnapshotTree(ctx context.Context) (Snapshot, error) {
 	// The index sits beside the database rather than in os.TempDir, because git
 	// puts the lock next to it and both need the writable git directory the
 	// caller already checked for.
-	index := filepath.Join(r.commonDir, "zen-review", fmt.Sprintf("index.%d.tmp", os.Getpid()))
-	if err := os.MkdirAll(filepath.Dir(index), 0o755); err != nil {
+	dir := filepath.Join(r.commonDir, "zen-review")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return Snapshot{}, fmt.Errorf("preparing the snapshot index: %w", err)
 	}
-	// A process killed mid-build leaves the lock behind, and git reads an existing
-	// one as fatal for every build after it. Clearing on the way in is what makes
-	// the next run recover on its own.
-	if err := clearIndex(index); err != nil {
-		return Snapshot{}, err
+	sweepIndexes(dir)
+
+	// The name is unique per call, not per process. A Repo value is safe to call
+	// from more than one goroutine, and two builds sharing a path would clear each
+	// other's index halfway through and write a tree neither of them meant.
+	f, err := os.CreateTemp(dir, "index-*.tmp")
+	if err != nil {
+		return Snapshot{}, fmt.Errorf("preparing the snapshot index: %w", err)
+	}
+	index := f.Name()
+	if err := f.Close(); err != nil {
+		return Snapshot{}, fmt.Errorf("preparing the snapshot index: %w", err)
 	}
 	defer func() { _ = clearIndex(index) }()
 
@@ -108,11 +128,19 @@ func (r *Repo) SnapshotTree(ctx context.Context) (Snapshot, error) {
 		return Snapshot{}, fmt.Errorf("snapshotting the work tree: %w", err)
 	}
 
+	// A status of 1 is add saying it gave up on something, and it names what on
+	// the same breath. One with nothing named is a different failure, and handing
+	// it back as a snapshot would hide a missing file behind an empty Skipped.
+	skipped := skipped(res.stderr)
+	if res.code == 1 && len(skipped) == 0 {
+		return Snapshot{}, fmt.Errorf("snapshotting the work tree: %s", stderrOf(res.stderr))
+	}
+
 	tree, err := runIn(ctx, r.root, in, "write-tree")
 	if err != nil {
 		return Snapshot{}, fmt.Errorf("writing the snapshot tree: %w", err)
 	}
-	return Snapshot{Tree: trim(tree.stdout), Skipped: skipped(res.stderr)}, nil
+	return Snapshot{Tree: trim(tree.stdout), Skipped: skipped}, nil
 }
 
 // CommitTree writes a commit object. An empty parents makes a root commit.
@@ -138,7 +166,7 @@ func (r *Repo) CommitTree(ctx context.Context, tree string, parents []string, me
 // message rather than a status of its own, so the message is what gets matched.
 func (r *Repo) UpdateRef(ctx context.Context, ref, sha, old string) error {
 	if _, err := run(ctx, r.root, "update-ref", "--end-of-options", ref, sha, old); err != nil {
-		if strings.Contains(err.Error(), "cannot lock ref") {
+		if refMismatch.MatchString(err.Error()) {
 			return fmt.Errorf("pointing %s at %s: %w", ref, sha, ErrRefMoved)
 		}
 		return fmt.Errorf("pointing %s at %s: %w", ref, sha, err)
@@ -175,10 +203,27 @@ func clearIndex(path string) error {
 	return nil
 }
 
+// sweepIndexes removes what processes killed mid-build left behind. Nothing else
+// ever comes back for those files, and each one is the size of the work tree.
+//
+// It is deliberately quiet: a file a live build is still using is too young to
+// match, and one that will not delete is not worth failing a snapshot over.
+func sweepIndexes(dir string) {
+	matches, err := filepath.Glob(filepath.Join(dir, "index-*.tmp*"))
+	if err != nil {
+		return
+	}
+	for _, path := range matches {
+		if info, err := os.Stat(path); err == nil && time.Since(info.ModTime()) > staleIndex {
+			_ = os.Remove(path)
+		}
+	}
+}
+
 // skipped reads the paths add gave up on out of its stderr.
 func skipped(stderr []byte) []string {
 	var paths []string
-	for _, m := range unindexable.FindAllStringSubmatch(string(stderr), -1) {
+	for _, m := range unreadable.FindAllStringSubmatch(string(stderr), -1) {
 		paths = append(paths, m[1])
 	}
 	return paths
