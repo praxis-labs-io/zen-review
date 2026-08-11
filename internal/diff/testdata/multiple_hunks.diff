@@ -1,0 +1,22 @@
+diff --git a/a.txt b/a.txt
+index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1b039aafb 100644
+--- a/a.txt
++++ b/a.txt
+@@ -2,7 +2,7 @@ line 1
+ line 2
+ line 3
+ line 4
+-line 5
++changed near the top
+ line 6
+ line 7
+ line 8
+@@ -32,7 +32,7 @@ line 31
+ line 32
+ line 33
+ line 34
+-line 35
++changed near the bottom
+ line 36
+ line 37
+ line 38

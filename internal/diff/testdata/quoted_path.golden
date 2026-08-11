@@ -1,0 +1,26 @@
+[
+  {
+    "path": "say\"hi\".txt",
+    "status": "added",
+    "newMode": "100644",
+    "newBlob": "b04fedbe6c307caf738551314749c0819e238e97",
+    "hunks": [
+      {
+        "header": "@@ -0,0 +1 @@",
+        "oldStart": 0,
+        "oldLines": 0,
+        "newStart": 1,
+        "newLines": 1,
+        "lines": [
+          {
+            "kind": "added",
+            "new": 1,
+            "text": "quoted"
+          }
+        ]
+      }
+    ],
+    "additions": 1,
+    "deletions": 0
+  }
+]

@@ -1,0 +1,69 @@
+[
+  {
+    "path": "main.go",
+    "status": "modified",
+    "oldMode": "100644",
+    "newMode": "100644",
+    "oldBlob": "1c1971efcfb3ffe22607cb2f6afe8d2c4966a66b",
+    "newBlob": "41e5ca76d7805fe203d27179b42134a4943e19b3",
+    "hunks": [
+      {
+        "header": "@@ -4,7 +4,7 @@ func first() int {",
+        "oldStart": 4,
+        "oldLines": 7,
+        "newStart": 4,
+        "newLines": 7,
+        "lines": [
+          {
+            "kind": "context",
+            "old": 4,
+            "new": 4,
+            "text": "\ttotal := 0"
+          },
+          {
+            "kind": "context",
+            "old": 5,
+            "new": 5,
+            "text": "\ttotal += 1"
+          },
+          {
+            "kind": "context",
+            "old": 6,
+            "new": 6,
+            "text": "\ttotal += 2"
+          },
+          {
+            "kind": "removed",
+            "old": 7,
+            "text": "\ttotal += 3"
+          },
+          {
+            "kind": "added",
+            "new": 7,
+            "text": "\ttotal += 30"
+          },
+          {
+            "kind": "context",
+            "old": 8,
+            "new": 8,
+            "text": "\ttotal += 4"
+          },
+          {
+            "kind": "context",
+            "old": 9,
+            "new": 9,
+            "text": "\treturn total"
+          },
+          {
+            "kind": "context",
+            "old": 10,
+            "new": 10,
+            "text": "}"
+          }
+        ]
+      }
+    ],
+    "additions": 1,
+    "deletions": 1
+  }
+]

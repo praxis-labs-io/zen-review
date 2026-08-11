@@ -1,0 +1,118 @@
+package git
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+)
+
+var (
+	// ErrNoMergeBase means two commits share no history at all, which is what a
+	// base force-push that loses the fork point looks like from here.
+	ErrNoMergeBase = errors.New("no common ancestor")
+
+	// ErrNoDefaultBranch means origin/HEAD is unset: no remote, or a clone that
+	// never learned which branch the remote considers default.
+	ErrNoDefaultBranch = errors.New("origin/HEAD is not set")
+)
+
+// Head is what HEAD points at. Branch is empty on a detached HEAD, which a
+// session keys on the sha instead of a name.
+type Head struct {
+	Branch string
+	SHA    string
+}
+
+// Branch is one local branch and the commit it points at.
+type Branch struct {
+	Name string
+	SHA  string
+}
+
+// Head resolves HEAD to a branch name and a commit.
+func (r *Repo) Head(ctx context.Context) (Head, error) {
+	sha, err := r.RevParse(ctx, "HEAD")
+	if err != nil {
+		return Head{}, err
+	}
+
+	// --quiet exits 1 on a detached HEAD rather than printing a fatal, which is
+	// an answer and not a failure.
+	out, code, err := runStatus(ctx, r.root, 1, "symbolic-ref", "--quiet", "--short", "HEAD")
+	if err != nil {
+		return Head{}, err
+	}
+	if code == 1 {
+		return Head{SHA: sha}, nil
+	}
+	return Head{Branch: trim(out), SHA: sha}, nil
+}
+
+// RevParse resolves a ref to a full commit sha, peeling a tag to the commit it
+// names. It errors on anything that does not resolve, so a caller never gets an
+// empty string back for a ref that does not exist.
+func (r *Repo) RevParse(ctx context.Context, ref string) (string, error) {
+	out, err := run(ctx, r.root, "rev-parse", "--verify", "--end-of-options", ref+"^{commit}")
+	if err != nil {
+		return "", fmt.Errorf("resolving %s: %w", ref, err)
+	}
+	return trim(out), nil
+}
+
+// MergeBase is the best common ancestor of two commits: the fork point a
+// changeset is measured from.
+func (r *Repo) MergeBase(ctx context.Context, a, b string) (string, error) {
+	out, code, err := runStatus(ctx, r.root, 1, "merge-base", "--end-of-options", a, b)
+	if err != nil {
+		return "", fmt.Errorf("finding the merge base of %s and %s: %w", a, b, err)
+	}
+	if code == 1 {
+		return "", fmt.Errorf("finding the merge base of %s and %s: %w", a, b, ErrNoMergeBase)
+	}
+	return trim(out), nil
+}
+
+// IsAncestor reports whether a is reachable from b. A local branch tip that is
+// an ancestor of HEAD means the branch is stacked on it.
+func (r *Repo) IsAncestor(ctx context.Context, a, b string) (bool, error) {
+	_, code, err := runStatus(ctx, r.root, 1, "merge-base", "--is-ancestor", "--end-of-options", a, b)
+	if err != nil {
+		return false, fmt.Errorf("checking whether %s is an ancestor of %s: %w", a, b, err)
+	}
+	return code == 0, nil
+}
+
+// DefaultRemoteBranch is what origin/HEAD points at, usually "origin/main". It
+// beats local main as a base proposal: in an agentic workflow local main is never
+// checked out and goes stale within a day.
+func (r *Repo) DefaultRemoteBranch(ctx context.Context) (string, error) {
+	out, code, err := runStatus(ctx, r.root, 1, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
+	if err != nil {
+		return "", fmt.Errorf("reading origin/HEAD: %w", err)
+	}
+	if code == 1 {
+		return "", ErrNoDefaultBranch
+	}
+	return trim(out), nil
+}
+
+// LocalBranches lists refs/heads with the commit each one points at.
+func (r *Repo) LocalBranches(ctx context.Context) ([]Branch, error) {
+	// A branch name can hold neither a NUL nor a newline, so this format parses
+	// exactly.
+	out, err := run(ctx, r.root, "for-each-ref", "--format=%(refname:short)%00%(objectname)", "refs/heads")
+	if err != nil {
+		return nil, fmt.Errorf("listing local branches: %w", err)
+	}
+
+	var branches []Branch
+	for _, line := range strings.Split(trim(out), "\n") {
+		name, sha, ok := strings.Cut(line, "\x00")
+		if !ok {
+			continue
+		}
+		branches = append(branches, Branch{Name: name, SHA: sha})
+	}
+	return branches, nil
+}

@@ -1,0 +1,7 @@
+diff --git a/sub b/sub
+index 8d451106b3d0eb0cdc286ff27d0e5ab57bd43946..6c7a18bc928bc1ced1fca7b22cdbd3301567c6b2 160000
+--- a/sub
++++ b/sub
+@@ -1 +1 @@
+-Subproject commit 8d451106b3d0eb0cdc286ff27d0e5ab57bd43946
++Subproject commit 6c7a18bc928bc1ced1fca7b22cdbd3301567c6b2

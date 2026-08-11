@@ -1,0 +1,9 @@
+[
+  {
+    "path": "a.txt",
+    "status": "modified",
+    "omitted": "conflicted, not yet merged",
+    "additions": 0,
+    "deletions": 0
+  }
+]

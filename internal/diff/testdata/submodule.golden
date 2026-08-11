@@ -1,0 +1,33 @@
+[
+  {
+    "path": "sub",
+    "status": "modified",
+    "oldMode": "160000",
+    "newMode": "160000",
+    "oldBlob": "8d451106b3d0eb0cdc286ff27d0e5ab57bd43946",
+    "newBlob": "6c7a18bc928bc1ced1fca7b22cdbd3301567c6b2",
+    "hunks": [
+      {
+        "header": "@@ -1 +1 @@",
+        "oldStart": 1,
+        "oldLines": 1,
+        "newStart": 1,
+        "newLines": 1,
+        "lines": [
+          {
+            "kind": "removed",
+            "old": 1,
+            "text": "Subproject commit 8d451106b3d0eb0cdc286ff27d0e5ab57bd43946"
+          },
+          {
+            "kind": "added",
+            "new": 1,
+            "text": "Subproject commit 6c7a18bc928bc1ced1fca7b22cdbd3301567c6b2"
+          }
+        ]
+      }
+    ],
+    "additions": 1,
+    "deletions": 1
+  }
+]

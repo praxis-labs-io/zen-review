@@ -1,0 +1,36 @@
+[
+  {
+    "path": "gone.txt",
+    "status": "deleted",
+    "oldMode": "100644",
+    "oldBlob": "04ec35a6dc0776b83fdb3d9d238007c7dea360c8",
+    "hunks": [
+      {
+        "header": "@@ -1,3 +0,0 @@",
+        "oldStart": 1,
+        "oldLines": 3,
+        "newStart": 0,
+        "newLines": 0,
+        "lines": [
+          {
+            "kind": "removed",
+            "old": 1,
+            "text": "x"
+          },
+          {
+            "kind": "removed",
+            "old": 2,
+            "text": "y"
+          },
+          {
+            "kind": "removed",
+            "old": 3,
+            "text": "z"
+          }
+        ]
+      }
+    ],
+    "additions": 0,
+    "deletions": 3
+  }
+]

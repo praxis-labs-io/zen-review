@@ -1,0 +1,10 @@
+[
+  {
+    "path": "new.txt",
+    "oldPath": "old.txt",
+    "status": "renamed",
+    "omitted": "renamed, contents unchanged",
+    "additions": 0,
+    "deletions": 0
+  }
+]

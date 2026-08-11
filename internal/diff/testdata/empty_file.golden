@@ -1,0 +1,11 @@
+[
+  {
+    "path": "blank.txt",
+    "status": "added",
+    "newMode": "100644",
+    "newBlob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+    "omitted": "the new file is empty",
+    "additions": 0,
+    "deletions": 0
+  }
+]

@@ -1,0 +1,57 @@
+[
+  {
+    "path": "notes.md",
+    "status": "modified",
+    "oldMode": "100644",
+    "newMode": "100644",
+    "oldBlob": "0bfa233e49677ae65f0c0940d26636769c6b9f48",
+    "newBlob": "e5de98d47c271f1ee35efb282d1e0b20bfa14cb2",
+    "hunks": [
+      {
+        "header": "@@ -2,5 +2,5 @@ diff --git a/one b/one",
+        "oldStart": 2,
+        "oldLines": 5,
+        "newStart": 2,
+        "newLines": 5,
+        "lines": [
+          {
+            "kind": "context",
+            "old": 2,
+            "new": 2,
+            "text": "--- a/one"
+          },
+          {
+            "kind": "context",
+            "old": 3,
+            "new": 3,
+            "text": "+++ b/one"
+          },
+          {
+            "kind": "context",
+            "old": 4,
+            "new": 4,
+            "text": "@@ -1 +1 @@"
+          },
+          {
+            "kind": "removed",
+            "old": 5,
+            "text": "-- a sql comment"
+          },
+          {
+            "kind": "added",
+            "new": 5,
+            "text": "-- replaced"
+          },
+          {
+            "kind": "context",
+            "old": 6,
+            "new": 6,
+            "text": "++ not a header"
+          }
+        ]
+      }
+    ],
+    "additions": 1,
+    "deletions": 1
+  }
+]

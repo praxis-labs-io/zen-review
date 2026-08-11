@@ -1,0 +1,11 @@
+[
+  {
+    "path": "blank.txt",
+    "status": "deleted",
+    "oldMode": "100644",
+    "oldBlob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+    "omitted": "the removed file was empty",
+    "additions": 0,
+    "deletions": 0
+  }
+]
