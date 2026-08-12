@@ -1,0 +1,21 @@
+{
+  "session": "<session>",
+  "ref": "refs/zen-review/sessions/<session>",
+  "kind": "branch",
+  "branch": "feature",
+  "base": {
+    "ref": "origin/main",
+    "sha": "<sha>"
+  },
+  "generation": null,
+  "stale": true,
+  "staleReason": "",
+  "skipped": [],
+  "files": [],
+  "totals": {
+    "files": 0,
+    "hunks": 0,
+    "additions": 0,
+    "deletions": 0
+  }
+}

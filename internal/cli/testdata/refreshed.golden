@@ -1,0 +1,58 @@
+{
+  "session": "<session>",
+  "ref": "refs/zen-review/sessions/<session>",
+  "kind": "branch",
+  "branch": "feature",
+  "base": {
+    "ref": "origin/main",
+    "sha": "<sha>"
+  },
+  "generation": {
+    "seq": 1,
+    "commit": "<sha>",
+    "baseSha": "<sha>",
+    "headSha": "<sha>",
+    "createdAt": "<time>"
+  },
+  "stale": false,
+  "staleReason": "",
+  "skipped": [],
+  "files": [
+    {
+      "path": "added.txt",
+      "status": "added",
+      "hunks": 1,
+      "additions": 1,
+      "deletions": 0
+    },
+    {
+      "path": "deleted.txt",
+      "status": "deleted",
+      "hunks": 1,
+      "additions": 0,
+      "deletions": 1
+    },
+    {
+      "path": "modified.txt",
+      "status": "modified",
+      "hunks": 1,
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "path": "renamed-to.txt",
+      "oldPath": "renamed-from.txt",
+      "status": "renamed",
+      "omitted": "renamed, contents unchanged",
+      "hunks": 0,
+      "additions": 0,
+      "deletions": 0
+    }
+  ],
+  "totals": {
+    "files": 4,
+    "hunks": 3,
+    "additions": 2,
+    "deletions": 2
+  }
+}

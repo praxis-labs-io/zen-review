@@ -14,14 +14,22 @@ import (
 // session ref means another instance advanced it first.
 var ErrRefMoved = errors.New("the ref moved")
 
-// unreadable matches the two ways `add` says it gave up on something. It says so
-// on stderr and nowhere else, and a snapshot that dropped a file without saying
-// which is the failure this tool exists to prevent.
+// unreadable matches the three ways `add` says it gave up on something. It says
+// so on stderr and nowhere else, and a snapshot that dropped a file without
+// saying which is the failure this tool exists to prevent.
 //
 // The directory case is the quieter one: it is a warning and the status stays 0,
 // so every file underneath disappears from the tree with nothing else to show
 // for it.
-var unreadable = regexp.MustCompile(`(?:unable to index file|could not open directory) '([^\n]*)'`)
+//
+// The third puts the path first, which is why it is a second alternative with
+// its own group rather than another name in the first. It is a directory that is
+// a git repository with an unborn HEAD, which an agent leaves behind every time
+// it runs `git init` and has not committed yet. Without it that stderr matches
+// nothing, the status of 1 reads as a failure with no path named, and every
+// command refuses to run at all.
+var unreadable = regexp.MustCompile(`(?:unable to index file|could not open directory) '([^\n]*)'` +
+	`|'([^\n]*)' does not have a commit checked out`)
 
 // refMismatch is how git says a ref was not where the caller said it was. The
 // wider "cannot lock ref" it comes wrapped in also covers a lock left by a
@@ -220,11 +228,30 @@ func sweepIndexes(dir string) {
 	}
 }
 
-// skipped reads the paths add gave up on out of its stderr.
+// skipped reads the paths add gave up on out of its stderr, once each and in
+// the order git first reported them.
+//
+// One path can draw more than one line. An embedded repository with an unborn
+// HEAD says so and then says it could not index the file, and which of those a
+// given git prints is a version difference rather than a difference in what
+// happened. Reporting it twice would put the same path in front of a reader
+// twice and count it twice.
 func skipped(stderr []byte) []string {
 	var paths []string
+	seen := map[string]bool{}
+
 	for _, m := range unreadable.FindAllStringSubmatch(string(stderr), -1) {
-		paths = append(paths, m[1])
+		// One alternative matched, so one of the two groups holds the path and the
+		// other is empty. A path cannot be, so this tells them apart.
+		path := m[1]
+		if path == "" {
+			path = m[2]
+		}
+		if seen[path] {
+			continue
+		}
+		seen[path] = true
+		paths = append(paths, path)
 	}
 	return paths
 }

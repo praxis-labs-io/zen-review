@@ -2,16 +2,14 @@ package diff_test
 
 import (
 	"encoding/json"
-	"flag"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/zen-review/zen-review/internal/diff"
+	"github.com/zen-review/zen-review/internal/golden"
 )
-
-var update = flag.Bool("update", false, "regenerate the golden files")
 
 // Every input under testdata is real git output, captured by
 // testdata/fixtures.sh with the flags internal/git pins. Hand-written diff text
@@ -41,27 +39,7 @@ func TestGoldenParses(t *testing.T) {
 			if err != nil {
 				t.Fatalf("encoding the parse of %s: %v", name, err)
 			}
-			golden(t, name, append(got, '\n'))
+			golden.Compare(t, name, append(got, '\n'))
 		})
-	}
-}
-
-func golden(t *testing.T, name string, got []byte) {
-	t.Helper()
-
-	path := filepath.Join("testdata", name+".golden")
-	if *update {
-		if err := os.WriteFile(path, got, 0o644); err != nil {
-			t.Fatalf("writing %s: %v", path, err)
-		}
-		return
-	}
-
-	want, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("reading %s: %v (run: make golden)", path, err)
-	}
-	if string(got) != string(want) {
-		t.Errorf("the parse of %s changed.\n got %s\nwant %s", name, got, want)
 	}
 }

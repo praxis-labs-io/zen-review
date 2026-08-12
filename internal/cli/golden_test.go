@@ -1,0 +1,109 @@
+package cli_test
+
+import (
+	"slices"
+	"strings"
+	"testing"
+
+	"github.com/zen-review/zen-review/internal/golden"
+)
+
+// mixed is a changeset holding one of everything the summary rows can say.
+func mixed(t *testing.T) *fixture {
+	t.Helper()
+
+	f := newFixture(t)
+	f.Write("modified.txt", "before\n")
+	f.Write("deleted.txt", "doomed\n")
+	f.Write("renamed-from.txt", "one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\n")
+	f.Commit("first")
+	f.TrackOrigin("main")
+
+	f.Git("checkout", "-q", "-b", "feature")
+	f.Write("modified.txt", "after\n")
+	f.Git("rm", "-q", "deleted.txt")
+	f.Git("mv", "renamed-from.txt", "renamed-to.txt")
+	f.Write("added.txt", "never added to the index\n")
+	return f
+}
+
+// The golden files lock the schema and not the values. Everything that moves
+// between machines and runs is normalised out first, and what is left is the key
+// set, the nesting, the enum spellings and which optional fields appear.
+//
+// That is what every strings.Contains assertion in this package misses: a
+// renamed key sails through all of them and breaks whatever is parsing the
+// output. What the normaliser destroys is asserted in ordinary tests instead,
+// which is where base.sha being the merge base and the two bases diverging on a
+// rebase get checked.
+//
+// So do not add value assertions here. Add them next to the behaviour they
+// belong to and leave this locking the contract.
+func TestTheJSONShapeIsTheContract(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		build func(f *fixture) []string
+	}{
+		{
+			// No generation at all, which is what the first run in a repository
+			// reports and the one case where generation is null.
+			name:  "no-generation",
+			build: func(*fixture) []string { return []string{"status"} },
+		},
+		{
+			name:  "refreshed",
+			build: func(f *fixture) []string { f.mustRun("refresh"); return []string{"status"} },
+		},
+		{
+			name: "stale",
+			build: func(f *fixture) []string {
+				f.mustRun("refresh")
+				f.Write("modified.txt", "after the generation was built\n")
+				return []string{"status"}
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := mixed(t)
+			args := tc.build(f)
+
+			w, raw := f.decode(args...)
+
+			golden.Compare(t, tc.name, []byte(scrub(raw, w)))
+		})
+	}
+}
+
+// scrub replaces every value that cannot be the same twice: the session id,
+// which hashes a temporary path, the shas, and the timestamp the engine stamps
+// from the clock.
+//
+// The substitutions are the values the payload actually reported, read back off
+// the parse, rather than patterns. A pattern for a 16-hex session id also
+// matches inside a 40-hex sha and inside any path that happens to look like
+// one, and getting two patterns to agree on which ran first is a bug waiting for
+// a fixture that spells a word in hex.
+func scrub(raw string, w wire) string {
+	subs := [][2]string{
+		{w.Session, "<session>"},
+		{w.Base.SHA, "<sha>"},
+	}
+	if w.Generation != nil {
+		subs = append(subs,
+			[2]string{w.Generation.Commit, "<sha>"},
+			[2]string{w.Generation.BaseSha, "<sha>"},
+			[2]string{w.Generation.HeadSha, "<sha>"},
+			[2]string{w.Generation.CreatedAt, "<time>"},
+		)
+	}
+
+	// Longest first, so a value holding another inside it is replaced whole.
+	slices.SortStableFunc(subs, func(a, b [2]string) int { return len(b[0]) - len(a[0]) })
+	for _, sub := range subs {
+		if sub[0] == "" {
+			continue
+		}
+		raw = strings.ReplaceAll(raw, sub[0], sub[1])
+	}
+	return raw
+}

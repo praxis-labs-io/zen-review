@@ -263,6 +263,130 @@ func TestASnapshotNamesADirectoryItCouldNotOpen(t *testing.T) {
 	}
 }
 
+// What add writes on stderr is a version difference, so the parsing is pinned
+// here rather than left to whichever git a runner happens to ship. The
+// double-report below is real: it passed on git 2.50 and failed on CI, which
+// prints both lines for one embedded repository.
+func TestSkippedReadsEachPathOnce(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		stderr string
+		want   []string
+	}{
+		{
+			name:   "nothing to report",
+			stderr: "",
+		},
+		{
+			name:   "a file it could not read",
+			stderr: "error: unable to index file 'locked.txt'\n",
+			want:   []string{"locked.txt"},
+		},
+		{
+			name:   "a directory it could not open",
+			stderr: "warning: could not open directory 'locked/'\n",
+			want:   []string{"locked/"},
+		},
+		{
+			name:   "an embedded repository with no commit",
+			stderr: "error: 'vendored/' does not have a commit checked out\n",
+			want:   []string{"vendored/"},
+		},
+		{
+			name: "both lines for the one embedded repository",
+			stderr: "error: 'vendored/' does not have a commit checked out\n" +
+				"error: unable to index file 'vendored/'\n",
+			want: []string{"vendored/"},
+		},
+		{
+			name: "the same pair the other way round",
+			stderr: "error: unable to index file 'vendored/'\n" +
+				"error: 'vendored/' does not have a commit checked out\n",
+			want: []string{"vendored/"},
+		},
+		{
+			name: "distinct paths keep the order git reported them in",
+			stderr: "error: unable to index file 'b.txt'\n" +
+				"error: 'vendored/' does not have a commit checked out\n" +
+				"warning: could not open directory 'a/'\n",
+			want: []string{"b.txt", "vendored/", "a/"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := skipped([]byte(tc.stderr))
+
+			if len(got) != len(tc.want) {
+				t.Fatalf("skipped = %v, want %v", got, tc.want)
+			}
+			for i := range tc.want {
+				if got[i] != tc.want[i] {
+					t.Errorf("skipped = %v, want %v", got, tc.want)
+					break
+				}
+			}
+		})
+	}
+}
+
+// A repository embedded in the work tree with no commit yet is the third way add
+// gives up, and the only one that puts the path before the message.
+//
+// An agent running `git init` in a subdirectory leaves one every time, and until
+// it commits there is no gitlink to record. Unnamed, the status of 1 reads as a
+// snapshot that failed for no stated reason and every command above refuses to
+// run.
+func TestASnapshotNamesAnEmbeddedRepositoryWithNoCommit(t *testing.T) {
+	f := newFixture(t)
+	f.Write("a.txt", "one\n")
+	f.Commit("first")
+	f.Git("init", "-q", "-b", "main", "vendored")
+
+	_, snap := snapshot(t, f)
+
+	// git reports this one with a trailing slash, where the other two do not, and
+	// some versions report it on two lines at once.
+	if len(snap.Skipped) != 1 || snap.Skipped[0] != "vendored/" {
+		t.Errorf("Skipped = %v, want [vendored/]", snap.Skipped)
+	}
+	if _, ok := entries(t, f, snap.Tree)["a.txt"]; !ok {
+		t.Error("the readable file is missing, so the embedded repository lost the whole snapshot")
+	}
+}
+
+// A tracked file add cannot read is the dangerous skip, and the reason Skipped
+// has to be shown rather than counted.
+//
+// The index is seeded from HEAD, so a file add gives up on keeps the blob that
+// was already there. It does not vanish and it does not read as deleted: it
+// reads as unchanged. An edit nobody can see is worse than a file nobody can
+// find.
+func TestATrackedFileThatCouldNotBeReadKeepsItsOldContent(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads a file with no permissions, so there is nothing to skip")
+	}
+
+	f := newFixture(t)
+	f.Write("a.txt", "committed\n")
+	f.Commit("first")
+	was := "100644 " + f.Git("rev-parse", "HEAD:a.txt")
+
+	f.Write("a.txt", "edited, and unreadable\n")
+	locked := filepath.Join(f.Dir(), "a.txt")
+	if err := os.Chmod(locked, 0o000); err != nil {
+		t.Fatalf("removing the permissions: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o644) })
+
+	_, snap := snapshot(t, f)
+
+	if len(snap.Skipped) != 1 || snap.Skipped[0] != "a.txt" {
+		t.Fatalf("Skipped = %v, want [a.txt]", snap.Skipped)
+	}
+	if got := entries(t, f, snap.Tree)["a.txt"]; got != was {
+		t.Errorf("a.txt = %s, want the committed blob %s", got, was)
+	}
+}
+
 // Repo promises a value is safe to call from more than one goroutine, and the
 // TUI will refresh while a build is already running. Two builds sharing an index
 // clear each other halfway through, and the bad outcome is a wrong tree rather

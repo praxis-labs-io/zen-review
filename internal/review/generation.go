@@ -40,8 +40,13 @@ type Generation struct {
 	Skipped []string
 }
 
-// Status is the session as it stands. It writes nothing: not a row, not a
-// commit, not the ref.
+// Status is the session as it stands. It writes no generation, no commit and
+// does not move the ref.
+//
+// Open may already have written the session row before this runs, when the
+// caller passed a base that differs from the stored one. That is the base
+// changing, not the status reading, and it is the whole of what a --base flag
+// on a read command does.
 type Status struct {
 	SessionID string
 	Kind      store.Kind
@@ -56,6 +61,13 @@ type Status struct {
 	// Stale says the work tree or the base has moved since the generation was
 	// built, so Files below is what was reviewed rather than what is there now.
 	Stale bool
+
+	// Skipped names the paths git could not read into the snapshot taken to
+	// answer Stale. It describes the work tree as it is now, not the generation
+	// being reported, and it is filled in whether or not one exists: a session
+	// with nothing built yet is exactly where a reader has no other way to find
+	// out that a file is missing from what they are about to review.
+	Skipped []string
 
 	// Files is the changeset at Generation, and is empty when there is none.
 	Files []diff.File
@@ -201,6 +213,7 @@ func (s *Session) Status(ctx context.Context) (Status, error) {
 	if err != nil {
 		return Status{}, err
 	}
+	st.Skipped = snap.Skipped
 
 	latest, found, err := s.db.LatestGeneration(ctx, s.row.ID)
 	if err != nil {

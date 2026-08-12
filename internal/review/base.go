@@ -47,7 +47,7 @@ func (e *StackedError) Error() string {
 type NoMergeBaseError struct{ Ref string }
 
 func (e *NoMergeBaseError) Error() string {
-	return fmt.Sprintf("%s and HEAD share no history, so the fork point is gone: pass --base with a ref this branch still grows from", e.Ref)
+	return fmt.Sprintf("the fork point is gone: %s and HEAD share no history, so pass --base with a ref this branch still grows from", e.Ref)
 }
 
 // UnresolvableBaseError means the base this session was measured from no longer
@@ -142,7 +142,10 @@ func (s *Session) detect(ctx context.Context, head git.Head) (string, error) {
 	// rather than after the stack walk is what keeps that arriving as guidance
 	// instead of a merge-base fatal about an object name.
 	if _, err := s.repo.RevParse(ctx, detected); err != nil {
-		return "", fmt.Errorf("origin/HEAD points at %s, which no longer exists, so pass --base <ref>", detected)
+		// Opening with the literal rather than the ref: fang title-cases the first
+		// word of an error, and a mangled ref in the sentence naming what to fix is
+		// worse than no sentence.
+		return "", fmt.Errorf("this repository's origin/HEAD points at %s, which no longer exists, so pass --base <ref>", detected)
 	}
 
 	candidates, err := s.stack(ctx, head, detected)

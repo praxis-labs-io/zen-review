@@ -17,9 +17,9 @@ test: ## Run tests with race detection and coverage
 	@echo "Running tests..."
 	go test -race -coverprofile=$(COVERAGE_FILE) ./...
 
-golden: ## Regenerate the diff parser's golden files
+golden: ## Regenerate the golden files
 	@echo "Regenerating golden files..."
-	go test ./internal/diff/ -update
+	go test ./internal/diff/ ./internal/cli/ -update
 
 coverage: test ## Show test coverage report
 	@echo "Generating coverage report..."
