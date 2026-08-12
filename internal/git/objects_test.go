@@ -263,6 +263,64 @@ func TestASnapshotNamesADirectoryItCouldNotOpen(t *testing.T) {
 	}
 }
 
+// A repository embedded in the work tree with no commit yet is the third way add
+// gives up, and the only one that puts the path before the message.
+//
+// An agent running `git init` in a subdirectory leaves one every time, and until
+// it commits there is no gitlink to record. Unnamed, the status of 1 reads as a
+// snapshot that failed for no stated reason and every command above refuses to
+// run.
+func TestASnapshotNamesAnEmbeddedRepositoryWithNoCommit(t *testing.T) {
+	f := newFixture(t)
+	f.Write("a.txt", "one\n")
+	f.Commit("first")
+	f.Git("init", "-q", "-b", "main", "vendored")
+
+	_, snap := snapshot(t, f)
+
+	// git reports this one with a trailing slash, where the other two do not.
+	if len(snap.Skipped) != 1 || !strings.HasPrefix(snap.Skipped[0], "vendored") {
+		t.Errorf("Skipped = %v, want the embedded repository", snap.Skipped)
+	}
+	if _, ok := entries(t, f, snap.Tree)["a.txt"]; !ok {
+		t.Error("the readable file is missing, so the embedded repository lost the whole snapshot")
+	}
+}
+
+// A tracked file add cannot read is the dangerous skip, and the reason Skipped
+// has to be shown rather than counted.
+//
+// The index is seeded from HEAD, so a file add gives up on keeps the blob that
+// was already there. It does not vanish and it does not read as deleted: it
+// reads as unchanged. An edit nobody can see is worse than a file nobody can
+// find.
+func TestATrackedFileThatCouldNotBeReadKeepsItsOldContent(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads a file with no permissions, so there is nothing to skip")
+	}
+
+	f := newFixture(t)
+	f.Write("a.txt", "committed\n")
+	f.Commit("first")
+	was := "100644 " + f.Git("rev-parse", "HEAD:a.txt")
+
+	f.Write("a.txt", "edited, and unreadable\n")
+	locked := filepath.Join(f.Dir(), "a.txt")
+	if err := os.Chmod(locked, 0o000); err != nil {
+		t.Fatalf("removing the permissions: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o644) })
+
+	_, snap := snapshot(t, f)
+
+	if len(snap.Skipped) != 1 || snap.Skipped[0] != "a.txt" {
+		t.Fatalf("Skipped = %v, want [a.txt]", snap.Skipped)
+	}
+	if got := entries(t, f, snap.Tree)["a.txt"]; got != was {
+		t.Errorf("a.txt = %s, want the committed blob %s", got, was)
+	}
+}
+
 // Repo promises a value is safe to call from more than one goroutine, and the
 // TUI will refresh while a build is already running. Two builds sharing an index
 // clear each other halfway through, and the bad outcome is a wrong tree rather

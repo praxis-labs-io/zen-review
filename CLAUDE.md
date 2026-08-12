@@ -47,7 +47,7 @@ make all              # lint (gofmt + mod-tidy + golangci-lint) + test + build
 make test             # go test -race -coverprofile ./...
 make lint             # includes gofmt check and go.mod tidiness
 make fmt-fix          # gofmt -w .
-make golden           # regenerate internal/diff's golden files
+make golden           # regenerate the golden files in internal/diff and internal/cli
 make install          # build to ~/.local/bin/zen-review
 go test ./internal/review/ -run TestName   # single test
 ```
@@ -138,6 +138,7 @@ internal/
   cli/         the review subcommands. A thin shell over review/.
   tui/         app, tree, diffpane, compose, comp.
   testrepo/    real git repos for tests. Test-only, imports nothing of ours.
+  golden/      the golden-file compare. Test-only, and owns the -update flag.
 ```
 
 The boundaries are in `.claude/rules/code-quality.md` and breaking one is a review-stopper. The short version: the CLI has to be able to answer any question the TUI can.

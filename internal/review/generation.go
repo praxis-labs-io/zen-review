@@ -40,8 +40,13 @@ type Generation struct {
 	Skipped []string
 }
 
-// Status is the session as it stands. It writes nothing: not a row, not a
-// commit, not the ref.
+// Status is the session as it stands. It writes no generation, no commit and
+// does not move the ref.
+//
+// Open may already have written the session row before this runs, when the
+// caller passed a base that differs from the stored one. That is the base
+// changing, not the status reading, and it is the whole of what a --base flag
+// on a read command does.
 type Status struct {
 	SessionID string
 	Kind      store.Kind

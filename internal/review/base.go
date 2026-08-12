@@ -47,7 +47,7 @@ func (e *StackedError) Error() string {
 type NoMergeBaseError struct{ Ref string }
 
 func (e *NoMergeBaseError) Error() string {
-	return fmt.Sprintf("%s and HEAD share no history, so the fork point is gone: pass --base with a ref this branch still grows from", e.Ref)
+	return fmt.Sprintf("the fork point is gone: %s and HEAD share no history, so pass --base with a ref this branch still grows from", e.Ref)
 }
 
 // UnresolvableBaseError means the base this session was measured from no longer
