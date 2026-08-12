@@ -179,6 +179,86 @@ func TestDiffTreesReadsATreeWithNoCommit(t *testing.T) {
 	}
 }
 
+// A remap reads where lines went, and a context line says nothing about that. The
+// flag also splits every contiguous change into its own hunk, which is a simpler
+// shape to translate through than one hunk with edits scattered inside it.
+func TestRemapDiffCarriesNoContext(t *testing.T) {
+	f := newFixture(t)
+	f.Write("a.txt", twentyLines("before"))
+	base := f.Commit("first")
+
+	f.Write("a.txt", twentyLines("after"))
+
+	repo := f.open()
+	snap, err := repo.SnapshotTree(t.Context())
+	if err != nil {
+		t.Fatalf("snapshotting: %v", err)
+	}
+
+	out, err := repo.RemapDiff(t.Context(), base, snap.Tree)
+	if err != nil {
+		t.Fatalf("diffing for the remap: %v", err)
+	}
+	if !strings.Contains(string(out), "@@ -10 +10 @@") {
+		t.Errorf("the hunk is not the one changed line:\n%s", out)
+	}
+
+	for _, line := range strings.Split(string(out), "\n") {
+		if strings.HasPrefix(line, " ") {
+			t.Errorf("the remap diff carries a context line: %q", line)
+		}
+	}
+}
+
+// Rename detection gives up past diff.renameLimit, writes a warning to stderr and
+// exits 0. run discards stderr on success, so without -l0 the patch that comes
+// back has every rename as an add and a delete with nothing said, and a reviewed
+// range on a renamed file would vanish for a reason nobody could see.
+//
+// The limit only bites on inexact renames, so the content moves as well as the
+// path. Two files past a limit of one is enough to make git give up, which is
+// cheaper than the thousand the real default takes.
+func TestRemapDiffFindsRenamesPastTheConfiguredLimit(t *testing.T) {
+	f := newFixture(t)
+	for _, name := range []string{"one.txt", "two.txt", "three.txt"} {
+		f.Write(name, twentyLines("before "+name))
+	}
+	base := f.Commit("first")
+
+	f.Git("config", "diff.renameLimit", "1")
+	for _, name := range []string{"one.txt", "two.txt", "three.txt"} {
+		f.Git("mv", name, "moved-"+name)
+		f.Write("moved-"+name, twentyLines("after "+name))
+	}
+
+	repo := f.open()
+	snap, err := repo.SnapshotTree(t.Context())
+	if err != nil {
+		t.Fatalf("snapshotting: %v", err)
+	}
+
+	remap, err := repo.RemapDiff(t.Context(), base, snap.Tree)
+	if err != nil {
+		t.Fatalf("diffing for the remap: %v", err)
+	}
+	if !strings.Contains(string(remap), "rename from one.txt") {
+		t.Errorf("the remap diff lost a rename to the configured limit:\n%s", remap)
+	}
+
+	// The same diff without -l0, to prove the flag is what carried it and that
+	// the failure it defends against is silent.
+	plain, err := repo.DiffTrees(t.Context(), base, snap.Tree)
+	if err != nil {
+		t.Fatalf("diffing the base against the snapshot: %v", err)
+	}
+	if strings.Contains(string(plain), "rename from one.txt") {
+		t.Skip("this git finds renames past diff.renameLimit unaided, so -l0 is untested here")
+	}
+	if !strings.Contains(string(plain), "new file mode") {
+		t.Errorf("the unpinned diff was expected to report the rename as an add:\n%s", plain)
+	}
+}
+
 // diff.submodule=log writes an embedded repository as a bare "Submodule x"
 // line with no "diff --git" header, so the parser above sees no file at all and
 // the changeset silently loses a row. The pinned flag is the whole defence.

@@ -177,13 +177,18 @@ func (s *Session) Refresh(ctx context.Context) (Generation, error) {
 		return Generation{}, err
 	}
 
+	carried, err := s.carry(ctx, latest, found, snap.Tree)
+	if err != nil {
+		return Generation{}, err
+	}
+
 	row, err := s.db.AddGeneration(ctx, store.Generation{
 		SessionID: s.row.ID,
 		BaseSha:   s.base.SHA,
 		HeadSha:   head.SHA,
 		CommitSha: commit,
 		CreatedAt: now,
-	}, genFiles(files))
+	}, genFiles(files), carried)
 	if err != nil {
 		return Generation{}, err
 	}

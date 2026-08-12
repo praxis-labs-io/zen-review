@@ -47,6 +47,28 @@ func (r *Repo) DiffTrees(ctx context.Context, from, to string) ([]byte, error) {
 	return out, nil
 }
 
+// RemapDiff is the diff a remap translates through: one generation's tree
+// against the next, or one base against the next.
+//
+// It is not DiffTrees with different arguments. Two flags are added on top of
+// the pinned set, and git takes the last value of a repeated flag, so
+// --unified=0 replaces the --unified=3 above rather than conflicting with it.
+//
+// -U0 because context lines are cost with nothing here to read them, and every
+// contiguous change becoming its own hunk is a simpler thing to translate.
+//
+// -l0 is the one that is correctness. Rename detection gives up past
+// diff.renameLimit, writes a warning to stderr and exits 0, which run discards.
+// The patch that comes back has every rename as an add and a delete, so every
+// reviewed range on a renamed file would vanish with nothing said.
+func (r *Repo) RemapDiff(ctx context.Context, from, to string) ([]byte, error) {
+	out, err := run(ctx, r.root, diffArgv("--unified=0", "-l0", "--end-of-options", from, to, "--")...)
+	if err != nil {
+		return nil, fmt.Errorf("diffing %s against %s for the remap: %w", from, to, err)
+	}
+	return out, nil
+}
+
 // Untracked lists the paths git knows nothing about, honouring .gitignore and the
 // exclude files. Paths are relative to the work tree root.
 func (r *Repo) Untracked(ctx context.Context) ([]string, error) {

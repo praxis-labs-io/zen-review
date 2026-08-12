@@ -206,6 +206,41 @@ func contextOf(h diff.Hunk) []span {
 	return spans
 }
 
+// subtract is what is left of cur once every range in rs is taken out of it,
+// and is the whole of what unmarking does.
+func subtract(cur, rs []Range) []Range {
+	out := merge(cur)
+	for _, r := range rs {
+		var next []Range
+		for _, c := range out {
+			next = append(next, c.without(r)...)
+		}
+		out = next
+	}
+	return out
+}
+
+// without is what is left of c once r is taken out of it.
+//
+// A whole-file mark needs no case of its own, and adding one is the next likely
+// mistake here. It is the interval 0:0 and a line range starts at 1, so the two
+// are always disjoint below and neither clips the other, which leaves a
+// whole-file mark removable only by a whole-file unmark.
+func (c Range) without(r Range) []Range {
+	if r.End < c.Start || r.Start > c.End {
+		return []Range{c}
+	}
+
+	var out []Range
+	if r.Start > c.Start {
+		out = append(out, Range{Start: c.Start, End: r.Start - 1})
+	}
+	if r.End < c.End {
+		out = append(out, Range{Start: r.End + 1, End: c.End})
+	}
+	return out
+}
+
 // merge normalises a set of ranges: sorted, with overlaps and touching pairs
 // joined.
 //

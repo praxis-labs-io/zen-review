@@ -222,7 +222,7 @@ func TestGenFileStatusIsConstrainedToTheVocabulary(t *testing.T) {
 	add := func(status diff.Status) error {
 		_, err := db.AddGeneration(ctx,
 			Generation{SessionID: "s", BaseSha: "b", HeadSha: "h", CommitSha: "c", CreatedAt: now},
-			[]GenFile{{Path: "a.txt", Status: status}})
+			[]GenFile{{Path: "a.txt", Status: status}}, Carry{})
 		return err
 	}
 
