@@ -189,8 +189,8 @@ func TestAnEmbeddedRepositoryIsReportedRatherThanDropped(t *testing.T) {
 
 		w, _ := f.decode()
 
-		if len(w.Skipped) != 1 || !strings.HasPrefix(w.Skipped[0], "vendored") {
-			t.Errorf("skipped = %v, want the embedded repository", w.Skipped)
+		if len(w.Skipped) != 1 || w.Skipped[0] != "vendored/" {
+			t.Errorf("skipped = %v, want [vendored/]", w.Skipped)
 		}
 		if _, ok := w.files()["plain.txt"]; !ok {
 			t.Errorf("files = %+v, want the file beside it to have survived", w.Files)

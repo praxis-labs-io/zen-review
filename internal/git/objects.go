@@ -228,18 +228,30 @@ func sweepIndexes(dir string) {
 	}
 }
 
-// skipped reads the paths add gave up on out of its stderr, in the order git
-// reported them.
+// skipped reads the paths add gave up on out of its stderr, once each and in
+// the order git first reported them.
+//
+// One path can draw more than one line. An embedded repository with an unborn
+// HEAD says so and then says it could not index the file, and which of those a
+// given git prints is a version difference rather than a difference in what
+// happened. Reporting it twice would put the same path in front of a reader
+// twice and count it twice.
 func skipped(stderr []byte) []string {
 	var paths []string
+	seen := map[string]bool{}
+
 	for _, m := range unreadable.FindAllStringSubmatch(string(stderr), -1) {
 		// One alternative matched, so one of the two groups holds the path and the
 		// other is empty. A path cannot be, so this tells them apart.
-		if m[1] != "" {
-			paths = append(paths, m[1])
+		path := m[1]
+		if path == "" {
+			path = m[2]
+		}
+		if seen[path] {
 			continue
 		}
-		paths = append(paths, m[2])
+		seen[path] = true
+		paths = append(paths, path)
 	}
 	return paths
 }

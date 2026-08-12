@@ -263,6 +263,71 @@ func TestASnapshotNamesADirectoryItCouldNotOpen(t *testing.T) {
 	}
 }
 
+// What add writes on stderr is a version difference, so the parsing is pinned
+// here rather than left to whichever git a runner happens to ship. The
+// double-report below is real: it passed on git 2.50 and failed on CI, which
+// prints both lines for one embedded repository.
+func TestSkippedReadsEachPathOnce(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		stderr string
+		want   []string
+	}{
+		{
+			name:   "nothing to report",
+			stderr: "",
+		},
+		{
+			name:   "a file it could not read",
+			stderr: "error: unable to index file 'locked.txt'\n",
+			want:   []string{"locked.txt"},
+		},
+		{
+			name:   "a directory it could not open",
+			stderr: "warning: could not open directory 'locked/'\n",
+			want:   []string{"locked/"},
+		},
+		{
+			name:   "an embedded repository with no commit",
+			stderr: "error: 'vendored/' does not have a commit checked out\n",
+			want:   []string{"vendored/"},
+		},
+		{
+			name: "both lines for the one embedded repository",
+			stderr: "error: 'vendored/' does not have a commit checked out\n" +
+				"error: unable to index file 'vendored/'\n",
+			want: []string{"vendored/"},
+		},
+		{
+			name: "the same pair the other way round",
+			stderr: "error: unable to index file 'vendored/'\n" +
+				"error: 'vendored/' does not have a commit checked out\n",
+			want: []string{"vendored/"},
+		},
+		{
+			name: "distinct paths keep the order git reported them in",
+			stderr: "error: unable to index file 'b.txt'\n" +
+				"error: 'vendored/' does not have a commit checked out\n" +
+				"warning: could not open directory 'a/'\n",
+			want: []string{"b.txt", "vendored/", "a/"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := skipped([]byte(tc.stderr))
+
+			if len(got) != len(tc.want) {
+				t.Fatalf("skipped = %v, want %v", got, tc.want)
+			}
+			for i := range tc.want {
+				if got[i] != tc.want[i] {
+					t.Errorf("skipped = %v, want %v", got, tc.want)
+					break
+				}
+			}
+		})
+	}
+}
+
 // A repository embedded in the work tree with no commit yet is the third way add
 // gives up, and the only one that puts the path before the message.
 //
@@ -278,9 +343,10 @@ func TestASnapshotNamesAnEmbeddedRepositoryWithNoCommit(t *testing.T) {
 
 	_, snap := snapshot(t, f)
 
-	// git reports this one with a trailing slash, where the other two do not.
-	if len(snap.Skipped) != 1 || !strings.HasPrefix(snap.Skipped[0], "vendored") {
-		t.Errorf("Skipped = %v, want the embedded repository", snap.Skipped)
+	// git reports this one with a trailing slash, where the other two do not, and
+	// some versions report it on two lines at once.
+	if len(snap.Skipped) != 1 || snap.Skipped[0] != "vendored/" {
+		t.Errorf("Skipped = %v, want [vendored/]", snap.Skipped)
 	}
 	if _, ok := entries(t, f, snap.Tree)["a.txt"]; !ok {
 		t.Error("the readable file is missing, so the embedded repository lost the whole snapshot")
