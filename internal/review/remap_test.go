@@ -107,6 +107,38 @@ index aaaaaaa..bbbbbbb 100644
  twentyone
 `
 
+	// No context at all, which is the shape the remap's own diff runs at and the
+	// only one where git names the line an insertion follows rather than one
+	// inside the hunk.
+	insertOnly = `diff --git a/a.go b/a.go
+index aaaaaaa..bbbbbbb 100644
+--- a/a.go
++++ b/a.go
+@@ -10,0 +11,3 @@ func f() {
++alpha
++beta
++gamma
+`
+
+	// An insertion, then a deletion below it, so the offset a range takes depends
+	// on which side of the second hunk it sits.
+	twoHunks = `diff --git a/a.go b/a.go
+index aaaaaaa..bbbbbbb 100644
+--- a/a.go
++++ b/a.go
+@@ -4,3 +4,5 @@ func f() {
+ four
++inserted one
++inserted two
+ five
+ six
+@@ -20,4 +22,2 @@ func g() {
+ twenty
+-twentyone
+-twentytwo
+ twentythree
+`
+
 	renamed = `diff --git a/old.go b/new.go
 similarity index 100%
 rename from old.go
@@ -228,6 +260,30 @@ func TestAReviewedRangeKeepsTheLinesThatDidNotChange(t *testing.T) {
 			in:    []review.Range{{Start: 100, End: 104}},
 			want:  []review.Range{{Start: 102, End: 106}},
 		},
+		{
+			name:  "an insertion-only hunk leaves the line it follows where it was",
+			patch: insertOnly,
+			in:    []review.Range{{Start: 5, End: 10}},
+			want:  []review.Range{{Start: 5, End: 10}},
+		},
+		{
+			name:  "an insertion-only hunk shifts everything after it",
+			patch: insertOnly,
+			in:    []review.Range{{Start: 11, End: 15}},
+			want:  []review.Range{{Start: 14, End: 18}},
+		},
+		{
+			name:  "a range spanning an insertion-only hunk splits around it",
+			patch: insertOnly,
+			in:    []review.Range{{Start: 8, End: 14}},
+			want:  []review.Range{{Start: 8, End: 10}, {Start: 14, End: 17}},
+		},
+		{
+			name:  "the offset a range takes is every hunk above it, not the nearest",
+			patch: twoHunks,
+			in:    []review.Range{{Start: 10, End: 15}, {Start: 24, End: 26}},
+			want:  []review.Range{{Start: 12, End: 17}, {Start: 24, End: 26}},
+		},
 	}
 
 	for _, tc := range tests {
@@ -296,6 +352,19 @@ func TestACommentAnchorClampsToWhatSurvived(t *testing.T) {
 			in:    review.Range{Start: 10, End: 20},
 			want:  review.Range{Start: 10, End: 20},
 			held:  true,
+		},
+		{
+			name:  "an anchor on the file as a whole comes through a rename",
+			patch: renamed,
+			in:    review.Range{Start: 0, End: 0},
+			want:  review.Range{Start: 0, End: 0},
+			held:  true,
+		},
+		{
+			name:  "an anchor on the file as a whole is lost when its bytes change",
+			patch: binaryChange,
+			in:    review.Range{Start: 0, End: 0},
+			held:  false,
 		},
 	}
 

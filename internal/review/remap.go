@@ -1,6 +1,7 @@
 package review
 
 import (
+	"cmp"
 	"math"
 	"slices"
 
@@ -95,6 +96,10 @@ func (t Translation) Ranges(rs []Range) []Range {
 // a region, and the agent rewriting a line in the middle of that region is
 // usually the comment being acted on rather than the comment being lost. Orphan
 // it there and every comment that worked orphans before it can be confirmed.
+//
+// An anchor on the file as a whole takes the same rule it takes in Ranges,
+// because it names the file rather than any line in it: it comes through while
+// the content does and is lost when the bytes change.
 func (t Translation) Anchor(r Range) (Range, bool) {
 	if t.held {
 		return r, true
@@ -223,7 +228,7 @@ func merge(rs []Range) []Range {
 		}
 		lines = append(lines, r)
 	}
-	slices.SortFunc(lines, func(a, b Range) int { return a.Start - b.Start })
+	slices.SortFunc(lines, func(a, b Range) int { return cmp.Compare(a.Start, b.Start) })
 
 	out := make([]Range, 0, len(lines)+1)
 	if whole {
