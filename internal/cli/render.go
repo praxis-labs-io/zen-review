@@ -49,7 +49,7 @@ func render(v view) string {
 		}
 	}
 
-	writeSkipped(&b, v.Generation.Skipped)
+	writeSkipped(&b, v.Skipped)
 	return b.String()
 }
 
@@ -143,8 +143,12 @@ type payload struct {
 
 	Stale bool `json:"stale"`
 
-	// StaleReason is "", "tree" or "base". No omitempty on it or on Stale: false
-	// and absent are different answers and a consumer should not have to guess.
+	// StaleReason is "", "tree" or "base". It is empty on a session with no
+	// generation, where Stale is true and neither a base nor a tree moved to make
+	// it so: a consumer switching on this reads the null generation for that case.
+	//
+	// No omitempty on it or on Stale, because false and absent are different
+	// answers and a consumer should not have to guess which it got.
 	StaleReason staleness `json:"staleReason"`
 
 	// Skipped is top level rather than under Generation, because on a status it
@@ -203,10 +207,10 @@ func payloadOf(v view) payload {
 		Base:        baseJSON{Ref: v.Base.Ref, SHA: v.Base.SHA},
 		Stale:       v.Stale,
 		StaleReason: v.reason(),
-		Skipped:     make([]string, 0, len(v.Generation.Skipped)),
+		Skipped:     make([]string, 0, len(v.Skipped)),
 		Files:       make([]fileJSON, 0, len(v.Files)),
 	}
-	p.Skipped = append(p.Skipped, v.Generation.Skipped...)
+	p.Skipped = append(p.Skipped, v.Skipped...)
 
 	if v.Exists {
 		p.Generation = &generationJSON{

@@ -26,6 +26,12 @@ type view struct {
 	Exists bool
 	Stale  bool
 
+	// Skipped names the paths git could not read into the snapshot just taken. It
+	// is a property of the work tree rather than of the generation, which is why
+	// it sits here and not under one: a session with nothing built yet still has
+	// to be able to say a file is missing from what is about to be reviewed.
+	Skipped []string
+
 	Files []diff.File
 }
 
@@ -66,6 +72,7 @@ func statusView(s *review.Session, st review.Status) view {
 		Generation: st.Generation,
 		Exists:     st.Exists,
 		Stale:      st.Stale,
+		Skipped:    st.Skipped,
 		Files:      st.Files,
 	}
 }
@@ -82,6 +89,7 @@ func generationView(s *review.Session, g review.Generation, files []diff.File) v
 		Base:       s.Base(),
 		Generation: g,
 		Exists:     true,
+		Skipped:    g.Skipped,
 		Files:      files,
 	}
 }

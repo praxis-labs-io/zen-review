@@ -142,7 +142,10 @@ func (s *Session) detect(ctx context.Context, head git.Head) (string, error) {
 	// rather than after the stack walk is what keeps that arriving as guidance
 	// instead of a merge-base fatal about an object name.
 	if _, err := s.repo.RevParse(ctx, detected); err != nil {
-		return "", fmt.Errorf("origin/HEAD points at %s, which no longer exists, so pass --base <ref>", detected)
+		// Opening with the literal rather than the ref: fang title-cases the first
+		// word of an error, and a mangled ref in the sentence naming what to fix is
+		// worse than no sentence.
+		return "", fmt.Errorf("this repository's origin/HEAD points at %s, which no longer exists, so pass --base <ref>", detected)
 	}
 
 	candidates, err := s.stack(ctx, head, detected)

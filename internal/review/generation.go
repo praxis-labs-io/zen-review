@@ -62,6 +62,13 @@ type Status struct {
 	// built, so Files below is what was reviewed rather than what is there now.
 	Stale bool
 
+	// Skipped names the paths git could not read into the snapshot taken to
+	// answer Stale. It describes the work tree as it is now, not the generation
+	// being reported, and it is filled in whether or not one exists: a session
+	// with nothing built yet is exactly where a reader has no other way to find
+	// out that a file is missing from what they are about to review.
+	Skipped []string
+
 	// Files is the changeset at Generation, and is empty when there is none.
 	Files []diff.File
 }
@@ -206,6 +213,7 @@ func (s *Session) Status(ctx context.Context) (Status, error) {
 	if err != nil {
 		return Status{}, err
 	}
+	st.Skipped = snap.Skipped
 
 	latest, found, err := s.db.LatestGeneration(ctx, s.row.ID)
 	if err != nil {

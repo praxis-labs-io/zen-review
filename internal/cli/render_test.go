@@ -59,7 +59,12 @@ func TestTheProseSaysWhatHappened(t *testing.T) {
 	unbuilt.Files = nil
 
 	partial := built()
-	partial.Generation.Skipped = []string{"vendored/", "locked.txt"}
+	partial.Skipped = []string{"vendored/", "locked.txt"}
+
+	// Nothing built yet, and a path git could not read. There is no generation to
+	// have mentioned it earlier, so this is the case that has to say so.
+	unbuiltPartial := unbuilt
+	unbuiltPartial.Skipped = []string{"locked.txt"}
 
 	for _, tc := range []struct {
 		name   string
@@ -112,6 +117,15 @@ func TestTheProseSaysWhatHappened(t *testing.T) {
 			want: []string{
 				"git could not read 2 paths just now, so they are not in this review:",
 				"  vendored/",
+				"  locked.txt",
+			},
+		},
+		{
+			name: "paths git could not read, with nothing built yet",
+			v:    unbuiltPartial,
+			want: []string{
+				"no generation yet, so run zen-review refresh",
+				"git could not read 1 path just now, so they are not in this review:",
 				"  locked.txt",
 			},
 		},
@@ -219,7 +233,7 @@ func TestStalenessSplitsIntoItsTwoCauses(t *testing.T) {
 func TestEmptyListsArePresentRatherThanNull(t *testing.T) {
 	v := built()
 	v.Files = nil
-	v.Generation.Skipped = nil
+	v.Skipped = nil
 
 	p := payloadOf(v)
 

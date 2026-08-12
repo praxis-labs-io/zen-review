@@ -1,6 +1,8 @@
 package cli_test
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -23,6 +25,38 @@ func TestStatusWritesNothing(t *testing.T) {
 	}
 	if refs := f.sessionRefs(); refs != nil {
 		t.Errorf("refs = %v, want status to have written none", refs)
+	}
+}
+
+// A session with nothing built yet is where an unreadable path matters most,
+// because there is no generation to have reported it earlier and no other way
+// to find out. The skipped paths come from the snapshot status just took, so
+// they do not depend on a generation existing.
+func TestStatusNamesPathsGitCouldNotReadBeforeAnythingIsBuilt(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads a file with no permissions, so there is nothing to skip")
+	}
+
+	f := branched(t)
+	f.Write("unreadable.txt", "secret\n")
+
+	locked := filepath.Join(f.Dir(), "unreadable.txt")
+	if err := os.Chmod(locked, 0o000); err != nil {
+		t.Fatalf("removing the permissions: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o644) })
+
+	w, _ := f.decode("status")
+	if w.Generation != nil {
+		t.Fatal("this has to be the case with no generation, or it proves nothing")
+	}
+	if len(w.Skipped) != 1 || w.Skipped[0] != "unreadable.txt" {
+		t.Errorf("skipped = %v, want [unreadable.txt]", w.Skipped)
+	}
+
+	out := f.mustRun("status")
+	if !strings.Contains(out, "git could not read") || !strings.Contains(out, "unreadable.txt") {
+		t.Errorf("the prose does not name the path it could not read:\n%s", out)
 	}
 }
 
