@@ -53,6 +53,15 @@ type GenFile struct {
 	HeadBlob string
 }
 
+// Carry is the review state moved into a generation as it is written.
+//
+// Its rows arrive without a generation id, because AddGeneration stamps the one
+// it just numbered. It is a struct rather than a slice so the comments that
+// travel the same way have somewhere to go.
+type Carry struct {
+	Ranges []ReviewedRange
+}
+
 // LatestGeneration is the highest-numbered generation of a session. A session
 // with none comes back as (Generation{}, false, nil).
 func (db *DB) LatestGeneration(ctx context.Context, sessionID string) (Generation, bool, error) {
@@ -81,15 +90,16 @@ func (db *DB) LatestGeneration(ctx context.Context, sessionID string) (Generatio
 	return g, true, nil
 }
 
-// AddGeneration writes a generation and its files together, and returns it with
-// ID and Seq filled in.
+// AddGeneration writes a generation, its files and the review state carried
+// into it together, and returns it with ID and Seq filled in.
 //
-// The two go in one transaction because a generation whose files are missing is
-// one a remap would run through and find nothing in. Seq is assigned here
-// rather than by the caller: _txlock=immediate takes the write lock at BEGIN,
-// so reading the previous number and writing the next cannot interleave with
-// another instance doing the same.
-func (db *DB) AddGeneration(ctx context.Context, g Generation, files []GenFile) (_ Generation, err error) {
+// All three go in one transaction. A generation whose files are missing is one a
+// remap would run through and find nothing in, and one whose carried ranges are
+// missing reads as a review nobody did. Seq is assigned here rather than by the
+// caller: _txlock=immediate takes the write lock at BEGIN, so reading the
+// previous number and writing the next cannot interleave with another instance
+// doing the same.
+func (db *DB) AddGeneration(ctx context.Context, g Generation, files []GenFile, carry Carry) (_ Generation, err error) {
 	tx, err := db.handle.BeginTx(ctx, nil)
 	if err != nil {
 		return Generation{}, fmt.Errorf("starting a generation for %s: %w", g.SessionID, err)
@@ -132,10 +142,37 @@ func (db *DB) AddGeneration(ctx context.Context, g Generation, files []GenFile) 
 		}
 	}
 
+	for _, r := range carry.Ranges {
+		if err = insertRange(ctx, tx, g.SessionID, g.ID, r); err != nil {
+			return Generation{}, err
+		}
+	}
+
 	if err = tx.Commit(); err != nil {
 		return Generation{}, fmt.Errorf("committing generation %d of %s: %w", g.Seq, g.SessionID, err)
 	}
 	return g, nil
+}
+
+// GenFile is one file of a generation, and reports false when the generation
+// does not hold that path.
+func (db *DB) GenFile(ctx context.Context, generationID int64, path string) (GenFile, bool, error) {
+	const q = `
+		SELECT generation_id, path, old_path, status, base_blob, head_blob
+		FROM gen_files
+		WHERE generation_id = ? AND path = ?`
+
+	var f GenFile
+	err := db.handle.QueryRowContext(ctx, q, generationID, path).Scan(
+		&f.GenerationID, &f.Path, &f.OldPath, &f.Status, &f.BaseBlob, &f.HeadBlob,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return GenFile{}, false, nil
+	}
+	if err != nil {
+		return GenFile{}, false, fmt.Errorf("reading %s from generation %d: %w", path, generationID, err)
+	}
+	return f, true, nil
 }
 
 // GenFiles is every file in a generation, ordered by path so a listing and a

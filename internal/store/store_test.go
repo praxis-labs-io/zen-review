@@ -139,7 +139,7 @@ func TestGenerationsAreNumberedAsTheyArrive(t *testing.T) {
 			HeadSha:   "head",
 			CommitSha: "commit",
 			CreatedAt: epoch,
-		}, nil)
+		}, nil, store.Carry{})
 		if err != nil {
 			t.Fatalf("adding generation %d: %v", want, err)
 		}
@@ -186,7 +186,7 @@ func TestAGenerationAndItsFilesLandTogetherOrNotAtAll(t *testing.T) {
 
 	if _, err := db.AddGeneration(t.Context(), store.Generation{
 		SessionID: s.ID, BaseSha: "base", HeadSha: "head", CommitSha: "one", CreatedAt: epoch,
-	}, []store.GenFile{{Path: "a.go", Status: diff.FileModified}}); err != nil {
+	}, []store.GenFile{{Path: "a.go", Status: diff.FileModified}}, store.Carry{}); err != nil {
 		t.Fatalf("adding the first generation: %v", err)
 	}
 
@@ -195,7 +195,7 @@ func TestAGenerationAndItsFilesLandTogetherOrNotAtAll(t *testing.T) {
 	}, []store.GenFile{
 		{Path: "a.go", Status: diff.FileModified},
 		{Path: "a.go", Status: diff.FileAdded},
-	})
+	}, store.Carry{})
 	if err == nil {
 		t.Fatal("two files at one path should not write")
 	}
@@ -215,7 +215,7 @@ func TestAGenerationAndItsFilesLandTogetherOrNotAtAll(t *testing.T) {
 	// rather than leaving a gap the ref chain does not have.
 	next, err := db.AddGeneration(t.Context(), store.Generation{
 		SessionID: s.ID, BaseSha: "base", HeadSha: "head", CommitSha: "three", CreatedAt: epoch,
-	}, nil)
+	}, nil, store.Carry{})
 	if err != nil {
 		t.Fatalf("adding a generation after the failed one: %v", err)
 	}
@@ -231,7 +231,7 @@ func TestAGenerationWithoutItsSessionIsRefused(t *testing.T) {
 
 	_, err := db.AddGeneration(t.Context(), store.Generation{
 		SessionID: "never-saved", BaseSha: "base", HeadSha: "head", CommitSha: "commit", CreatedAt: epoch,
-	}, nil)
+	}, nil, store.Carry{})
 	if err == nil {
 		t.Fatal("a generation for a session that does not exist should not write")
 	}
@@ -248,7 +248,7 @@ func TestGenFilesComeBackOrderedByPath(t *testing.T) {
 	}
 	g, err := db.AddGeneration(t.Context(), store.Generation{
 		SessionID: s.ID, BaseSha: "base", HeadSha: "head", CommitSha: "commit", CreatedAt: epoch,
-	}, []store.GenFile{want[2], want[0], want[1]})
+	}, []store.GenFile{want[2], want[0], want[1]}, store.Carry{})
 	if err != nil {
 		t.Fatalf("adding the generation: %v", err)
 	}
@@ -418,7 +418,7 @@ func TestTwoInstancesNumberGenerationsWithoutColliding(t *testing.T) {
 			start.Wait()
 			g, err := db.AddGeneration(t.Context(), store.Generation{
 				SessionID: s.ID, BaseSha: "base", HeadSha: "head", CommitSha: "commit", CreatedAt: epoch,
-			}, nil)
+			}, nil, store.Carry{})
 			seqs[i], errs[i] = g.Seq, err
 		}()
 	}

@@ -148,6 +148,15 @@ func (s *Session) Refresh(ctx context.Context) (Generation, error) {
 		return Generation{}, tooLarge(paths(files))
 	}
 
+	// Before the swap rather than after. Every step below this line has to be
+	// cheap, because the ref moves partway through them and a failure after that
+	// leaves it ahead of the database. Two wasted tree diffs on a lost race is
+	// the better trade.
+	carried, err := s.carry(ctx, latest, found, snap.Tree, files)
+	if err != nil {
+		return Generation{}, err
+	}
+
 	old, hadRef, err := s.repo.RefSha(ctx, s.Ref())
 	if err != nil {
 		return Generation{}, err
@@ -183,7 +192,7 @@ func (s *Session) Refresh(ctx context.Context) (Generation, error) {
 		HeadSha:   head.SHA,
 		CommitSha: commit,
 		CreatedAt: now,
-	}, genFiles(files))
+	}, genFiles(files), carried)
 	if err != nil {
 		return Generation{}, err
 	}

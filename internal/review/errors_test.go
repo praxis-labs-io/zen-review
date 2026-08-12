@@ -25,6 +25,8 @@ func TestNoErrorMessageBeginsWithAValueTheCallerSupplied(t *testing.T) {
 		&review.UnresolvableBaseError{Ref: marker},
 		&review.TooLargeError{Count: 6000, Limit: 5000, Dir: marker, InDir: 5900},
 		&review.TooLargeError{Count: 6000, Limit: 5000},
+		&review.StaleGenerationError{Seq: 3, Current: 4},
+		&review.StaleGenerationError{Seq: 3},
 	} {
 		message := err.Error()
 		fields := strings.Fields(message)
