@@ -90,37 +90,6 @@ func (db *DB) LatestGeneration(ctx context.Context, sessionID string) (Generatio
 	return g, true, nil
 }
 
-// PreviousGeneration is the generation before seq in a session, and reports
-// false when seq is the first one.
-//
-// It reads the highest seq below rather than seq - 1, so it does not depend on
-// the numbering staying contiguous.
-func (db *DB) PreviousGeneration(ctx context.Context, sessionID string, seq int) (Generation, bool, error) {
-	const q = `
-		SELECT id, session_id, seq, base_sha, head_sha, commit_sha, created_at
-		FROM generations
-		WHERE session_id = ? AND seq < ?
-		ORDER BY seq DESC
-		LIMIT 1`
-
-	var g Generation
-	var created string
-
-	err := db.handle.QueryRowContext(ctx, q, sessionID, seq).Scan(
-		&g.ID, &g.SessionID, &g.Seq, &g.BaseSha, &g.HeadSha, &g.CommitSha, &created,
-	)
-	if errors.Is(err, sql.ErrNoRows) {
-		return Generation{}, false, nil
-	}
-	if err != nil {
-		return Generation{}, false, fmt.Errorf("reading the generation before %d of %s: %w", seq, sessionID, err)
-	}
-	if g.CreatedAt, err = moment(created); err != nil {
-		return Generation{}, false, fmt.Errorf("reading the generation before %d of %s: %w", seq, sessionID, err)
-	}
-	return g, true, nil
-}
-
 // AddGeneration writes a generation, its files and the review state carried
 // into it together, and returns it with ID and Seq filled in.
 //

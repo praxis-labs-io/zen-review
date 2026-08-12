@@ -176,41 +176,6 @@ func TestASessionWithNoGenerationsSaysSo(t *testing.T) {
 	}
 }
 
-// The look-back a file's state is read against. It is scoped to the session,
-// because two sessions on one repository number their generations separately and
-// crossing them would compare a review with somebody else's.
-func TestTheGenerationBeforeOneIsFoundAndTheFirstHasNone(t *testing.T) {
-	db := open(t)
-	mine := session(t, db, "looking-back")
-	theirs := session(t, db, "somebody-else")
-
-	for _, id := range []string{mine.ID, theirs.ID, mine.ID, theirs.ID} {
-		if _, err := db.AddGeneration(t.Context(), store.Generation{
-			SessionID: id, BaseSha: "base", HeadSha: "head", CommitSha: "commit", CreatedAt: epoch,
-		}, nil, store.Carry{}); err != nil {
-			t.Fatalf("adding a generation to %s: %v", id, err)
-		}
-	}
-
-	before, found, err := db.PreviousGeneration(t.Context(), mine.ID, 2)
-	if err != nil {
-		t.Fatalf("reading the generation before 2: %v", err)
-	}
-	if !found || before.Seq != 1 || before.SessionID != mine.ID {
-		t.Errorf("before generation 2 = %+v, found = %v, want seq 1 of %s", before, found, mine.ID)
-	}
-	if !before.CreatedAt.Equal(epoch) {
-		t.Errorf("createdAt = %s, want %s", before.CreatedAt, epoch)
-	}
-
-	if _, found, err = db.PreviousGeneration(t.Context(), mine.ID, 1); err != nil {
-		t.Fatalf("reading the generation before 1: %v", err)
-	}
-	if found {
-		t.Error("found = true before the first generation of a session")
-	}
-}
-
 // A generation whose files are missing is one a remap would run through and find
 // nothing in, so the two land together or neither does. Two files at one path
 // break the primary key, which is the cheapest way to make the write fail

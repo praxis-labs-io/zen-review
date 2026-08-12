@@ -2,6 +2,7 @@ package review_test
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/zen-review/zen-review/internal/diff"
@@ -38,21 +39,32 @@ func row(path string, side store.Side, start, end int) store.ReviewedRange {
 	return store.ReviewedRange{Path: path, Side: side, LineRange: store.LineRange{Start: start, End: end}}
 }
 
+// hunkLines is one line per hunk, naming every side it anchors on.
+func hunkLines(f review.File) []string {
+	out := make([]string, 0, len(f.Hunks))
+	for _, h := range f.Hunks {
+		at := make([]string, 0, len(h.Anchors))
+		for _, a := range h.Anchors {
+			at = append(at, fmt.Sprintf("%s %d:%d", a.Side, a.Range.Start, a.Range.End))
+		}
+		out = append(out, "  "+strings.Join(at, " ")+" "+string(h.State))
+	}
+	return out
+}
+
 // describe is what the table below reads: a line per file, a line per hunk under
 // it, and the burn-down last.
 func describe(c review.Changeset) []string {
 	out := make([]string, 0, len(c.Files)+1)
 	for _, f := range c.Files {
-		out = append(out, fmt.Sprintf("%s %s %d/%d", f.Diff.Path, f.State, f.Reviewed, len(f.Hunks)))
-		for _, h := range f.Hunks {
-			out = append(out, fmt.Sprintf("  %s %d:%d %s", h.Side, h.Range.Start, h.Range.End, h.State))
-		}
+		out = append(out, fmt.Sprintf("%s %s %d/%d", f.Diff.Path, f.State, f.Reviewed, f.Items))
+		out = append(out, hunkLines(f)...)
 	}
-	return append(out, fmt.Sprintf("%d of %d hunks", c.Reviewed, c.Hunks))
+	return append(out, fmt.Sprintf("%d of %d", c.Reviewed, c.Items))
 }
 
 // twoLines is the common shape: one modified file whose single hunk introduces
-// lines 11 and 12.
+// lines 11 and 12 and removes nothing.
 func twoLines() []diff.File {
 	return []diff.File{{
 		Path:   "a.go",
@@ -61,32 +73,61 @@ func twoLines() []diff.File {
 	}}
 }
 
+// binary is the shape with nothing to read line by line, markable only as a
+// whole.
+func binary() []diff.File {
+	return []diff.File{{Path: "logo.png", Status: diff.FileModified, Binary: true, Omitted: "binary"}}
+}
+
 func TestDeriveReadsStateOutOfTheRanges(t *testing.T) {
 	tests := []struct {
-		name   string
-		files  []diff.File
-		now    []store.ReviewedRange
-		before []store.ReviewedRange
-		want   []string
+		name  string
+		files []diff.File
+		rows  []store.ReviewedRange
+		want  []string
 	}{
 		{
 			name:  "every anchored line covered",
 			files: twoLines(),
-			now:   []store.ReviewedRange{row("a.go", store.SideHead, 11, 12)},
-			want:  []string{"a.go reviewed 1/1", "  head 11:12 reviewed", "1 of 1 hunks"},
+			rows:  []store.ReviewedRange{row("a.go", store.SideHead, 11, 12)},
+			want:  []string{"a.go reviewed 1/1", "  head 11:12 reviewed", "1 of 1"},
 		},
 		{
-			// The only way to get here is a translation cutting the range, because
-			// a mark covers a hunk whole.
 			name:  "one of the two covered",
 			files: twoLines(),
-			now:   []store.ReviewedRange{row("a.go", store.SideHead, 11, 11)},
-			want:  []string{"a.go changed 0/1", "  head 11:12 changed", "0 of 1 hunks"},
+			rows:  []store.ReviewedRange{row("a.go", store.SideHead, 11, 11)},
+			want:  []string{"a.go partial 0/1", "  head 11:12 partial", "0 of 1"},
 		},
 		{
 			name:  "nothing covered",
 			files: twoLines(),
-			want:  []string{"a.go unreviewed 0/1", "  head 11:12 unreviewed", "0 of 1 hunks"},
+			want:  []string{"a.go unreviewed 0/1", "  head 11:12 unreviewed", "0 of 1"},
+		},
+		{
+			// The lines a hunk removes are not lines it has. Anchor it on its
+			// additions alone and a deletion arriving later hides inside a hunk that
+			// still reads reviewed.
+			name: "a hunk that both adds and removes anchors on both sides",
+			files: []diff.File{{
+				Path:   "a.go",
+				Status: diff.FileModified,
+				Hunks:  []diff.Hunk{hunk(10, 10, " -+ ")},
+			}},
+			rows: []store.ReviewedRange{row("a.go", store.SideHead, 11, 11)},
+			want: []string{"a.go partial 0/1", "  head 11:11 base 11:11 partial", "0 of 1"},
+		},
+		{
+			name: "the same hunk with both sides covered",
+			files: []diff.File{{
+				Path:   "a.go",
+				Status: diff.FileModified,
+				Hunks:  []diff.Hunk{hunk(10, 10, " -+ ")},
+			}},
+			rows: []store.ReviewedRange{
+				row("a.go", store.SideBase, 11, 11),
+				row("a.go", store.SideHead, 11, 11),
+			},
+			want: []string{"a.go reviewed 1/1", "  head 11:11 base 11:11 reviewed", "1 of 1"},
 		},
 		{
 			name: "an added file is named by its first line",
@@ -95,18 +136,18 @@ func TestDeriveReadsStateOutOfTheRanges(t *testing.T) {
 				Status: diff.FileAdded,
 				Hunks:  []diff.Hunk{hunk(0, 1, "+++")},
 			}},
-			now:  []store.ReviewedRange{row("new.go", store.SideHead, 1, 3)},
-			want: []string{"new.go reviewed 1/1", "  head 1:3 reviewed", "1 of 1 hunks"},
+			rows: []store.ReviewedRange{row("new.go", store.SideHead, 1, 3)},
+			want: []string{"new.go reviewed 1/1", "  head 1:3 reviewed", "1 of 1"},
 		},
 		{
-			name: "a deleted file anchors base side",
+			name: "a deleted file anchors base side only",
 			files: []diff.File{{
 				Path:   "gone.go",
 				Status: diff.FileDeleted,
 				Hunks:  []diff.Hunk{hunk(1, 0, "---")},
 			}},
-			now:  []store.ReviewedRange{row("gone.go", store.SideBase, 1, 3)},
-			want: []string{"gone.go reviewed 1/1", "  base 1:3 reviewed", "1 of 1 hunks"},
+			rows: []store.ReviewedRange{row("gone.go", store.SideBase, 1, 3)},
+			want: []string{"gone.go reviewed 1/1", "  base 1:3 reviewed", "1 of 1"},
 		},
 		{
 			// The anchor takes in the context line between the two additions. Cover
@@ -118,11 +159,11 @@ func TestDeriveReadsStateOutOfTheRanges(t *testing.T) {
 				Status: diff.FileModified,
 				Hunks:  []diff.Hunk{hunk(20, 20, "+ +")},
 			}},
-			now: []store.ReviewedRange{
+			rows: []store.ReviewedRange{
 				row("a.go", store.SideHead, 20, 20),
 				row("a.go", store.SideHead, 22, 22),
 			},
-			want: []string{"a.go changed 0/1", "  head 20:22 changed", "0 of 1 hunks"},
+			want: []string{"a.go partial 0/1", "  head 20:22 partial", "0 of 1"},
 		},
 		{
 			name: "a deletion-only hunk beside a head-side one",
@@ -131,12 +172,12 @@ func TestDeriveReadsStateOutOfTheRanges(t *testing.T) {
 				Status: diff.FileModified,
 				Hunks:  []diff.Hunk{hunk(5, 5, "---"), hunk(30, 27, " + ")},
 			}},
-			now: []store.ReviewedRange{row("mixed.go", store.SideBase, 5, 7)},
+			rows: []store.ReviewedRange{row("mixed.go", store.SideBase, 5, 7)},
 			want: []string{
-				"mixed.go unreviewed 1/2",
+				"mixed.go partial 1/2",
 				"  base 5:7 reviewed",
 				"  head 28:28 unreviewed",
-				"1 of 2 hunks",
+				"1 of 2",
 			},
 		},
 		{
@@ -149,90 +190,46 @@ func TestDeriveReadsStateOutOfTheRanges(t *testing.T) {
 				Status:  diff.FileRenamed,
 				Hunks:   []diff.Hunk{hunk(5, 5, "---")},
 			}},
-			now:  []store.ReviewedRange{row("a.go", store.SideBase, 5, 7)},
-			want: []string{"b.go reviewed 1/1", "  base 5:7 reviewed", "1 of 1 hunks"},
+			rows: []store.ReviewedRange{row("a.go", store.SideBase, 5, 7)},
+			want: []string{"b.go reviewed 1/1", "  base 5:7 reviewed", "1 of 1"},
 		},
 		{
-			name: "a file with no hunks and a whole-file mark",
-			files: []diff.File{{
-				Path:    "logo.png",
-				Status:  diff.FileModified,
-				Binary:  true,
-				Omitted: "binary",
-			}},
-			now:  []store.ReviewedRange{row("logo.png", store.SideHead, 0, 0)},
-			want: []string{"logo.png reviewed 0/0", "0 of 0 hunks"},
+			name:  "a file with no hunks and a whole-file mark",
+			files: binary(),
+			rows:  []store.ReviewedRange{row("logo.png", store.SideHead, 0, 0)},
+			want:  []string{"logo.png reviewed 1/1", "1 of 1"},
 		},
 		{
-			name: "a file with no hunks and no mark",
-			files: []diff.File{{
-				Path:    "logo.png",
-				Status:  diff.FileModified,
-				Binary:  true,
-				Omitted: "binary",
-			}},
-			want: []string{"logo.png unreviewed 0/0", "0 of 0 hunks"},
+			// It counts as one item rather than none, or a changeset carrying it
+			// reads complete while it sits unopened.
+			name:  "a file with no hunks and no mark",
+			files: binary(),
+			want:  []string{"logo.png unreviewed 0/1", "0 of 1"},
 		},
 		{
-			name:  "a whole-file mark answers for the hunks too",
+			// carry.go drops a whole-file mark the moment its file has hunks, so
+			// honouring one here would report a review the next refresh deletes.
+			name:  "a whole-file mark on a file that has hunks answers for nothing",
 			files: twoLines(),
-			now:   []store.ReviewedRange{row("a.go", store.SideHead, 0, 0)},
-			want:  []string{"a.go reviewed 1/1", "  head 11:12 reviewed", "1 of 1 hunks"},
+			rows:  []store.ReviewedRange{row("a.go", store.SideHead, 0, 0)},
+			want:  []string{"a.go unreviewed 0/1", "  head 11:12 unreviewed", "0 of 1"},
 		},
 		{
-			// The hunk was rewritten end to end, so its range went whole and there
-			// is nothing partial left to read it off.
-			name:   "coverage lost with nothing partial left",
-			files:  twoLines(),
-			before: []store.ReviewedRange{row("a.go", store.SideHead, 11, 12)},
-			want:   []string{"a.go changed 0/1", "  head 11:12 unreviewed", "0 of 1 hunks"},
-		},
-		{
-			name:   "coverage lost and then read again",
-			files:  twoLines(),
-			now:    []store.ReviewedRange{row("a.go", store.SideHead, 11, 12)},
-			before: []store.ReviewedRange{row("a.go", store.SideHead, 11, 12), row("a.go", store.SideHead, 20, 25)},
-			want:   []string{"a.go reviewed 1/1", "  head 11:12 reviewed", "1 of 1 hunks"},
-		},
-		{
-			name: "a rename does not hide the drop",
-			files: []diff.File{{
-				Path:    "b.go",
-				OldPath: "a.go",
-				Status:  diff.FileRenamed,
-				Hunks:   []diff.Hunk{hunk(10, 10, " ++ ")},
-			}},
-			before: []store.ReviewedRange{row("a.go", store.SideHead, 11, 12)},
-			want:   []string{"b.go changed 0/1", "  head 11:12 unreviewed", "0 of 1 hunks"},
-		},
-		{
-			// The file's own name is there, so the old one is not consulted and the
-			// coverage it holds does not read as a drop.
-			name: "a renamed file already carrying its new name",
-			files: []diff.File{{
-				Path:    "b.go",
-				OldPath: "a.go",
-				Status:  diff.FileRenamed,
-				Hunks:   []diff.Hunk{hunk(10, 10, " ++ "), hunk(40, 40, " + ")},
-			}},
-			now: []store.ReviewedRange{row("b.go", store.SideHead, 11, 12)},
-			before: []store.ReviewedRange{
-				row("a.go", store.SideHead, 11, 12),
-				row("a.go", store.SideHead, 20, 25),
-				row("b.go", store.SideHead, 11, 12),
-			},
+			name:  "a binary file beside a hunk nobody read",
+			files: append(twoLines(), binary()...),
+			rows:  []store.ReviewedRange{row("logo.png", store.SideHead, 0, 0)},
 			want: []string{
-				"b.go unreviewed 1/2",
-				"  head 11:12 reviewed",
-				"  head 41:41 unreviewed",
-				"1 of 2 hunks",
+				"a.go unreviewed 0/1",
+				"  head 11:12 unreviewed",
+				"logo.png reviewed 1/1",
+				"1 of 2",
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assertRanges(t, describe(review.Derive(tt.files, tt.now, tt.before)), tt.want)
+			assertRanges(t, describe(review.Derive(tt.files, tt.rows)), tt.want)
 		})
 	}
 }
@@ -241,8 +238,8 @@ func TestAHunkIsFoundByThePathSideAndLineItIsNamedUnder(t *testing.T) {
 	c := review.Derive([]diff.File{{
 		Path:   "mixed.go",
 		Status: diff.FileModified,
-		Hunks:  []diff.Hunk{hunk(5, 5, "---"), hunk(30, 27, " + ")},
-	}}, nil, nil)
+		Hunks:  []diff.Hunk{hunk(5, 5, "---"), hunk(30, 27, " -+ ")},
+	}}, nil)
 
 	tests := []struct {
 		name  string
@@ -251,8 +248,9 @@ func TestAHunkIsFoundByThePathSideAndLineItIsNamedUnder(t *testing.T) {
 		line  int
 		found bool
 	}{
-		{name: "the head-side hunk", path: "mixed.go", side: store.SideHead, line: 28, found: true},
-		{name: "the base-side hunk", path: "mixed.go", side: store.SideBase, line: 5, found: true},
+		{name: "the deletion-only hunk, named base side", path: "mixed.go", side: store.SideBase, line: 5, found: true},
+		{name: "the two-sided hunk, named by its head anchor", path: "mixed.go", side: store.SideHead, line: 28, found: true},
+		{name: "the two-sided hunk by its base anchor", path: "mixed.go", side: store.SideBase, line: 31},
 		{name: "the right line on the wrong side", path: "mixed.go", side: store.SideHead, line: 5},
 		{name: "a line inside a hunk rather than its first", path: "mixed.go", side: store.SideBase, line: 6},
 		{name: "a path the changeset does not hold", path: "other.go", side: store.SideHead, line: 28},
@@ -264,8 +262,11 @@ func TestAHunkIsFoundByThePathSideAndLineItIsNamedUnder(t *testing.T) {
 			if found != tt.found {
 				t.Fatalf("found = %v, want %v", found, tt.found)
 			}
-			if found && h.Range.Start != tt.line {
-				t.Errorf("hunk starts at %d, want %d", h.Range.Start, tt.line)
+			if !found {
+				return
+			}
+			if side, line := h.Name(); side != tt.side || line != tt.line {
+				t.Errorf("hunk is named %s %d, want %s %d", side, line, tt.side, tt.line)
 			}
 		})
 	}

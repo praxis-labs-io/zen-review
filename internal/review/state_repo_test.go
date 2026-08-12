@@ -7,16 +7,19 @@ import (
 	"github.com/zen-review/zen-review/internal/store"
 )
 
-// read marks a hunk through the anchor the changeset names it under, which is
-// what a reader pressing r does.
-func (f *fixture) read(s *review.Session, g review.Generation, path string, line int) {
+// read marks every anchor of a hunk, which is what a reader pressing r does. A
+// hunk that both adds and removes takes two marks, because the lines it removes
+// are not lines it has.
+func (f *fixture) read(s *review.Session, g review.Generation, path string, side store.Side, line int) {
 	f.t.Helper()
 
-	h, found := f.changeset(s, g).Hunk(path, store.SideHead, line)
+	h, found := f.changeset(s, g).Hunk(path, side, line)
 	if !found {
-		f.t.Fatalf("no hunk of %s starts at line %d", path, line)
+		f.t.Fatalf("no hunk of %s is named %s %d", path, side, line)
 	}
-	f.mark(s, g, path, h.Side, h.Range)
+	for _, a := range h.Anchors {
+		f.mark(s, g, path, a.Side, a.Range)
+	}
 }
 
 func (f *fixture) changeset(s *review.Session, g review.Generation) review.Changeset {
@@ -29,23 +32,32 @@ func (f *fixture) changeset(s *review.Session, g review.Generation) review.Chang
 	return c
 }
 
-// stateOf is what one file of the changeset reads as, and how many of its hunks
-// are read.
-func (f *fixture) stateOf(s *review.Session, g review.Generation, path string) (review.State, string) {
+// file is one file of the derived changeset.
+func (f *fixture) file(s *review.Session, g review.Generation, path string) review.File {
 	f.t.Helper()
 
 	for _, file := range f.changeset(s, g).Files {
 		if file.Diff.Path == path {
-			return file.State, describe(review.Changeset{Files: []review.File{file}})[1]
+			return file
 		}
 	}
 	f.t.Fatalf("the changeset of generation %d holds no %s", g.Seq, path)
-	return "", ""
+	return review.File{}
 }
 
-// twenty is a session whose one file is twenty numbered lines the branch added,
+// assertFile checks a file's state and the line per hunk under it.
+func assertFile(t *testing.T, f review.File, state review.State, hunks ...string) {
+	t.Helper()
+
+	if f.State != state {
+		t.Errorf("%s = %s, want %s", f.Diff.Path, f.State, state)
+	}
+	assertRanges(t, hunkLines(f), hunks)
+}
+
+// added is a session whose one file is twenty numbered lines the branch added,
 // with the whole of it read.
-func twenty(t *testing.T) (*fixture, *review.Session, review.Generation) {
+func added(t *testing.T) (*fixture, *review.Session, review.Generation) {
 	t.Helper()
 
 	f := branched(t)
@@ -54,20 +66,34 @@ func twenty(t *testing.T) (*fixture, *review.Session, review.Generation) {
 
 	s := f.mustOpen("")
 	g := f.refresh(s)
-	f.read(s, g, "code.txt", 1)
+	f.read(s, g, "code.txt", store.SideHead, 1)
+	return f, s, g
+}
+
+// changedLine is the shape a deletion can hide in: the file is on the base, the
+// branch changed one line of it, and that hunk has been read on both sides.
+func changedLine(t *testing.T) (*fixture, *review.Session, review.Generation) {
+	t.Helper()
+
+	f := newFixture(t)
+	f.Write("code.txt", numbered(1, 20))
+	f.Commit("add code")
+	f.TrackOrigin("main")
+	f.Git("checkout", "-q", "-b", "feature")
+
+	f.Write("code.txt", numbered(1, 9)+"line 10 changed\n"+numbered(11, 20))
+	f.Commit("change line 10")
+
+	s := f.mustOpen("")
+	g := f.refresh(s)
+	f.read(s, g, "code.txt", store.SideHead, 10)
 	return f, s, g
 }
 
 func TestAReadHunkReadsReviewed(t *testing.T) {
-	f, s, g := twenty(t)
+	f, s, g := added(t)
 
-	state, hunk := f.stateOf(s, g, "code.txt")
-	if state != review.Reviewed {
-		t.Errorf("code.txt = %s, want %s", state, review.Reviewed)
-	}
-	if hunk != "  head 1:20 reviewed" {
-		t.Errorf("hunk = %q, want %q", hunk, "  head 1:20 reviewed")
-	}
+	assertFile(t, f.file(s, g, "code.txt"), review.Reviewed, "  head 1:20 reviewed")
 
 	// Nothing moved, so the refresh returns the generation that is already there
 	// and what was read is still read.
@@ -75,59 +101,55 @@ func TestAReadHunkReadsReviewed(t *testing.T) {
 	if again.Seq != g.Seq {
 		t.Fatalf("generation %d, want the one already built, %d", again.Seq, g.Seq)
 	}
-	if state, _ := f.stateOf(s, again, "code.txt"); state != review.Reviewed {
-		t.Errorf("code.txt = %s after a refresh that changed nothing, want %s", state, review.Reviewed)
-	}
+	assertFile(t, f.file(s, again, "code.txt"), review.Reviewed, "  head 1:20 reviewed")
 }
 
 // An agent editing one line of twenty leaves nineteen read lines inside the
-// hunk, and that is what changed after review looks like from the inside.
-func TestAHunkEditedAfterReadingReadsChanged(t *testing.T) {
-	f, s, _ := twenty(t)
+// hunk, and a hunk that is not wholly read is not read.
+func TestAHunkEditedAfterReadingReadsPartial(t *testing.T) {
+	f, s, _ := added(t)
 
 	f.Write("code.txt", numbered(1, 9)+"line 10 rewritten\n"+numbered(11, 20))
 	next := f.refresh(s)
 
-	state, hunk := f.stateOf(s, next, "code.txt")
-	if state != review.Changed {
-		t.Errorf("code.txt = %s, want %s", state, review.Changed)
-	}
-	if hunk != "  head 1:20 changed" {
-		t.Errorf("hunk = %q, want %q", hunk, "  head 1:20 changed")
-	}
+	assertFile(t, f.file(s, next, "code.txt"), review.Partial, "  head 1:20 partial")
 }
 
-// The case the look-back exists for. Every line moved, so the range went whole
-// and the hunk reads exactly like one nobody has opened. Only the previous
-// generation's coverage says otherwise.
-func TestAHunkRewrittenWholeLeavesTheFileChanged(t *testing.T) {
-	f, s, _ := twenty(t)
+// The deletion a head-side anchor would swallow. Line 10 was read on both
+// sides; the agent then deletes line 12, which git folds into the same hunk, so
+// the hunk now removes two more lines nobody has looked at.
+func TestADeletionAddedToAReadHunkShowsUp(t *testing.T) {
+	f, s, g := changedLine(t)
+
+	assertFile(t, f.file(s, g, "code.txt"), review.Reviewed, "  head 10:10 base 10:10 reviewed")
+
+	f.Write("code.txt", numbered(1, 9)+"line 10 changed\nline 11\n"+numbered(13, 20))
+	next := f.refresh(s)
+
+	assertFile(t, f.file(s, next, "code.txt"), review.Partial, "  head 10:10 base 10:12 partial")
+}
+
+// A hunk rewritten end to end loses its range whole, so it reads exactly like a
+// hunk nobody opened. Telling the two apart takes the refresh recording what the
+// translation cut, which nothing does yet, and inferring it from the coverage
+// alone cannot work: a withdrawn mark leaves the same thing behind.
+func TestAHunkRewrittenWholeReadsUnreviewed(t *testing.T) {
+	f, s, _ := added(t)
 
 	f.Write("code.txt", numbered(101, 120))
 	next := f.refresh(s)
 
-	state, hunk := f.stateOf(s, next, "code.txt")
-	if state != review.Changed {
-		t.Errorf("code.txt = %s, want %s", state, review.Changed)
-	}
-	if hunk != "  head 1:20 unreviewed" {
-		t.Errorf("hunk = %q, want %q", hunk, "  head 1:20 unreviewed")
-	}
+	assertFile(t, f.file(s, next, "code.txt"), review.Unreviewed, "  head 1:20 unreviewed")
 }
 
-// The limit, asserted so it cannot drift into being fixed by accident. The drop
-// is found by comparing one generation with the one before, so a generation
-// later there is no drop left to find.
-func TestTheChangedSignalIsOneGenerationDeep(t *testing.T) {
-	f, s, _ := twenty(t)
+// Withdrawing a mark says nothing happened to the code, so the file goes back to
+// where it was before anybody read it.
+func TestUnmarkingLeavesTheFileUnreviewed(t *testing.T) {
+	f, s, g := added(t)
 
-	f.Write("code.txt", numbered(101, 120))
-	f.refresh(s)
-
-	f.Write("other.txt", "something else\n")
-	third := f.refresh(s)
-
-	if state, _ := f.stateOf(s, third, "code.txt"); state != review.Unreviewed {
-		t.Errorf("code.txt = %s a generation after the drop, want %s", state, review.Unreviewed)
+	if err := s.Unmark(t.Context(), g, "code.txt", store.SideHead, []review.Range{{Start: 1, End: 20}}); err != nil {
+		t.Fatalf("unmarking: %v", err)
 	}
+
+	assertFile(t, f.file(s, g, "code.txt"), review.Unreviewed, "  head 1:20 unreviewed")
 }

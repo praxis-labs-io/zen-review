@@ -7,34 +7,44 @@ import (
 	"github.com/zen-review/zen-review/internal/store"
 )
 
-// State is what a hunk or a file reads as.
+// State is how much of a hunk or a file has been read.
 type State string
 
 const (
 	Unreviewed State = "unreviewed"
-
-	// Changed is changed after review: lines somebody read are no longer the
-	// lines that are there.
-	Changed State = "changed"
-
-	Reviewed State = "reviewed"
+	Partial    State = "partial"
+	Reviewed   State = "reviewed"
 )
+
+// Anchor is one side of a hunk and the lines it holds there.
+type Anchor struct {
+	Side  store.Side
+	Range Range
+}
 
 // Hunk is one hunk of the changeset with what has been read marked on it.
 type Hunk struct {
 	Diff diff.Hunk
 
-	// Side is head except on a deletion-only hunk, which has no head-side lines
-	// to anchor to.
-	Side store.Side
-
-	// Range is the lines a mark on this hunk covers, and the lines its state is
-	// read from. Its Start also names the hunk: it is the first line the hunk
-	// introduces, which is content, where an index would name whatever is third
-	// in the file after an agent inserts a hunk above it.
-	Range Range
+	// Anchors are the sides this hunk touches and the lines it holds on each,
+	// head first, and there is always at least one.
+	//
+	// A hunk that both adds and removes has two. Reading it means reading both,
+	// and marking it means marking both: a hunk anchored on its additions alone
+	// would swallow a deletion arriving later, because the lines it removes are
+	// not lines it has.
+	Anchors []Anchor
 
 	State State
+}
+
+// Name is the side and the line a hunk is named by: the first line it
+// introduces, or the first line it removes when it introduces none.
+//
+// It is content rather than a position, where an index would name whatever is
+// third in the file after an agent inserts a hunk above it.
+func (h Hunk) Name() (store.Side, int) {
+	return h.Anchors[0].Side, h.Anchors[0].Range.Start
 }
 
 // File is one file of the changeset with its hunks derived.
@@ -43,57 +53,47 @@ type File struct {
 	State State
 	Hunks []Hunk
 
-	// Reviewed is how many of Hunks read reviewed, which is the progress a
-	// half-read file has to show.
+	// Reviewed and Items are this file's share of the burn-down. An item is one
+	// hunk, or the whole file when it has none.
 	Reviewed int
+	Items    int
 }
 
 // Changeset is a generation's diff with the review on it.
 type Changeset struct {
 	Files []File
 
-	// Reviewed and Hunks are the burn-down: n of m, and the number the n key
+	// Reviewed and Items are the burn-down: n of m, and the number the n key
 	// walks down to zero.
+	//
+	// A file with no hunks counts as one item rather than none. A binary file is
+	// one thing to read, and a counter leaving it out reads complete while it
+	// sits unopened.
 	Reviewed int
-	Hunks    int
+	Items    int
 }
 
-// Derive reads a changeset's state out of the ranges recorded against it and
-// the ranges recorded against the generation before it.
+// Derive reads a changeset's state out of the ranges recorded against it.
 //
-// It holds no git and no database, and it does not know which generations these
-// are. The caller pairs them.
+// It holds no git and no database, and it makes no claim about how the ranges
+// got there. A hunk is reviewed when every line of every anchor it has is
+// covered, unreviewed when none is, and partial in between. A file is reviewed
+// when every hunk is, or when a file with no hunks carries a whole-file mark.
 //
-// A hunk is reviewed when every line of its anchor is covered, unreviewed when
-// none is, and changed after review when some are. That last state has one
-// cause: a mark covers a hunk whole, so a hunk covered in part is one a
-// translation cut.
-//
-// A file is reviewed when every hunk is, or when a file with no hunks carries a
-// whole-file mark. It is changed after review when a hunk is, or when it covers
-// fewer lines than it did at the previous generation, which is what catches a
-// hunk rewritten end to end: that loses its range whole and would otherwise
-// read like a hunk nobody ever opened.
-//
-// Three things it does not do, none of which earn a column:
-//
-//   - The changed signal is one generation deep. Refresh again with no edits and
-//     there is no drop left to find, so a file decays back to unreviewed.
-//   - A mark on the same file after the refresh raises the count back and hides
-//     the signal. That reads as the file being addressed, which is usually what
-//     it is.
-//   - The reviewed count is not stable across a base change. A base move can
-//     merge a reviewed hunk with a newly in-scope one, and the union reads
-//     unreviewed.
-func Derive(files []diff.File, now, before []store.ReviewedRange) Changeset {
-	cur, prev := coverageOf(now), coverageOf(before)
+// What it deliberately does not say is that something changed after review. A
+// range that failed to translate and a range somebody withdrew leave the same
+// coverage behind, so a read of that coverage cannot tell them apart. Only the
+// refresh knows, because only the refresh ran the translation, and until it
+// records what it cut this reports how much has been read and nothing about why.
+func Derive(files []diff.File, rows []store.ReviewedRange) Changeset {
+	cur := coverageOf(rows)
 
 	c := Changeset{Files: make([]File, 0, len(files))}
 	for _, f := range files {
-		file := deriveFile(f, cur, prev)
+		file := deriveFile(f, cur)
 		c.Files = append(c.Files, file)
 		c.Reviewed += file.Reviewed
-		c.Hunks += len(file.Hunks)
+		c.Items += file.Items
 	}
 	return c
 }
@@ -106,7 +106,7 @@ func (c Changeset) Hunk(path string, side store.Side, line int) (Hunk, bool) {
 			continue
 		}
 		for _, h := range f.Hunks {
-			if h.Side == side && h.Range.Start == line {
+			if s, l := h.Name(); s == side && l == line {
 				return h, true
 			}
 		}
@@ -116,95 +116,91 @@ func (c Changeset) Hunk(path string, side store.Side, line int) (Hunk, bool) {
 
 // Changeset is the generation's diff with the review on it.
 //
-// It reads the previous generation's ranges as well as this one's, because that
-// is the only thing that tells a file which lost what was read about it from one
-// nobody ever opened. The first generation of a session has none, and everything
-// in it reads unreviewed until somebody marks it.
+// g has to be a generation that exists. Status reports that as Exists, and the
+// zero value reaches git as an empty revision, the same way Session.Files does.
 func (s *Session) Changeset(ctx context.Context, g Generation) (Changeset, error) {
 	files, err := s.Files(ctx, g)
 	if err != nil {
 		return Changeset{}, err
 	}
 
-	now, err := s.db.ReviewedRanges(ctx, g.ID)
+	rows, err := s.db.ReviewedRanges(ctx, g.ID)
 	if err != nil {
 		return Changeset{}, err
 	}
-
-	prev, found, err := s.db.PreviousGeneration(ctx, s.row.ID, g.Seq)
-	if err != nil {
-		return Changeset{}, err
-	}
-	if !found {
-		return Derive(files, now, nil), nil
-	}
-
-	before, err := s.db.ReviewedRanges(ctx, prev.ID)
-	if err != nil {
-		return Changeset{}, err
-	}
-	return Derive(files, now, before), nil
+	return Derive(files, rows), nil
 }
 
 // deriveFile is one file's hunks and the state that falls out of them.
-func deriveFile(f diff.File, cur, prev map[key]coverage) File {
-	out := File{Diff: f, Hunks: make([]Hunk, 0, len(f.Hunks))}
+func deriveFile(f diff.File, cur map[key]coverage) File {
+	out := File{Diff: f}
 
-	head := key{path: f.Path, side: store.SideHead}
-	base := key{path: baseName(f), side: store.SideBase}
-
-	// A whole-file mark is a claim about the file rather than about lines in it,
-	// so it answers for both sides. carry.go already stops one outliving a file
-	// that gained hunks, which is what keeps it from reading as a review of code.
-	whole := cur[head].whole
-
-	changed := false
-	for _, h := range f.Hunks {
-		side, r := anchor(h)
-
-		state := Reviewed
-		if !whole {
-			k := head
-			if side == store.SideBase {
-				k = base
-			}
-			state = stateOf(cur[k], r)
-		}
-
-		switch state {
-		case Reviewed:
-			out.Reviewed++
-		case Changed:
-			changed = true
-		case Unreviewed:
-		}
-		out.Hunks = append(out.Hunks, Hunk{Diff: h, Side: side, Range: r, State: state})
+	// Base-side ranges are stored under the name the file has on the base, which
+	// a rename makes a different one from its own.
+	sides := map[store.Side]coverage{
+		store.SideHead: cur[key{path: f.Path, side: store.SideHead}],
+		store.SideBase: cur[key{path: baseName(f), side: store.SideBase}],
 	}
 
-	// Reviewed sits above Changed on purpose: a drop somebody then read is done,
-	// and saying otherwise would leave a file nobody can finish.
+	read := false
+	for _, d := range f.Hunks {
+		anchors := anchorsOf(d)
+		if len(anchors) == 0 {
+			// Git emits no hunk with neither an addition nor a deletion. One
+			// arriving here has nothing to mark and nothing to read, so it is not
+			// a hunk of the review.
+			continue
+		}
+
+		covered, lines := 0, 0
+		for _, a := range anchors {
+			covered += sides[a.Side].covered(a.Range)
+			lines += a.Range.End - a.Range.Start + 1
+		}
+
+		state := reading(covered, lines)
+		if state == Reviewed {
+			out.Reviewed++
+		}
+		if state != Unreviewed {
+			read = true
+		}
+		out.Hunks = append(out.Hunks, Hunk{Diff: d, Anchors: anchors, State: state})
+	}
+
+	// A whole-file mark answers only for a file with no lines to read. carry.go
+	// drops one the moment its file has hunks, so honouring it on a file that
+	// already has them would report a review the next refresh deletes.
+	if len(out.Hunks) == 0 {
+		out.Items = 1
+		if sides[store.SideHead].whole {
+			out.Reviewed, out.State = 1, Reviewed
+			return out
+		}
+		out.State = Unreviewed
+		return out
+	}
+
+	out.Items = len(out.Hunks)
 	switch {
-	case whole || (len(f.Hunks) > 0 && out.Reviewed == len(f.Hunks)):
+	case out.Reviewed == out.Items:
 		out.State = Reviewed
-	case changed || dropped(f, cur, prev):
-		out.State = Changed
+	case read:
+		out.State = Partial
 	default:
 		out.State = Unreviewed
 	}
 	return out
 }
 
-// anchor is the side a hunk is marked on and the lines a mark covers.
+// anchorsOf is the sides a hunk touches and the lines it holds on each.
 //
-// The span runs from the first line the hunk introduces to the last, taking in
-// the context between them. Anchoring the introduced lines exactly would be more
+// A span runs from the first line the hunk has on that side to the last, taking
+// in the context between them. Anchoring the changed lines exactly would be more
 // precise and less correct: an agent editing a context line between two of them
 // leaves both where they were, so the hunk would read reviewed with a changed
 // line sitting inside it.
-//
-// A deletion-only hunk has no head-side lines and takes the base side, spanning
-// what it removed.
-func anchor(h diff.Hunk) (store.Side, Range) {
+func anchorsOf(h diff.Hunk) []Anchor {
 	var added, removed Range
 	for _, l := range h.Lines {
 		switch l.Kind {
@@ -216,15 +212,18 @@ func anchor(h diff.Hunk) (store.Side, Range) {
 		}
 	}
 
+	var out []Anchor
 	if added.Start != 0 {
-		return store.SideHead, added
+		out = append(out, Anchor{Side: store.SideHead, Range: added})
 	}
-	return store.SideBase, removed
+	if removed.Start != 0 {
+		out = append(out, Anchor{Side: store.SideBase, Range: removed})
+	}
+	return out
 }
 
 // extend grows a span to take in one more line. A span starting at 0 has not
-// started, which is the same thing Range.whole means and cannot collide with it:
-// no line is numbered 0.
+// started, which no line number can be mistaken for.
 func extend(r Range, line int) Range {
 	if r.Start == 0 {
 		r.Start = line
@@ -233,48 +232,16 @@ func extend(r Range, line int) Range {
 	return r
 }
 
-// stateOf reads one hunk's anchor against what has been covered.
-func stateOf(c coverage, r Range) State {
-	switch c.covered(r) {
+// reading is how much of a hunk has been read.
+func reading(covered, lines int) State {
+	switch covered {
 	case 0:
 		return Unreviewed
-	case r.End - r.Start + 1:
+	case lines:
 		return Reviewed
 	default:
-		return Changed
+		return Partial
 	}
-}
-
-// dropped says a file covers fewer lines than it did at the previous generation.
-//
-// Head-side coverage is looked up under the file's own name and then under
-// OldPath. An agent renaming a file between generations leaves the old name
-// there, because both generations are measured from the same base, and without
-// the fallback a rename plus a rewrite would read as untouched. The base side
-// needs no fallback, because its key is that old name already.
-func dropped(f diff.File, cur, prev map[key]coverage) bool {
-	head := key{path: f.Path, side: store.SideHead}
-	was, found := prev[head]
-	if !found && f.OldPath != "" {
-		was = prev[key{path: f.OldPath, side: store.SideHead}]
-	}
-	if shrank(was, cur[head]) {
-		return true
-	}
-
-	base := key{path: baseName(f), side: store.SideBase}
-	return shrank(prev[base], cur[base])
-}
-
-// shrank says coverage was lost between two generations.
-//
-// A translation maps a surviving run one line to one line, so a file's covered
-// lines can only hold or fall, and a fall means something failed to translate.
-func shrank(was, now coverage) bool {
-	if was.whole && !now.whole {
-		return true
-	}
-	return count(now.lines) < count(was.lines)
 }
 
 // key is one file on one side, which is what a range is stored under.
@@ -286,7 +253,8 @@ type key struct {
 // coverage is what has been read of one file on one side.
 type coverage struct {
 	// whole is a mark on the file rather than on lines in it, which is how a file
-	// with no hunks is marked.
+	// with no hunks is marked. Nothing reads it off a file that has hunks, so it
+	// takes no part in the line arithmetic below.
 	whole bool
 
 	lines []Range
@@ -294,10 +262,6 @@ type coverage struct {
 
 // covered is how many lines of r have been read.
 func (c coverage) covered(r Range) int {
-	if c.whole {
-		return r.End - r.Start + 1
-	}
-
 	n := 0
 	for _, l := range c.lines {
 		lo, hi := max(r.Start, l.Start), min(r.End, l.End)
@@ -340,12 +304,4 @@ func baseName(f diff.File) string {
 		return f.OldPath
 	}
 	return f.Path
-}
-
-func count(rs []Range) int {
-	n := 0
-	for _, r := range rs {
-		n += r.End - r.Start + 1
-	}
-	return n
 }
