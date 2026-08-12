@@ -78,14 +78,14 @@ CREATE TABLE gen_files (
 
 -- Reviewed state is line ranges, never hunk indices: an agent inserting twenty
 -- lines above a hunk leaves different code wearing the same label. A range that
--- fails to translate through a blob diff disappears, and that is what makes a
--- hunk read as changed after review.
+-- fails to translate from one generation to the next disappears, and that is
+-- what makes a hunk read as changed after review.
 --
 -- side is 'head' except for a deletion-only hunk, which has no head-side lines
 -- and anchors to the base blob instead.
 --
--- Nothing writes this table yet. It lands here so the schema is one migration
--- rather than two.
+-- There is no UNIQUE constraint, so a write normalises the whole of one file's
+-- ranges inside its own transaction rather than leaning on one.
 CREATE TABLE reviewed_ranges (
     session_id    TEXT NOT NULL REFERENCES sessions (id) ON DELETE CASCADE,
     generation_id INTEGER NOT NULL REFERENCES generations (id) ON DELETE CASCADE,

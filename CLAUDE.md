@@ -159,9 +159,10 @@ nothing. The other order lets both write rows and leaves the ref pointing at one
 of them.
 
 Reviewed state is line ranges, never hunk indices: an agent inserting twenty
-lines above hunk 3 leaves different code wearing the same label. A range that
-fails to translate through a blob diff disappears, and that is what makes
-`changed after review` fall out of the mechanism rather than be tracked.
+lines above hunk 3 leaves different code wearing the same label. A refresh
+translates them through one diff of the two generation trees, and a range that
+fails to translate disappears, which is what makes `changed after review` fall
+out of the mechanism rather than be tracked.
 
 Deletion-only hunks have no head-side lines and anchor to base-side ranges.
 
