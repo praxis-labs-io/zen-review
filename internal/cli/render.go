@@ -41,7 +41,16 @@ func render(v view) string {
 
 	if v.Exists {
 		if len(v.Files) == 0 {
-			fmt.Fprintf(&b, "\nno changes since %s\n", v.Base.Ref)
+			// Scoped to the generation once it stops describing what is on disk.
+			// A generation built on a clean branch and then edited against would
+			// otherwise print "no changes since origin/main" directly under the line
+			// saying the work tree moved, and of the two the reader believes the one
+			// that sounds like an answer.
+			if v.reason() == fresh {
+				fmt.Fprintf(&b, "\nno changes since %s\n", v.Base.Ref)
+			} else {
+				fmt.Fprintf(&b, "\ngeneration %d held no changes since %s\n", v.Generation.Seq, v.Base.Ref)
+			}
 		} else {
 			b.WriteString("\n")
 			writeFiles(&b, v.Files)

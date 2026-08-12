@@ -52,6 +52,13 @@ func TestTheProseSaysWhatHappened(t *testing.T) {
 	empty := built()
 	empty.Files = nil
 
+	// A generation built on a clean branch, then edited against. Saying there are
+	// no changes here contradicts the line above it, and it is the half that
+	// sounds like an answer.
+	emptyStale := built()
+	emptyStale.Files = nil
+	emptyStale.Stale = true
+
 	unbuilt := built()
 	unbuilt.Exists = false
 	unbuilt.Stale = true
@@ -103,6 +110,16 @@ func TestTheProseSaysWhatHappened(t *testing.T) {
 			v:      empty,
 			want:   []string{"no changes since origin/main"},
 			absent: []string{"1 file"},
+		},
+		{
+			name: "nothing to review, and the tree has moved since",
+			v:    emptyStale,
+			want: []string{
+				"the work tree has moved since generation 2 was built",
+				"generation 2 held no changes since origin/main",
+			},
+			// The present tense would deny the movement reported one line above it.
+			absent: []string{"\nno changes since origin/main"},
 		},
 		{
 			name: "no generation yet",
