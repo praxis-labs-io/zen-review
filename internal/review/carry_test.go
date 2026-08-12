@@ -207,6 +207,76 @@ func TestABaseSideMarkTranslatesWhenTheBaseMoves(t *testing.T) {
 	assertRanges(t, f.storedRanges(next), []string{"code.txt base 11:13"})
 }
 
+// A rename gives a file two names, and its base blob sits under the old one. A
+// base-side mark keyed by the head name would never be found in the base diff,
+// and would sit unmoved on top of lines that shifted underneath it.
+func TestABaseSideMarkOnARenamedFileIsKeyedByTheBaseName(t *testing.T) {
+	f := newFixture(t)
+	f.Write("old.txt", numbered(1, 20))
+	f.Commit("first")
+	f.TrackOrigin("main")
+
+	f.Git("checkout", "-q", "-b", "feature")
+	f.Git("mv", "old.txt", "new.txt")
+	f.Write("new.txt", numbered(1, 9)+numbered(13, 20))
+	f.Commit("move it and drop three lines")
+
+	s := f.mustOpen("")
+	first := f.refresh(s)
+
+	// Marked under the name the changeset lists the file by, which is the new one.
+	f.mark(s, first, "new.txt", store.SideBase, review.Range{Start: 10, End: 12})
+	assertRanges(t, f.storedRanges(first), []string{"old.txt base 10:12"})
+
+	f.Git("checkout", "-q", "main")
+	f.Write("old.txt", "upstream\n"+numbered(1, 20))
+	f.Commit("upstream")
+	f.TrackOrigin("main")
+	f.Git("checkout", "-q", "feature")
+	f.Git("rebase", "-q", "main")
+
+	next := f.refresh(s)
+	if next.ID == first.ID {
+		t.Fatal("the base move built no new generation")
+	}
+	assertRanges(t, f.storedRanges(next), []string{"old.txt base 11:13"})
+}
+
+// A whole-file mark says the file's entry in the changeset had nothing to read.
+// A base change can give that entry real lines without the head bytes moving at
+// all, and there is no diff between the two head trees for a translation to
+// catch it in.
+func TestAWholeFileMarkGoesWhenTheFileGainsHunks(t *testing.T) {
+	f := newFixture(t)
+	f.Write("code.txt", numbered(1, 20))
+	f.Commit("first")
+	f.TrackOrigin("main")
+
+	f.Git("checkout", "-q", "-b", "feature")
+	f.Write("code.txt", numbered(1, 20)+"added by the branch\n")
+	f.Commit("add a line")
+	f.Git("mv", "code.txt", "moved.txt")
+	f.Commit("move it")
+
+	// Measured from the commit below it, the file only moved, so it has no hunks
+	// and the whole of it is one mark.
+	near := f.mustOpen("feature~1")
+	first := f.refresh(near)
+	f.mark(near, first, "moved.txt", store.SideHead, review.Range{})
+	assertRanges(t, f.storedRanges(first), []string{"moved.txt head 0:0"})
+	if err := near.Close(); err != nil {
+		t.Fatalf("closing: %v", err)
+	}
+
+	// Measured from the base, the same bytes carry a line nobody has read.
+	far := f.mustOpen("origin/main")
+	next := f.refresh(far)
+	if next.ID == first.ID {
+		t.Fatal("the base change built no new generation")
+	}
+	assertRanges(t, f.storedRanges(next), nil)
+}
+
 // The fork point going away has no answer, so the refresh refuses. What it must
 // not do is leave the review in a state that reads as unreviewed.
 func TestABaseForcePushThatLosesTheForkPointKeepsTheMarks(t *testing.T) {

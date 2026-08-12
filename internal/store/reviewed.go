@@ -83,7 +83,13 @@ func (db *DB) ReviewedRanges(ctx context.Context, generationID int64) ([]Reviewe
 // There is no UNIQUE constraint to catch that afterwards.
 //
 // change is handed the stored ranges in start order and returns the set to keep.
-// Returning none leaves the file with none.
+// Returning none leaves the file with none. It runs holding the pool's only
+// connection, so it must not touch the database itself.
+//
+// A returned range keeps the read time of the stored ranges it overlaps, oldest
+// first, and takes now only where it covers lines nothing had marked. Stamping
+// the whole set with now would make an unrelated mark on line 40 reset when line
+// 5 was read.
 func (db *DB) UpdateReviewedRanges(
 	ctx context.Context,
 	sessionID string,
@@ -104,7 +110,7 @@ func (db *DB) UpdateReviewedRanges(
 	}()
 
 	const read = `
-		SELECT start_line, end_line
+		SELECT start_line, end_line, created_at
 		FROM reviewed_ranges
 		WHERE generation_id = ? AND path = ? AND side = ?
 		ORDER BY start_line`
@@ -114,10 +120,15 @@ func (db *DB) UpdateReviewedRanges(
 		return fmt.Errorf("reading the reviewed ranges of %s: %w", path, err)
 	}
 
-	var current []LineRange
+	var current []ReviewedRange
 	for rows.Next() {
-		var r LineRange
-		if err = rows.Scan(&r.Start, &r.End); err != nil {
+		var r ReviewedRange
+		var created string
+		if err = rows.Scan(&r.Start, &r.End, &created); err != nil {
+			_ = rows.Close()
+			return fmt.Errorf("reading the reviewed ranges of %s: %w", path, err)
+		}
+		if r.CreatedAt, err = moment(created); err != nil {
 			_ = rows.Close()
 			return fmt.Errorf("reading the reviewed ranges of %s: %w", path, err)
 		}
@@ -136,12 +147,12 @@ func (db *DB) UpdateReviewedRanges(
 		return fmt.Errorf("clearing the reviewed ranges of %s: %w", path, err)
 	}
 
-	for _, r := range change(current) {
+	for _, r := range change(lines(current)) {
 		if err = insertRange(ctx, tx, sessionID, generationID, ReviewedRange{
 			Path:      path,
 			Side:      side,
 			LineRange: r,
-			CreatedAt: now,
+			CreatedAt: readAt(current, r, now),
 		}); err != nil {
 			return err
 		}
@@ -151,6 +162,35 @@ func (db *DB) UpdateReviewedRanges(
 		return fmt.Errorf("updating the reviewed ranges of %s: %w", path, err)
 	}
 	return nil
+}
+
+// lines is what the change function sees, which is the arithmetic and not the
+// bookkeeping around it.
+func lines(rs []ReviewedRange) []LineRange {
+	out := make([]LineRange, 0, len(rs))
+	for _, r := range rs {
+		out = append(out, r.LineRange)
+	}
+	return out
+}
+
+// readAt is when the lines in r were read: the oldest stamp among the stored
+// ranges it overlaps, and now for a range covering lines nothing had marked.
+//
+// Splitting and merging leave no row on the far side to carry one row's own
+// stamp onto, so the oldest is the honest answer to how long these lines have
+// been read.
+func readAt(current []ReviewedRange, r LineRange, now time.Time) time.Time {
+	at := now
+	for _, c := range current {
+		if c.Start > r.End || c.End < r.Start {
+			continue
+		}
+		if c.CreatedAt.Before(at) {
+			at = c.CreatedAt
+		}
+	}
+	return at
 }
 
 // insertRange writes one row. It takes the transaction rather than the pool

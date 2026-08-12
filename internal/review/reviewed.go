@@ -20,11 +20,19 @@ type StaleGenerationError struct {
 }
 
 func (e *StaleGenerationError) Error() string {
+	if e.Current == 0 {
+		return fmt.Sprintf("generation %d is gone and this session has none: refresh before marking anything", e.Seq)
+	}
 	return fmt.Sprintf("generation %d is not the current one, %d is: refresh and mark against what is there now",
 		e.Seq, e.Current)
 }
 
 // Mark records lines of a file as reviewed at a generation.
+//
+// path is the file's head-side name, the one the changeset lists it under. A
+// base-side mark is stored under the name the file has on the base, which a
+// rename makes a different one, because the diff a refresh translates base-side
+// ranges through knows only that name.
 //
 // The ranges are unioned with what is already there and normalised, so marking
 // the same lines twice is not two rows and marking either side of a gap does not
@@ -49,6 +57,9 @@ func (s *Session) Unmark(ctx context.Context, g Generation, path string, side st
 
 // Reviewed is every range recorded against a generation, ordered by path, side
 // and start line.
+//
+// A base-side row carries the file's base-side path, so a caller grouping these
+// by file joins a renamed one back through the changeset's old path.
 func (s *Session) Reviewed(ctx context.Context, g Generation) ([]store.ReviewedRange, error) {
 	return s.db.ReviewedRanges(ctx, g.ID)
 }
@@ -70,8 +81,30 @@ func (s *Session) updateReviewed(
 		return &StaleGenerationError{Seq: g.Seq, Current: latest.Seq}
 	}
 
+	if side == store.SideBase {
+		if path, err = s.basePath(ctx, g, path); err != nil {
+			return err
+		}
+	}
+
 	now := time.Now().UTC().Truncate(time.Second)
 	return s.db.UpdateReviewedRanges(ctx, s.row.ID, g.ID, path, side, now, change)
+}
+
+// basePath is the name a file had on the base side of a generation.
+//
+// It is the head name for everything except a rename, and a rename is the whole
+// reason this exists: the base blob of a file the branch moved sits at the old
+// name, and so does its entry in the diff a refresh translates base-side ranges
+// through. A path the generation does not hold is returned as it came, because
+// refusing it here would turn a mark on a file that left the changeset into an
+// error rather than a row nothing reads.
+func (s *Session) basePath(ctx context.Context, g Generation, path string) (string, error) {
+	f, found, err := s.db.GenFile(ctx, g.ID, path)
+	if err != nil || !found || f.OldPath == "" {
+		return path, err
+	}
+	return f.OldPath, nil
 }
 
 // ranges and lineRanges cross the store boundary. Range carries the engine's

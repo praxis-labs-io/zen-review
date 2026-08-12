@@ -9,13 +9,18 @@ import (
 )
 
 // carry is the previous generation's reviewed state, translated onto the
-// generation being written.
+// generation being written. files is that generation's changeset, already
+// parsed by the caller.
 //
-// It runs after the compare-and-swap has won. A lost race otherwise pays for two
-// tree diffs and a whole translation on a path the CLI documents as an ordinary
-// outcome. The holds early return builds no generation at all, so there is
-// nothing there to stamp and nothing to carry.
-func (s *Session) carry(ctx context.Context, latest store.Generation, found bool, tree string) (store.Carry, error) {
+// It runs before the compare-and-swap rather than after. Everything between the
+// ref moving and the row landing is a window where a failure leaves the ref
+// ahead of the database, and two whole-tree diffs is too much to put in it. The
+// price is that a lost race throws the work away, which is a path the CLI
+// already documents as an ordinary outcome.
+//
+// The holds early return builds no generation at all, so there is nothing there
+// to stamp and nothing to carry.
+func (s *Session) carry(ctx context.Context, latest store.Generation, found bool, tree string, files []diff.File) (store.Carry, error) {
 	if !found {
 		return store.Carry{}, nil
 	}
@@ -39,6 +44,7 @@ func (s *Session) carry(ctx context.Context, latest store.Generation, found bool
 	if err != nil {
 		return store.Carry{}, err
 	}
+	head = readable(head, hunky(files))
 
 	// Base-side rows exist only for deletion-only hunks somebody marked, so this
 	// is nearly always nothing, and the base diff is the expensive one when it
@@ -48,6 +54,38 @@ func (s *Session) carry(ctx context.Context, latest store.Generation, found bool
 		return store.Carry{}, err
 	}
 	return store.Carry{Ranges: append(head, base...)}, nil
+}
+
+// hunky is every path whose changeset entry has lines to read.
+func hunky(files []diff.File) map[string]bool {
+	out := make(map[string]bool, len(files))
+	for _, f := range files {
+		if len(f.Hunks) > 0 {
+			out[f.Path] = true
+		}
+	}
+	return out
+}
+
+// readable drops the whole-file marks whose file now has hunks in it.
+//
+// A whole-file mark is a claim about a changeset entry that had nothing to read,
+// so it cannot outlive the entry gaining lines. The bytes need not have moved
+// for that to happen: a base change gives a file real content while the head
+// tree sits still, which is the case no translation can catch, because there is
+// no diff between the two head trees to translate through.
+//
+// It is head-side only. A file with no hunks has no deletion-only hunk, so it
+// has nothing to anchor base-side in the first place.
+func readable(rows []store.ReviewedRange, hunks map[string]bool) []store.ReviewedRange {
+	out := make([]store.ReviewedRange, 0, len(rows))
+	for _, r := range rows {
+		if r.Start == 0 && hunks[r.Path] {
+			continue
+		}
+		out = append(out, r)
+	}
+	return out
 }
 
 // translate carries one side's ranges from one tree-ish to another.

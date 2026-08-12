@@ -154,6 +154,27 @@ func (db *DB) AddGeneration(ctx context.Context, g Generation, files []GenFile, 
 	return g, nil
 }
 
+// GenFile is one file of a generation, and reports false when the generation
+// does not hold that path.
+func (db *DB) GenFile(ctx context.Context, generationID int64, path string) (GenFile, bool, error) {
+	const q = `
+		SELECT generation_id, path, old_path, status, base_blob, head_blob
+		FROM gen_files
+		WHERE generation_id = ? AND path = ?`
+
+	var f GenFile
+	err := db.handle.QueryRowContext(ctx, q, generationID, path).Scan(
+		&f.GenerationID, &f.Path, &f.OldPath, &f.Status, &f.BaseBlob, &f.HeadBlob,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return GenFile{}, false, nil
+	}
+	if err != nil {
+		return GenFile{}, false, fmt.Errorf("reading %s from generation %d: %w", path, generationID, err)
+	}
+	return f, true, nil
+}
+
 // GenFiles is every file in a generation, ordered by path so a listing and a
 // golden file get the same sequence without the caller sorting.
 func (db *DB) GenFiles(ctx context.Context, generationID int64) ([]GenFile, error) {
