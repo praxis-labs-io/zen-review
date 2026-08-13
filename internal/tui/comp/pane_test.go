@@ -51,22 +51,15 @@ func TestTheBoxIsExactlyTheSizeItWasGiven(t *testing.T) {
 	}
 }
 
-// TestTheBorderCarriesTheIndexTheTitleAndTheCount, flush against the left
-// corner. The pane parenthesises the count, so no caller has to.
-func TestTheBorderCarriesTheIndexTheTitleAndTheCount(t *testing.T) {
-	top := strip(pane().Size(30, 4).Index(2).Title("Files").Count("7").Render(""))[0]
+// TestTheBorderCarriesTheIndexAndTheTitle, flush against the left corner.
+func TestTheBorderCarriesTheIndexAndTheTitle(t *testing.T) {
+	top := strip(pane().Size(30, 4).Index(2).Title("Zen Review").Render(""))[0]
 
-	if want := "╭─[2]─Files (7)"; !strings.HasPrefix(top, want) {
+	if want := "╭─[2]─Zen Review"; !strings.HasPrefix(top, want) {
 		t.Errorf("the top border is %q, want it to start %q", top, want)
 	}
 	if !strings.HasSuffix(top, "╮") {
 		t.Errorf("the top border does not close: %q", top)
-	}
-
-	// A pane with nothing to count says nothing rather than zero.
-	bare := strip(pane().Size(30, 4).Index(2).Title("Files").Render(""))[0]
-	if strings.Contains(bare, "(") {
-		t.Errorf("a pane with no count drew parentheses: %q", bare)
 	}
 }
 
@@ -97,7 +90,7 @@ func TestTheHeadingAnswersToFocus(t *testing.T) {
 		{"blurred", false, dim, lit},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			top := strings.Split(pane().Size(30, 4).Index(1).Title("Files").Count("7").
+			top := strings.Split(pane().Size(30, 4).Index(1).Title("Files").
 				Focus(tt.focused).Render(""), "\n")[0]
 
 			for part, want := range tt.want {
@@ -155,6 +148,36 @@ func TestTheFooterSitsInTheBottomBorder(t *testing.T) {
 				t.Errorf("the bottom border is %d columns: %q", lipgloss.Width(got), got)
 			}
 		})
+	}
+}
+
+// TestTheFooterIsDrawnAsItWasGiven. A footer coloured piece by piece would be
+// cut short by the first reset inside it if the pane restyled it, which is how
+// a churn count loses everything after its additions.
+func TestTheFooterIsDrawnAsItWasGiven(t *testing.T) {
+	churn := comp.Churn(lipgloss.NewStyle(), theme.RosePineMoon, 630, 105)
+
+	bottom := strings.Split(pane().Size(30, 4).Footer("", churn).Render(""), "\n")[3]
+	if !strings.Contains(bottom, churn) {
+		t.Errorf("the pane restyled the footer it was handed:\n%q", bottom)
+	}
+}
+
+// TestChurnSaysWhichWayItWent, rather than one grey for both halves.
+func TestChurnSaysWhichWayItWent(t *testing.T) {
+	got := comp.Churn(lipgloss.NewStyle(), theme.RosePineMoon, 630, 105)
+
+	added := lipgloss.NewStyle().Foreground(theme.RosePineMoon.Success).Render("+630")
+	removed := lipgloss.NewStyle().Foreground(theme.RosePineMoon.Error).Render("-105")
+
+	if !strings.Contains(got, added) {
+		t.Errorf("the additions are not in the success colour: %q", got)
+	}
+	if !strings.Contains(got, removed) {
+		t.Errorf("the removals are not in the error colour: %q", got)
+	}
+	if want := "+630 -105"; ansi.Strip(got) != want {
+		t.Errorf("Churn() reads %q, want %q", ansi.Strip(got), want)
 	}
 }
 

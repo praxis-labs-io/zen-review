@@ -19,7 +19,6 @@ import (
 type Pane struct {
 	theme       theme.Theme
 	title       string
-	count       string
 	index       int
 	footerLeft  string
 	footerRight string
@@ -40,18 +39,6 @@ func (p Pane) Title(s string) Pane {
 	return p
 }
 
-// Count sets the number after the title, which the pane parenthesises and
-// draws at the weight every count on the pane reads at. Empty leaves it off,
-// so a pane with nothing to count says nothing rather than zero.
-//
-// It is a field rather than part of the title because it does not answer to
-// focus: the title says which pane the keys are on, and how many rows are in
-// it is the same fact either way.
-func (p Pane) Count(s string) Pane {
-	p.count = s
-	return p
-}
-
 // Index sets the bracketed number leading the top border, which is the digit
 // that jumps focus here. Zero leaves it off.
 func (p Pane) Index(n int) Pane {
@@ -62,6 +49,10 @@ func (p Pane) Index(n int) Pane {
 // Footer sets the text in the bottom border: left against the left corner, the
 // way the title sits in the top, and right against the right. Either may be
 // empty.
+//
+// Both are taken as-is. A footer coloured piece by piece would be cut short by
+// the first reset inside it if the pane restyled it, and the two sides do not
+// read at one weight: a churn count says which way it went.
 func (p Pane) Footer(left, right string) Pane {
 	p.footerLeft, p.footerRight = left, right
 	return p
@@ -136,9 +127,6 @@ func (p Pane) topBorder() string {
 	if p.title != "" {
 		label.WriteString(p.titleStyle().Render(p.title))
 	}
-	if p.count != "" {
-		label.WriteString(p.muted().Render(" (" + p.count + ")"))
-	}
 
 	// The badge and the title are clipped together rather than one after the
 	// other. A pane too narrow for the badge alone would otherwise push the
@@ -149,11 +137,9 @@ func (p Pane) topBorder() string {
 	return style.Render("╭") + text + style.Render(strings.Repeat("─", fill)) + style.Render("╮")
 }
 
-// bottomBorder carries the footer, a rune in from each corner.
-//
-// It reads at the weight the heading's count does, because it is the same kind
-// of fact, and it stays there whichever pane has focus. Which pane that is the
-// heading already says twice.
+// bottomBorder carries the footer, a rune in from each corner. It stays as it
+// is whichever pane has focus: which one that is, the heading already says
+// three ways.
 //
 // The right side is measured first and the left is clipped into what is left
 // over. The right is a total and a clipped total misstates it; the left is a
@@ -166,12 +152,11 @@ func (p Pane) bottomBorder() string {
 		return style.Render("╰" + strings.Repeat("─", mid) + "╯")
 	}
 
-	right := Clip(p.muted().Render(p.footerRight), max(mid-1, 0), p.muted())
+	right := Clip(p.footerRight, max(mid-1, 0), p.muted())
 
 	var left string
 	if p.footerLeft != "" {
-		left = Clip(p.muted().Render(p.footerLeft),
-			max(mid-lipgloss.Width(right)-2, 0), p.muted())
+		left = Clip(p.footerLeft, max(mid-lipgloss.Width(right)-2, 0), p.muted())
 	}
 
 	fill := max(mid-lipgloss.Width(left)-lipgloss.Width(right)-1, 0)

@@ -184,6 +184,26 @@ func TestTheTreeIsHeadedByTheRepository(t *testing.T) {
 	}
 }
 
+// TestTheTreesFooterSaysHowMuchThereIs. One grey across the whole line says how
+// much changed and not which way it went, which is the half a reader is
+// scanning for.
+func TestTheTreesFooterSaysHowMuchThereIs(t *testing.T) {
+	th := theme.RosePineMoon
+	foot := open(t, 100, 16).rawLine(14)
+
+	want := map[string]string{
+		"the file count": lipgloss.NewStyle().Foreground(th.Accent).Render("6 files"),
+		"the additions":  lipgloss.NewStyle().Foreground(th.Success).Render("+10"),
+		"the deletions":  lipgloss.NewStyle().Foreground(th.Error).Render("-3"),
+	}
+
+	for part, style := range want {
+		if !strings.Contains(foot, style) {
+			t.Errorf("%s is not in its own colour: %q", part, ansi.Strip(foot))
+		}
+	}
+}
+
 // TestTheStatusBarSaysWhereTheReviewIs keeps the three facts the bar exists for
 // out of the goldens, where a layout change would hide their loss.
 func TestTheStatusBarSaysWhereTheReviewIs(t *testing.T) {

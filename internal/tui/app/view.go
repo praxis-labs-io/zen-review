@@ -9,7 +9,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"github.com/zen-review/zen-review/internal/review"
 	"github.com/zen-review/zen-review/internal/tui/comp"
 )
 
@@ -68,17 +67,20 @@ func (m Model) content() string {
 // body is the two framed panes, joined flush. Their borders meet, so the seam
 // between them is one line rather than a rule with a gap either side.
 func (m Model) body() string {
+	muted := lipgloss.NewStyle().Foreground(m.theme.Muted)
+
 	tree := m.treePane.
 		Index(1).
 		Title(titleize(comp.Safe(m.repo))).
-		Footer(files(len(m.changeset.Files)), churn(m.changeset)).
+		Footer(m.files(), comp.Churn(lipgloss.NewStyle(), m.theme,
+			m.changeset.Additions, m.changeset.Deletions)).
 		Focus(m.focus == focusTree).
 		Render(m.tree.View())
 
 	diff := m.diffPane.
 		Index(2).
 		Title(comp.Safe(m.diff.Path())).
-		Footer("", m.diff.Scroll().Footer()).
+		Footer("", muted.Render(m.diff.Scroll().Footer())).
 		Focus(m.focus == focusDiff).
 		Render(m.diff.View())
 
@@ -153,17 +155,16 @@ func (m Model) pad(text string, width int) string {
 	return text
 }
 
-// files and churn are the two facts in the tree's bottom border: how much there
-// is to read, and how much of it there is.
-func files(n int) string {
-	if n == 1 {
-		return "1 file"
-	}
-	return strconv.Itoa(n) + " files"
-}
+// files is how much there is to read, in the accent, because it is the one
+// number in the frame a reader checks before starting.
+func (m Model) files() string {
+	n := len(m.changeset.Files)
 
-func churn(c review.Changeset) string {
-	return fmt.Sprintf("+%d -%d", c.Additions, c.Deletions)
+	text := strconv.Itoa(n) + " files"
+	if n == 1 {
+		text = "1 file"
+	}
+	return lipgloss.NewStyle().Foreground(m.theme.Accent).Render(text)
 }
 
 // titleize reads a directory name as a name: zen-review becomes Zen Review.

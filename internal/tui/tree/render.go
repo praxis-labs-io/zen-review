@@ -1,7 +1,6 @@
 package tree
 
 import (
-	"fmt"
 	"image/color"
 	"strings"
 
@@ -58,7 +57,7 @@ func (m Model) render(r row, cursor bool) string {
 	// The trailing cell takes what is left over the name's share, not the other
 	// way round. "renamed, contents unchanged" is 27 columns and would leave a
 	// 32-column pane naming no file at all.
-	trailing := comp.Clip(m.trailing(r.n), max(room-nameMin-1, 0), subtle)
+	trailing := comp.Clip(m.trailing(r.n, base), max(room-nameMin-1, 0), subtle)
 	if trailing != "" {
 		room -= lipgloss.Width(trailing) + 1
 	}
@@ -77,7 +76,7 @@ func (m Model) render(r row, cursor bool) string {
 		row += base.Render(strings.Repeat(" ", gap))
 	}
 	if trailing != "" {
-		row += subtle.Render(trailing)
+		row += trailing
 	}
 	return comp.Clip(row, m.width, subtle)
 }
@@ -104,12 +103,15 @@ func (m Model) glyph(n *node) (string, color.Color) {
 
 // trailing is the cell against the right edge: what a file changed, or why
 // there is nothing to count. A directory has neither.
-func (m Model) trailing(n *node) string {
+//
+// It comes back styled, so the churn can say which way the file went. base
+// carries the row's background into every piece of it.
+func (m Model) trailing(n *node, base lipgloss.Style) string {
 	if n.dir() {
 		return ""
 	}
 	if n.file.Diff.Omitted != "" {
-		return n.file.Diff.Omitted
+		return base.Foreground(m.theme.Subtle).Render(n.file.Diff.Omitted)
 	}
-	return fmt.Sprintf("+%d -%d", n.file.Diff.Additions, n.file.Diff.Deletions)
+	return comp.Churn(base, m.theme, n.file.Diff.Additions, n.file.Diff.Deletions)
 }

@@ -3,6 +3,7 @@
 package comp
 
 import (
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -46,6 +47,19 @@ func Clip(row string, width int, mark lipgloss.Style) string {
 		return row
 	}
 	return paint.Clip(row, width, mark)
+}
+
+// Churn is an added and removed count, the additions in the success colour and
+// the removals in the error one. One grey for both says how much a file changed
+// and not which way it went.
+//
+// base carries whatever background the row is painted on. Every styled run ends
+// in a reset that clears the background with it, so the background has to be on
+// each piece rather than wrapped round the result.
+func Churn(base lipgloss.Style, t theme.Theme, added, removed int) string {
+	return base.Foreground(t.Success).Render("+"+strconv.Itoa(added)) +
+		base.Render(" ") +
+		base.Foreground(t.Error).Render("-"+strconv.Itoa(removed))
 }
 
 // Help renders a keymap, styled from the theme rather than from bubbles'
