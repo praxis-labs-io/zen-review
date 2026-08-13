@@ -122,9 +122,9 @@ func (m Model) total() int { return len(m.rows) + topPad + bottomPad }
 // list on the bottom row and not one further.
 func (m Model) maxOffset() int { return max(m.total()-m.height, 0) }
 
-// First is the path of the file the tree shows first, which is not the
-// changeset's first file: directories sort above the files beside them, so git's
-// order and the tree's are different lists. Empty when there are no files.
+// First is the path of the file the tree shows first, which is the changeset's
+// first file with the directory rows above it skipped. Empty when there are no
+// files.
 func (m Model) First() string {
 	for _, r := range m.rows {
 		if !r.n.dir() {

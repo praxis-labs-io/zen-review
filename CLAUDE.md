@@ -146,6 +146,12 @@ The boundaries are in `.claude/rules/code-quality.md` and breaking one is a revi
 
 Note that zen-octo has a `store` package holding in-memory fetch state. Same name, different job: this one is the database.
 
+`Session.Files` and `Derive` both hand the files back in the order a file tree
+reads: directories above the files beside them, by byte within each group. Git's
+order is the order it walked the index in, and one ordering from the engine is
+what keeps the printed table and the tree pane from disagreeing about what is
+first. Nothing above `review` sorts.
+
 ### Sessions and generations
 
 A session is one repo plus one branch, resumable days later. A generation is a

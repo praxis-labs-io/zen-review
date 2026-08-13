@@ -2,7 +2,6 @@ package tree
 
 import (
 	"path"
-	"slices"
 	"strings"
 
 	"github.com/zen-review/zen-review/internal/review"
@@ -29,8 +28,12 @@ type node struct {
 
 func (n *node) dir() bool { return n.file == nil }
 
-// build lays the changeset's files out under the directories that hold them,
-// and sorts every level the way a file tree reads.
+// build lays the changeset's files out under the directories that hold them.
+//
+// It sorts nothing. review.Derive hands back a changeset already in the order a
+// file tree reads, and a sorted list groups a directory's files together and
+// puts the directory ahead of the files beside it, so a node lands in the order
+// the row it belongs to was first seen.
 func build(files []review.File) []*node {
 	var roots []*node
 	dirs := make(map[string]*node)
@@ -51,39 +54,7 @@ func build(files []review.File) []*node {
 	for _, n := range roots {
 		collapse(n)
 	}
-
-	// After collapsing, because a merged chain is sorted under the name it
-	// shows rather than the first segment of it.
-	order(roots)
 	return roots
-}
-
-// order sorts one level and everything under it: directories before files, and
-// by byte within each group. It is zen-octo's rule, so a changeset laid out in
-// one tool reads the same in the other.
-//
-// Git's order is the order it walked the index in, which drops a root file
-// above every directory that holds the rest of the changeset.
-//
-// Byte order needs no case of its own for a dotted name: "." sorts below every
-// letter, so .github lands above cmd and .gitignore above CLAUDE.md. A rule
-// spelling that out would only change the answer for a name starting below ".",
-// where it would put .gitignore above -report.txt for no reason anyone asked
-// for.
-func order(nodes []*node) {
-	slices.SortFunc(nodes, func(a, b *node) int {
-		if a.dir() != b.dir() {
-			if a.dir() {
-				return -1
-			}
-			return 1
-		}
-		return strings.Compare(a.name, b.name)
-	})
-
-	for _, n := range nodes {
-		order(n.kids)
-	}
 }
 
 // ensure is the directory node for a prefix, creating it and every directory
