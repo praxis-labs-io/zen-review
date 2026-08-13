@@ -83,6 +83,11 @@ func (m Model) render(r row, cursor bool) string {
 
 // glyph is the row's mark: which way a directory is folded, or how much of a
 // file has been read.
+//
+// A file's three states are zen-linear's status icons, glyph for glyph: an
+// empty ring is untouched, a ring with a centre is started, a filled one is
+// done. They come from one circle family so every state is one cell at the
+// same weight, and a burn-down here reads the way a ticket board does.
 func (m Model) glyph(n *node) (string, color.Color) {
 	if n.dir() {
 		if n.open {
@@ -93,11 +98,11 @@ func (m Model) glyph(n *node) (string, color.Color) {
 
 	switch n.file.State {
 	case review.Reviewed:
-		return "✓", m.theme.Success
+		return "●", m.theme.Accent
 	case review.Partial:
-		return "~", m.theme.Warning
+		return "⊙", m.theme.Warning
 	default:
-		return "·", m.theme.Subtle
+		return "○", m.theme.Subtle
 	}
 }
 

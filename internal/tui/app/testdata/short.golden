@@ -1,8 +1,8 @@
 ╭─[1]─Zen Review─────────────────╮╭─[2]─internal/tui/diffpane/painting_the_unified_rows.go─────────╮
-│    · render.go            +1 -1││         @@ -0,0 +1,2 @@                                        │
+│    ○ render.go            +1 -1││         @@ -0,0 +1,2 @@                                        │
 │  ▾ review                      ││                                                                │
-│    ~ state.go             +3 -1││                                                                │
+│    ⊙ state.go             +3 -1││                                                                │
 │  ▾ tui/diffpane                ││                                                                │
-│    · painting_the_unifie… +2 -0││                                                                │
+│    ○ painting_the_unifie… +2 -0││                                                                │
 ╰─6 files─────────────────+10 -3─╯╰────────────────────────────────────────────────────────────────╯
 origin/main (a1b2c3d)  ·  generation 2  ·  2 / 7 reviewed                            ? help • q quit

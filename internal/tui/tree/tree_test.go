@@ -62,16 +62,16 @@ func TestADirectoryChainIsOneRow(t *testing.T) {
 	got := rows(t, pane(t, 32, 20))
 
 	want := []string{
-		"· README.md",
+		"○ README.md",
 		"▾ assets",
-		"· logo.png",
+		"○ logo.png",
 		"▾ docs/superpowers/specs",
-		"✓ design.md",
+		"● design.md",
 		"▾ internal",
 		"▾ cli",
-		"· render.go",
+		"○ render.go",
 		"▾ review",
-		"~ state.go",
+		"⊙ state.go",
 		"▾ tui/diffpane",
 	}
 
