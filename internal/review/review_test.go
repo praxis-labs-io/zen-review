@@ -213,6 +213,22 @@ func TestALocalBranchAlreadyInTheBaseIsNotACandidate(t *testing.T) {
 	}
 }
 
+// TestRepoNamesTheWorkTree. It is what the reader is shown to say which
+// repository is on screen, so it has to be the directory's name rather than
+// the path to it or the name of a temporary directory above it.
+func TestRepoNamesTheWorkTree(t *testing.T) {
+	f := branched(t)
+	s := f.mustOpen("")
+	t.Cleanup(func() { _ = s.Close() })
+
+	if got, want := s.Repo(), filepath.Base(f.Dir()); got != want {
+		t.Errorf("Repo() = %q, want %q", got, want)
+	}
+	if strings.ContainsRune(s.Repo(), filepath.Separator) {
+		t.Errorf("Repo() = %q, want a name and not a path", s.Repo())
+	}
+}
+
 // A branch merged into HEAD is an ancestor of HEAD and not of the base, which is
 // every test ancestry alone can apply, and it is not a stack. Merging local main
 // into a feature branch to catch up is the everyday version, and reading it as a

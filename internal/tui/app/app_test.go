@@ -156,6 +156,16 @@ func TestTheCursorIsOnTheRowTheKeysMoved(t *testing.T) {
 	}
 }
 
+// TestTheTreeIsHeadedByTheRepository, so a reader with two of these open knows
+// which one they are looking at. The count beside it is the changeset's files.
+func TestTheTreeIsHeadedByTheRepository(t *testing.T) {
+	head := open(t, 100, 16).lines()[0]
+
+	if want := "─[1]─zen-review (6)"; !strings.Contains(head, want) {
+		t.Errorf("the tree is headed %q, want it to hold %q", head, want)
+	}
+}
+
 // TestTheStatusBarSaysWhereTheReviewIs keeps the three facts the bar exists for
 // out of the goldens, where a layout change would hide their loss.
 func TestTheStatusBarSaysWhereTheReviewIs(t *testing.T) {

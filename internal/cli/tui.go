@@ -55,5 +55,5 @@ func runTUI(cmd *cobra.Command, opts *options) (err error) {
 	if !ok {
 		return fmt.Errorf("zen-kit has no theme named %s", theme.Default)
 	}
-	return app.Run(cmd.Context(), t, s.Base(), g, c)
+	return app.Run(cmd.Context(), t, s.Repo(), s.Base(), g, c)
 }

@@ -68,7 +68,7 @@ func (m Model) content() string {
 func (m Model) body() string {
 	tree := m.treePane.
 		Index(1).
-		Title("Files").
+		Title(comp.Safe(m.repo)).
 		Count(strconv.Itoa(len(m.changeset.Files))).
 		Footer(m.tree.Scroll().Footer()).
 		Focus(m.focus == focusTree).

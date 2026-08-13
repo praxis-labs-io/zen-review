@@ -27,7 +27,7 @@ func open(t *testing.T, width, height int) *screen {
 	base := review.Base{Ref: "origin/main", SHA: "a1b2c3d4e5f67890"}
 	g := review.Generation{Seq: 2}
 
-	s := &screen{t: t, m: app.New(theme.RosePineMoon, base, g, testchangeset.Nested(t))}
+	s := &screen{t: t, m: app.New(theme.RosePineMoon, "zen-review", base, g, testchangeset.Nested(t))}
 	s.send(tea.WindowSizeMsg{Width: width, Height: height})
 	return s
 }

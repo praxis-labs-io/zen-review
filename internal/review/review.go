@@ -95,6 +95,11 @@ func (s *Session) Kind() store.Kind { return s.row.Kind }
 // Branch is empty on a session that is not keyed to one.
 func (s *Session) Branch() string { return s.row.Branch }
 
+// Repo names the repository under review, which is its work tree's directory
+// name. That is what a reader recognises; the absolute path is not, and it is
+// too long to put anywhere a name goes.
+func (s *Session) Repo() string { return filepath.Base(s.repo.Root()) }
+
 // Base is what the changeset is measured from.
 func (s *Session) Base() Base { return s.base }
 

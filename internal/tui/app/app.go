@@ -35,6 +35,7 @@ type Model struct {
 	keys  KeyMap
 	theme theme.Theme
 
+	repo      string
 	base      review.Base
 	gen       review.Generation
 	changeset review.Changeset
@@ -59,10 +60,11 @@ type Model struct {
 //
 // The changeset is held by value and the panes point into its files, so it
 // must not be appended to after this.
-func New(t theme.Theme, base review.Base, g review.Generation, c review.Changeset) Model {
+func New(t theme.Theme, repo string, base review.Base, g review.Generation, c review.Changeset) Model {
 	m := Model{
 		keys:      NewKeyMap(),
 		theme:     t,
+		repo:      repo,
 		base:      base,
 		gen:       g,
 		changeset: c,
@@ -82,8 +84,8 @@ func New(t theme.Theme, base review.Base, g review.Generation, c review.Changese
 }
 
 // Run opens the reader on the terminal and returns when it closes.
-func Run(ctx context.Context, t theme.Theme, base review.Base, g review.Generation, c review.Changeset) error {
-	if _, err := tea.NewProgram(New(t, base, g, c), tea.WithContext(ctx)).Run(); err != nil {
+func Run(ctx context.Context, t theme.Theme, repo string, base review.Base, g review.Generation, c review.Changeset) error {
+	if _, err := tea.NewProgram(New(t, repo, base, g, c), tea.WithContext(ctx)).Run(); err != nil {
 		return fmt.Errorf("running the reader: %w", err)
 	}
 	return nil
