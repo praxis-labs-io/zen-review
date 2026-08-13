@@ -39,8 +39,9 @@ func byTree(a, b string) int {
 		return strings.Compare(as[i], bs[i])
 	}
 
-	// One path is the other's prefix, which git does not emit: a file and the
-	// directory holding it cannot share a name. Shorter first, so the answer is
-	// an order rather than a coin toss.
-	return len(as) - len(bs)
+	// One path is the other's prefix, which is a file turning into the directory
+	// that took its name: converting src/foo into src/foo/bar.go deletes the file
+	// and adds the directory in one changeset. The longer path is the directory,
+	// so it goes first, the same as everywhere above.
+	return len(bs) - len(as)
 }

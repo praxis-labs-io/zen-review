@@ -76,8 +76,9 @@ func New(t theme.Theme, repo string, base review.Base, g review.Generation, c re
 	}
 	m.tree.Focus()
 
-	// Off the tree rather than off the changeset, because the changeset's first
-	// entry can be a directory row and a directory is not a file to open.
+	// Off the tree rather than off the changeset, because the tree's first row is
+	// a directory whenever the changeset has one, and a directory is not a file
+	// to open.
 	if first := m.tree.First(); first != "" {
 		m.tree.Select(first)
 		m.syncDiff()

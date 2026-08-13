@@ -40,6 +40,12 @@ func TestDeriveOrdersTheFilesTheWayATreeReads(t *testing.T) {
 			want: []string{"z/deep.go", "z-x.go"},
 		},
 		{
+			// A file turning into the directory that took its name. Git emits
+			// both, and the directory is still a directory.
+			name: "a path that is another's prefix is the file, and goes second",
+			want: []string{"src/foo/bar.go", "src/foo"},
+		},
+		{
 			name: "the whole shape at once",
 			want: []string{
 				"docs/spec.md",
