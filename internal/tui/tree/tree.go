@@ -98,6 +98,18 @@ func (m Model) Scroll() comp.Scroll {
 	return comp.Scroll{Offset: m.offset, Height: m.height, Total: len(m.rows)}
 }
 
+// First is the path of the file the tree shows first, which is not the
+// changeset's first file: directories sort above the files beside them, so git's
+// order and the tree's are different lists. Empty when there are no files.
+func (m Model) First() string {
+	for _, r := range m.rows {
+		if !r.n.dir() {
+			return r.n.path
+		}
+	}
+	return ""
+}
+
 // Path is the selected file's path, and is empty on a directory row.
 func (m Model) Path() string {
 	n := m.node()

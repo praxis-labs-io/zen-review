@@ -26,7 +26,12 @@ const (
 
 	// metaLines is the facts under the tree: the changeset's size, what it is
 	// measured against, which generation is on screen, and the burn-down.
-	metaLines = 4
+	//
+	// They are drawn unboxed. A second border under the tree's read as a second
+	// pane, and this one takes no keys. metaIndent lines them up under the
+	// tree's rows rather than against the frame's edge.
+	metaLines  = 4
+	metaIndent = 1
 
 	// minPane is a pane showing anything at all: two borders and a row.
 	minPane = paneChrome + 1
@@ -45,7 +50,6 @@ func (m *Model) resize(width, height int) {
 	m.help.SetWidth(width)
 
 	m.treePane = m.treePane.Size(treeWidth, m.bodyHeight()-m.metaHeight())
-	m.metaPane = m.metaPane.Size(treeWidth, m.metaHeight())
 	m.diffPane = m.diffPane.Size(m.diffWidth(), m.bodyHeight())
 
 	m.tree.SetSize(m.treePane.InnerWidth(), m.treePane.InnerHeight())
@@ -59,10 +63,10 @@ func (m Model) diffWidth() int  { return max(m.width-treeWidth, 0) }
 // that cannot spare it. The tree is what the reader came for, so it keeps its
 // rows and the status bar carries the facts instead.
 func (m Model) metaHeight() int {
-	if m.height < statusRow+metaLines+paneChrome+minPane {
+	if m.height < statusRow+metaLines+minPane {
 		return 0
 	}
-	return metaLines + paneChrome
+	return metaLines
 }
 
 func (m Model) View() tea.View {
@@ -94,8 +98,7 @@ func (m Model) body() string {
 		Render(m.tree.View())
 
 	if m.metaHeight() > 0 {
-		left = lipgloss.JoinVertical(lipgloss.Left, left,
-			m.metaPane.Title("Review").Render(m.meta()))
+		left = lipgloss.JoinVertical(lipgloss.Left, left, m.meta())
 	}
 
 	diff := m.diffPane.
@@ -108,10 +111,10 @@ func (m Model) body() string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, left, diff)
 }
 
-// meta is the static box under the tree. It takes no keys and carries no
-// index, which is how a reader can tell it is not somewhere to go.
+// meta is the facts under the tree, unboxed. Nothing here takes a key, and a
+// border round it would read as a third pane to move into.
 func (m Model) meta() string {
-	width := m.metaPane.InnerWidth()
+	width := max(treeWidth-metaIndent*2, 0)
 	subtle := lipgloss.NewStyle().Foreground(m.theme.Subtle)
 
 	rows := []string{
@@ -119,7 +122,12 @@ func (m Model) meta() string {
 			m.changeset.Additions, m.changeset.Deletions), width, subtle),
 	}
 	for _, fact := range m.facts() {
-		rows = append(rows, comp.Clip(subtle.Render(fact), width, subtle))
+		rows = append(rows, subtle.Render(fact))
+	}
+
+	indent := strings.Repeat(" ", metaIndent)
+	for i, r := range rows {
+		rows[i] = m.pad(indent+comp.Clip(r, width, subtle), treeWidth)
 	}
 	return strings.Join(rows, "\n")
 }

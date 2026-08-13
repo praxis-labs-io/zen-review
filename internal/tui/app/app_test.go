@@ -134,9 +134,9 @@ func TestTheCursorIsOnTheRowTheKeysMoved(t *testing.T) {
 		keys []string
 		want string
 	}{
-		{nil, "README.md"},
-		{[]string{"j", "j"}, "logo.png"},
-		{[]string{"G"}, "painting_the_unif"},
+		{nil, "logo.png"},
+		{[]string{"j", "j"}, "design.md"},
+		{[]string{"G"}, "README.md"},
 	} {
 		s := open(t, 100, 16).press(tt.keys...)
 
@@ -194,7 +194,7 @@ func TestTheFactsAreInTheirOwnBox(t *testing.T) {
 	s := open(t, 100, 16)
 
 	for _, want := range []string{
-		"─Review─", "6 files", "+10 -3",
+		"6 files", "+10 -3",
 		"origin/main (a1b2c3d)", "generation 2", "2 / 7 reviewed",
 	} {
 		if !strings.Contains(s.frame(), want) {
@@ -214,32 +214,35 @@ func TestTheFactsAreInTheirOwnBox(t *testing.T) {
 	}
 }
 
-// TestTheBoxIsNotSomewhereToGo. It takes no keys, so it carries no index and
-// its border never lights: h, l, 1 and 2 reach the two panes that do.
-func TestTheBoxIsNotSomewhereToGo(t *testing.T) {
-	head := ""
+// TestTheFactsAreNotSomewhereToGo. They take no keys, so they get no border:
+// a third box under the tree reads as a third pane to move into.
+func TestTheFactsAreNotSomewhereToGo(t *testing.T) {
 	for _, line := range open(t, 100, 16).lines() {
-		if strings.Contains(line, "─Review─") {
-			head = line
-			break
+		if !strings.Contains(line, "generation 2") {
+			continue
 		}
+		if strings.ContainsAny(line[:treeColumns], "╭╰│─") {
+			t.Errorf("the facts are boxed: %q", line)
+		}
+		return
 	}
-	if head == "" {
-		t.Fatalf("no box")
-	}
-	if strings.Contains(head, "[3]") {
-		t.Errorf("the box is numbered as though a key went there: %q", head)
-	}
+	t.Fatalf("no line says the generation")
 }
+
+// treeColumns is how far across the frame the tree's column runs.
+const treeColumns = 34
 
 // TestTheBarCarriesTheFactsWhenTheBoxCannot. The facts have to be somewhere,
 // and a frame too short for the box is still a frame someone is reading.
 func TestTheBarCarriesTheFactsWhenTheBoxCannot(t *testing.T) {
-	s := open(t, 100, 9)
-	bar := s.lines()[8]
+	s := open(t, 100, 7)
+	lines := s.lines()
+	bar := lines[len(lines)-1]
 
-	if strings.Contains(s.frame(), "─Review─") {
-		t.Fatalf("the box drew on a frame with no room for it:\n%s", s.frame())
+	for _, line := range lines[:len(lines)-1] {
+		if strings.Contains(line, "generation 2") {
+			t.Fatalf("the facts drew on a frame with no room for them:\n%s", s.frame())
+		}
 	}
 	for _, want := range []string{"? help", "origin/main (a1b2c3d)", "generation 2", "2 / 7 reviewed"} {
 		if !strings.Contains(bar, want) {
@@ -265,7 +268,7 @@ func TestTheHintIsAgainstTheLeftEdge(t *testing.T) {
 // TestOpeningAFileMovesTheReaderToIt separates the two things enter does from
 // what walking the tree does.
 func TestOpeningAFileMovesTheReaderToIt(t *testing.T) {
-	s := open(t, 100, 16).press("j", "j", "j", "j")
+	s := open(t, 100, 16).press("j", "j")
 	if title := s.lines()[0]; !strings.Contains(title, "docs/superpowers/specs/design.md") {
 		t.Errorf("walking onto a file did not open it in the diff pane: %q", title)
 	}
@@ -283,7 +286,7 @@ func TestOpeningAFileMovesTheReaderToIt(t *testing.T) {
 // directory row would punish walking the tree.
 func TestADirectoryLeavesTheDiffPaneAlone(t *testing.T) {
 	s := open(t, 100, 16).press("j")
-	if got := s.lines()[0]; !strings.Contains(got, "README.md") {
+	if got := s.lines()[0]; !strings.Contains(got, "assets/logo.png") {
 		t.Errorf("stepping onto a directory changed the diff pane: %q", got)
 	}
 }
@@ -344,8 +347,8 @@ func TestATerminalTooSmallSaysSo(t *testing.T) {
 // last row short of the screen.
 func TestTheHintSurvivesTheFactsBesideIt(t *testing.T) {
 	for _, width := range []int{100, 72, 56} {
-		s := open(t, width, 9)
-		bar := s.lines()[8]
+		s := open(t, width, 7)
+		bar := s.lines()[6]
 
 		if !strings.Contains(bar, "? help") {
 			t.Errorf("at %d columns the status bar lost the hint: %q", width, bar)

@@ -62,7 +62,6 @@ func TestADirectoryChainIsOneRow(t *testing.T) {
 	got := rows(t, pane(t, 32, 20))
 
 	want := []string{
-		"○ README.md",
 		" assets",
 		"○ logo.png",
 		" docs/superpowers/specs",
@@ -73,6 +72,8 @@ func TestADirectoryChainIsOneRow(t *testing.T) {
 		" review",
 		"⊙ state.go",
 		" tui/diffpane",
+		"○ painting_the_unifie",
+		"○ README.md",
 	}
 
 	for i, w := range want {
@@ -85,13 +86,47 @@ func TestADirectoryChainIsOneRow(t *testing.T) {
 	}
 }
 
+// TestALevelSortsLikeAFileTree. Git's order is the order it walked the index
+// in, which drops a root file above every directory holding the rest.
+func TestALevelSortsLikeAFileTree(t *testing.T) {
+	// Deliberately the wrong way round in the patch, so a tree that kept git's
+	// order fails every line of this.
+	patch := ""
+	for _, p := range []string{
+		"go.sum", "CLAUDE.md", ".gitignore",
+		"internal/b.go", "cmd/a.go", ".github/workflows/ci.yml",
+	} {
+		patch += "diff --git a/" + p + " b/" + p + "\n" +
+			"--- a/" + p + "\n+++ b/" + p + "\n@@ -1 +1 @@\n-old\n+new\n"
+	}
+
+	m := tree.New(theme.RosePineMoon, testchangeset.Derive(t, patch))
+	m.SetSize(40, 20)
+
+	want := []string{
+		".github/workflows", "ci.yml", // dot directory, first
+		"cmd", "a.go",
+		"internal", "b.go",
+		".gitignore", // dot file, above the rest
+		"CLAUDE.md",  // upper case sorts above lower
+		"go.sum",
+	}
+
+	got := rows(t, m)
+	for i, w := range want {
+		if !strings.Contains(got[i], w) {
+			t.Errorf("row %d is %q, want it to hold %q", i, got[i], w)
+		}
+	}
+}
+
 // TestFoldingKeepsTheCursorWhereItWas. Folding removes rows below the one under
 // the cursor, so the index it sits at still names the same row.
 func TestFoldingKeepsTheCursorWhereItWas(t *testing.T) {
 	m := pane(t, 32, 20)
-	m, _ = press(t, m, "j", "j", "j", "j", "j")
+	m, _ = press(t, m, "j", "j", "j", "j")
 
-	before := rows(t, m)[5]
+	before := rows(t, m)[4]
 	if !strings.Contains(before, " internal") {
 		t.Fatalf("the cursor is not on internal: %q", before)
 	}
@@ -99,11 +134,11 @@ func TestFoldingKeepsTheCursorWhereItWas(t *testing.T) {
 	m, _ = press(t, m, " ")
 	after := rows(t, m)
 
-	if !strings.Contains(after[5], " internal") {
-		t.Errorf("space did not fold internal: %q", after[5])
+	if !strings.Contains(after[4], " internal") {
+		t.Errorf("space did not fold internal: %q", after[4])
 	}
-	if !cursored(t, m, 5) {
-		t.Errorf("the cursor left the row it folded: %q", after[5])
+	if !cursored(t, m, 4) {
+		t.Errorf("the cursor left the row it folded: %q", after[4])
 	}
 	if joined := strings.Join(after, "\n"); strings.Contains(joined, "state.go") {
 		t.Errorf("a folded directory kept its children on screen:\n%s", joined)
@@ -119,9 +154,9 @@ func TestWalkingSaysWhereItLanded(t *testing.T) {
 		keys []string
 		want string
 	}{
-		{"onto a directory", []string{"j"}, ""},
-		{"onto a file", []string{"j", "j"}, "assets/logo.png"},
-		{"off the end", []string{"k"}, "README.md"},
+		{"onto a file", []string{"j"}, "assets/logo.png"},
+		{"onto a directory", []string{"j", "j"}, ""},
+		{"off the end", []string{"k"}, ""},
 	}
 
 	for _, tt := range tests {
@@ -142,6 +177,7 @@ func TestWalkingSaysWhereItLanded(t *testing.T) {
 func TestEnterOpensAFileAndFoldsADirectory(t *testing.T) {
 	m := pane(t, 32, 20)
 
+	m, _ = press(t, m, "j")
 	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd == nil {
 		t.Fatalf("enter on a file returned nothing")
@@ -149,16 +185,16 @@ func TestEnterOpensAFileAndFoldsADirectory(t *testing.T) {
 	if got := cmd(); got != (tree.OpenMsg{}) {
 		t.Errorf("got %#v, want an OpenMsg", got)
 	}
-	if got := m.Path(); got != "README.md" {
+	if got := m.Path(); got != "assets/logo.png" {
 		t.Errorf("the root would open %q", got)
 	}
 
-	m, _ = press(t, m, "j")
+	m, _ = press(t, m, "k")
 	m, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd != nil {
 		t.Errorf("enter on a directory asked for a file to be opened")
 	}
-	if got := rows(t, m)[1]; !strings.Contains(got, " assets") {
+	if got := rows(t, m)[0]; !strings.Contains(got, " assets") {
 		t.Errorf("enter did not fold the directory: %q", got)
 	}
 }
@@ -167,7 +203,7 @@ func TestEnterOpensAFileAndFoldsADirectory(t *testing.T) {
 // pane has a row to land on.
 func TestSelectReachesIntoAFoldedDirectory(t *testing.T) {
 	m := pane(t, 32, 20)
-	m, _ = press(t, m, "j", "j", "j", "j", "j", " ")
+	m, _ = press(t, m, "j", "j", "j", "j", " ")
 
 	if joined := strings.Join(rows(t, m), "\n"); strings.Contains(joined, "state.go") {
 		t.Fatalf("internal did not fold:\n%s", joined)

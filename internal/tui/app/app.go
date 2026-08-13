@@ -48,7 +48,6 @@ type Model struct {
 	// asks them what is left inside rather than subtracting the border twice.
 	treePane comp.Pane
 	diffPane comp.Pane
-	metaPane comp.Pane
 
 	focus   focus
 	showing bool
@@ -74,12 +73,14 @@ func New(t theme.Theme, repo string, base review.Base, g review.Generation, c re
 		help:      comp.Help(t),
 		treePane:  comp.NewPane(t),
 		diffPane:  comp.NewPane(t),
-		metaPane:  comp.NewPane(t),
 	}
 	m.tree.Focus()
 
-	if len(m.changeset.Files) > 0 {
-		m.tree.Select(m.changeset.Files[0].Diff.Path)
+	// The tree's first file, not the changeset's. The tree sorts directories
+	// above the files beside them, so opening on git's first would land the
+	// cursor somewhere down the pane and scroll it there.
+	if first := m.tree.First(); first != "" {
+		m.tree.Select(first)
 		m.syncDiff()
 	}
 	return m

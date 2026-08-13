@@ -2,6 +2,7 @@ package tree
 
 import (
 	"path"
+	"slices"
 	"strings"
 
 	"github.com/zen-review/zen-review/internal/review"
@@ -29,7 +30,7 @@ type node struct {
 func (n *node) dir() bool { return n.file == nil }
 
 // build lays the changeset's files out under the directories that hold them,
-// keeping the order git gave them at every level.
+// and sorts every level the way a file tree reads.
 func build(files []review.File) []*node {
 	var roots []*node
 	dirs := make(map[string]*node)
@@ -50,7 +51,49 @@ func build(files []review.File) []*node {
 	for _, n := range roots {
 		collapse(n)
 	}
+
+	// After collapsing, because a merged chain is sorted under the name it
+	// shows rather than the first segment of it.
+	order(roots)
 	return roots
+}
+
+// order sorts one level and everything under it: directories before files, and
+// inside each group the dot-prefixed names before the rest.
+//
+// Git's order is the order it walked the index in, which drops a root file
+// above every directory that holds the rest of the changeset. The sort is by
+// byte, so a name starting in upper case sorts above one in lower, which is
+// what puts CLAUDE.md over go.mod.
+func order(nodes []*node) {
+	slices.SortFunc(nodes, func(a, b *node) int {
+		if a.dir() != b.dir() {
+			return boolCmp(b.dir(), a.dir())
+		}
+		if da, db := dotted(a.name), dotted(b.name); da != db {
+			return boolCmp(db, da)
+		}
+		return strings.Compare(a.name, b.name)
+	})
+
+	for _, n := range nodes {
+		order(n.kids)
+	}
+}
+
+func dotted(name string) bool { return strings.HasPrefix(name, ".") }
+
+// boolCmp orders false before true, so the caller passes the flag it wants
+// last on the left.
+func boolCmp(a, b bool) int {
+	switch {
+	case a == b:
+		return 0
+	case b:
+		return -1
+	default:
+		return 1
+	}
 }
 
 // ensure is the directory node for a prefix, creating it and every directory
