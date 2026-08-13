@@ -96,11 +96,14 @@ func (m Model) file(by int) (stop, bool) {
 // hunk under the pane's own cursor.
 //
 // The tree follows the pane rather than the other way round, so the two never
-// disagree about which file is open.
+// disagree about which file is open. It is selected on every landing and not
+// only when the file changes, because the tree's cursor can be somewhere the
+// pane is not: a directory row leaves the pane on the file before it.
 func (m *Model) land(s stop) {
 	m.cursor = s
+	m.tree.Select(s.path)
+
 	if s.path != m.diff.Path() {
-		m.tree.Select(s.path)
 		m.diff.SetFile(m.fileAt(s.path))
 	}
 	m.diff.Select(s.side, s.line)

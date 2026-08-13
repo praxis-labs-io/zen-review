@@ -791,3 +791,44 @@ func TestTheMarkedHeadingIsFilledAndOneCellWide(t *testing.T) {
 		t.Error("the heading the ring is on carries no fill")
 	}
 }
+
+// TestTheTreeFollowsTheRingOffADirectoryRow. A directory row leaves the diff
+// pane on the file before it, so the tree's cursor can be somewhere the pane is
+// not, and a landing that only moves the tree when the file changes leaves the
+// two disagreeing.
+func TestTheTreeFollowsTheRingOffADirectoryRow(t *testing.T) {
+	// To the two-hunk file, then one row up onto the directory holding it. The
+	// pane stays on the file, so the two panes are now on different things.
+	s := open(t, 100, 16).press(code...).press("k")
+
+	if got := filledTreeRow(t, s); strings.Contains(got, "state.go") {
+		t.Fatalf("the tree's cursor is still on the file, so this proves nothing: %q", got)
+	}
+	if title := s.lines()[0]; !strings.Contains(title, "state.go") {
+		t.Fatalf("the directory row took the file out of the pane: %q", title)
+	}
+
+	// Inside the file the pane is already on, so nothing about the file changes
+	// and only the tree has anywhere to move.
+	s.press("}")
+	if got := filledTreeRow(t, s); !strings.Contains(got, "state.go") {
+		t.Errorf("the tree's cursor is on %q, want the file the ring moved inside", got)
+	}
+}
+
+// TestOpeningTheFileAlreadyOpenLeavesTheRingWhereItIs. Pressing enter on the
+// file being read is not a move onto it, and putting the ring back at the top
+// would throw away where the reader had got to.
+func TestOpeningTheFileAlreadyOpenLeavesTheRingWhereItIs(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16).press("}")
+
+	was := heading(t, s)
+	if !strings.Contains(was, "@@ -10,0 +11,1 @@") {
+		t.Fatalf("the ring is on %q, want a.go's second hunk", was)
+	}
+
+	s.press("h", "enter")
+	if got := heading(t, s); got != was {
+		t.Errorf("enter on the open file moved the ring to %q", got)
+	}
+}

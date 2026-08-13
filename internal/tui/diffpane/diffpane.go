@@ -86,9 +86,12 @@ type Model struct {
 	rows []string
 
 	// cur is the hunk the ring is on, by the side and line review names it
-	// under, and headAt is the row each of this file's hunks starts on.
+	// under, and headAt is the row each of this file's hunks starts on. gutter
+	// is the width the file's line numbers were laid out at, kept so a heading
+	// can be repainted without laying the file out again.
 	cur    hunkName
 	headAt []int
+	gutter int
 
 	offset int
 
@@ -142,10 +145,39 @@ func (m *Model) SetFile(f *review.File) {
 // reader somewhere, and the shortest scroll leaves the heading wherever the
 // last one happened to end. A hunk already on screen whole is left where it is,
 // because moving a block the reader can already read is movement for nothing.
+// The two headings it moves between are repainted where they sit. Laying the
+// file out again would re-tokenise both sides of every hunk to move a one-cell
+// marker, and this is a key the reader holds down.
 func (m *Model) Select(side store.Side, line int) {
+	was := m.cur
 	m.cur = hunkName{side: side, line: line}
-	m.relayout()
+
+	m.repaint(was)
+	m.repaint(m.cur)
 	m.scrollToCursor()
+}
+
+// repaint redraws one hunk's heading in place, and does nothing for a hunk the
+// file does not hold or a pane that has not been laid out yet.
+func (m *Model) repaint(name hunkName) {
+	if m.file == nil || len(m.headAt) != len(m.file.Hunks) {
+		return
+	}
+	for i, h := range m.file.Hunks {
+		if nameOf(h) == name {
+			m.rows[m.headAt[i]] = m.heading(h)
+		}
+	}
+}
+
+// heading is one hunk's @@ line, marked and filled when it is the one the ring
+// is on.
+func (m Model) heading(h review.Hunk) string {
+	head := paint.Header{Text: comp.Safe(h.Diff.Header)}
+	if nameOf(h) == m.cur {
+		head.Marker, head.Fill = cursorGlyph, m.theme.SelectedBackground
+	}
+	return m.fill(m.painter.HunkHeader(head, m.gutter, m.width))
 }
 
 // scrollToCursor opens the window on the cursor's heading, and does nothing
@@ -191,10 +223,20 @@ func (m Model) fits(at int) bool {
 
 // SetSize gives the pane the room it draws into, which is the inside of the
 // frame and not the frame.
+// The first sizing scrolls to the cursor, and every one after it only keeps the
+// window in range. The size arrives after the model is built, so the reader
+// opening on a hunk part way down a file is put there by that first resize; a
+// later one is the terminal changing shape under someone who has scrolled
+// somewhere, and yanking them back to the cursor throws that away.
 func (m *Model) SetSize(width, height int) {
+	first := m.width == 0 && m.height == 0
+
 	m.width, m.height = width, height
 	m.relayout()
-	m.scrollToCursor()
+
+	if first {
+		m.scrollToCursor()
+	}
 }
 
 // Scroll is where the window sits in the file, for the counter the frame draws.
@@ -257,7 +299,7 @@ func (m *Model) relayout() {
 	}
 
 	tokens := m.tokens(*m.file)
-	gutter := paint.Gutter(widest(*m.file))
+	m.gutter = paint.Gutter(widest(*m.file))
 
 	seen := 0
 	for i, h := range m.file.Hunks {
@@ -265,13 +307,8 @@ func (m *Model) relayout() {
 			m.add("")
 		}
 
-		head := paint.Header{Text: comp.Safe(h.Diff.Header)}
-		if nameOf(h) == m.cur {
-			head.Marker, head.Fill = cursorGlyph, m.theme.SelectedBackground
-		}
-
 		m.headAt = append(m.headAt, len(m.rows))
-		m.add(m.painter.HunkHeader(head, gutter, m.width))
+		m.add(m.heading(h))
 
 		for _, l := range h.Diff.Lines {
 			m.add(m.painter.Line(paint.Line{
@@ -279,7 +316,7 @@ func (m *Model) relayout() {
 				Old:    l.Old,
 				New:    l.New,
 				Tokens: tokens[seen],
-			}, gutter, m.width))
+			}, m.gutter, m.width))
 			seen++
 
 			// The annotation takes no line number of its own, so it hangs under
@@ -298,15 +335,18 @@ func (m *Model) relayout() {
 }
 
 // add takes a painted line, finishing it to the pane's width.
+func (m *Model) add(text string) { m.rows = append(m.rows, m.fill(text)) }
+
+// fill finishes a painted row to the pane's width.
 //
 // The painter leaves a row that fits short, because a row it tinted runs its
 // own background out and a context row does not. The pane is the one that knows
 // how wide it is, so it is the one that finishes the line.
-func (m *Model) add(text string) {
+func (m Model) fill(text string) string {
 	if gap := m.width - lipgloss.Width(text); gap > 0 {
 		text += strings.Repeat(" ", gap)
 	}
-	m.rows = append(m.rows, text)
+	return text
 }
 
 // tokens colours the file one side at a time, and hands back one entry per diff

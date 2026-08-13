@@ -408,3 +408,38 @@ func TestSelectingAHunkTheFileDoesNotHoldMarksNothing(t *testing.T) {
 		t.Errorf("it moved the window as well:\n%s", after)
 	}
 }
+
+// TestAResizeKeepsTheReaderWhereTheyScrolledTo. The first sizing puts the reader
+// on the cursor, because the size arrives after the model is built. Every one
+// after it is the terminal changing shape under someone who has scrolled
+// somewhere, and yanking them back to the cursor throws that away.
+func TestAResizeKeepsTheReaderWhereTheyScrolledTo(t *testing.T) {
+	m := pane(t, twoHunks, 60, 8)
+	m.Select(store.SideHead, 13)
+
+	// Down into the second hunk, well past the heading the cursor is on.
+	m = press(t, m, down, down, down, down, down, down, down, down)
+	before := rows(t, m)[0]
+
+	m.SetSize(60, 8)
+	if after := rows(t, m)[0]; after != before {
+		t.Errorf("the resize moved the top row from %q to %q", before, after)
+	}
+}
+
+// TestTheFirstSizingScrollsToTheCursor, which is the case the reader opening on
+// a hunk part way down a file depends on.
+func TestTheFirstSizingScrollsToTheCursor(t *testing.T) {
+	c := testchangeset.Nested(t)
+
+	// Sized after the cursor is set, the way the root builds it: New, then the
+	// terminal says how big it is.
+	m := diffpane.New(theme.RosePineMoon)
+	m.SetFile(fileAt(t, c, twoHunks))
+	m.Select(store.SideHead, 124)
+	m.SetSize(60, 8)
+
+	if got := rows(t, m)[0]; !strings.Contains(got, "@@ -120,5 +120,7 @@") {
+		t.Errorf("the top row is %q, want the hunk the cursor was on", got)
+	}
+}

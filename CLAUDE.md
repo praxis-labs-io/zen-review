@@ -230,9 +230,10 @@ own diff mode says `]c` and `[c`, and the bracket pair is spoken for. Nothing in
 vim moves a whole file in one key, so `tab` is the TUI answer rather than the
 editor one; the tree does the same job by hand.
 
-Five divergences from zen-octo, all deliberate:
+Six divergences from zen-octo, all deliberate:
 
 - `space` folds, replacing `o`. zen-octo adopts this too.
+- `tab` / `shift+tab` are the tab strip in zen-octo and next / previous file here. Same reason as `]` and `[`: zen-review will never have tabs.
 - `ctrl+u` / `ctrl+d` page the diff from either pane. zen-octo pages whichever pane has focus, its rail included. Walking the tree here is how a reader gets to a file, and reading it is what they came for.
 - `]` / `[` are tabs in zen-octo and comments here. zen-octo has tabs and zen-review never will.
 - `r` is reply in zen-octo and mark-reviewed here. Neither tool has the other's concept.

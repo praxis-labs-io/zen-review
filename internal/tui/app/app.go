@@ -209,6 +209,10 @@ func (m Model) walk(msg tea.KeyPressMsg) (s stop, ok, mine bool) {
 //
 // The ring goes to the file's first hunk, not its first unread one. The reader
 // picked the file to read it, and n is the key that walks the burn-down.
+//
+// A cursor already on the file in the pane has not moved onto it, so the ring
+// stays where it is. Pressing enter on the file being read is not a move, and
+// putting the ring back at the top would throw away where the reader had got to.
 func (m *Model) syncDiff() {
 	path := m.tree.Path()
 	if path == "" || path == m.diff.Path() {
