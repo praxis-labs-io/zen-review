@@ -225,7 +225,7 @@ func TestTheFactsSitAtTheFootOfTheTree(t *testing.T) {
 		switch {
 		case strings.HasPrefix(line, "├"):
 			rule = i
-		case strings.Contains(line, "6 files") && first < 0:
+		case strings.Contains(line, "origin/main") && first < 0:
 			first = i
 		}
 	}

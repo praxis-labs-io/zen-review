@@ -112,13 +112,14 @@ func (m Model) meta() string {
 	width := max(m.treePane.InnerWidth()-metaIndent*2, 0)
 	subtle := lipgloss.NewStyle().Foreground(m.theme.Subtle)
 
-	rows := []string{
-		spread(m.files(), comp.Churn(lipgloss.NewStyle(), m.theme,
-			m.changeset.Additions, m.changeset.Deletions), width, subtle),
-	}
+	var rows []string
 	for _, fact := range m.facts() {
 		rows = append(rows, subtle.Render(fact))
 	}
+
+	// The size goes last, under the burn-down it is the denominator of.
+	rows = append(rows, spread(m.files(), comp.Churn(lipgloss.NewStyle(), m.theme,
+		m.changeset.Additions, m.changeset.Deletions), width, subtle))
 
 	// The pane pads each row out to its own width, which is the gutter on the
 	// right; this is the one on the left.
