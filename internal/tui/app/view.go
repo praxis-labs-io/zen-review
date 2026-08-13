@@ -13,10 +13,15 @@ import (
 )
 
 const (
-	// treeWidth is the tree pane, fixed: 32 columns of rows plus the two its
-	// border costs. A path is not worth a column of the diff, and a pane that
-	// resizes under the reader is worse than a narrow one.
-	treeWidth = 34
+	// The tree takes two fifths of the frame, between treeMin and treeMax. A
+	// path is worth more columns on a wide terminal than on a narrow one, and
+	// worth no more than treeMax anywhere: past that the pane is mostly the gap
+	// between a name and its churn.
+	//
+	// It is a share of the terminal and not of the content, so it moves when the
+	// window does and never under the reader.
+	treeNum, treeDen = 2, 5
+	treeMin, treeMax = 34, 60
 
 	// paneChrome is the two lines and two columns a pane spends on its border.
 	paneChrome = 2
@@ -43,7 +48,7 @@ const (
 
 	// minWidth leaves the diff pane twenty columns to draw in. minHeight leaves
 	// each pane its two borders and a row of content between them.
-	minWidth  = treeWidth + paneChrome + 20
+	minWidth  = treeMin + paneChrome + 20
 	minHeight = statusRow + minPane
 
 	// dot separates the facts when the status bar has to carry them.
@@ -56,7 +61,7 @@ func (m *Model) resize(width, height int) {
 
 	// Sized first, because the facts are laid out to the width the pane reports
 	// and the pane decides for itself whether it has room for them.
-	m.treePane = m.treePane.Size(treeWidth, m.bodyHeight())
+	m.treePane = m.treePane.Size(m.treeWidth(), m.bodyHeight())
 	m.treePane = m.treePane.Note(m.meta())
 	m.diffPane = m.diffPane.Size(m.diffWidth(), m.bodyHeight())
 
@@ -65,7 +70,12 @@ func (m *Model) resize(width, height int) {
 }
 
 func (m Model) bodyHeight() int { return max(m.height-statusRow, 0) }
-func (m Model) diffWidth() int  { return max(m.width-treeWidth, 0) }
+func (m Model) diffWidth() int  { return max(m.width-m.treeWidth(), 0) }
+
+// treeWidth is the tree's share of this frame, clamped at both ends.
+func (m Model) treeWidth() int {
+	return min(max(m.width*treeNum/treeDen, treeMin), treeMax)
+}
 
 // metaShown is whether the pane found room for the facts. It did not on a
 // frame that could not spare them, and the status bar carries them instead.

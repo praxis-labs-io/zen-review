@@ -90,6 +90,29 @@ func (s *screen) raw() string {
 	return s.m.View().Content
 }
 
+// treeColumns is how wide the tree's pane came out, read off the frame rather
+// than assumed: it is a share of the terminal and moves with it.
+func (s *screen) treeColumns() int {
+	s.t.Helper()
+
+	for i, r := range []rune(s.lines()[0]) {
+		if r == '╮' {
+			return i + 1
+		}
+	}
+	s.t.Fatalf("the frame has no tree pane:\n%s", s.frame())
+	return 0
+}
+
+// treeRow is one line of the tree's column with its borders and its padding
+// taken off, which is what a row of that pane actually says.
+func (s *screen) treeRow(i int) string {
+	s.t.Helper()
+
+	runes := []rune(s.lines()[i])
+	return strings.TrimSpace(string(runes[1 : s.treeColumns()-1]))
+}
+
 func (s *screen) lines() []string {
 	s.t.Helper()
 	return strings.Split(s.frame(), "\n")

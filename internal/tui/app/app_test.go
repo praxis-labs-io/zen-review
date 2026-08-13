@@ -196,14 +196,25 @@ func TestTheFactsAreDrawnAndColoured(t *testing.T) {
 	th := theme.RosePineMoon
 	s := open(t, 100, 16)
 
-	// Label against the left edge, value against the right.
-	for _, want := range []string{
-		"origin/main            a1b2c3d",
-		"Generation                   2",
-		"Reviewed                   2/7",
+	// Label against the left edge of the pane, value against the right.
+	for _, want := range []struct{ label, value string }{
+		{"origin/main", "a1b2c3d"},
+		{"Generation", "2"},
+		{"Reviewed", "2/7"},
+		{"Changes", "-3"},
 	} {
-		if !strings.Contains(s.frame(), want) {
-			t.Errorf("the facts do not say %q:\n%s", want, s.frame())
+		row := ""
+		for i := range s.lines() {
+			if r := s.treeRow(i); strings.HasPrefix(r, want.label) {
+				row = r
+				break
+			}
+		}
+		switch {
+		case row == "":
+			t.Errorf("no row is labelled %q:\n%s", want.label, s.frame())
+		case !strings.HasSuffix(row, want.value):
+			t.Errorf("the %q row is %q, want it to end %q", want.label, row, want.value)
 		}
 	}
 
@@ -271,7 +282,8 @@ func TestTheBurnDownWearsItsOwnState(t *testing.T) {
 // beside them. A box of their own reads as a third pane to move into, and
 // nothing there takes a key.
 func TestTheFactsSitAtTheFootOfTheTree(t *testing.T) {
-	lines := open(t, 100, 16).lines()
+	s := open(t, 100, 16)
+	lines := s.lines()
 
 	rule, first := -1, -1
 	for i, line := range lines {
@@ -292,7 +304,8 @@ func TestTheFactsSitAtTheFootOfTheTree(t *testing.T) {
 
 	// The rule joins the side borders rather than floating between them, and
 	// the tree pane is the only thing it crosses.
-	if want := "├" + strings.Repeat("─", 32) + "┤"; !strings.HasPrefix(lines[rule], want) {
+	want := "├" + strings.Repeat("─", s.treeColumns()-2) + "┤"
+	if !strings.HasPrefix(lines[rule], want) {
 		t.Errorf("the rule is %q, want it to start %q", lines[rule], want)
 	}
 }
@@ -318,13 +331,10 @@ func TestThePadsBelongToTheEndsOfTheList(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			lines := open(t, 100, height).press(tt.keys...).lines()
+			s := open(t, 100, height).press(tt.keys...)
+			lines := s.lines()
 
-			// The tree's columns, inside its two borders. Sliced by rune: a
-			// border is three bytes and cutting one in half compares nothing.
-			blank := func(i int) bool {
-				return strings.TrimSpace(string([]rune(lines[i])[1:33])) == ""
-			}
+			blank := func(i int) bool { return s.treeRow(i) == "" }
 			if got := blank(first); got != tt.topPad {
 				t.Errorf("the pad above the list is %v, want %v: %q", got, tt.topPad, lines[first])
 			}
