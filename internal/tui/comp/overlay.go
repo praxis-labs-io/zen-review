@@ -46,8 +46,17 @@ func Over(base, over string, width, height int) string {
 
 // Modal frames content as a dialog for Over to place. It is a focused pane, so
 // a dialog wears the chrome the panes already wear.
-func Modal(t theme.Theme, title, content string) string {
+//
+// It is sized into the frame rather than left to overflow it. Over clips what
+// does not fit, and a clipped box loses the border off two of its sides; a pane
+// told its own size clips the content instead and stays a box.
+//
+// This is where it parts from zen-octo's, which takes no frame and overflows.
+func Modal(t theme.Theme, title, content string, width, height int) string {
 	padded := lipgloss.NewStyle().Padding(0, 1).Render(content)
 	w, h := lipgloss.Size(padded)
-	return NewPane(t).Title(title).Focus(true).Size(w+2, h+2).Render(padded)
+
+	return NewPane(t).Title(title).Focus(true).
+		Size(min(w+2, width), min(h+2, height)).
+		Render(padded)
 }

@@ -1,6 +1,10 @@
 package comp
 
-import "charm.land/bubbles/v2/key"
+import (
+	"slices"
+
+	"charm.land/bubbles/v2/key"
+)
 
 // Movement is the keys every pane moves a row at a time with.
 //
@@ -34,7 +38,7 @@ func NewMovement() Movement {
 // declaration of what a key does. Only the label is new, and a label is text.
 func Pair(a, b key.Binding, label, desc string) key.Binding {
 	return key.NewBinding(
-		key.WithKeys(append(a.Keys(), b.Keys()...)...),
+		key.WithKeys(slices.Concat(a.Keys(), b.Keys())...),
 		key.WithHelp(label, desc),
 	)
 }

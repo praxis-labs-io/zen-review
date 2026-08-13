@@ -6,7 +6,6 @@ import (
 	"strings"
 	"unicode"
 
-	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
@@ -221,7 +220,7 @@ func (m Model) overlay(frame string) string {
 	full := m.help
 	full.ShowAll = true
 
-	return comp.Over(frame, comp.Modal(m.theme, "Keys", full.View(m)), m.width, m.height)
+	return comp.Over(frame, comp.Modal(m.theme, "Keys", full.View(m), m.width, m.height), m.width, m.height)
 }
 
 // status is what the pane holding the keys can do, against the left edge where
@@ -232,11 +231,10 @@ func (m Model) overlay(frame string) string {
 // a frame that small the pane's own keys are what the reader can find by
 // pressing the one key the bar keeps.
 func (m Model) status() string {
-	hint := m.help.ShortHelpView(m.ShortHelp())
 	if m.metaShown() {
-		return m.pad(hint, m.width)
+		return m.pad(m.bar(m.width), m.width)
 	}
-	hint = m.help.ShortHelpView([]key.Binding{m.keys.Help, m.keys.Quit})
+	hint := m.help.ShortHelpView(m.wayOut())
 
 	muted := lipgloss.NewStyle().Foreground(m.theme.Muted)
 	subtle := lipgloss.NewStyle().Foreground(m.theme.Subtle)
@@ -254,6 +252,30 @@ func (m Model) status() string {
 		return m.pad(hint, m.width)
 	}
 	return hint + strings.Repeat(" ", gap) + facts
+}
+
+// bar is the status line, with the pane's own keys dropped off the tail until
+// it fits.
+//
+// ShortHelpView cuts the line from the right, which would take the way out with
+// it and leave a bar that names three keys and no way to see the rest. Dropping
+// a whole key is what the overlay does with a hint too: half a key teaches
+// nothing.
+func (m Model) bar(width int) string {
+	// Measured against a help with no width of its own. One that has a width
+	// truncates before returning, so every candidate comes back already cut and
+	// the first one measures as fitting.
+	h := m.help
+	h.SetWidth(0)
+
+	own, out := m.paneKeys(), m.wayOut()
+	for n := len(own); n > 0; n-- {
+		line := h.ShortHelpView(append(own[:n:n], out...))
+		if lipgloss.Width(line) <= width {
+			return line
+		}
+	}
+	return h.ShortHelpView(out)
 }
 
 // tooSmall fills the screen the same way every other path does, so the frame

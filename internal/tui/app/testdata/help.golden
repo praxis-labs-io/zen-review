@@ -2,14 +2,14 @@
 │                                      ││binary                                                    │
 │  assets                             ││                                                          │
 │   ○ logo.png                  binary ││                                                          │
-│  docs/superpowers/sp╭─Keys───────────────────────────────────────────────╮                      │
-│   ● design.md        │ j      down              h/1   tree pane    ? help │                      │
-│  internal           │ k      up                l/2   diff pane    q quit │                      │
-│    cli              │ g      top               space fold                │                      │
-│     ○ render.go      │ G      bottom            enter open                │                      │
-├──────────────────────│ ctrl+d half page down                              │                      │
-│ origin/main          │ ctrl+u half page up                                │                      │
-│ Generation           ╰────────────────────────────────────────────────────╯                      │
+│  docs/superpowers╭─Keys────────────────────────────────────────────────────╮                    │
+│   ● design.md     │ j      down                   h/1   tree pane    ? help │                    │
+│  internal        │ k      up                     l/2   diff pane    q quit │                    │
+│    cli           │ g      top                    space fold                │                    │
+│     ○ render.go   │ G      bottom                 enter open                │                    │
+├───────────────────│ ctrl+d diff half page down                              │                    │
+│ origin/main       │ ctrl+u diff half page up                                │                    │
+│ Generation        ╰─────────────────────────────────────────────────────────╯                    │
 │ Reviewed                         2/7 ││                                                          │
 │ Changes                   6  +10 -3 ││                                                          │
 ╰──────────────────────────────────────╯╰──────────────────────────────────────────────────────────╯

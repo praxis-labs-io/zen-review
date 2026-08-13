@@ -206,6 +206,38 @@ func column(frame string, width int) string {
 	return b.String()
 }
 
+// TestTheOverlayStaysABoxOnTheSmallestFrame. The compositor clips what does not
+// fit, and a clipped box loses the border off two of its sides: the reader sees
+// an unclosed rectangle and no bottom row. The modal is sized into the frame so
+// the pane clips its content instead.
+func TestTheOverlayStaysABoxOnTheSmallestFrame(t *testing.T) {
+	for _, size := range []struct{ width, height int }{
+		// The smallest frame that draws panes at all, and one row more.
+		{56, 4},
+		{56, 6},
+		{72, 10},
+		{100, 16},
+	} {
+		frame := open(t, size.width, size.height).press("?").frame()
+
+		for _, corner := range []string{"╭", "╮", "╰", "╯"} {
+			if !strings.Contains(frame, corner) {
+				t.Errorf("at %dx%d the box has no %s:\n%s", size.width, size.height, corner, frame)
+			}
+		}
+	}
+}
+
+// TestTheOverlaySaysWhichPaneAKeyMoves. The overlay lists a pane's keys in one
+// column, so a key that moves the other pane has to say so or the column reads
+// as one more way to move this one.
+func TestTheOverlaySaysWhichPaneAKeyMoves(t *testing.T) {
+	tree := open(t, 100, 16).press("?").frame()
+	if !strings.Contains(tree, "ctrl+d diff half page down") {
+		t.Errorf("the tree's column claims ctrl+d pages the tree:\n%s", tree)
+	}
+}
+
 // TestTheTreeIsHeadedByTheRepository, so a reader with two of these open knows
 // which one they are looking at. What is in it is said in the footer.
 //
@@ -421,6 +453,13 @@ func TestTheHintIsAgainstTheLeftEdge(t *testing.T) {
 		}
 		if got := lipgloss.Width(bar); got != width {
 			t.Errorf("at %d columns the bar is %d wide: %q", width, got, bar)
+		}
+
+		// The bar cuts from the right, so a pane hint that does not fit would
+		// take these with it and leave nothing on screen saying the overlay is
+		// there. The reader who needs that is the one on the narrow terminal.
+		if !strings.Contains(bar, "? help") || !strings.Contains(bar, "q quit") {
+			t.Errorf("at %d columns the bar lost the way out: %q", width, bar)
 		}
 	}
 }
