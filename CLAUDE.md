@@ -138,6 +138,7 @@ internal/
   cli/         the review subcommands. A thin shell over review/.
   tui/         app, tree, diffpane, compose, comp.
   testrepo/    real git repos for tests. Test-only, imports nothing of ours.
+  testchangeset/  changesets for the render tests. Test-only, no git, no database.
   golden/      the golden-file compare. Test-only, and owns the -update flag.
 ```
 

@@ -19,7 +19,7 @@ test: ## Run tests with race detection and coverage
 
 golden: ## Regenerate the golden files
 	@echo "Regenerating golden files..."
-	go test ./internal/diff/ ./internal/cli/ -update
+	go test ./internal/diff/ ./internal/cli/ ./internal/tui/app/ -update
 
 coverage: test ## Show test coverage report
 	@echo "Generating coverage report..."
