@@ -2,15 +2,15 @@
 │                                      ││binary                                                    │
 │  assets                             ││                                                          │
 │   ○ logo.png                  binary ││                                                          │
-│  docs/superpowers/╭─Keys──────────────────────────────────────────────────╮                     │
-│   ● design.md      │ j      down                   h/1 tree pane    ? help │                     │
-│  internal         │ k      up                     l/2 diff pane    q quit │                     │
-│    cli            │ g      top                                            │                     │
-│     ○ render.go    │ G      bottom                                         │                     │
-├────────────────────│ ctrl+d diff half page down                            │                     │
-│ origin/main        │ ctrl+u diff half page up                              │                     │
-│ Generation         ╰───────────────────────────────────────────────────────╯                     │
+│  docs/sup╭─Keys─────────────────────────────────────────────────────────────────────╮           │
+│   ● design│ j      down                   n         next unread        h/1 tree pane │           │
+│  internal│ k      up                     N         previous unread    l/2 diff pane │           │
+│    cli   │ g      top                    }         next hunk          ?   help      │           │
+│     ○ rend│ G      bottom                 {         previous hunk      q   quit      │           │
+├───────────│ ctrl+d diff half page down    tab       next file                        │           │
+│ origin/mai│ ctrl+u diff half page up      shift+tab previous file                    │           │
+│ Generation╰──────────────────────────────────────────────────────────────────────────╯           │
 │ Reviewed                         2/7 ││                                                          │
 │ Changes                   6  +10 -3 ││                                                          │
 ╰──────────────────────────────────────╯╰──────────────────────────────────────────────────────────╯
-j/k scroll · ctrl+d/u page the diff · ? help · q quit                                               
+j/k scroll · n/N unread · }/{ hunk · ctrl+d/u page · tab file · ? help · q quit                     

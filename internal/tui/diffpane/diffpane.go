@@ -17,6 +17,7 @@ import (
 
 	"github.com/zen-review/zen-review/internal/diff"
 	"github.com/zen-review/zen-review/internal/review"
+	"github.com/zen-review/zen-review/internal/store"
 	"github.com/zen-review/zen-review/internal/tui/comp"
 )
 
@@ -54,16 +55,26 @@ func (k KeyMap) Hints() []key.Binding {
 
 // Paging is the half-page keys as the status bar names them, which is once.
 //
-// The bindings say "diff" and the bar's label does not need to: the bar has one
-// entry for the pair and no room, while the overlay lists them in the column of
-// whichever pane holds the keys, where an unqualified "half page down" would
-// read as one more way to move the tree.
+// The bindings say "diff" and the bar's label does not: the bar has one entry
+// for the pair and no room for the rest, while the overlay lists them in the
+// column of whichever pane holds the keys, where an unqualified "half page down"
+// would read as one more way to move the tree.
 func (k KeyMap) Paging() key.Binding {
-	return comp.Pair(k.HalfDown, k.HalfUp, "ctrl+d/u", "page the diff")
+	return comp.Pair(k.HalfDown, k.HalfUp, "ctrl+d/u", "page")
 }
+
+// cursorGlyph marks the hunk the ring is on. It is the tree's Nerd Font family,
+// so the two panes read as one set, and it is one cell wide: a two-cell glyph
+// would eat the space after it and put the heading's text out of step with the
+// code under it.
+const cursorGlyph = ""
 
 // Model is the diff pane. It renders the file it was given and holds no review
 // state of its own.
+//
+// The cursor is not review state either. The root owns which hunk the ring is
+// on, because the ring crosses files and this pane holds one; what is here is
+// the name the root last handed down, so a row can be drawn as the one it is on.
 type Model struct {
 	Keys KeyMap
 
@@ -74,10 +85,29 @@ type Model struct {
 	file *review.File
 	rows []string
 
+	// cur is the hunk the ring is on, by the side and line review names it
+	// under, and headAt is the row each of this file's hunks starts on.
+	cur    hunkName
+	headAt []int
+
 	offset int
 
 	width  int
 	height int
+}
+
+// hunkName is a hunk's identity: the side and line review.Hunk.Name gives.
+//
+// An index would name whatever is third in the file after an agent inserts a
+// hunk above it, which is the whole reason review names them this way.
+type hunkName struct {
+	side store.Side
+	line int
+}
+
+func nameOf(h review.Hunk) hunkName {
+	side, line := h.Name()
+	return hunkName{side: side, line: line}
 }
 
 // New is an empty pane. A changeset with no files leaves it that way.
@@ -99,10 +129,64 @@ func New(t theme.Theme) Model {
 // SetFile puts a file in the pane and takes the reader back to the top of it.
 //
 // A nil file empties the pane, which is what a changeset with nothing in it
-// looks like.
+// looks like. The cursor comes with the file, from Select: the root decides
+// which hunk it lands on and this pane never guesses.
 func (m *Model) SetFile(f *review.File) {
-	m.file, m.offset = f, 0
+	m.file, m.offset, m.cur = f, 0, hunkName{}
 	m.relayout()
+}
+
+// Select puts the cursor on a hunk of the file in the pane and scrolls to it.
+//
+// The heading goes on the top row. A key that lands on a block is taking the
+// reader somewhere, and the shortest scroll leaves the heading wherever the
+// last one happened to end. A hunk already on screen whole is left where it is,
+// because moving a block the reader can already read is movement for nothing.
+func (m *Model) Select(side store.Side, line int) {
+	m.cur = hunkName{side: side, line: line}
+	m.relayout()
+	m.scrollToCursor()
+}
+
+// scrollToCursor opens the window on the cursor's heading, and does nothing
+// when the pane has no size yet or the hunk is already on screen whole.
+//
+// The size arrives after the model is built, so a reader opening on a hunk part
+// way down a file is scrolled there by the first resize rather than by Select.
+func (m *Model) scrollToCursor() {
+	at := m.hunkRow()
+	if at < 0 || m.fits(at) {
+		return
+	}
+	m.offset = min(at, m.maxOffset())
+}
+
+// hunkRow is the row the cursor's heading is on. It is -1 when the file in the
+// pane does not hold that hunk, and when the pane has not been laid out yet.
+func (m Model) hunkRow() int {
+	if m.file == nil || len(m.headAt) != len(m.file.Hunks) {
+		return -1
+	}
+	for i, h := range m.file.Hunks {
+		if nameOf(h) == m.cur {
+			return m.headAt[i]
+		}
+	}
+	return -1
+}
+
+// fits is whether the hunk starting at a row is on screen whole already, its
+// heading and every line of it.
+func (m Model) fits(at int) bool {
+	end := len(m.rows)
+	for _, next := range m.headAt {
+		if next > at {
+			// The blank line between two hunks belongs to neither.
+			end = next - 1
+			break
+		}
+	}
+	return at >= m.offset && end <= m.offset+m.height
 }
 
 // SetSize gives the pane the room it draws into, which is the inside of the
@@ -110,6 +194,7 @@ func (m *Model) SetFile(f *review.File) {
 func (m *Model) SetSize(width, height int) {
 	m.width, m.height = width, height
 	m.relayout()
+	m.scrollToCursor()
 }
 
 // Scroll is where the window sits in the file, for the counter the frame draws.
@@ -166,7 +251,7 @@ func (m Model) View() string {
 // The rows are built here rather than in View, because tokenising is where the
 // syntax cache is written and View has to stay a pure read of the model.
 func (m *Model) relayout() {
-	m.rows = nil
+	m.rows, m.headAt = nil, nil
 	if m.file == nil || m.width <= 0 {
 		return
 	}
@@ -179,7 +264,14 @@ func (m *Model) relayout() {
 		if i > 0 {
 			m.add("")
 		}
-		m.add(m.painter.HunkHeader(comp.Safe(h.Diff.Header), gutter, m.width))
+
+		head := paint.Header{Text: comp.Safe(h.Diff.Header)}
+		if nameOf(h) == m.cur {
+			head.Marker, head.Fill = cursorGlyph, m.theme.SelectedBackground
+		}
+
+		m.headAt = append(m.headAt, len(m.rows))
+		m.add(m.painter.HunkHeader(head, gutter, m.width))
 
 		for _, l := range h.Diff.Lines {
 			m.add(m.painter.Line(paint.Line{
@@ -295,8 +387,12 @@ func (m *Model) scroll(by int) {
 }
 
 func (m *Model) clampOffset() {
-	m.offset = max(0, min(m.offset, max(len(m.rows)-m.height, 0)))
+	m.offset = max(0, min(m.offset, m.maxOffset()))
 }
+
+// maxOffset is as far down as the window goes, which is the last row of the
+// file on the bottom row and not one further.
+func (m Model) maxOffset() int { return max(len(m.rows)-m.height, 0) }
 
 // half is how far ctrl+u and ctrl+d go, and never zero on a pane too short to
 // halve.

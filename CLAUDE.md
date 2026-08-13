@@ -199,9 +199,9 @@ j k g G                  movement
 ctrl+u ctrl+d            page the diff, from either pane
 h l                      tree pane / diff pane
 1 2                      the same two, by the badge in the pane's border
-tab shift+tab            the ring: next / prev hunk
+} {                      the ring: next / prev hunk
 space                    fold / unfold
-} {                      next / prev file
+tab shift+tab            next / prev file
 n N                      next / prev unreviewed hunk
 ] [                      next / prev comment
 
@@ -224,6 +224,11 @@ s                        reload
 `n` is the one that matters. A review is a burn-down and `n` is the key held
 until the count reaches zero. `r` advances after marking, so `r r r r` walks the
 whole thing.
+
+A hunk is the block a paragraph motion moves by, so `}` and `{` step it. Vim's
+own diff mode says `]c` and `[c`, and the bracket pair is spoken for. Nothing in
+vim moves a whole file in one key, so `tab` is the TUI answer rather than the
+editor one; the tree does the same job by hand.
 
 Five divergences from zen-octo, all deliberate:
 

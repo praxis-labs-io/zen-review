@@ -2,10 +2,24 @@ package app
 
 import (
 	"charm.land/bubbles/v2/key"
+
+	"github.com/zen-review/zen-review/internal/tui/comp"
 )
 
 // KeyMap is what the root answers to, whichever pane has focus.
+//
+// The ring is here rather than on the diff pane because it crosses files: it
+// moves the tree's selection as well as the diff's cursor, and a pane reaching
+// into its sibling is the thing the layout rules forbid. It also answers from
+// either pane, the same as the paging keys.
 type KeyMap struct {
+	NextHunk key.Binding
+	PrevHunk key.Binding
+	NextRead key.Binding
+	PrevRead key.Binding
+	NextFile key.Binding
+	PrevFile key.Binding
+
 	Left  key.Binding
 	Right key.Binding
 	Help  key.Binding
@@ -16,6 +30,19 @@ type KeyMap struct {
 // NewKeyMap is the bindings and the help text they carry.
 func NewKeyMap() KeyMap {
 	return KeyMap{
+		// A hunk is the block a paragraph motion moves by, which is what } and {
+		// do everywhere else. Vim's own diff mode says ]c and [c, and the bracket
+		// pair is spoken for: ] and [ are next and previous comment.
+		//
+		// Nothing in vim moves a whole file in one key. tab is the TUI answer
+		// rather than the editor one, and the tree does the same job by hand.
+		NextHunk: key.NewBinding(key.WithKeys("}"), key.WithHelp("}", "next hunk")),
+		PrevHunk: key.NewBinding(key.WithKeys("{"), key.WithHelp("{", "previous hunk")),
+		NextRead: key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "next unread")),
+		PrevRead: key.NewBinding(key.WithKeys("N"), key.WithHelp("N", "previous unread")),
+		NextFile: key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "next file")),
+		PrevFile: key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "previous file")),
+
 		// The digits are the badges the panes carry in their borders. They join
 		// the bindings that already move focus rather than being declared beside
 		// them, so the help lists one entry per pane.
@@ -36,19 +63,37 @@ func (m Model) ShortHelp() []key.Binding {
 	return append(m.paneKeys(), m.wayOut()...)
 }
 
-// paneKeys is what the pane holding the keys can do. The bar drops from the
-// tail, so the last of these is the first to go.
+// paneKeys is what the pane holding the keys can do, then what the ring can do
+// from either. The bar drops from the tail, so the last of these is the first
+// to go.
 //
-// The paging keys are last. They are the ones a reader would not guess, which
-// argues for keeping them, but the bar only runs short on a terminal narrow
-// enough that the diff pane is a sliver, and paging a sliver is the least of
-// what the reader wants there.
+// n comes before the rest of the ring because a review is a burn-down and n is
+// the key held until the count reaches zero.
+//
+// The file keys are last, so a hundred columns drops them and a wider terminal
+// keeps them. They are the ring's least-used pair and the only one whose job the
+// tree beside it already does.
 func (m Model) paneKeys() []key.Binding {
 	own := m.diff.Keys.Hints()
 	if m.focus == focusTree {
 		own = m.tree.Keys.Hints()
 	}
-	return append(own, m.diff.Keys.Paging())
+
+	return append(own,
+		comp.Pair(m.keys.NextRead, m.keys.PrevRead, "n/N", "unread"),
+		comp.Pair(m.keys.NextHunk, m.keys.PrevHunk, "}/{", "hunk"),
+		m.diff.Keys.Paging(),
+		comp.Pair(m.keys.NextFile, m.keys.PrevFile, "tab", "file"),
+	)
+}
+
+// ringKeys is the six the ring answers to, in the order the overlay lists them.
+func (m Model) ringKeys() []key.Binding {
+	return []key.Binding{
+		m.keys.NextRead, m.keys.PrevRead,
+		m.keys.NextHunk, m.keys.PrevHunk,
+		m.keys.NextFile, m.keys.PrevFile,
+	}
 }
 
 // wayOut is the two the bar never drops. They are the only thing on screen
@@ -79,7 +124,7 @@ func (m Model) FullHelp() [][]key.Binding {
 
 	return [][]key.Binding{
 		movement,
-		panes,
-		{m.keys.Help, m.keys.Quit},
+		m.ringKeys(),
+		append(panes, m.keys.Help, m.keys.Quit),
 	}
 }
