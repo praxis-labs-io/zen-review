@@ -1,0 +1,8 @@
+CHANGES                            internal/tui/diffpane/painting_the_unified_rows.go               
+    ▾ cli                        │          @@ -0,0 +1,2 @@                                         
+      · render.go          +1 -1 │                                                                  
+    ▾ review                     │                                                                  
+      ~ state.go           +3 -1 │                                                                  
+    ▾ tui/diffpane               │                                                                  
+▎     · painting_the_unif… +2 -0 │                                                                  
+origin/main (a1b2c3d)  ·  generation 2  ·  2 / 7 reviewed                            ? help • q quit

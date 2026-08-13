@@ -23,8 +23,8 @@ type options struct {
 	asJSON  bool
 }
 
-// NewRoot builds the command. A bare invocation refreshes and prints the
-// changeset, and the TUI takes that slot when it lands.
+// NewRoot builds the command. A bare invocation refreshes and opens the
+// reader, or prints the changeset when there is no terminal to open it on.
 func NewRoot() *cobra.Command {
 	var opts options
 
@@ -43,7 +43,7 @@ func NewRoot() *cobra.Command {
 		Args: cobra.NoArgs,
 
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runRefresh(cmd, &opts)
+			return runRoot(cmd, &opts)
 		},
 	}
 

@@ -27,9 +27,8 @@ func newRefresh(opts *options) *cobra.Command {
 	}
 }
 
-// runRefresh is what a bare zen-review runs too. One function rather than one
-// body copied twice, so that when the TUI takes the bare invocation there is a
-// caller to delete and nothing left to have drifted.
+// runRefresh is what a bare zen-review runs when there is no terminal to open
+// the reader on. One function rather than one body copied twice.
 func runRefresh(cmd *cobra.Command, opts *options) (err error) {
 	s, err := open(cmd.Context(), opts)
 	if err != nil {
