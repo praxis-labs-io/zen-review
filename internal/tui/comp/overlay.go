@@ -53,7 +53,7 @@ func Over(base, over string, width, height int) string {
 //
 // This is where it parts from zen-octo's, which takes no frame and overflows.
 func Modal(t theme.Theme, title, content string, width, height int) string {
-	padded := lipgloss.NewStyle().Padding(1, 1).Render(content)
+	padded := lipgloss.NewStyle().Padding(0, 1).Render(content)
 	w, h := lipgloss.Size(padded)
 
 	return NewPane(t).Title(title).Focus(true).
