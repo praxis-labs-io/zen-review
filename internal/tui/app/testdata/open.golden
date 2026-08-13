@@ -1,16 +1,16 @@
 ╭─[1]─Zen Review─────────────────╮╭─[2]─assets/logo.png────────────────────────────────────────────╮
-│ assets                        ││binary                                                          │
-│  ○ logo.png              binary││                                                                │
-│ docs/superpowers/specs        ││                                                                │
-│  ● design.md              +3 -0││                                                                │
-│ internal                      ││                                                                │
-│   cli                         ││                                                                │
-│    ○ render.go            +1 -1││                                                                │
-│   review                      ││                                                                │
-│    ⊙ state.go             +3 -1││                                                                │
-╰────────────────────────────────╯│                                                                │
- 6 files                   +10 -3 │                                                                │
- origin/main (a1b2c3d)            │                                                                │
- generation 2                     │                                                                │
- 2 / 7 reviewed                   ╰────────────────────────────────────────────────────────────────╯
+│                                ││binary                                                          │
+│  assets                       ││                                                                │
+│   ○ logo.png            binary ││                                                                │
+│  docs/superpowers/specs       ││                                                                │
+│   ● design.md            +3 -0 ││                                                                │
+│  internal                     ││                                                                │
+│    cli                        ││                                                                │
+│     ○ render.go          +1 -1 ││                                                                │
+├────────────────────────────────┤│                                                                │
+│ 6 files                 +10 -3 ││                                                                │
+│ origin/main (a1b2c3d)          ││                                                                │
+│ generation 2                   ││                                                                │
+│ 2 / 7 reviewed                 ││                                                                │
+╰────────────────────────────────╯╰────────────────────────────────────────────────────────────────╯
 ? help • q quit                                                                                     

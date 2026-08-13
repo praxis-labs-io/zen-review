@@ -19,6 +19,7 @@ import (
 type Pane struct {
 	theme       theme.Theme
 	title       string
+	note        string
 	index       int
 	footerLeft  string
 	footerRight string
@@ -58,6 +59,36 @@ func (p Pane) Footer(left, right string) Pane {
 	return p
 }
 
+// Note pins a block to the bottom of the pane, ruled off from the content
+// above it. Empty leaves it off, and so does a pane with no room for it plus a
+// row of content: the content is what carries the meaning.
+//
+// This is not the footer. A footer sits in the border and holds a counter; a
+// note holds rows, and the content scrolling above it never moves it.
+//
+// The text is taken as-is, for the reason the footer is: a block coloured piece
+// by piece would be cut short by the first reset inside it.
+func (p Pane) Note(s string) Pane {
+	p.note = s
+	return p
+}
+
+// ContentHeight is the height left for what Render is handed, once the note
+// under it is paid for. A caller sizing its content asks this, not InnerHeight.
+func (p Pane) ContentHeight() int { return max(p.InnerHeight()-p.noteHeight(), 0) }
+
+// noteHeight is what the note costs, its rule included.
+func (p Pane) noteHeight() int {
+	if p.note == "" {
+		return 0
+	}
+	lines := strings.Count(p.note, "\n") + 1
+	if p.InnerHeight() < lines+2 {
+		return 0
+	}
+	return lines + 1
+}
+
 // Focus lights the heading and the border, which is the only thing on the pane
 // that says where the keys go.
 func (p Pane) Focus(v bool) Pane {
@@ -89,18 +120,30 @@ func (p Pane) Render(content string) string {
 
 	lines := make([]string, 0, p.height)
 	lines = append(lines, p.topBorder())
-	lines = append(lines, p.rows(content)...)
+	lines = append(lines, p.rows(content, p.ContentHeight())...)
+
+	if n := p.noteHeight(); n > 0 {
+		lines = append(lines, p.rule())
+		lines = append(lines, p.rows(p.note, n-1)...)
+	}
 	return strings.Join(append(lines, p.bottomBorder()), "\n")
 }
 
-// rows is the interior, always exactly InnerHeight lines of exactly InnerWidth
+// rule divides the note from the content, joining the side borders rather than
+// floating between them.
+func (p Pane) rule() string {
+	style := p.borderStyle()
+	return style.Render("├" + strings.Repeat("─", p.InnerWidth()) + "┤")
+}
+
+// rows is a block of the interior, always exactly n lines of exactly InnerWidth
 // columns between the side borders.
-func (p Pane) rows(content string) []string {
+func (p Pane) rows(content string, n int) []string {
 	lines := strings.Split(content, "\n")
 	side := p.borderStyle().Render("│")
 
-	out := make([]string, 0, p.InnerHeight())
-	for i := range p.InnerHeight() {
+	out := make([]string, 0, n)
+	for i := range n {
 		line := ""
 		if i < len(lines) {
 			line = Clip(lines[i], p.InnerWidth(), p.subtle())

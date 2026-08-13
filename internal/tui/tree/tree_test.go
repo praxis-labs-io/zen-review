@@ -23,10 +23,21 @@ func pane(t *testing.T, width, height int) tree.Model {
 	return m
 }
 
-func rows(t *testing.T, m tree.Model) []string {
+// lines is every line the pane drew, the blank pads at the ends included.
+func lines(t *testing.T, m tree.Model) []string {
 	t.Helper()
 	return strings.Split(ansi.Strip(m.View()), "\n")
 }
+
+// rows drops the pad above the list, so a test indexes the tree the way it
+// reads. Every caller sits at the top of a list that fits.
+func rows(t *testing.T, m tree.Model) []string {
+	t.Helper()
+	return lines(t, m)[topPadLines:]
+}
+
+// topPadLines mirrors the pane's own blank line above the first row.
+const topPadLines = 1
 
 // fill is the SGR parameters lipgloss writes for a background colour.
 //
@@ -41,7 +52,7 @@ func fill(c color.Color) string {
 // cursored reports whether a row is the one under the cursor.
 func cursored(t *testing.T, m tree.Model, i int) bool {
 	t.Helper()
-	raw := strings.Split(m.View(), "\n")
+	raw := strings.Split(m.View(), "\n")[topPadLines:]
 	return strings.Contains(raw[i], fill(theme.RosePineMoon.SelectedBackground))
 }
 
@@ -72,7 +83,7 @@ func TestADirectoryChainIsOneRow(t *testing.T) {
 		" review",
 		"⊙ state.go",
 		" tui/diffpane",
-		"○ painting_the_unifie",
+		"○ painting_the_unif",
 		"○ README.md",
 	}
 
@@ -226,7 +237,7 @@ func TestSelectReachesIntoAFoldedDirectory(t *testing.T) {
 func TestEveryRowIsExactlyThePane(t *testing.T) {
 	for _, width := range []int{32, 24, 16, 8} {
 		m := pane(t, width, 20)
-		for i, row := range rows(t, m) {
+		for i, row := range lines(t, m) {
 			if got := lipgloss.Width(row); got != width {
 				t.Errorf("at width %d, row %d is %d columns: %q", width, i, got, row)
 			}
@@ -294,7 +305,7 @@ func TestAControlCharacterInAPathCannotBreakTheRow(t *testing.T) {
 	if got := len(strings.Split(view, "\n")); got != 4 {
 		t.Errorf("the pane drew %d lines into a height of 4:\n%q", got, view)
 	}
-	for i, row := range rows(t, m) {
+	for i, row := range lines(t, m) {
 		if w := lipgloss.Width(row); w != 32 {
 			t.Errorf("row %d is %d columns: %q", i, w, row)
 		}

@@ -184,12 +184,12 @@ func TestTheTreeIsHeadedByTheRepository(t *testing.T) {
 	}
 }
 
-// TestTheFactsAreInTheirOwnBox, under the tree and out of the goldens, where a
+// TestTheFactsAreDrawnAndColoured, out of the goldens, where a
 // layout change would hide their loss.
 //
 // The counts carry their own colours: one grey across the line says how much
 // changed and not which way it went, which is the half a reader scans for.
-func TestTheFactsAreInTheirOwnBox(t *testing.T) {
+func TestTheFactsAreDrawnAndColoured(t *testing.T) {
 	th := theme.RosePineMoon
 	s := open(t, 100, 16)
 
@@ -198,7 +198,7 @@ func TestTheFactsAreInTheirOwnBox(t *testing.T) {
 		"origin/main (a1b2c3d)", "generation 2", "2 / 7 reviewed",
 	} {
 		if !strings.Contains(s.frame(), want) {
-			t.Errorf("the box does not say %q:\n%s", want, s.frame())
+			t.Errorf("the facts do not say %q:\n%s", want, s.frame())
 		}
 	}
 
@@ -214,27 +214,77 @@ func TestTheFactsAreInTheirOwnBox(t *testing.T) {
 	}
 }
 
-// TestTheFactsAreNotSomewhereToGo. They take no keys, so they get no border:
-// a third box under the tree reads as a third pane to move into.
-func TestTheFactsAreNotSomewhereToGo(t *testing.T) {
-	for _, line := range open(t, 100, 16).lines() {
-		if !strings.Contains(line, "generation 2") {
-			continue
+// TestTheFactsSitAtTheFootOfTheTree, ruled off from the rows rather than boxed
+// beside them. A box of their own reads as a third pane to move into, and
+// nothing there takes a key.
+func TestTheFactsSitAtTheFootOfTheTree(t *testing.T) {
+	lines := open(t, 100, 16).lines()
+
+	rule, first := -1, -1
+	for i, line := range lines {
+		switch {
+		case strings.HasPrefix(line, "├"):
+			rule = i
+		case strings.Contains(line, "6 files") && first < 0:
+			first = i
 		}
-		if strings.ContainsAny(line[:treeColumns], "╭╰│─") {
-			t.Errorf("the facts are boxed: %q", line)
-		}
-		return
 	}
-	t.Fatalf("no line says the generation")
+
+	switch {
+	case rule < 0:
+		t.Fatalf("nothing rules the facts off from the rows:\n%s", strings.Join(lines, "\n"))
+	case first != rule+1:
+		t.Errorf("the facts start on line %d and the rule is on %d", first, rule)
+	}
+
+	// The rule joins the side borders rather than floating between them, and
+	// the tree pane is the only thing it crosses.
+	if want := "├" + strings.Repeat("─", 32) + "┤"; !strings.HasPrefix(lines[rule], want) {
+		t.Errorf("the rule is %q, want it to start %q", lines[rule], want)
+	}
 }
 
-// treeColumns is how far across the frame the tree's column runs.
-const treeColumns = 34
+// TestThePadsBelongToTheEndsOfTheList. They are content rather than chrome, so
+// a reader partway down a long list gets rows against both edges and does not
+// pay two lines for a margin they cannot see the point of.
+func TestThePadsBelongToTheEndsOfTheList(t *testing.T) {
+	// At thirteen high the tree's window is five rows over a list of twelve, so
+	// there is a top, a middle and a bottom to be in. first and last are the
+	// screen lines that window starts and ends on.
+	const first, last = 1, 5
 
-// TestTheBarCarriesTheFactsWhenTheBoxCannot. The facts have to be somewhere,
+	tests := []struct {
+		name           string
+		keys           []string
+		topPad, botPad bool
+	}{
+		{"at the top", nil, true, false},
+		{"partway down", []string{"j", "j", "j", "j", "j", "j", "j"}, false, false},
+		{"at the bottom", []string{"G"}, false, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lines := open(t, 100, 13).press(tt.keys...).lines()
+
+			// The tree's columns, inside its two borders. Sliced by rune: a
+			// border is three bytes and cutting one in half compares nothing.
+			blank := func(i int) bool {
+				return strings.TrimSpace(string([]rune(lines[i])[1:33])) == ""
+			}
+			if got := blank(first); got != tt.topPad {
+				t.Errorf("the pad above the list is %v, want %v: %q", got, tt.topPad, lines[first])
+			}
+			if got := blank(last); got != tt.botPad {
+				t.Errorf("the pad below the list is %v, want %v: %q", got, tt.botPad, lines[last])
+			}
+		})
+	}
+}
+
+// TestTheBarCarriesTheFactsWhenTheTreeCannot. The facts have to be somewhere,
 // and a frame too short for the box is still a frame someone is reading.
-func TestTheBarCarriesTheFactsWhenTheBoxCannot(t *testing.T) {
+func TestTheBarCarriesTheFactsWhenTheTreeCannot(t *testing.T) {
 	s := open(t, 100, 7)
 	lines := s.lines()
 	bar := lines[len(lines)-1]

@@ -27,9 +27,9 @@ const (
 	// metaLines is the facts under the tree: the changeset's size, what it is
 	// measured against, which generation is on screen, and the burn-down.
 	//
-	// They are drawn unboxed. A second border under the tree's read as a second
-	// pane, and this one takes no keys. metaIndent lines them up under the
-	// tree's rows rather than against the frame's edge.
+	// They sit inside the tree's pane, ruled off at its foot, so the rows
+	// scrolling above them never move them. metaIndent is the tree's own gutter,
+	// so a fact lines up under a filename.
 	metaLines  = 4
 	metaIndent = 1
 
@@ -49,24 +49,23 @@ func (m *Model) resize(width, height int) {
 	m.width, m.height = width, height
 	m.help.SetWidth(width)
 
-	m.treePane = m.treePane.Size(treeWidth, m.bodyHeight()-m.metaHeight())
+	// Sized first, because the facts are laid out to the width the pane reports
+	// and the pane decides for itself whether it has room for them.
+	m.treePane = m.treePane.Size(treeWidth, m.bodyHeight())
+	m.treePane = m.treePane.Note(m.meta())
 	m.diffPane = m.diffPane.Size(m.diffWidth(), m.bodyHeight())
 
-	m.tree.SetSize(m.treePane.InnerWidth(), m.treePane.InnerHeight())
+	m.tree.SetSize(m.treePane.InnerWidth(), m.treePane.ContentHeight())
 	m.diff.SetSize(m.diffPane.InnerWidth(), m.diffPane.InnerHeight())
 }
 
 func (m Model) bodyHeight() int { return max(m.height-statusRow, 0) }
 func (m Model) diffWidth() int  { return max(m.width-treeWidth, 0) }
 
-// metaHeight is what the facts box takes out of the tree, and zero on a frame
-// that cannot spare it. The tree is what the reader came for, so it keeps its
-// rows and the status bar carries the facts instead.
-func (m Model) metaHeight() int {
-	if m.height < statusRow+metaLines+minPane {
-		return 0
-	}
-	return metaLines
+// metaShown is whether the pane found room for the facts. It did not on a
+// frame that could not spare them, and the status bar carries them instead.
+func (m Model) metaShown() bool {
+	return m.treePane.ContentHeight() < m.treePane.InnerHeight()
 }
 
 func (m Model) View() tea.View {
@@ -91,15 +90,11 @@ func (m Model) content() string {
 func (m Model) body() string {
 	muted := lipgloss.NewStyle().Foreground(m.theme.Muted)
 
-	left := m.treePane.
+	tree := m.treePane.
 		Index(1).
 		Title(titleize(comp.Safe(m.repo))).
 		Focus(m.focus == focusTree).
 		Render(m.tree.View())
-
-	if m.metaHeight() > 0 {
-		left = lipgloss.JoinVertical(lipgloss.Left, left, m.meta())
-	}
 
 	diff := m.diffPane.
 		Index(2).
@@ -108,13 +103,13 @@ func (m Model) body() string {
 		Focus(m.focus == focusDiff).
 		Render(m.diff.View())
 
-	return lipgloss.JoinHorizontal(lipgloss.Top, left, diff)
+	return lipgloss.JoinHorizontal(lipgloss.Top, tree, diff)
 }
 
-// meta is the facts under the tree, unboxed. Nothing here takes a key, and a
-// border round it would read as a third pane to move into.
+// meta is the facts at the foot of the tree's pane. Nothing here takes a key,
+// and a box of its own would read as a third pane to move into.
 func (m Model) meta() string {
-	width := max(treeWidth-metaIndent*2, 0)
+	width := max(m.treePane.InnerWidth()-metaIndent*2, 0)
 	subtle := lipgloss.NewStyle().Foreground(m.theme.Subtle)
 
 	rows := []string{
@@ -125,9 +120,11 @@ func (m Model) meta() string {
 		rows = append(rows, subtle.Render(fact))
 	}
 
+	// The pane pads each row out to its own width, which is the gutter on the
+	// right; this is the one on the left.
 	indent := strings.Repeat(" ", metaIndent)
 	for i, r := range rows {
-		rows[i] = m.pad(indent+comp.Clip(r, width, subtle), treeWidth)
+		rows[i] = indent + comp.Clip(r, width, subtle)
 	}
 	return strings.Join(rows, "\n")
 }
@@ -180,7 +177,7 @@ func (m Model) overlay() string {
 // small terminal.
 func (m Model) status() string {
 	hint := m.help.ShortHelpView(m.ShortHelp())
-	if m.metaHeight() > 0 {
+	if m.metaShown() {
 		return m.pad(hint, m.width)
 	}
 
