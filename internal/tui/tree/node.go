@@ -15,8 +15,14 @@ type node struct {
 	name string
 
 	// path is the file's path, or the directory's prefix without a trailing
-	// slash.
+	// slash. A collapsed chain takes the deepest of them.
 	path string
+
+	// chain is the directories a collapsed row stands for above its own path,
+	// and is nil on everything else. Carrying a fold across a rebuild matches on
+	// any of them: adding a file that branches a chain, or deleting the one that
+	// branched it, moves which path the row answers to.
+	chain []string
 
 	// file is nil on a directory. It points into the changeset the model holds,
 	// so the model has to outlive the tree built from it.
@@ -86,6 +92,7 @@ func collapse(n *node) {
 	for len(n.kids) == 1 && n.kids[0].dir() {
 		only := n.kids[0]
 		n.name += "/" + only.name
+		n.chain = append(n.chain, n.path)
 		n.path = only.path
 		n.kids = only.kids
 	}
@@ -93,6 +100,47 @@ func collapse(n *node) {
 		collapse(k)
 	}
 }
+
+// folded collects every directory a closed row stands for, which is what a
+// rebuild has to put back.
+//
+// The closed ones rather than the open ones, because a directory is born open
+// and a rebuild that lost the set should leave the tree readable.
+func folded(nodes []*node, out map[string]bool) {
+	for _, n := range nodes {
+		if !n.dir() {
+			continue
+		}
+		if !n.open {
+			for _, p := range n.paths() {
+				out[p] = true
+			}
+		}
+		folded(n.kids, out)
+	}
+}
+
+// refold closes the rows that were closed before the rebuild. A row is closed
+// when any directory it stands for was.
+func refold(nodes []*node, was map[string]bool) {
+	for _, n := range nodes {
+		if !n.dir() {
+			continue
+		}
+		n.open = true
+		for _, p := range n.paths() {
+			if was[p] {
+				n.open = false
+				break
+			}
+		}
+		refold(n.kids, was)
+	}
+}
+
+// paths is every directory this row stands for: the chain it collapsed, and its
+// own.
+func (n *node) paths() []string { return append(n.chain[:len(n.chain):len(n.chain)], n.path) }
 
 // row is a node and how deep it sits, which is everything the view needs.
 type row struct {

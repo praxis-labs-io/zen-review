@@ -1,6 +1,7 @@
 package app_test
 
 import (
+	"errors"
 	"image/color"
 	"strings"
 	"testing"
@@ -61,6 +62,11 @@ func TestGoldenFrames(t *testing.T) {
 		// as far as it goes without running off the end of the file.
 		{"ring", 100, 16, []string{"n", "n", "}"}},
 
+		// The notice on the bar, with the keys dropped from the tail to make room
+		// for it. The source is the same changeset, which is a work tree that has
+		// not moved.
+		{"reloaded", 100, 16, []string{"s"}},
+
 		// Two rows shorter than the tree has rows, so the pane has to scroll
 		// rather than run off the status bar.
 		{"short", 100, 8, []string{"h", "G"}},
@@ -96,7 +102,10 @@ func TestTheFrameIsExactlyTheTerminal(t *testing.T) {
 	// rows for; walked to the file with the longest lines in the fixture; and
 	// under the overlay, which is composited rather than drawn and comes back
 	// with every line's trailing spaces trimmed unless they are put back.
-	for _, keys := range [][]string{nil, code, {"?"}} {
+	// The s is the three-piece bar: the keys, a gap, and the notice. Its width
+	// arithmetic is the newest on the frame and the one a golden covers at one
+	// width only.
+	for _, keys := range [][]string{nil, code, {"?"}, {"s"}} {
 		for _, size := range sizes {
 			s := open(t, size.width, size.height).press(keys...)
 			lines := s.lines()
@@ -830,5 +839,351 @@ func TestOpeningTheFileAlreadyOpenLeavesTheRingWhereItIs(t *testing.T) {
 	s.press("h", "enter")
 	if got := heading(t, s); got != was {
 		t.Errorf("enter on the open file moved the ring to %q", got)
+	}
+}
+
+// movedPatch is ringPatch with a.go's hunks pushed down the file, which is what
+// an agent inserting above them does. Both keep their content and neither keeps
+// its name.
+const movedPatch = `diff --git a/a.go b/a.go
+--- a/a.go
++++ b/a.go
+@@ -5,0 +6,1 @@
++one
+@@ -20,0 +21,1 @@
++ten
+diff --git a/b.go b/b.go
+--- a/b.go
++++ b/b.go
+@@ -1,0 +1,1 @@
++uno
+@@ -10,0 +11,1 @@
++diez
+`
+
+// gonePatch is ringPatch with a.go reverted out of the changeset.
+const gonePatch = `diff --git a/b.go b/b.go
+--- a/b.go
++++ b/b.go
+@@ -1,0 +1,1 @@
++uno
+@@ -10,0 +11,1 @@
++diez
+`
+
+// renamedPatch is ringPatch with a.go under a new name and the same hunks.
+const renamedPatch = `diff --git a/a.go b/c.go
+rename from a.go
+rename to c.go
+--- a/a.go
++++ b/c.go
+@@ -1,0 +1,1 @@
++one
+@@ -10,0 +11,1 @@
++ten
+diff --git a/b.go b/b.go
+--- a/b.go
++++ b/b.go
+@@ -1,0 +1,1 @@
++uno
+@@ -10,0 +11,1 @@
++diez
+`
+
+// TestAReloadWithNoEditsLeavesTheReaderWhereTheyWere, which is the whole of
+// what a refresh owes a reader who is mid-hunk.
+func TestAReloadWithNoEditsLeavesTheReaderWhereTheyWere(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16).press("}")
+
+	before := s.lines()
+	s.press("s")
+	after := s.lines()
+
+	// Everything but the bar, which is where the reload reports itself.
+	for i := range before[:len(before)-1] {
+		if before[i] != after[i] {
+			t.Fatalf("a reload that changed nothing moved row %d:\n%q\n%q", i, before[i], after[i])
+		}
+	}
+	if got := s.bar(); !strings.Contains(got, "up to date") {
+		t.Errorf("the bar reads %q, want it to say the work tree had not moved", got)
+	}
+}
+
+// TestAReloadWithNoEditsKeepsTheReaderWhereTheyScrolledTo. The same bytes are
+// on screen, so the place they had got to inside the hunk is still a place.
+func TestAReloadWithNoEditsKeepsTheReaderWhereTheyScrolledTo(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, ringPatch), 100, 4).press("j", "j")
+
+	before := s.lines()[1]
+	s.press("s")
+
+	if after := s.lines()[1]; after != before {
+		t.Errorf("a reload that changed nothing scrolled the pane:\n%q\n%q", before, after)
+	}
+}
+
+// TestAReloadLandsOnTheHunkThatTookThePlaceOfTheOldOne. The names all moved, so
+// the ordinal is what is left: second of two stays second of two, rather than
+// the nearest line number putting the reader back on code they have read.
+func TestAReloadLandsOnTheHunkThatTookThePlaceOfTheOldOne(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16).press("}")
+
+	if got := heading(t, s); !strings.Contains(got, "@@ -10,0 +11,1 @@") {
+		t.Fatalf("the reader is on %q, want a.go's second hunk", got)
+	}
+
+	s.reloading(testchangeset.Derive(t, movedPatch)).press("s")
+
+	if got := heading(t, s); !strings.Contains(got, "@@ -20,0 +21,1 @@") {
+		t.Errorf("the cursor landed on %q, want a.go's second hunk where it moved to", got)
+	}
+	if got := s.bar(); !strings.Contains(got, "a.go moved") {
+		t.Errorf("the bar reads %q, want it to name the file that changed under the reader", got)
+	}
+}
+
+// TestAReloadFollowsARename. The file is the same file, so the hunk in it is
+// the hunk the reader was on.
+func TestAReloadFollowsARename(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16).press("}")
+	s.reloading(testchangeset.Derive(t, renamedPatch)).press("s")
+
+	if title := s.lines()[0]; !strings.Contains(title, "c.go") {
+		t.Errorf("the pane shows %q, want the renamed file", title)
+	}
+	if got := heading(t, s); !strings.Contains(got, "@@ -10,0 +11,1 @@") {
+		t.Errorf("the cursor landed on %q, want the same hunk under the new name", got)
+	}
+}
+
+// TestAReloadThatLostTheFileLandsWhereItWas, and says which one went.
+func TestAReloadThatLostTheFileLandsWhereItWas(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16).press("}")
+	s.reloading(testchangeset.Derive(t, gonePatch)).press("s")
+
+	if title := s.lines()[0]; !strings.Contains(title, "b.go") {
+		t.Errorf("the pane shows %q, want the file that took a.go's place", title)
+	}
+	if heading(t, s) == "" {
+		t.Error("the cursor landed nowhere, and every ring key from here would jump")
+	}
+	if got := s.bar(); !strings.Contains(got, "a.go is gone") {
+		t.Errorf("the bar reads %q, want it to name the file that left", got)
+	}
+}
+
+// TestAFailedReloadLeavesTheChangesetAlone. The write either committed or it
+// did not, and there is no half-applied state to paint over.
+func TestAFailedReloadLeavesTheChangesetAlone(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16).press("}")
+
+	before := s.lines()
+	s.src.err = errors.New("another zen-review refreshed this session first")
+	s.press("s")
+
+	after := s.lines()
+	for i := range before[:len(before)-1] {
+		if before[i] != after[i] {
+			t.Fatalf("a failed reload moved row %d:\n%q\n%q", i, before[i], after[i])
+		}
+	}
+	if got := s.bar(); !strings.Contains(got, "another zen-review refreshed this session first") {
+		t.Errorf("the bar reads %q, want the reason the reload failed", got)
+	}
+}
+
+// TestTheErrorIsSaidInTheThemesErrorColour, which a stripped frame cannot see.
+func TestTheErrorIsSaidInTheThemesErrorColour(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
+	s.src.err = errors.New("no")
+	s.press("s")
+
+	want := lipgloss.NewStyle().Foreground(theme.RosePineMoon.Error).Render("no")
+	if !strings.Contains(s.raw(), want) {
+		t.Errorf("the failed reload does not wear the error colour:\n%q", s.raw())
+	}
+}
+
+// TestASecondReloadWhileOneIsRunningDoesNothing. Two refreshes on one session
+// race the ref swap against itself, and the loser writes no row at all.
+func TestASecondReloadWhileOneIsRunningDoesNothing(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
+
+	running := s.hold(keystroke("s"))
+	if got := s.bar(); !strings.Contains(got, "reloading") {
+		t.Errorf("the bar reads %q while a reload is in git", got)
+	}
+
+	if second := s.hold(keystroke("s")); second != nil {
+		t.Error("a second s started a second reload")
+	}
+	if got := s.bar(); !strings.Contains(got, "reloading") {
+		t.Errorf("the guarded press blanked the bar: %q", got)
+	}
+
+	s.drain(running)
+	if s.src.calls != 1 {
+		t.Errorf("the source was asked %d times, want once", s.src.calls)
+	}
+}
+
+// TestTheNoticeClearsOnTheNextKey. It is one press long and nothing on screen
+// moves without one.
+func TestTheNoticeClearsOnTheNextKey(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16).press("s")
+
+	if got := s.bar(); !strings.Contains(got, "up to date") {
+		t.Fatalf("the bar reads %q after a reload", got)
+	}
+	if got := s.press("j").bar(); strings.Contains(got, "up to date") {
+		t.Errorf("the notice outlived the press after it: %q", got)
+	}
+}
+
+// TestTheFactsMoveWithTheGeneration, so the number on screen names the bytes
+// under it.
+func TestTheFactsMoveWithTheGeneration(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
+	s.reloading(testchangeset.Derive(t, gonePatch)).press("s")
+
+	if got := s.treeRow(11); !strings.Contains(got, "3") {
+		t.Errorf("the generation reads %q after a reload that built one", got)
+	}
+	if got := s.treeRow(12); !strings.Contains(got, "0/2") {
+		t.Errorf("the burn-down reads %q over a changeset of two hunks", got)
+	}
+}
+
+// TestTheTreeKeepsAFoldedDirectoryAcrossAReload. Folding is the reader's, and a
+// refresh is not an answer to it.
+//
+// The folded row is a collapsed chain and not the one the cursor lands in.
+// Landing opens every directory above the file it lands on, which is the one
+// fold a reload is allowed to take: a cursor nobody can see is worse.
+func TestTheTreeKeepsAFoldedDirectoryAcrossAReload(t *testing.T) {
+	s := open(t, 100, 16).press("h", "j", "space")
+
+	if got := s.treeRow(4); !strings.Contains(got, "docs/superpowers/specs") {
+		t.Fatalf("the cursor is not on the collapsed chain: %q", got)
+	}
+	if got := s.treeRow(5); strings.Contains(got, "design.md") {
+		t.Fatalf("the chain did not fold: %q", got)
+	}
+
+	s.press("s")
+	if got := s.treeRow(5); strings.Contains(got, "design.md") {
+		t.Errorf("a reload unfolded what the reader had folded: %q", got)
+	}
+}
+
+// twiceRenamedPatch is renamedPatch renamed again. Every generation is diffed
+// from the same base, so the file is still reported against a.go and never
+// against the c.go the reader has on screen.
+const twiceRenamedPatch = `diff --git a/a.go b/d.go
+rename from a.go
+rename to d.go
+--- a/a.go
++++ b/d.go
+@@ -1,0 +1,1 @@
++one
+@@ -10,0 +11,1 @@
++ten
+diff --git a/b.go b/b.go
+--- a/b.go
++++ b/b.go
+@@ -1,0 +1,1 @@
++uno
+@@ -10,0 +11,1 @@
++diez
+`
+
+// TestAReloadFollowsAFileRenamedTwice. The name on screen is one generation of
+// a rename and the base-side name is every one of them, so that is what a file
+// is looked up by.
+func TestAReloadFollowsAFileRenamedTwice(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16).press("}")
+	s.reloading(testchangeset.Derive(t, renamedPatch)).press("s")
+
+	if title := s.lines()[0]; !strings.Contains(title, "c.go") {
+		t.Fatalf("the first rename put %q in the pane", title)
+	}
+
+	s.reloading(testchangeset.Derive(t, twiceRenamedPatch)).press("s")
+	if title := s.lines()[0]; !strings.Contains(title, "d.go") {
+		t.Errorf("the pane shows %q, want the file under its second new name", title)
+	}
+	if got := heading(t, s); !strings.Contains(got, "@@ -10,0 +11,1 @@") {
+		t.Errorf("the cursor landed on %q, want the same hunk it was on", got)
+	}
+	if got := s.bar(); strings.Contains(got, "is gone") {
+		t.Errorf("the bar reads %q about a file that was renamed, not lost", got)
+	}
+}
+
+// recreatedPatch renames a.go to c.go and writes a new a.go in the same
+// generation, so both names are on screen and only one holds what the reader
+// was reading.
+const recreatedPatch = `diff --git a/a.go b/a.go
+--- /dev/null
++++ b/a.go
+@@ -0,0 +1,1 @@
++brand new
+diff --git a/a.go b/c.go
+rename from a.go
+rename to c.go
+--- a/a.go
++++ b/c.go
+@@ -1,0 +1,1 @@
++one
+@@ -10,0 +11,1 @@
++ten
+diff --git a/b.go b/b.go
+--- a/b.go
++++ b/b.go
+@@ -1,0 +1,1 @@
++uno
+@@ -10,0 +11,1 @@
++diez
+`
+
+// TestARenameBeatsAFileWrittenBackUnderTheOldName. Both names are in the
+// changeset and only one of them holds the content the reader was reading.
+func TestARenameBeatsAFileWrittenBackUnderTheOldName(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16).press("}")
+	s.reloading(testchangeset.Derive(t, recreatedPatch)).press("s")
+
+	if title := s.lines()[0]; !strings.Contains(title, "c.go") {
+		t.Errorf("the pane shows %q, want the file the reader's content moved to", title)
+	}
+}
+
+// TestTheBarKeepsSayingAReloadIsRunning. A press does not end a git call, and
+// the bar is the only thing on screen saying one is happening.
+func TestTheBarKeepsSayingAReloadIsRunning(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
+
+	running := s.hold(keystroke("s"))
+	s.hold(keystroke("j"))
+
+	if got := s.bar(); !strings.Contains(got, "reloading") {
+		t.Errorf("a press while the reload was in git blanked the bar: %q", got)
+	}
+	s.drain(running)
+}
+
+// TestAFailedReloadStillFillsTheBar. The error takes the whole line, and a
+// sentence written for a terminal is longer than most of them.
+func TestAFailedReloadStillFillsTheBar(t *testing.T) {
+	long := "another zen-review refreshed this session first, so nothing was built: run it again"
+
+	for _, width := range []int{200, 100, 72, 56} {
+		s := over(t, testchangeset.Derive(t, ringPatch), width, 16)
+		s.src.err = errors.New(long)
+		s.press("s")
+
+		if got := lipgloss.Width(s.bar()); got != width {
+			t.Errorf("at %d columns the error bar is %d wide: %q", width, got, s.bar())
+		}
 	}
 }

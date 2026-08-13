@@ -393,3 +393,143 @@ func TestTheTreeDrawsTheOrderItWasGiven(t *testing.T) {
 		t.Errorf("the tree drew %v, want the order it was handed, %v", got, want)
 	}
 }
+
+// branchedPatch gives docs/superpowers/specs a sibling at the top, so the chain
+// the nested fixture collapses into one row is four rows here.
+const branchedPatch = `diff --git a/docs/README.md b/docs/README.md
+--- a/docs/README.md
++++ b/docs/README.md
+@@ -1,0 +1,1 @@
++read me
+diff --git a/docs/superpowers/specs/design.md b/docs/superpowers/specs/design.md
+--- a/docs/superpowers/specs/design.md
++++ b/docs/superpowers/specs/design.md
+@@ -1,0 +1,1 @@
++design
+`
+
+// prunedPatch is branchedPatch without the file that branched the chain, so the
+// four rows collapse back into one.
+const prunedPatch = `diff --git a/docs/superpowers/specs/design.md b/docs/superpowers/specs/design.md
+--- a/docs/superpowers/specs/design.md
++++ b/docs/superpowers/specs/design.md
+@@ -1,0 +1,1 @@
++design
+`
+
+// TestARebuildKeepsWhatTheReaderFolded. A refresh answers a question about the
+// changeset, not about how the reader had arranged it.
+func TestARebuildKeepsWhatTheReaderFolded(t *testing.T) {
+	m := pane(t, 40, 20)
+
+	// The nested fixture's assets directory, folded.
+	if !fold(t, &m, "assets") {
+		t.Fatal("the fixture has no assets directory")
+	}
+	if got := rows(t, m)[1]; strings.Contains(got, "logo.png") {
+		t.Fatalf("assets did not fold: %q", got)
+	}
+
+	m.SetChangeset(testchangeset.Nested(t))
+	if got := rows(t, m)[1]; strings.Contains(got, "logo.png") {
+		t.Errorf("the rebuild unfolded assets: %q", got)
+	}
+}
+
+// TestAFoldSurvivesTheChainCollapsingUnderIt. collapse merges a directory
+// holding one directory into it and the merged row answers to the deepest name,
+// so a rebuild matching on that name alone loses the fold the moment a file
+// arrives or leaves above it.
+func TestAFoldSurvivesTheChainCollapsingUnderIt(t *testing.T) {
+	// Either way round the reader folded everything under docs, so either way round
+	// one row is left.
+	tests := []struct {
+		name     string
+		from, to string
+		fold     string
+	}{
+		{"the chain collapses", branchedPatch, prunedPatch, "docs"},
+		{"the chain comes apart", prunedPatch, branchedPatch, "docs/superpowers/specs"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := tree.New(theme.RosePineMoon, testchangeset.Derive(t, tt.from))
+			m.SetSize(40, 20)
+
+			if !fold(t, &m, tt.fold) {
+				t.Fatalf("no row named %s:\n%s", tt.fold, strings.Join(rows(t, m), "\n"))
+			}
+			if got := drawn(t, m); len(got) != 1 {
+				t.Fatalf("%s did not fold to one row:\n%s", tt.fold, strings.Join(got, "\n"))
+			}
+
+			m.SetChangeset(testchangeset.Derive(t, tt.to))
+			if got := drawn(t, m); len(got) != 1 {
+				t.Errorf("the rebuild unfolded %s:\n%s", tt.fold, strings.Join(got, "\n"))
+			}
+		})
+	}
+}
+
+// TestARebuildStaysOnTheFileTheCursorWasOn, so a refresh does not move the
+// reader to whatever sorted into their row.
+func TestARebuildStaysOnTheFileTheCursorWasOn(t *testing.T) {
+	m := pane(t, 40, 20)
+	if !m.Select("internal/cli/render.go") {
+		t.Fatal("the fixture has no internal/cli/render.go")
+	}
+
+	m.SetChangeset(testchangeset.Nested(t))
+	if got := m.Path(); got != "internal/cli/render.go" {
+		t.Errorf("the cursor is on %q after a rebuild", got)
+	}
+}
+
+// TestARebuildOntoAShorterListDrawsRows. An offset left past the end of the new
+// list opens the window below everything and the pane draws blanks.
+func TestARebuildOntoAShorterListDrawsRows(t *testing.T) {
+	m := pane(t, 40, 6)
+	m, _ = press(t, m, "G")
+
+	m.SetChangeset(testchangeset.Derive(t, prunedPatch))
+	if got := strings.TrimSpace(strings.Join(rows(t, m), "")); got == "" {
+		t.Errorf("the pane drew nothing after a rebuild onto a shorter list:\n%q", lines(t, m))
+	}
+	for i, line := range lines(t, m) {
+		if got := lipgloss.Width(line); got != 40 {
+			t.Errorf("row %d is %d wide, want 40: %q", i, got, line)
+		}
+	}
+}
+
+// fold puts the cursor on the named row and folds it, reporting whether the row
+// is there at all.
+func fold(t *testing.T, m *tree.Model, name string) bool {
+	t.Helper()
+
+	for i, row := range rows(t, *m) {
+		if !strings.Contains(row, name+" ") && strings.TrimSpace(row) != name {
+			continue
+		}
+		for range i {
+			*m, _ = press(t, *m, "j")
+		}
+		*m, _ = press(t, *m, " ")
+		return true
+	}
+	return false
+}
+
+// drawn is the rows that say something, the pane's blank padding dropped.
+func drawn(t *testing.T, m tree.Model) []string {
+	t.Helper()
+
+	var out []string
+	for _, row := range rows(t, m) {
+		if strings.TrimSpace(row) != "" {
+			out = append(out, row)
+		}
+	}
+	return out
+}

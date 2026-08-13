@@ -17,8 +17,28 @@ import (
 // returns is run and its message delivered, which is the difference between
 // testing what the reader sees and testing what Update happened to return.
 type screen struct {
-	t *testing.T
-	m tea.Model
+	t   *testing.T
+	m   tea.Model
+	src *source
+}
+
+// source is the reload key with the git taken out: whatever the next press
+// should bring back, and a count of the presses that took it.
+//
+// It answers with the same reload every time unless a test moves it, which is
+// the work tree not having changed.
+type source struct {
+	at    app.Reload
+	err   error
+	calls int
+}
+
+func (s *source) Reload() (app.Reload, error) {
+	s.calls++
+	if s.err != nil {
+		return app.Reload{}, s.err
+	}
+	return s.at, nil
 }
 
 func open(t *testing.T, width, height int) *screen {
@@ -43,10 +63,14 @@ func over(t *testing.T, c review.Changeset, width, height int) *screen {
 func build(t *testing.T, repo string, c review.Changeset, width, height int) *screen {
 	t.Helper()
 
-	base := review.Base{Ref: "origin/main", SHA: "a1b2c3d4e5f67890"}
-	g := review.Generation{Seq: 2}
+	r := app.Reload{
+		Base:       review.Base{Ref: "origin/main", SHA: "a1b2c3d4e5f67890"},
+		Generation: review.Generation{ID: 2, Seq: 2},
+		Changeset:  c,
+	}
 
-	s := &screen{t: t, m: app.New(theme.RosePineMoon, repo, base, g, c)}
+	src := &source{at: r}
+	s := &screen{t: t, m: app.New(theme.RosePineMoon, src, repo, r), src: src}
 	s.send(tea.WindowSizeMsg{Width: width, Height: height})
 	return s
 }
@@ -63,9 +87,25 @@ func (s *screen) press(keys ...string) *screen {
 
 func (s *screen) send(msg tea.Msg) {
 	s.t.Helper()
+	s.drain(s.hold(msg))
+}
+
+// hold applies a message and stops before running the command it returned,
+// which is the only place a frame shows work still in flight. The runtime runs
+// that command on a goroutine and the reader sees this frame while it does.
+func (s *screen) hold(msg tea.Msg) tea.Cmd {
+	s.t.Helper()
 
 	var cmd tea.Cmd
 	s.m, cmd = s.m.Update(msg)
+	return cmd
+}
+
+// drain runs a held command and delivers what it returned, and whatever that
+// returns in turn.
+func (s *screen) drain(cmd tea.Cmd) {
+	s.t.Helper()
+
 	for cmd != nil {
 		out := cmd()
 		if out == nil {
@@ -116,6 +156,29 @@ func (s *screen) treeRow(i int) string {
 func (s *screen) lines() []string {
 	s.t.Helper()
 	return strings.Split(s.frame(), "\n")
+}
+
+// bar is the status line, which is the last one whatever the frame is.
+func (s *screen) bar() string {
+	s.t.Helper()
+
+	lines := s.lines()
+	return lines[len(lines)-1]
+}
+
+// reloading points the source at a new changeset, as a generation the refresh
+// built rather than one it found already there. The next press of s brings it
+// back.
+func (s *screen) reloading(c review.Changeset) *screen {
+	s.t.Helper()
+
+	g := s.src.at.Generation
+	s.src.at = app.Reload{
+		Base:       s.src.at.Base,
+		Generation: review.Generation{ID: g.ID + 1, Seq: g.Seq + 1},
+		Changeset:  c,
+	}
+	return s
 }
 
 func keystroke(k string) tea.KeyPressMsg {
