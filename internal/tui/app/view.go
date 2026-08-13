@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	"github.com/zen-review/zen-review/internal/review"
 	"github.com/zen-review/zen-review/internal/tui/comp"
 )
 
@@ -70,15 +71,14 @@ func (m Model) body() string {
 	tree := m.treePane.
 		Index(1).
 		Title(titleize(comp.Safe(m.repo))).
-		Count(strconv.Itoa(len(m.changeset.Files))).
-		Footer(m.tree.Scroll().Footer()).
+		Footer(files(len(m.changeset.Files)), churn(m.changeset)).
 		Focus(m.focus == focusTree).
 		Render(m.tree.View())
 
 	diff := m.diffPane.
 		Index(2).
 		Title(comp.Safe(m.diff.Path())).
-		Footer(m.diff.Scroll().Footer()).
+		Footer("", m.diff.Scroll().Footer()).
 		Focus(m.focus == focusDiff).
 		Render(m.diff.View())
 
@@ -151,6 +151,19 @@ func (m Model) pad(text string, width int) string {
 		text += strings.Repeat(" ", gap)
 	}
 	return text
+}
+
+// files and churn are the two facts in the tree's bottom border: how much there
+// is to read, and how much of it there is.
+func files(n int) string {
+	if n == 1 {
+		return "1 file"
+	}
+	return strconv.Itoa(n) + " files"
+}
+
+func churn(c review.Changeset) string {
+	return fmt.Sprintf("+%d -%d", c.Additions, c.Deletions)
 }
 
 // titleize reads a directory name as a name: zen-review becomes Zen Review.

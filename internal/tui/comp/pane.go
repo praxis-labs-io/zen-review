@@ -17,14 +17,15 @@ import (
 // because setting styled text into a rendered border means splicing ANSI in
 // place. This is zen-octo's pane, so the two tools frame a pane the same way.
 type Pane struct {
-	theme   theme.Theme
-	title   string
-	count   string
-	index   int
-	footer  string
-	focused bool
-	width   int
-	height  int
+	theme       theme.Theme
+	title       string
+	count       string
+	index       int
+	footerLeft  string
+	footerRight string
+	focused     bool
+	width       int
+	height      int
 }
 
 // NewPane returns an unsized pane. Callers set size, content and focus as the
@@ -58,9 +59,11 @@ func (p Pane) Index(n int) Pane {
 	return p
 }
 
-// Footer sets the text in the bottom border, right-aligned.
-func (p Pane) Footer(s string) Pane {
-	p.footer = s
+// Footer sets the text in the bottom border: left against the left corner, the
+// way the title sits in the top, and right against the right. Either may be
+// empty.
+func (p Pane) Footer(left, right string) Pane {
+	p.footerLeft, p.footerRight = left, right
 	return p
 }
 
@@ -146,23 +149,39 @@ func (p Pane) topBorder() string {
 	return style.Render("╭") + text + style.Render(strings.Repeat("─", fill)) + style.Render("╮")
 }
 
-// bottomBorder carries the counter, right-aligned one rune in from the corner.
+// bottomBorder carries the footer, a rune in from each corner.
 //
 // It reads at the weight the heading's count does, because it is the same kind
 // of fact, and it stays there whichever pane has focus. Which pane that is the
 // heading already says twice.
+//
+// The right side is measured first and the left is clipped into what is left
+// over. The right is a total and a clipped total misstates it; the left is a
+// label, and a clipped label still reads.
 func (p Pane) bottomBorder() string {
 	style := p.borderStyle()
 	mid := p.InnerWidth()
 
-	if p.footer == "" {
+	if p.footerLeft == "" && p.footerRight == "" {
 		return style.Render("╰" + strings.Repeat("─", mid) + "╯")
 	}
 
-	footer := Clip(p.muted().Render(p.footer), max(mid-1, 0), p.muted())
-	fill := max(mid-lipgloss.Width(footer)-1, 0)
+	right := Clip(p.muted().Render(p.footerRight), max(mid-1, 0), p.muted())
 
-	return style.Render("╰"+strings.Repeat("─", fill)) + footer + style.Render("─╯")
+	var left string
+	if p.footerLeft != "" {
+		left = Clip(p.muted().Render(p.footerLeft),
+			max(mid-lipgloss.Width(right)-2, 0), p.muted())
+	}
+
+	fill := max(mid-lipgloss.Width(left)-lipgloss.Width(right)-1, 0)
+	if left != "" {
+		fill = max(fill-1, 0)
+		left = style.Render("─") + left
+	}
+
+	return style.Render("╰") + left + style.Render(strings.Repeat("─", fill)) +
+		right + style.Render("─╯")
 }
 
 // The whole heading answers to focus, not the border alone: the border is a

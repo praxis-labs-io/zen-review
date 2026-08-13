@@ -157,7 +157,7 @@ func TestTheCursorIsOnTheRowTheKeysMoved(t *testing.T) {
 }
 
 // TestTheTreeIsHeadedByTheRepository, so a reader with two of these open knows
-// which one they are looking at.
+// which one they are looking at. What is in it is said in the footer.
 //
 // The directory name reads as a name rather than as a path segment, and only
 // its first letters are touched: lowercasing the rest renames a repository its
@@ -167,11 +167,11 @@ func TestTheTreeIsHeadedByTheRepository(t *testing.T) {
 		repo string
 		want string
 	}{
-		{"zen-review", "─[1]─Zen Review (6)"},
-		{"my_side_project", "─[1]─My Side Project (6)"},
-		{"zenOcto", "─[1]─ZenOcto (6)"},
-		{"CLAUDE", "─[1]─CLAUDE (6)"},
-		{"dotfiles", "─[1]─Dotfiles (6)"},
+		{"zen-review", "─[1]─Zen Review─"},
+		{"my_side_project", "─[1]─My Side Project─"},
+		{"zenOcto", "─[1]─ZenOcto─"},
+		{"CLAUDE", "─[1]─CLAUDE─"},
+		{"dotfiles", "─[1]─Dotfiles─"},
 	}
 
 	for _, tt := range tests {

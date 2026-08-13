@@ -37,7 +37,7 @@ func TestTheBoxIsExactlyTheSizeItWasGiven(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			lines := strip(pane().Size(tt.width, tt.height).
-				Index(1).Title("a title").Footer("41/942").Render(tt.content))
+				Index(1).Title("a title").Footer("14 files", "41/942").Render(tt.content))
 
 			if len(lines) != tt.height {
 				t.Fatalf("drew %d lines, want %d:\n%s", len(lines), tt.height, strings.Join(lines, "\n"))
@@ -132,16 +132,42 @@ func TestANarrowPaneClipsItsTitle(t *testing.T) {
 
 // TestTheFooterSitsInTheBottomBorder, one rune in from the corner.
 func TestTheFooterSitsInTheBottomBorder(t *testing.T) {
-	lines := strip(pane().Size(30, 4).Footer("41/942").Render(""))
-	bottom := lines[len(lines)-1]
-
-	if want := "41/942─╯"; !strings.HasSuffix(bottom, want) {
-		t.Errorf("the bottom border is %q, want it to end %q", bottom, want)
+	tests := []struct {
+		name        string
+		left, right string
+		want        string
+	}{
+		{"both", "14 files", "+630 -105", "╰─14 files─────────+630 -105─╯"},
+		{"right only", "", "41/942", "╰─────────────────────41/942─╯"},
+		{"left only", "14 files", "", "╰─14 files───────────────────╯"},
+		{"neither", "", "", "╰────────────────────────────╯"},
 	}
 
-	plain := strip(pane().Size(30, 4).Render(""))
-	if got := plain[len(plain)-1]; strings.ContainsAny(got, "0123456789") {
-		t.Errorf("a pane with no footer drew one: %q", got)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lines := strip(pane().Size(30, 4).Footer(tt.left, tt.right).Render(""))
+			got := lines[len(lines)-1]
+
+			if got != tt.want {
+				t.Errorf("the bottom border is %q, want %q", got, tt.want)
+			}
+			if lipgloss.Width(got) != 30 {
+				t.Errorf("the bottom border is %d columns: %q", lipgloss.Width(got), got)
+			}
+		})
+	}
+}
+
+// TestANarrowFooterKeepsTheTotal. The right side is a total and a clipped total
+// misstates it; the left is a label, and a clipped label still reads.
+func TestANarrowFooterKeepsTheTotal(t *testing.T) {
+	bottom := strip(pane().Size(18, 4).Footer("140 files", "+63000 -10500").Render(""))[3]
+
+	if !strings.Contains(bottom, "+63000 -10500") {
+		t.Errorf("the churn did not survive the clip: %q", bottom)
+	}
+	if lipgloss.Width(bottom) != 18 {
+		t.Errorf("the bottom border is %d columns: %q", lipgloss.Width(bottom), bottom)
 	}
 }
 
