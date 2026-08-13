@@ -23,11 +23,30 @@ type screen struct {
 
 func open(t *testing.T, width, height int) *screen {
 	t.Helper()
+	return named(t, "zen-review", width, height)
+}
+
+// named opens the reader on a repository of a given name, for the assertions
+// about the heading.
+func named(t *testing.T, repo string, width, height int) *screen {
+	t.Helper()
+	return build(t, repo, testchangeset.Nested(t), width, height)
+}
+
+// over opens the reader on a changeset of the test's own, for the assertions
+// about how far down the review is.
+func over(t *testing.T, c review.Changeset, width, height int) *screen {
+	t.Helper()
+	return build(t, "zen-review", c, width, height)
+}
+
+func build(t *testing.T, repo string, c review.Changeset, width, height int) *screen {
+	t.Helper()
 
 	base := review.Base{Ref: "origin/main", SHA: "a1b2c3d4e5f67890"}
 	g := review.Generation{Seq: 2}
 
-	s := &screen{t: t, m: app.New(theme.RosePineMoon, base, g, testchangeset.Nested(t))}
+	s := &screen{t: t, m: app.New(theme.RosePineMoon, repo, base, g, c)}
 	s.send(tea.WindowSizeMsg{Width: width, Height: height})
 	return s
 }
@@ -69,6 +88,29 @@ func (s *screen) frame() string {
 func (s *screen) raw() string {
 	s.t.Helper()
 	return s.m.View().Content
+}
+
+// treeColumns is how wide the tree's pane came out, read off the frame rather
+// than assumed: it is a share of the terminal and moves with it.
+func (s *screen) treeColumns() int {
+	s.t.Helper()
+
+	for i, r := range []rune(s.lines()[0]) {
+		if r == '╮' {
+			return i + 1
+		}
+	}
+	s.t.Fatalf("the frame has no tree pane:\n%s", s.frame())
+	return 0
+}
+
+// treeRow is one line of the tree's column with its borders and its padding
+// taken off, which is what a row of that pane actually says.
+func (s *screen) treeRow(i int) string {
+	s.t.Helper()
+
+	runes := []rune(s.lines()[i])
+	return strings.TrimSpace(string(runes[1 : s.treeColumns()-1]))
 }
 
 func (s *screen) lines() []string {

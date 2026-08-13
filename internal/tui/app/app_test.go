@@ -1,14 +1,18 @@
 package app_test
 
 import (
+	"image/color"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/zen-kit/zen-kit/theme"
 
 	"github.com/zen-review/zen-review/internal/golden"
+	"github.com/zen-review/zen-review/internal/store"
+	"github.com/zen-review/zen-review/internal/testchangeset"
 )
 
 // TestGoldenFrames locks the layout at the widths that prove something.
@@ -81,40 +85,295 @@ func TestTheFrameIsExactlyTheTerminal(t *testing.T) {
 }
 
 // TestFocusMovesBetweenThePanes asserts the colour the frame carries, because
-// which pane has the keys is said in colour and a stripped golden cannot show
-// it.
+// which pane has the keys is said in the border colour and a stripped golden
+// cannot show it.
+//
+// The seam is where the two panes meet, so it carries both answers at once: a
+// frame with the wrong pane lit fails on the same string a frame with both lit
+// does.
 func TestFocusMovesBetweenThePanes(t *testing.T) {
-	active := lipgloss.NewStyle().Foreground(theme.RosePineMoon.Secondary).Bold(true)
-	quiet := lipgloss.NewStyle().Foreground(theme.RosePineMoon.Faint)
-
-	s := open(t, 100, 16)
-	if got := s.raw(); !strings.Contains(got, active.Render("CHANGES")) {
-		t.Errorf("the tree opens without the focused title")
+	tests := []struct {
+		name string
+		keys []string
+		tree bool
+	}{
+		{"the tree opens with the keys", nil, true},
+		{"l moves them right", []string{"l"}, false},
+		{"h moves them back", []string{"l", "h"}, true},
+		{"2 moves them right", []string{"2"}, false},
+		{"1 moves them back", []string{"2", "1"}, true},
 	}
 
-	s.press("l")
-	if got := s.raw(); !strings.Contains(got, quiet.Render("CHANGES")) {
-		t.Errorf("l left the tree title looking focused")
-	}
-	if got := s.raw(); !strings.Contains(got, active.Render("README.md")) {
-		t.Errorf("l did not focus the diff pane")
-	}
-
-	s.press("h")
-	if got := s.raw(); !strings.Contains(got, active.Render("CHANGES")) {
-		t.Errorf("h did not put the focus back on the tree")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := open(t, 100, 16).press(tt.keys...)
+			if got := s.raw(); !strings.Contains(got, seam(tt.tree)) {
+				t.Errorf("the border does not say the keys are on the tree = %v", tt.tree)
+			}
+		})
 	}
 }
 
-// TestTheStatusBarSaysWhereTheReviewIs keeps the three facts the bar exists for
-// out of the goldens, where a layout change would hide their loss.
-func TestTheStatusBarSaysWhereTheReviewIs(t *testing.T) {
-	s := open(t, 100, 16)
-	bar := s.lines()[15]
+// seam is the two corners where the panes meet, the tree's right and the diff
+// pane's left, coloured for whichever holds the keys.
+func seam(treeFocused bool) string {
+	lit := lipgloss.NewStyle().Foreground(theme.RosePineMoon.Accent)
+	dim := lipgloss.NewStyle().Foreground(theme.RosePineMoon.BorderSubtleOrBorder())
 
-	for _, want := range []string{"origin/main (a1b2c3d)", "generation 2", "2 / 7 reviewed"} {
+	if treeFocused {
+		return lit.Render("╮") + dim.Render("╭")
+	}
+	return dim.Render("╮") + lit.Render("╭")
+}
+
+// TestTheCursorIsOnTheRowTheKeysMoved. The tree marks its cursor with a filled
+// background and nothing else, so a stripped golden cannot see it and j could
+// stop moving without a single frame changing.
+func TestTheCursorIsOnTheRowTheKeysMoved(t *testing.T) {
+	fill := lipgloss.NewStyle().Background(theme.RosePineMoon.SelectedBackground).Render("x")
+	sgr := fill[len("\x1b["):strings.Index(fill, "m")]
+
+	for _, tt := range []struct {
+		keys []string
+		want string
+	}{
+		{nil, "logo.png"},
+		{[]string{"j", "j"}, "design.md"},
+		{[]string{"G"}, "README.md"},
+	} {
+		s := open(t, 100, 16).press(tt.keys...)
+
+		var found string
+		for _, line := range strings.Split(s.raw(), "\n") {
+			if strings.Contains(line, sgr) {
+				found = ansi.Strip(line)
+				break
+			}
+		}
+		switch {
+		case found == "":
+			t.Errorf("after %v no row carries the cursor", tt.keys)
+		case !strings.Contains(found, tt.want):
+			t.Errorf("after %v the cursor is on %q, want %q", tt.keys, found, tt.want)
+		}
+	}
+}
+
+// TestTheTreeIsHeadedByTheRepository, so a reader with two of these open knows
+// which one they are looking at. What is in it is said in the footer.
+//
+// The directory name reads as a name rather than as a path segment, and only
+// its first letters are touched: lowercasing the rest renames a repository its
+// owner did not.
+func TestTheTreeIsHeadedByTheRepository(t *testing.T) {
+	tests := []struct {
+		repo string
+		want string
+	}{
+		{"zen-review", "─[1]─Zen Review─"},
+		{"my_side_project", "─[1]─My Side Project─"},
+		{"zenOcto", "─[1]─ZenOcto─"},
+		{"CLAUDE", "─[1]─CLAUDE─"},
+		{"dotfiles", "─[1]─Dotfiles─"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.repo, func(t *testing.T) {
+			head := named(t, tt.repo, 100, 16).lines()[0]
+			if !strings.Contains(head, tt.want) {
+				t.Errorf("the tree is headed %q, want it to hold %q", head, tt.want)
+			}
+		})
+	}
+}
+
+// TestTheFactsAreDrawnAndColoured, out of the goldens, where a
+// layout change would hide their loss.
+//
+// The counts carry their own colours: one grey across the line says how much
+// changed and not which way it went, which is the half a reader scans for.
+func TestTheFactsAreDrawnAndColoured(t *testing.T) {
+	th := theme.RosePineMoon
+	s := open(t, 100, 16)
+
+	// Label against the left edge of the pane, value against the right.
+	for _, want := range []struct{ label, value string }{
+		{"origin/main", "a1b2c3d"},
+		{"Generation", "2"},
+		{"Reviewed", "2/7"},
+		{"Changes", "-3"},
+	} {
+		row := ""
+		for i := range s.lines() {
+			if r := s.treeRow(i); strings.HasPrefix(r, want.label) {
+				row = r
+				break
+			}
+		}
+		switch {
+		case row == "":
+			t.Errorf("no row is labelled %q:\n%s", want.label, s.frame())
+		case !strings.HasSuffix(row, want.value):
+			t.Errorf("the %q row is %q, want it to end %q", want.label, row, want.value)
+		}
+	}
+
+	// Every label reads at one weight. Only the churn and the burn-down carry a
+	// colour, and they carry different ones.
+	for _, label := range []string{"origin/main", "Generation", "Reviewed", "Changes"} {
+		if want := lipgloss.NewStyle().Foreground(th.Muted).Render(label); !strings.Contains(s.raw(), want) {
+			t.Errorf("the %q label is not muted", label)
+		}
+	}
+	coloured := map[string]string{
+		"the additions": lipgloss.NewStyle().Foreground(th.Success).Render("+10"),
+		"the deletions": lipgloss.NewStyle().Foreground(th.Error).Render("-3"),
+	}
+	for part, style := range coloured {
+		if !strings.Contains(s.raw(), style) {
+			t.Errorf("%s is not in its own colour", part)
+		}
+	}
+}
+
+// TestTheBurnDownWearsItsOwnState. It is the same ladder as the glyphs beside
+// the filenames, so the one number and the whole column agree at a glance.
+func TestTheBurnDownWearsItsOwnState(t *testing.T) {
+	th := theme.RosePineMoon
+
+	// Two hunks in one file, so there is a half-way to be at. They only add, so
+	// each has one anchor and one range covers it: a hunk that also removes has
+	// a second anchor on the base side and takes two.
+	const patch = `diff --git a/a.go b/a.go
+--- a/a.go
++++ b/a.go
+@@ -1,0 +1,1 @@
++one
+@@ -10,0 +11,1 @@
++ten
+`
+	first := testchangeset.Head("a.go", 1, 1)
+	second := testchangeset.Head("a.go", 11, 11)
+
+	tests := []struct {
+		name     string
+		reviewed []store.ReviewedRange
+		want     string
+		colour   color.Color
+	}{
+		{"nothing read", nil, "0/2", th.Subtle},
+		{"part read", []store.ReviewedRange{first}, "1/2", th.Warning},
+		{"all read", []store.ReviewedRange{first, second}, "2/2", th.Accent},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := over(t, testchangeset.Derive(t, patch, tt.reviewed...), 100, 16)
+
+			want := lipgloss.NewStyle().Foreground(tt.colour).Render(tt.want)
+			if !strings.Contains(s.raw(), want) {
+				t.Errorf("the burn-down does not read %q in its own colour:\n%s", tt.want, s.frame())
+			}
+		})
+	}
+}
+
+// TestTheFactsSitAtTheFootOfTheTree, ruled off from the rows rather than boxed
+// beside them. A box of their own reads as a third pane to move into, and
+// nothing there takes a key.
+func TestTheFactsSitAtTheFootOfTheTree(t *testing.T) {
+	s := open(t, 100, 16)
+	lines := s.lines()
+
+	rule, first := -1, -1
+	for i, line := range lines {
+		switch {
+		case strings.HasPrefix(line, "├"):
+			rule = i
+		case strings.Contains(line, "origin/main") && first < 0:
+			first = i
+		}
+	}
+
+	switch {
+	case rule < 0:
+		t.Fatalf("nothing rules the facts off from the rows:\n%s", strings.Join(lines, "\n"))
+	case first != rule+1:
+		t.Errorf("the facts start on line %d and the rule is on %d", first, rule)
+	}
+
+	// The rule joins the side borders rather than floating between them, and
+	// the tree pane is the only thing it crosses.
+	want := "├" + strings.Repeat("─", s.treeColumns()-2) + "┤"
+	if !strings.HasPrefix(lines[rule], want) {
+		t.Errorf("the rule is %q, want it to start %q", lines[rule], want)
+	}
+}
+
+// TestThePadsBelongToTheEndsOfTheList. They are content rather than chrome, so
+// a reader partway down a long list gets rows against both edges and does not
+// pay two lines for a margin they cannot see the point of.
+func TestThePadsBelongToTheEndsOfTheList(t *testing.T) {
+	// At fifteen high the tree's window is seven rows over a list of twelve, so
+	// there is a top, a middle and a bottom to be in. first and last are the
+	// screen lines that window starts and ends on.
+	const height, first, last = 15, 1, 7
+
+	tests := []struct {
+		name           string
+		keys           []string
+		topPad, botPad bool
+	}{
+		{"at the top", nil, true, false},
+		{"partway down", []string{"j", "j", "j", "j", "j", "j", "j"}, false, false},
+		{"at the bottom", []string{"G"}, false, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := open(t, 100, height).press(tt.keys...)
+			lines := s.lines()
+
+			blank := func(i int) bool { return s.treeRow(i) == "" }
+			if got := blank(first); got != tt.topPad {
+				t.Errorf("the pad above the list is %v, want %v: %q", got, tt.topPad, lines[first])
+			}
+			if got := blank(last); got != tt.botPad {
+				t.Errorf("the pad below the list is %v, want %v: %q", got, tt.botPad, lines[last])
+			}
+		})
+	}
+}
+
+// TestTheBarCarriesTheFactsWhenTheTreeCannot. The facts have to be somewhere,
+// and a frame too short for the box is still a frame someone is reading.
+func TestTheBarCarriesTheFactsWhenTheTreeCannot(t *testing.T) {
+	s := open(t, 100, 7)
+	lines := s.lines()
+	bar := lines[len(lines)-1]
+
+	for _, line := range lines[:len(lines)-1] {
+		if strings.Contains(line, "generation 2") {
+			t.Fatalf("the facts drew on a frame with no room for them:\n%s", s.frame())
+		}
+	}
+	for _, want := range []string{"? help", "origin/main a1b2c3d", "Generation 2", "Reviewed 2/7"} {
 		if !strings.Contains(bar, want) {
-			t.Errorf("the status bar does not say %q: %q", want, bar)
+			t.Errorf("the bar does not say %q: %q", want, bar)
+		}
+	}
+}
+
+// TestTheHintIsAgainstTheLeftEdge, where the eye starts.
+func TestTheHintIsAgainstTheLeftEdge(t *testing.T) {
+	for _, width := range []int{100, 72, 56} {
+		bar := open(t, width, 16).lines()[15]
+
+		if !strings.HasPrefix(bar, "? help") {
+			t.Errorf("at %d columns the bar starts %q", width, bar)
+		}
+		if got := lipgloss.Width(bar); got != width {
+			t.Errorf("at %d columns the bar is %d wide: %q", width, got, bar)
 		}
 	}
 }
@@ -122,18 +381,16 @@ func TestTheStatusBarSaysWhereTheReviewIs(t *testing.T) {
 // TestOpeningAFileMovesTheReaderToIt separates the two things enter does from
 // what walking the tree does.
 func TestOpeningAFileMovesTheReaderToIt(t *testing.T) {
-	active := lipgloss.NewStyle().Foreground(theme.RosePineMoon.Secondary).Bold(true)
-
-	s := open(t, 100, 16).press("j", "j", "j", "j")
+	s := open(t, 100, 16).press("j", "j")
 	if title := s.lines()[0]; !strings.Contains(title, "docs/superpowers/specs/design.md") {
 		t.Errorf("walking onto a file did not open it in the diff pane: %q", title)
 	}
-	if !strings.Contains(s.raw(), active.Render("CHANGES")) {
+	if !strings.Contains(s.raw(), seam(true)) {
 		t.Errorf("walking the tree gave the focus away")
 	}
 
 	s.press("enter")
-	if !strings.Contains(s.raw(), active.Render("docs/superpowers/specs/design.md")) {
+	if !strings.Contains(s.raw(), seam(false)) {
 		t.Errorf("enter did not move the focus to the diff pane")
 	}
 }
@@ -142,7 +399,7 @@ func TestOpeningAFileMovesTheReaderToIt(t *testing.T) {
 // directory row would punish walking the tree.
 func TestADirectoryLeavesTheDiffPaneAlone(t *testing.T) {
 	s := open(t, 100, 16).press("j")
-	if got := s.lines()[0]; !strings.Contains(got, "README.md") {
+	if got := s.lines()[0]; !strings.Contains(got, "assets/logo.png") {
 		t.Errorf("stepping onto a directory changed the diff pane: %q", got)
 	}
 }
@@ -197,13 +454,14 @@ func TestATerminalTooSmallSaysSo(t *testing.T) {
 	}
 }
 
-// TestTheHintSurvivesANarrowTerminal. Dropping it drops the only thing on
-// screen saying that ? exists, and the reader who needed it is the one on the
-// narrow terminal. It also left the last row short of the screen.
-func TestTheHintSurvivesANarrowTerminal(t *testing.T) {
+// TestTheHintSurvivesTheFactsBesideIt, at the one height where the two share
+// the bar. Dropping it drops the only thing on screen saying that ? exists, and
+// the reader who needed it is the one on the small terminal. It also left the
+// last row short of the screen.
+func TestTheHintSurvivesTheFactsBesideIt(t *testing.T) {
 	for _, width := range []int{100, 72, 56} {
-		s := open(t, width, 10)
-		bar := s.lines()[9]
+		s := open(t, width, 7)
+		bar := s.lines()[6]
 
 		if !strings.Contains(bar, "? help") {
 			t.Errorf("at %d columns the status bar lost the hint: %q", width, bar)

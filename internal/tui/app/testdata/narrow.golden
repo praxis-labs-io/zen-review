@@ -1,16 +1,16 @@
-CHANGES                            README.md            
-▎ · README.md              +1 -1 │          @@ -1,3 +1,…
-  ▾ assets                       │                      
-    · logo.png            binary │                      
-  ▾ docs/superpowers/specs       │                      
-    ✓ design.md            +3 -0 │                      
-  ▾ internal                     │                      
-    ▾ cli                        │                      
-      · render.go          +1 -1 │                      
-    ▾ review                     │                      
-      ~ state.go           +3 -1 │                      
-    ▾ tui/diffpane               │                      
-      · painting_the_unif… +2 -0 │                      
-                                 │                      
-                                 │                      
-origin/main (a1b2c3d)  ·  generation 2 … ? help • q quit
+╭─[1]─Zen Review─────────────────╮╭─[2]─assets/logo.png╮
+│                                ││binary              │
+│  assets                       ││                    │
+│   ○ logo.png            binary ││                    │
+│  docs/superpowers/specs       ││                    │
+│   ● design.md            +3 -0 ││                    │
+│  internal                     ││                    │
+│    cli                        ││                    │
+│     ○ render.go          +1 -1 ││                    │
+├────────────────────────────────┤│                    │
+│ origin/main            a1b2c3d ││                    │
+│ Generation                   2 ││                    │
+│ Reviewed                   2/7 ││                    │
+│ Changes             6  +10 -3 ││                    │
+╰────────────────────────────────╯╰────────────────────╯
+? help • q quit                                         

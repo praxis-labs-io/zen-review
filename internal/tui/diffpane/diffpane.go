@@ -71,6 +71,11 @@ func (m *Model) SetSize(width, height int) {
 	m.relayout()
 }
 
+// Scroll is where the window sits in the file, for the counter the frame draws.
+func (m Model) Scroll() comp.Scroll {
+	return comp.Scroll{Offset: m.offset, Height: m.height, Total: len(m.lines)}
+}
+
 // Path is the file in the pane, and is empty when there is none.
 func (m Model) Path() string {
 	if m.file == nil {
@@ -151,7 +156,7 @@ func (m *Model) relayout() {
 // note is a line about the file rather than a line of it, for a file the
 // painter has nothing to draw.
 func (m Model) note(text string) string {
-	style := lipgloss.NewStyle().Foreground(m.theme.Faint)
+	style := lipgloss.NewStyle().Foreground(m.theme.Subtle)
 	return comp.Clip(style.Render(text), m.width, style)
 }
 

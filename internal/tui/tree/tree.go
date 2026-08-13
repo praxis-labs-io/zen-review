@@ -16,9 +16,15 @@ const (
 	// indent is one level of nesting, in columns.
 	indent = 2
 
-	// barWidth is the cursor column and the space after it, which every row pays
-	// for so the rows below the selected one do not shift sideways.
-	barWidth = 2
+	// gutter is the column kept clear at each edge of the pane, so a glyph does
+	// not sit against the border and the churn does not either.
+	gutter = 1
+
+	// topPad and bottomPad are the blank lines at the ends of the list. They are
+	// content rather than chrome, so they scroll: the reader sees one when they
+	// reach that end of the list and rows run to the border everywhere between.
+	topPad    = 1
+	bottomPad = 1
 
 	// nameMin is the columns a name keeps whatever else wants them. A row that
 	// names no file names nothing.
@@ -96,6 +102,26 @@ func (m *Model) SetSize(width, height int) {
 
 func (m *Model) Focus() { m.focused = true }
 func (m *Model) Blur()  { m.focused = false }
+
+// total is the lines the pane scrolls over: the rows plus the blank one at
+// each end of them.
+func (m Model) total() int { return len(m.rows) + topPad + bottomPad }
+
+// maxOffset is as far down as the window goes, which is the last line of the
+// list on the bottom row and not one further.
+func (m Model) maxOffset() int { return max(m.total()-m.height, 0) }
+
+// First is the path of the file the tree shows first, which is not the
+// changeset's first file: directories sort above the files beside them, so git's
+// order and the tree's are different lists. Empty when there are no files.
+func (m Model) First() string {
+	for _, r := range m.rows {
+		if !r.n.dir() {
+			return r.n.path
+		}
+	}
+	return ""
+}
 
 // Path is the selected file's path, and is empty on a directory row.
 func (m Model) Path() string {
@@ -220,9 +246,26 @@ func (m *Model) scrollToCursor() {
 	if m.height <= 0 {
 		return
 	}
-	m.offset = min(m.offset, m.cursor)
-	m.offset = max(m.offset, m.cursor-m.height+1)
-	m.offset = max(0, min(m.offset, max(len(m.rows)-m.height, 0)))
+
+	at := m.cursor + topPad
+	m.offset = min(m.offset, at)
+	m.offset = max(m.offset, at-m.height+1)
+
+	// A pad belongs to the end of the list it sits at, so landing on the first
+	// or last row brings its pad back on screen. Without this the reader walks
+	// back up to the top row and the pane stays one line short of the top.
+	//
+	// A pane with one line has no room for both, and the row is the half that
+	// carries the meaning: snapping to the pad there draws an empty tree.
+	if m.height > 1 {
+		switch {
+		case m.cursor == 0:
+			m.offset = 0
+		case m.cursor == len(m.rows)-1:
+			m.offset = m.maxOffset()
+		}
+	}
+	m.offset = max(0, min(m.offset, m.maxOffset()))
 }
 
 func open() tea.Cmd {

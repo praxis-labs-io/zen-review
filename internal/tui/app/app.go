@@ -35,6 +35,7 @@ type Model struct {
 	keys  KeyMap
 	theme theme.Theme
 
+	repo      string
 	base      review.Base
 	gen       review.Generation
 	changeset review.Changeset
@@ -42,6 +43,11 @@ type Model struct {
 	tree tree.Model
 	diff diffpane.Model
 	help help.Model
+
+	// The frames the two panes are drawn in. They hold the size, so the model
+	// asks them what is left inside rather than subtracting the border twice.
+	treePane comp.Pane
+	diffPane comp.Pane
 
 	focus   focus
 	showing bool
@@ -54,29 +60,35 @@ type Model struct {
 //
 // The changeset is held by value and the panes point into its files, so it
 // must not be appended to after this.
-func New(t theme.Theme, base review.Base, g review.Generation, c review.Changeset) Model {
+func New(t theme.Theme, repo string, base review.Base, g review.Generation, c review.Changeset) Model {
 	m := Model{
 		keys:      NewKeyMap(),
 		theme:     t,
+		repo:      repo,
 		base:      base,
 		gen:       g,
 		changeset: c,
 		tree:      tree.New(t, c),
 		diff:      diffpane.New(t),
 		help:      comp.Help(t),
+		treePane:  comp.NewPane(t),
+		diffPane:  comp.NewPane(t),
 	}
 	m.tree.Focus()
 
-	if len(m.changeset.Files) > 0 {
-		m.tree.Select(m.changeset.Files[0].Diff.Path)
+	// The tree's first file, not the changeset's. The tree sorts directories
+	// above the files beside them, so opening on git's first would land the
+	// cursor somewhere down the pane and scroll it there.
+	if first := m.tree.First(); first != "" {
+		m.tree.Select(first)
 		m.syncDiff()
 	}
 	return m
 }
 
 // Run opens the reader on the terminal and returns when it closes.
-func Run(ctx context.Context, t theme.Theme, base review.Base, g review.Generation, c review.Changeset) error {
-	if _, err := tea.NewProgram(New(t, base, g, c), tea.WithContext(ctx)).Run(); err != nil {
+func Run(ctx context.Context, t theme.Theme, repo string, base review.Base, g review.Generation, c review.Changeset) error {
+	if _, err := tea.NewProgram(New(t, repo, base, g, c), tea.WithContext(ctx)).Run(); err != nil {
 		return fmt.Errorf("running the reader: %w", err)
 	}
 	return nil

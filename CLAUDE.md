@@ -189,6 +189,7 @@ without either being hostage to the other's release cycle. zen-kit holds no keys
 ```
 j k g G ctrl+u ctrl+d    movement
 h l                      tree pane / diff pane
+1 2                      the same two, by the badge in the pane's border
 tab shift+tab            the ring: next / prev hunk
 space                    fold / unfold
 } {                      next / prev file
@@ -236,4 +237,6 @@ before wrapping, tokenising a side whole. These are this repo's own.
 - **The shortest scroll onto the screen is the wrong one.** A key that lands on a block is taking the reader somewhere, so put the block at the top row, and leave it alone when it already fits on screen whole.
 - **A block that answers the line above it cannot go to the top row.** A comment hangs under the code it was written against, so topping the card scrolls that code away. Open a few lines above it, never above the file's heading.
 - **A pane clips overflow silently.** A row wider than the pane loses its trailing columns mid-cell with no ellipsis, and a width test still passes. The row has to fit before the pane sees it.
+- **A glyph is only one cell if lipgloss and the terminal agree it is.** The tree's folders and its file marker are Nerd Font, which is the one thing on screen that asks anything of the terminal's font. Measure a new one with `lipgloss.Width` before using it: a two-cell glyph puts every row after it out of step, where a font missing a one-cell glyph only draws a box.
+- **A stripped golden cannot see a colour.** The tree's cursor is a filled background and nothing else, so the frame is identical whether `j` moved or not. Anything said only in colour needs an assertion against the theme value beside the golden.
 - **Nothing moves on a refresh until the key is pressed.** A formatter running on save would otherwise reshuffle the page while a comment is being written.

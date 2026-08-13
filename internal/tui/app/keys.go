@@ -16,8 +16,11 @@ type KeyMap struct {
 // NewKeyMap is the bindings and the help text they carry.
 func NewKeyMap() KeyMap {
 	return KeyMap{
-		Left:  key.NewBinding(key.WithKeys("h", "left"), key.WithHelp("h", "tree pane")),
-		Right: key.NewBinding(key.WithKeys("l", "right"), key.WithHelp("l", "diff pane")),
+		// The digits are the badges the panes carry in their borders. They join
+		// the bindings that already move focus rather than being declared beside
+		// them, so the help lists one entry per pane.
+		Left:  key.NewBinding(key.WithKeys("h", "left", "1"), key.WithHelp("h/1", "tree pane")),
+		Right: key.NewBinding(key.WithKeys("l", "right", "2"), key.WithHelp("l/2", "diff pane")),
 		Help:  key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 		Close: key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "close help")),
 		Quit:  key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),

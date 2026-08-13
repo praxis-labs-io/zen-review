@@ -1,6 +1,5 @@
-CHANGES                            README.md                                                        
-j      down              h     tree pane        ? help                                              
-k      up                l     diff pane        q quit                                              
+j      down              h/1   tree pane        ? help                                              
+k      up                l/2   diff pane        q quit                                              
 ctrl+d half page down    space fold                                                                 
 ctrl+u half page up      enter open the file                                                        
 g      top                                                                                          
@@ -13,4 +12,5 @@ G      bottom
                                                                                                     
                                                                                                     
                                                                                                     
-origin/main (a1b2c3d)  ·  generation 2  ·  2 / 7 reviewed                            ? help • q quit
+                                                                                                    
+? help • q quit                                                                                     

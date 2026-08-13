@@ -71,6 +71,11 @@ type Changeset struct {
 	// sits unopened.
 	Reviewed int
 	Items    int
+
+	// Additions and Deletions are the whole changeset's churn, summed off the
+	// files so nothing reporting the total walks them again.
+	Additions int
+	Deletions int
 }
 
 // Derive reads a changeset's state out of the ranges recorded against it.
@@ -94,6 +99,8 @@ func Derive(files []diff.File, rows []store.ReviewedRange) Changeset {
 		c.Files = append(c.Files, file)
 		c.Reviewed += file.Reviewed
 		c.Items += file.Items
+		c.Additions += f.Additions
+		c.Deletions += f.Deletions
 	}
 	return c
 }
