@@ -32,6 +32,11 @@ func TestTheBoxIsExactlyTheSizeItWasGiven(t *testing.T) {
 		{"wider than the pane", 30, 4, strings.Repeat("wide ", 20)},
 		{"one row of content", 12, 3, "hello"},
 		{"tall and narrow", 4, 20, "a\nb\nc"},
+
+		// Two corners and no interior. The footer has nowhere to go, and the
+		// rune it usually sits against would make the border wider than the
+		// pane it closes.
+		{"corners only", 2, 4, "content"},
 	}
 
 	for _, tt := range tests {

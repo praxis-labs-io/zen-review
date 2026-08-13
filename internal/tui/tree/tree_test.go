@@ -131,6 +131,30 @@ func TestALevelSortsLikeAFileTree(t *testing.T) {
 	}
 }
 
+// TestOneRowShowsTheRowAndNotAPad. The pads are the ends of the list, and a
+// pane with a single line has no room for a pad and the row it belongs to.
+// Snapping to one there draws an empty tree on the smallest terminal that runs.
+func TestOneRowShowsTheRowAndNotAPad(t *testing.T) {
+	const patch = `diff --git a/a.go b/a.go
+--- a/a.go
++++ b/a.go
+@@ -1,0 +1,1 @@
++one
+`
+
+	m := tree.New(theme.RosePineMoon, testchangeset.Derive(t, patch))
+	m.SetSize(32, 1)
+	m.Focus()
+
+	got := strings.Split(ansi.Strip(m.View()), "\n")
+	if len(got) != 1 {
+		t.Fatalf("a pane one line high drew %d lines", len(got))
+	}
+	if !strings.Contains(got[0], "a.go") {
+		t.Errorf("the one line is %q, want the file on it", got[0])
+	}
+}
+
 // TestFoldingKeepsTheCursorWhereItWas. Folding removes rows below the one under
 // the cursor, so the index it sits at still names the same row.
 func TestFoldingKeepsTheCursorWhereItWas(t *testing.T) {

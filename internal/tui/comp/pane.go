@@ -191,7 +191,10 @@ func (p Pane) bottomBorder() string {
 	style := p.borderStyle()
 	mid := p.InnerWidth()
 
-	if p.footerLeft == "" && p.footerRight == "" {
+	// A pane two columns wide is two corners and no interior. The rune before
+	// the right corner below would make it three and break the pane's own
+	// promise about its size.
+	if mid == 0 || (p.footerLeft == "" && p.footerRight == "") {
 		return style.Render("╰" + strings.Repeat("─", mid) + "╯")
 	}
 

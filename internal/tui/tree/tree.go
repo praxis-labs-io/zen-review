@@ -254,11 +254,16 @@ func (m *Model) scrollToCursor() {
 	// A pad belongs to the end of the list it sits at, so landing on the first
 	// or last row brings its pad back on screen. Without this the reader walks
 	// back up to the top row and the pane stays one line short of the top.
-	switch {
-	case m.cursor == 0:
-		m.offset = 0
-	case m.cursor == len(m.rows)-1:
-		m.offset = m.maxOffset()
+	//
+	// A pane with one line has no room for both, and the row is the half that
+	// carries the meaning: snapping to the pad there draws an empty tree.
+	if m.height > 1 {
+		switch {
+		case m.cursor == 0:
+			m.offset = 0
+		case m.cursor == len(m.rows)-1:
+			m.offset = m.maxOffset()
+		}
 	}
 	m.offset = max(0, min(m.offset, m.maxOffset()))
 }
