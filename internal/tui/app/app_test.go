@@ -203,7 +203,7 @@ func TestTheFactsAreInTheirOwnBox(t *testing.T) {
 	}
 
 	coloured := map[string]string{
-		"the file count": lipgloss.NewStyle().Foreground(th.Accent).Render("6 files"),
+		"the file count": lipgloss.NewStyle().Foreground(th.Subtle).Render("6 files"),
 		"the additions":  lipgloss.NewStyle().Foreground(th.Success).Render("+10"),
 		"the deletions":  lipgloss.NewStyle().Foreground(th.Error).Render("-3"),
 	}

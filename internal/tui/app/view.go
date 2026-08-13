@@ -211,8 +211,8 @@ func (m Model) pad(text string, width int) string {
 	return text
 }
 
-// files is how much there is to read, in the accent, because it is the one
-// number in the frame a reader checks before starting.
+// files is how much there is to read, at the weight the facts under it read at.
+// The churn beside it is the coloured half of the row.
 func (m Model) files() string {
 	n := len(m.changeset.Files)
 
@@ -220,7 +220,7 @@ func (m Model) files() string {
 	if n == 1 {
 		text = "1 file"
 	}
-	return lipgloss.NewStyle().Foreground(m.theme.Accent).Render(text)
+	return lipgloss.NewStyle().Foreground(m.theme.Subtle).Render(text)
 }
 
 // titleize reads a directory name as a name: zen-review becomes Zen Review.
