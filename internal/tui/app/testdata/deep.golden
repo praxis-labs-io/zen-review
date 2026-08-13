@@ -1,5 +1,5 @@
 ╭─[1]─Zen Review───────────────────────╮╭─[2]─README.md────────────────────────────────────────────╮
-│    cli                              ││         @@ -1,3 +1,3 @@                                  │
+│    cli                              ││        @@ -1,3 +1,3 @@                                  │
 │     ○ render.go                +1 -1 ││  1  1   # zen-review                                     │
 │    review                           ││  2  2   Drew's local code review engine.                 │
 │     ⊙ state.go                 +3 -1 ││  3    − A diff viewer with review features bolted on.    │
@@ -13,4 +13,4 @@
 │ Reviewed                         2/7 ││                                                          │
 │ Changes                   6  +10 -3 ││                                                          │
 ╰──────────────────────────────────────╯╰──────────────────────────────────────────────────────────╯
-j/k move · enter open · space fold · ctrl+d/u page the diff · ? help · q quit                       
+j/k move · enter open · space fold · n/N unread · }/{ hunk · ctrl+d/u page · ? help · q quit        

@@ -11,9 +11,15 @@ import (
 	"github.com/zen-kit/zen-kit/theme"
 
 	"github.com/zen-review/zen-review/internal/review"
+	"github.com/zen-review/zen-review/internal/store"
 	"github.com/zen-review/zen-review/internal/testchangeset"
 	"github.com/zen-review/zen-review/internal/tui/diffpane"
 )
+
+// mark is the caret the pane puts on the heading the ring is on, written as an
+// escape: a Nerd Font glyph does not survive every editor and pipe, and an empty
+// string is contained in every row there is.
+const mark = "\uf0da"
 
 // The fixture's two-hunk file, which is what the scrolling is measured against.
 // Sixteen rows: a header and six lines, a blank, a header and seven lines.
@@ -333,5 +339,107 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 	got := rows(t, m)[0]
 	if indent := len(got) - len(strings.TrimLeft(got, " ")); indent != 9 {
 		t.Errorf("the header indents %d columns, want 9: %q", indent, got)
+	}
+}
+
+// TestSelectingAHunkPutsItsHeadingOnTheTopRow. A key that lands on a block is
+// taking the reader somewhere, and the shortest scroll leaves the heading
+// wherever the last one happened to end.
+func TestSelectingAHunkPutsItsHeadingOnTheTopRow(t *testing.T) {
+	// Eight rows over sixteen, so the second hunk can reach the top row with
+	// room to spare below it.
+	m := pane(t, twoHunks, 60, 8)
+	m.Select(store.SideHead, 124)
+
+	if got := rows(t, m)[0]; !strings.Contains(got, "@@ -120,5 +120,7 @@") {
+		t.Errorf("the top row is %q, want the hunk that was selected", got)
+	}
+}
+
+// TestAHunkAlreadyOnScreenWholeDoesNotMoveTheWindow. Moving a block the reader
+// can already read is movement for nothing, and it costs them the lines above
+// it they were using for context.
+func TestAHunkAlreadyOnScreenWholeDoesNotMoveTheWindow(t *testing.T) {
+	// Tall enough for the whole file, so neither hunk has anywhere to go.
+	m := pane(t, twoHunks, 60, 20)
+	before := rows(t, m)[0]
+
+	// The top row rather than the whole frame: Select marks the heading it lands
+	// on, so the frame changes whether the window moved or not.
+	m.Select(store.SideHead, 124)
+	if after := rows(t, m)[0]; after != before {
+		t.Errorf("the top row moved from %q to %q", before, after)
+	}
+}
+
+// TestTheHeadingOfTheSelectedHunkIsTheOnlyOneMarked, so the mark answers which
+// hunk rather than which file.
+func TestTheHeadingOfTheSelectedHunkIsTheOnlyOneMarked(t *testing.T) {
+	m := pane(t, twoHunks, 60, 20)
+	m.Select(store.SideHead, 13)
+
+	var marked []string
+	for _, row := range rows(t, m) {
+		if strings.Contains(row, mark) {
+			marked = append(marked, strings.TrimSpace(row))
+		}
+	}
+	if len(marked) != 1 {
+		t.Fatalf("%d headings carry the mark, want 1: %q", len(marked), marked)
+	}
+	if !strings.Contains(marked[0], "@@ -10,5 +10,5 @@") {
+		t.Errorf("the mark is on %q, want the hunk that was selected", marked[0])
+	}
+}
+
+// TestSelectingAHunkTheFileDoesNotHoldMarksNothing, which is the state the pane
+// is in between a file arriving and the root naming a hunk in it.
+func TestSelectingAHunkTheFileDoesNotHoldMarksNothing(t *testing.T) {
+	m := pane(t, twoHunks, 60, 20)
+	before := m.View()
+
+	m.Select(store.SideHead, 9999)
+	after := m.View()
+
+	if strings.Contains(ansi.Strip(after), mark) {
+		t.Errorf("a hunk the file does not hold marked a heading anyway:\n%s", after)
+	}
+	if after != before {
+		t.Errorf("it moved the window as well:\n%s", after)
+	}
+}
+
+// TestAResizeKeepsTheReaderWhereTheyScrolledTo. The first sizing puts the reader
+// on the cursor, because the size arrives after the model is built. Every one
+// after it is the terminal changing shape under someone who has scrolled
+// somewhere, and yanking them back to the cursor throws that away.
+func TestAResizeKeepsTheReaderWhereTheyScrolledTo(t *testing.T) {
+	m := pane(t, twoHunks, 60, 8)
+	m.Select(store.SideHead, 13)
+
+	// Down into the second hunk, well past the heading the cursor is on.
+	m = press(t, m, down, down, down, down, down, down, down, down)
+	before := rows(t, m)[0]
+
+	m.SetSize(60, 8)
+	if after := rows(t, m)[0]; after != before {
+		t.Errorf("the resize moved the top row from %q to %q", before, after)
+	}
+}
+
+// TestTheFirstSizingScrollsToTheCursor, which is the case the reader opening on
+// a hunk part way down a file depends on.
+func TestTheFirstSizingScrollsToTheCursor(t *testing.T) {
+	c := testchangeset.Nested(t)
+
+	// Sized after the cursor is set, the way the root builds it: New, then the
+	// terminal says how big it is.
+	m := diffpane.New(theme.RosePineMoon)
+	m.SetFile(fileAt(t, c, twoHunks))
+	m.Select(store.SideHead, 124)
+	m.SetSize(60, 8)
+
+	if got := rows(t, m)[0]; !strings.Contains(got, "@@ -120,5 +120,7 @@") {
+		t.Errorf("the top row is %q, want the hunk the cursor was on", got)
 	}
 }

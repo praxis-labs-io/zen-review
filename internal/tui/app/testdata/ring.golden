@@ -1,0 +1,16 @@
+╭─[1]─Zen Review───────────────────────╮╭─[2]─internal/review/state.go─────────────────────────────╮
+│   ○ logo.png                  binary ││  12  12   const (                                        │
+│  docs/superpowers/specs             ││  13     −     Unreviewed State = "unread"                │
+│   ● design.md                  +3 -0 ││      13 +     Unreviewed State = "unreviewed"            │
+│  internal                           ││  14  14       Partial    State = "partial"               │
+│    cli                              ││                                                          │
+│     ○ render.go                +1 -1 ││          @@ -120,5 +120,7 @@ func (s *Session) Changese…│
+│    review                           ││ 120 120       rows, err := s.db.ReviewedRanges(ctx, g.ID)│
+│     ⊙ state.go                 +3 -1 ││ 121 121       if err != nil {                            │
+├──────────────────────────────────────┤│ 122 122           return Changeset{}, err                │
+│ origin/main                  a1b2c3d ││ 123 123       }                                          │
+│ Generation                         2 ││     124 +     // Ranges are read off the generation.     │
+│ Reviewed                         2/7 ││     125 +     // Never off the working tree.             │
+│ Changes                   6  +10 -3 ││ 124 126       return Derive(files, rows), nil            │
+╰──────────────────────────────────────╯╰────────────────────────────────────────────────────16/16─╯
+j/k scroll · n/N unread · }/{ hunk · ctrl+d/u page · tab file · ? help · q quit                     

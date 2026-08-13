@@ -15,10 +15,19 @@ import (
 	"github.com/zen-review/zen-review/internal/testchangeset"
 )
 
-// code walks the tree to the fixture's two-hunk Go file, counting back from the
-// last row rather than down from the first: the tree opens on a binary file, and
-// the rows between the two are directories a change to the fixture would move.
-var code = []string{"G", "k", "k", "k"}
+// code takes the keys to the tree and walks it to the fixture's two-hunk Go
+// file, counting back from the last row rather than down from the first: the
+// reader opens on a binary file, and the rows between the two are directories a
+// change to the fixture would move.
+//
+// The h is the reader moving into the tree. The diff pane holds the keys on the
+// frame the reader opens on.
+var code = []string{"h", "G", "k", "k", "k"}
+
+// mark is the caret the diff pane puts on the heading the ring is on, written
+// as an escape: a Nerd Font glyph does not survive every editor and pipe, and an
+// empty string is contained in every row there is.
+const mark = "\uf0da"
 
 // TestGoldenFrames locks the layout at the widths that prove something.
 //
@@ -41,15 +50,20 @@ func TestGoldenFrames(t *testing.T) {
 
 		// Both panes, because the overlay reads its keys off whichever one has
 		// them and only one of the two can be wrong at a time.
-		{"help", 100, 16, []string{"?"}},
-		{"help-diff", 100, 16, []string{"l", "?"}},
+		{"help", 100, 16, []string{"h", "?"}},
+		{"help-diff", 100, 16, []string{"?"}},
 
-		{"folded", 100, 16, []string{"j", "space"}},
-		{"deep", 100, 16, []string{"G"}},
+		{"folded", 100, 16, []string{"h", "j", "space"}},
+		{"deep", 100, 16, []string{"h", "G"}},
+
+		// The ring on the fixture's two-hunk file, landed on the second: the
+		// mark is on its heading, the tree followed, and the window has scrolled
+		// as far as it goes without running off the end of the file.
+		{"ring", 100, 16, []string{"n", "n", "}"}},
 
 		// Two rows shorter than the tree has rows, so the pane has to scroll
 		// rather than run off the status bar.
-		{"short", 100, 8, []string{"G"}},
+		{"short", 100, 8, []string{"h", "G"}},
 	}
 
 	for _, tt := range tests {
@@ -113,11 +127,11 @@ func TestFocusMovesBetweenThePanes(t *testing.T) {
 		keys []string
 		tree bool
 	}{
-		{"the tree opens with the keys", nil, true},
-		{"l moves them right", []string{"l"}, false},
-		{"h moves them back", []string{"l", "h"}, true},
-		{"2 moves them right", []string{"2"}, false},
-		{"1 moves them back", []string{"2", "1"}, true},
+		{"the diff pane opens with the keys", nil, false},
+		{"h moves them left", []string{"h"}, true},
+		{"l moves them back", []string{"h", "l"}, false},
+		{"1 moves them left", []string{"1"}, true},
+		{"2 moves them back", []string{"1", "2"}, false},
 	}
 
 	for _, tt := range tests {
@@ -145,34 +159,52 @@ func seam(treeFocused bool) string {
 // TestTheCursorIsOnTheRowTheKeysMoved. The tree marks its cursor with a filled
 // background and nothing else, so a stripped golden cannot see it and j could
 // stop moving without a single frame changing.
+//
+// The diff pane's heading wears the same fill, and one line of the frame holds
+// both panes, so the fill alone no longer names a row. The bold on the name is
+// what the tree's cursor row has and nothing else on screen does.
 func TestTheCursorIsOnTheRowTheKeysMoved(t *testing.T) {
-	fill := lipgloss.NewStyle().Background(theme.RosePineMoon.SelectedBackground).Render("x")
-	sgr := fill[len("\x1b["):strings.Index(fill, "m")]
-
 	for _, tt := range []struct {
 		keys []string
 		want string
 	}{
-		{nil, "logo.png"},
-		{[]string{"j", "j"}, "design.md"},
-		{[]string{"G"}, "README.md"},
+		{[]string{"h"}, "logo.png"},
+		{[]string{"h", "j", "j"}, "design.md"},
+		{[]string{"h", "G"}, "README.md"},
 	} {
 		s := open(t, 100, 16).press(tt.keys...)
 
-		var found string
-		for _, line := range strings.Split(s.raw(), "\n") {
-			if strings.Contains(line, sgr) {
-				found = ansi.Strip(line)
-				break
-			}
-		}
+		found := filledTreeRow(t, s)
 		switch {
 		case found == "":
-			t.Errorf("after %v no row carries the cursor", tt.keys)
+			t.Errorf("after %v no row of the tree carries the cursor", tt.keys)
 		case !strings.Contains(found, tt.want):
 			t.Errorf("after %v the cursor is on %q, want %q", tt.keys, found, tt.want)
 		}
 	}
+}
+
+// filledTreeRow is the tree's cursor row, stripped, found by the bold name over
+// the fill that only that row carries. It is empty when no row carries one.
+//
+// Two foregrounds, because the name dims when the pane does not hold the keys
+// and the ring moves the tree's cursor from the diff pane.
+func filledTreeRow(t *testing.T, s *screen) string {
+	t.Helper()
+
+	for _, fg := range []color.Color{theme.RosePineMoon.Text, theme.RosePineMoon.Subtle} {
+		name := lipgloss.NewStyle().
+			Background(theme.RosePineMoon.SelectedBackground).
+			Foreground(fg).Bold(true).Render("x")
+		sgr := name[:strings.Index(name, "m")+1]
+
+		for _, line := range strings.Split(s.raw(), "\n") {
+			if strings.Contains(line, sgr) {
+				return ansi.Strip(line)
+			}
+		}
+	}
+	return ""
 }
 
 // TestTheHalfPageKeysPageTheDiffFromTheTree. Walking the tree is how the reader
@@ -403,9 +435,9 @@ func TestThePadsBelongToTheEndsOfTheList(t *testing.T) {
 		keys           []string
 		topPad, botPad bool
 	}{
-		{"at the top", nil, true, false},
-		{"partway down", []string{"j", "j", "j", "j", "j", "j", "j"}, false, false},
-		{"at the bottom", []string{"G"}, false, true},
+		{"at the top", []string{"h"}, true, false},
+		{"partway down", []string{"h", "j", "j", "j", "j", "j", "j", "j"}, false, false},
+		{"at the bottom", []string{"h", "G"}, false, true},
 	}
 
 	for _, tt := range tests {
@@ -467,14 +499,14 @@ func TestTheHintIsAgainstTheLeftEdge(t *testing.T) {
 // TestTheBarSaysWhatThePaneHoldingTheKeysCanDo. The overlay is a keypress away
 // and nothing on screen said the keypress existed.
 func TestTheBarSaysWhatThePaneHoldingTheKeysCanDo(t *testing.T) {
-	tree := open(t, 100, 16).lines()[15]
+	tree := open(t, 100, 16).press("h").lines()[15]
 	for _, want := range []string{"j/k move", "enter open", "space fold"} {
 		if !strings.Contains(tree, want) {
 			t.Errorf("the tree holds the keys and the bar does not say %q: %q", want, tree)
 		}
 	}
 
-	diff := open(t, 100, 16).press("l").lines()[15]
+	diff := open(t, 100, 16).lines()[15]
 	if !strings.Contains(diff, "j/k scroll") {
 		t.Errorf("the diff holds the keys and the bar reads %q", diff)
 	}
@@ -484,7 +516,7 @@ func TestTheBarSaysWhatThePaneHoldingTheKeysCanDo(t *testing.T) {
 
 	// The one that answers from both, said the same way from either.
 	for _, bar := range []string{tree, diff} {
-		if !strings.Contains(bar, "ctrl+d/u page the diff") {
+		if !strings.Contains(bar, "ctrl+d/u page") {
 			t.Errorf("the bar drops the key that crosses the panes: %q", bar)
 		}
 	}
@@ -493,7 +525,7 @@ func TestTheBarSaysWhatThePaneHoldingTheKeysCanDo(t *testing.T) {
 // TestOpeningAFileMovesTheReaderToIt separates the two things enter does from
 // what walking the tree does.
 func TestOpeningAFileMovesTheReaderToIt(t *testing.T) {
-	s := open(t, 100, 16).press("j", "j")
+	s := open(t, 100, 16).press("h", "j", "j")
 	if title := s.lines()[0]; !strings.Contains(title, "docs/superpowers/specs/design.md") {
 		t.Errorf("walking onto a file did not open it in the diff pane: %q", title)
 	}
@@ -510,7 +542,7 @@ func TestOpeningAFileMovesTheReaderToIt(t *testing.T) {
 // TestADirectoryLeavesTheDiffPaneAlone. Blanking the pane on the way past a
 // directory row would punish walking the tree.
 func TestADirectoryLeavesTheDiffPaneAlone(t *testing.T) {
-	s := open(t, 100, 16).press("j")
+	s := open(t, 100, 16).press("h", "j")
 	if got := s.lines()[0]; !strings.Contains(got, "assets/logo.png") {
 		t.Errorf("stepping onto a directory changed the diff pane: %q", got)
 	}
@@ -599,5 +631,204 @@ func TestASmallTerminalStillFillsTheScreen(t *testing.T) {
 				t.Errorf("%dx%d line %d is %d columns: %q", size.width, size.height, i, got, line)
 			}
 		}
+	}
+}
+
+// ringPatch is two files with two hunks each, so there is a hunk to cross into
+// and a file boundary to cross over.
+const ringPatch = `diff --git a/a.go b/a.go
+--- a/a.go
++++ b/a.go
+@@ -1,0 +1,1 @@
++one
+@@ -10,0 +11,1 @@
++ten
+diff --git a/b.go b/b.go
+--- a/b.go
++++ b/b.go
+@@ -1,0 +1,1 @@
++uno
+@@ -10,0 +11,1 @@
++diez
+`
+
+// heading is the diff pane's cursor row, stripped, found by the mark only that
+// row carries. It is empty when the pane marks nothing.
+func heading(t *testing.T, s *screen) string {
+	t.Helper()
+
+	for _, line := range strings.Split(s.frame(), "\n") {
+		if strings.Contains(line, mark) {
+			return line
+		}
+	}
+	return ""
+}
+
+// TestTheReaderOpensOnTheFirstHunkTheyHaveNotRead, which is not the first hunk
+// of the changeset whenever the top of it has already been read.
+func TestTheReaderOpensOnTheFirstHunkTheyHaveNotRead(t *testing.T) {
+	c := testchangeset.Derive(t, ringPatch,
+		testchangeset.Head("a.go", 1, 1),
+		testchangeset.Head("a.go", 11, 11),
+	)
+	s := over(t, c, 100, 16)
+
+	if title := s.lines()[0]; !strings.Contains(title, "b.go") {
+		t.Errorf("the reader opened on %q, want the first file holding an unread hunk", title)
+	}
+	if got := heading(t, s); !strings.Contains(got, "@@ -1,0 +1,1 @@") {
+		t.Errorf("the mark is on %q, want b.go's first hunk", got)
+	}
+	if !strings.Contains(s.raw(), seam(false)) {
+		t.Error("the reader opened with the keys on the tree, and came here to read")
+	}
+}
+
+// TestTheRingWrapsPastTheLastUnread, so n held down keeps going rather than
+// stopping on the last one and reporting nothing.
+func TestTheRingWrapsPastTheLastUnread(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
+
+	// Four hunks, so the fourth n is the one that comes back round.
+	first := heading(t, s)
+	s.press("n", "n", "n")
+	if last := heading(t, s); last == first {
+		t.Fatalf("three presses of n came back to where they started: %q", last)
+	}
+
+	s.press("n")
+	if got := heading(t, s); got != first {
+		t.Errorf("n off the last unread landed on %q, want the first, %q", got, first)
+	}
+}
+
+// TestAFullyReadChangesetLeavesTheRingWhereItIs. n has done its job when there
+// is nothing left to find, and the burn-down in the facts is what says so.
+func TestAFullyReadChangesetLeavesTheRingWhereItIs(t *testing.T) {
+	c := testchangeset.Derive(t, ringPatch,
+		testchangeset.Head("a.go", 1, 1), testchangeset.Head("a.go", 11, 11),
+		testchangeset.Head("b.go", 1, 1), testchangeset.Head("b.go", 11, 11),
+	)
+	s := over(t, c, 100, 16)
+
+	before := s.frame()
+	s.press("n", "n", "N")
+	if after := s.frame(); after != before {
+		t.Errorf("n moved on a changeset with nothing left to read:\n%s", after)
+	}
+}
+
+// TestTheHunkKeyCrossesIntoTheNextFileAndTheTreeFollows, so the two panes never
+// disagree about what is open.
+func TestTheHunkKeyCrossesIntoTheNextFileAndTheTreeFollows(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
+
+	// Off a.go's second hunk and into b.go.
+	s.press("}", "}")
+
+	if title := s.lines()[0]; !strings.Contains(title, "b.go") {
+		t.Errorf("} did not cross the file boundary: %q", title)
+	}
+	if got := filledTreeRow(t, s); !strings.Contains(got, "b.go") {
+		t.Errorf("the tree's cursor is on %q, want it to follow the diff pane", got)
+	}
+}
+
+// TestTheFileKeyLandsOnTheFilesFirstHunk, going either way. Stepping back to a
+// file's last hunk would open it at the bottom and read as a different key.
+func TestTheFileKeyLandsOnTheFilesFirstHunk(t *testing.T) {
+	for _, tt := range []struct {
+		keys []string
+		want string
+	}{
+		{[]string{"tab"}, "b.go"},
+		{[]string{"tab", "shift+tab"}, "a.go"},
+	} {
+		s := over(t, testchangeset.Derive(t, ringPatch), 100, 16).press(tt.keys...)
+
+		if title := s.lines()[0]; !strings.Contains(title, tt.want) {
+			t.Errorf("%v opened %q, want %s", tt.keys, title, tt.want)
+		}
+		if got := heading(t, s); !strings.Contains(got, "@@ -1,0 +1,1 @@") {
+			t.Errorf("%v landed on %q, want the file's first hunk", tt.keys, got)
+		}
+	}
+}
+
+// TestAFileWithNoHunksIsAStopOnTheRing. A binary file is one thing to read, and
+// the burn-down counts it, so a ring that stepped over it would leave n unable
+// to walk the count to zero.
+func TestAFileWithNoHunksIsAStopOnTheRing(t *testing.T) {
+	s := open(t, 100, 16)
+
+	// The fixture's binary file is where the reader opens, so the ring has to
+	// come all the way back round to it.
+	if title := s.lines()[0]; !strings.Contains(title, "assets/logo.png") {
+		t.Fatalf("the reader did not open on the binary file: %q", title)
+	}
+
+	s.press("n", "n", "n", "n", "n")
+	if title := s.lines()[0]; !strings.Contains(title, "assets/logo.png") {
+		t.Errorf("n never came back to the binary file: %q", title)
+	}
+}
+
+// TestTheMarkedHeadingIsFilledAndOneCellWide. The fill is the signal a stripped
+// golden cannot see, and a two-cell glyph would put every row under the heading
+// out of step with the code above it.
+func TestTheMarkedHeadingIsFilledAndOneCellWide(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
+
+	if got := lipgloss.Width(mark); got != 1 {
+		t.Errorf("the mark is %d cells wide, want 1", got)
+	}
+
+	marked := lipgloss.NewStyle().
+		Background(theme.RosePineMoon.SelectedBackground).
+		Foreground(theme.RosePineMoon.Accent).Render(mark)
+	if !strings.Contains(s.raw(), marked) {
+		t.Error("the heading the ring is on carries no fill")
+	}
+}
+
+// TestTheTreeFollowsTheRingOffADirectoryRow. A directory row leaves the diff
+// pane on the file before it, so the tree's cursor can be somewhere the pane is
+// not, and a landing that only moves the tree when the file changes leaves the
+// two disagreeing.
+func TestTheTreeFollowsTheRingOffADirectoryRow(t *testing.T) {
+	// To the two-hunk file, then one row up onto the directory holding it. The
+	// pane stays on the file, so the two panes are now on different things.
+	s := open(t, 100, 16).press(code...).press("k")
+
+	if got := filledTreeRow(t, s); strings.Contains(got, "state.go") {
+		t.Fatalf("the tree's cursor is still on the file, so this proves nothing: %q", got)
+	}
+	if title := s.lines()[0]; !strings.Contains(title, "state.go") {
+		t.Fatalf("the directory row took the file out of the pane: %q", title)
+	}
+
+	// Inside the file the pane is already on, so nothing about the file changes
+	// and only the tree has anywhere to move.
+	s.press("}")
+	if got := filledTreeRow(t, s); !strings.Contains(got, "state.go") {
+		t.Errorf("the tree's cursor is on %q, want the file the ring moved inside", got)
+	}
+}
+
+// TestOpeningTheFileAlreadyOpenLeavesTheRingWhereItIs. Pressing enter on the
+// file being read is not a move onto it, and putting the ring back at the top
+// would throw away where the reader had got to.
+func TestOpeningTheFileAlreadyOpenLeavesTheRingWhereItIs(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16).press("}")
+
+	was := heading(t, s)
+	if !strings.Contains(was, "@@ -10,0 +11,1 @@") {
+		t.Fatalf("the ring is on %q, want a.go's second hunk", was)
+	}
+
+	s.press("h", "enter")
+	if got := heading(t, s); got != was {
+		t.Errorf("enter on the open file moved the ring to %q", got)
 	}
 }

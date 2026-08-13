@@ -49,6 +49,10 @@ type Model struct {
 	treePane comp.Pane
 	diffPane comp.Pane
 
+	// cursor is the hunk the ring is on, held as an identity and resolved to a
+	// position on every move. The diff pane draws it; nothing else owns it.
+	cursor stop
+
 	focus   focus
 	showing bool
 
@@ -56,7 +60,11 @@ type Model struct {
 	height int
 }
 
-// New builds the screen over a changeset, open on its first file.
+// New builds the screen over a changeset, open on the first hunk of it that has
+// not been read, with the diff pane holding the keys.
+//
+// zen-octo's conversation opens unfocused because the reader came to read. You
+// came here to burn a review down, and the first thing to press is a ring key.
 //
 // The changeset is held by value and the panes point into its files, so it
 // must not be appended to after this.
@@ -74,14 +82,10 @@ func New(t theme.Theme, repo string, base review.Base, g review.Generation, c re
 		treePane:  comp.NewPane(t),
 		diffPane:  comp.NewPane(t),
 	}
-	m.tree.Focus()
+	m.setFocus(focusDiff)
 
-	// Off the tree rather than off the changeset, because the tree's first row is
-	// a directory whenever the changeset has one, and a directory is not a file
-	// to open.
-	if first := m.tree.First(); first != "" {
-		m.tree.Select(first)
-		m.syncDiff()
+	if s, ok := m.opening(); ok {
+		m.land(s)
 	}
 	return m
 }
@@ -140,6 +144,16 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// The ring answers from either pane and moves both, so it is routed before
+	// the focus is. A key that found nowhere to go leaves everything alone: n on
+	// a changeset with nothing left unread is a press that has done its job.
+	if s, ok, moved := m.walk(msg); moved {
+		if ok {
+			m.land(s)
+		}
+		return m, nil
+	}
+
 	var cmd tea.Cmd
 
 	// The half-page keys page the diff from either pane, so they are routed
@@ -161,6 +175,28 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+// walk is the stop a ring key asks for. The third value says whether the press
+// was a ring key at all, which is what tells "nowhere to go" from "not mine".
+func (m Model) walk(msg tea.KeyPressMsg) (s stop, ok, mine bool) {
+	switch {
+	case key.Matches(msg, m.keys.NextHunk):
+		s, ok = m.ring(1, anyStop)
+	case key.Matches(msg, m.keys.PrevHunk):
+		s, ok = m.ring(-1, anyStop)
+	case key.Matches(msg, m.keys.NextRead):
+		s, ok = m.ring(1, unreadStop)
+	case key.Matches(msg, m.keys.PrevRead):
+		s, ok = m.ring(-1, unreadStop)
+	case key.Matches(msg, m.keys.NextFile):
+		s, ok = m.file(1)
+	case key.Matches(msg, m.keys.PrevFile):
+		s, ok = m.file(-1)
+	default:
+		return stop{}, false, false
+	}
+	return s, ok, true
+}
+
 // syncDiff points the diff pane at whatever the tree is on.
 //
 // The tree does not send the path in a message. Bubble Tea runs the commands a
@@ -170,19 +206,31 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 //
 // A directory row leaves the pane alone. Blanking it on the way past one would
 // punish walking the tree.
+//
+// The ring goes to the file's first hunk, not its first unread one. The reader
+// picked the file to read it, and n is the key that walks the burn-down.
+//
+// A cursor already on the file in the pane has not moved onto it, so the ring
+// stays where it is. Pressing enter on the file being read is not a move, and
+// putting the ring back at the top would throw away where the reader had got to.
 func (m *Model) syncDiff() {
 	path := m.tree.Path()
 	if path == "" || path == m.diff.Path() {
 		return
 	}
+
 	m.diff.SetFile(m.fileAt(path))
+	if s, ok := m.firstOf(path); ok {
+		m.cursor = s
+		m.diff.Select(s.side, s.line)
+	}
 }
 
 // setFocus points the keys at a pane.
 //
-// Only the tree is told, because only the tree draws differently for it: the
-// diff pane says which one has the keys through the title, which the root
-// draws. It grows a Focus of its own when it grows a cursor.
+// Only the tree is told. The diff pane draws its cursor whichever pane has the
+// keys, because the ring moves it from both and a mark that came and went with
+// focus would leave the reader hunting for where n put them.
 func (m *Model) setFocus(f focus) {
 	m.focus = f
 	if f == focusTree {
