@@ -2,6 +2,7 @@ package review
 
 import (
 	"context"
+	"slices"
 
 	"github.com/zen-review/zen-review/internal/diff"
 	"github.com/zen-review/zen-review/internal/store"
@@ -80,7 +81,9 @@ type Changeset struct {
 
 // Derive reads a changeset's state out of the ranges recorded against it.
 //
-// It holds no git and no database, and it makes no claim about how the ranges
+// Files come back in the order a file tree reads, not the order git walked the
+// index in, so every reader of a changeset is looking at one list. It holds no
+// git and no database, and it makes no claim about how the ranges
 // got there. A hunk is reviewed when every line of every anchor it has is
 // covered, unreviewed when none is, and partial in between. A file is reviewed
 // when every hunk is, or when a file with no hunks carries a whole-file mark.
@@ -102,6 +105,12 @@ func Derive(files []diff.File, rows []store.ReviewedRange) Changeset {
 		c.Additions += f.Additions
 		c.Deletions += f.Deletions
 	}
+
+	// Sorted here as well as in Session.Files, which is where the printed table
+	// reads its list and never comes through Derive. This is the sort a caller
+	// building a changeset by hand gets, and on the session's path it runs over
+	// a list already in order.
+	slices.SortFunc(c.Files, func(a, b File) int { return byTree(a.Diff.Path, b.Diff.Path) })
 	return c
 }
 

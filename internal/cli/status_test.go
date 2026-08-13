@@ -3,6 +3,7 @@ package cli_test
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -89,6 +90,35 @@ func TestStatusAfterARefreshReportsTheGeneration(t *testing.T) {
 	}
 	if _, ok := w.files()["a.txt"]; !ok {
 		t.Errorf("files = %+v, want the changeset the generation holds", w.Files)
+	}
+}
+
+// TestTheFilesComeBackInTheOrderATreeReads. Git reports the order it walked the
+// index in, which drops a root file above every directory holding the rest of
+// the changeset. One ordering comes out of the engine, so this table and the
+// reader's tree pane cannot disagree about what is first.
+func TestTheFilesComeBackInTheOrderATreeReads(t *testing.T) {
+	f := newFixture(t)
+	for _, p := range []string{"README.md", "internal/git/diff.go", "internal/cli/root.go"} {
+		f.Write(p, "one\n")
+	}
+	f.Commit("first")
+	f.TrackOrigin("main")
+
+	f.Git("checkout", "-q", "-b", "feature")
+	for _, p := range []string{"README.md", "internal/git/diff.go", "internal/cli/root.go"} {
+		f.Write(p, "two\n")
+	}
+
+	w, _ := f.decode("refresh")
+
+	got := make([]string, 0, len(w.Files))
+	for _, file := range w.Files {
+		got = append(got, file.Path)
+	}
+	want := []string{"internal/cli/root.go", "internal/git/diff.go", "README.md"}
+	if !slices.Equal(got, want) {
+		t.Errorf("files = %v, want %v", got, want)
 	}
 }
 

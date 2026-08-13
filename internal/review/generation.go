@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"slices"
 	"time"
 
 	"github.com/zen-review/zen-review/internal/diff"
@@ -249,7 +250,7 @@ func (s *Session) Status(ctx context.Context) (Status, error) {
 }
 
 // Files is the changeset at a generation: the diff its tree makes against the
-// base, parsed.
+// base, parsed, in the order a file tree reads.
 //
 // Nothing about hunks is stored. This is the same parse a remap runs through,
 // and one derivation beats a stored count that can disagree with it.
@@ -258,7 +259,10 @@ func (s *Session) Files(ctx context.Context, g Generation) ([]diff.File, error) 
 	if err != nil {
 		return nil, err
 	}
-	return diff.Parse(patch), nil
+
+	files := diff.Parse(patch)
+	slices.SortFunc(files, func(a, b diff.File) int { return byTree(a.Path, b.Path) })
+	return files, nil
 }
 
 // snapshot writes the work tree into a tree object, refusing first if it is

@@ -76,9 +76,9 @@ func New(t theme.Theme, repo string, base review.Base, g review.Generation, c re
 	}
 	m.tree.Focus()
 
-	// The tree's first file, not the changeset's. The tree sorts directories
-	// above the files beside them, so opening on git's first would land the
-	// cursor somewhere down the pane and scroll it there.
+	// Off the tree rather than off the changeset, because the tree's first row is
+	// a directory whenever the changeset has one, and a directory is not a file
+	// to open.
 	if first := m.tree.First(); first != "" {
 		m.tree.Select(first)
 		m.syncDiff()
