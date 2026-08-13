@@ -27,10 +27,20 @@ func NewKeyMap() KeyMap {
 	}
 }
 
-// ShortHelp is the line on the status bar. It stays short enough to survive a
-// narrow terminal, where the rest is one keypress away.
+// ShortHelp is the line on the status bar: what the pane holding the keys can
+// do, then the two that answer from anywhere.
+//
+// It changes with focus, because the point of the line is what the next press
+// would do. The rest is one keypress away.
 func (m Model) ShortHelp() []key.Binding {
-	return []key.Binding{m.keys.Help, m.keys.Quit}
+	own := m.diff.Keys.Hints()
+	if m.focus == focusTree {
+		own = m.tree.Keys.Hints()
+	}
+
+	// The paging keys come last of the pane's own. They answer from either pane,
+	// and over the tree they are the one nobody would guess.
+	return append(own, m.diff.Keys.Paging(), m.keys.Help, m.keys.Quit)
 }
 
 // FullHelp is the overlay, in columns.

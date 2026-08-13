@@ -27,6 +27,18 @@ func NewMovement() Movement {
 	}
 }
 
+// Pair reads two opposite keys as one entry on the status bar: j and k are one
+// thing a reader learns, and the bar has no room to say it twice.
+//
+// The keys come off the bindings it is given, so nothing here is a second
+// declaration of what a key does. Only the label is new, and a label is text.
+func Pair(a, b key.Binding, label, desc string) key.Binding {
+	return key.NewBinding(
+		key.WithKeys(append(a.Keys(), b.Keys()...)...),
+		key.WithHelp(label, desc),
+	)
+}
+
 // Bindings is the movement keys in the order the help lists them.
 func (m Movement) Bindings() []key.Binding {
 	return []key.Binding{m.Down, m.Up, m.Top, m.Bottom}

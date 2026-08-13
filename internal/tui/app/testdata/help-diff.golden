@@ -1,16 +1,16 @@
-j      down                   h/1 tree pane    ? help                                               
-k      up                     l/2 diff pane    q quit                                               
-g      top                                                                                          
-G      bottom                                                                                       
-ctrl+d diff half page down                                                                          
-ctrl+u diff half page up                                                                            
-                                                                                                    
-                                                                                                    
-                                                                                                    
-                                                                                                    
-                                                                                                    
-                                                                                                    
-                                                                                                    
-                                                                                                    
-                                                                                                    
-? help • q quit                                                                                     
+╭─[1]─Zen Review───────────────────────╮╭─[2]─assets/logo.png──────────────────────────────────────╮
+│                                      ││binary                                                    │
+│  assets                             ││                                                          │
+│   ○ logo.png                  binary ││                                                          │
+│  docs/superpowers/spe╭─Keys─────────────────────────────────────────────╮                       │
+│   ● design.md         │ j      down              h/1 tree pane    ? help │                       │
+│  internal            │ k      up                l/2 diff pane    q quit │                       │
+│    cli               │ g      top                                       │                       │
+│     ○ render.go       │ G      bottom                                    │                       │
+├───────────────────────│ ctrl+d half page down                            │                       │
+│ origin/main           │ ctrl+u half page up                              │                       │
+│ Generation            ╰──────────────────────────────────────────────────╯                       │
+│ Reviewed                         2/7 ││                                                          │
+│ Changes                   6  +10 -3 ││                                                          │
+╰──────────────────────────────────────╯╰──────────────────────────────────────────────────────────╯
+j/k scroll · ctrl+d/u page the diff · ? help · q quit                                               

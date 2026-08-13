@@ -414,11 +414,37 @@ func TestTheHintIsAgainstTheLeftEdge(t *testing.T) {
 	for _, width := range []int{100, 72, 56} {
 		bar := open(t, width, 16).lines()[15]
 
-		if !strings.HasPrefix(bar, "? help") {
+		if !strings.HasPrefix(bar, "j/k") {
 			t.Errorf("at %d columns the bar starts %q", width, bar)
 		}
 		if got := lipgloss.Width(bar); got != width {
 			t.Errorf("at %d columns the bar is %d wide: %q", width, got, bar)
+		}
+	}
+}
+
+// TestTheBarSaysWhatThePaneHoldingTheKeysCanDo. The overlay is a keypress away
+// and nothing on screen said the keypress existed.
+func TestTheBarSaysWhatThePaneHoldingTheKeysCanDo(t *testing.T) {
+	tree := open(t, 100, 16).lines()[15]
+	for _, want := range []string{"j/k move", "enter open", "space fold"} {
+		if !strings.Contains(tree, want) {
+			t.Errorf("the tree holds the keys and the bar does not say %q: %q", want, tree)
+		}
+	}
+
+	diff := open(t, 100, 16).press("l").lines()[15]
+	if !strings.Contains(diff, "j/k scroll") {
+		t.Errorf("the diff holds the keys and the bar reads %q", diff)
+	}
+	if strings.Contains(diff, "space fold") {
+		t.Errorf("the bar still names a key of the pane that lost the keys: %q", diff)
+	}
+
+	// The one that answers from both, said the same way from either.
+	for _, bar := range []string{tree, diff} {
+		if !strings.Contains(bar, "ctrl+d/u page the diff") {
+			t.Errorf("the bar drops the key that crosses the panes: %q", bar)
 		}
 	}
 }

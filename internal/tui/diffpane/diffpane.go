@@ -37,14 +37,29 @@ type KeyMap struct {
 func NewKeyMap() KeyMap {
 	return KeyMap{
 		Movement: comp.NewMovement(),
-		HalfUp:   key.NewBinding(key.WithKeys("ctrl+u"), key.WithHelp("ctrl+u", "diff half page up")),
-		HalfDown: key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+d", "diff half page down")),
+		HalfUp:   key.NewBinding(key.WithKeys("ctrl+u"), key.WithHelp("ctrl+u", "half page up")),
+		HalfDown: key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+d", "half page down")),
 	}
 }
 
 // Scrolling is the keys that page the diff, which answer from either pane.
 func (k KeyMap) Scrolling() []key.Binding {
 	return []key.Binding{k.HalfDown, k.HalfUp}
+}
+
+// Hints is what the status bar says this pane can do while it holds the keys.
+func (k KeyMap) Hints() []key.Binding {
+	return []key.Binding{comp.Pair(k.Down, k.Up, "j/k", "scroll")}
+}
+
+// Paging is the half-page keys as the status bar names them, which is once and
+// by what they move. They answer from either pane, so the bar carries them
+// whichever has focus, and over the tree "half page down" would not say of what.
+//
+// The overlay lists the two separately and says the direction, because there it
+// sits under the pane it belongs to and has the room.
+func (k KeyMap) Paging() key.Binding {
+	return comp.Pair(k.HalfDown, k.HalfUp, "ctrl+d/u", "page the diff")
 }
 
 // Model is the diff pane. It renders the file it was given and holds no review
