@@ -16,9 +16,13 @@ const (
 	// indent is one level of nesting, in columns.
 	indent = 2
 
-	// barWidth is the cursor column and the space after it, which every row pays
-	// for so the rows below the selected one do not shift sideways.
-	barWidth = 2
+	// gutter is the columns every row starts in from the pane's edge, so a name
+	// does not sit against the border and a filled row has something to fill.
+	gutter = 2
+
+	// topPad is the blank line above the first row. The tree's first name sits
+	// under the pane's title rather than against it.
+	topPad = 1
 
 	// nameMin is the columns a name keeps whatever else wants them. A row that
 	// names no file names nothing.
@@ -99,8 +103,13 @@ func (m *Model) Blur()  { m.focused = false }
 
 // Scroll is where the window sits in the rows, for the counter the frame draws.
 func (m Model) Scroll() comp.Scroll {
-	return comp.Scroll{Offset: m.offset, Height: m.height, Total: len(m.rows)}
+	return comp.Scroll{Offset: m.offset, Height: m.rowsHeight(), Total: len(m.rows)}
 }
+
+// rowsHeight is the lines left for rows once the blank one above them is paid
+// for. Every piece of scroll arithmetic measures against this and not the
+// pane, or the last row sits one line below the pane and is never drawn.
+func (m Model) rowsHeight() int { return max(m.height-topPad, 0) }
 
 // Path is the selected file's path, and is empty on a directory row.
 func (m Model) Path() string {
@@ -183,7 +192,7 @@ func (m *Model) move(by int) {
 // half is how far ctrl+u and ctrl+d go, and never zero on a pane too short to
 // halve.
 func (m Model) half() int {
-	return max(m.height/2, 1)
+	return max(m.rowsHeight()/2, 1)
 }
 
 // toggle folds the directory under the cursor. The cursor stays on it: folding
@@ -225,9 +234,10 @@ func (m *Model) scrollToCursor() {
 	if m.height <= 0 {
 		return
 	}
+	rows := m.rowsHeight()
 	m.offset = min(m.offset, m.cursor)
-	m.offset = max(m.offset, m.cursor-m.height+1)
-	m.offset = max(0, min(m.offset, max(len(m.rows)-m.height, 0)))
+	m.offset = max(m.offset, m.cursor-rows+1)
+	m.offset = max(0, min(m.offset, max(len(m.rows)-rows, 0)))
 }
 
 func open() tea.Cmd {

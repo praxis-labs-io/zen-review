@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/zen-kit/zen-kit/theme"
 
 	"github.com/zen-review/zen-review/internal/golden"
@@ -120,6 +121,39 @@ func seam(treeFocused bool) string {
 		return lit.Render("╮") + dim.Render("╭")
 	}
 	return dim.Render("╮") + lit.Render("╭")
+}
+
+// TestTheCursorIsOnTheRowTheKeysMoved. The tree marks its cursor with a filled
+// background and nothing else, so a stripped golden cannot see it and j could
+// stop moving without a single frame changing.
+func TestTheCursorIsOnTheRowTheKeysMoved(t *testing.T) {
+	fill := lipgloss.NewStyle().Background(theme.RosePineMoon.SelectedBackground).Render("x")
+	sgr := fill[len("\x1b["):strings.Index(fill, "m")]
+
+	for _, tt := range []struct {
+		keys []string
+		want string
+	}{
+		{nil, "README.md"},
+		{[]string{"j", "j"}, "logo.png"},
+		{[]string{"G"}, "painting_the_unif"},
+	} {
+		s := open(t, 100, 16).press(tt.keys...)
+
+		var found string
+		for _, line := range strings.Split(s.raw(), "\n") {
+			if strings.Contains(line, sgr) {
+				found = ansi.Strip(line)
+				break
+			}
+		}
+		switch {
+		case found == "":
+			t.Errorf("after %v no row carries the cursor", tt.keys)
+		case !strings.Contains(found, tt.want):
+			t.Errorf("after %v the cursor is on %q, want %q", tt.keys, found, tt.want)
+		}
+	}
 }
 
 // TestTheStatusBarSaysWhereTheReviewIs keeps the three facts the bar exists for

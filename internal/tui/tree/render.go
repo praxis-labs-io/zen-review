@@ -12,29 +12,35 @@ import (
 )
 
 func (m Model) View() string {
+	blank := strings.Repeat(" ", max(0, m.width))
+
 	lines := make([]string, 0, m.height)
+	for range min(topPad, m.height) {
+		lines = append(lines, blank)
+	}
+
 	for i := m.offset; i < len(m.rows) && len(lines) < m.height; i++ {
 		lines = append(lines, m.render(m.rows[i], i == m.cursor))
 	}
-
-	blank := strings.Repeat(" ", max(0, m.width))
 	for len(lines) < m.height {
 		lines = append(lines, blank)
 	}
 	return strings.Join(lines, "\n")
 }
 
-// render is one row: the cursor bar, the glyph, the name, and the churn against
-// the right edge.
+// render is one row: the indent, the glyph, the name, and the churn against the
+// right edge.
+//
+// The row under the cursor is a filled background and nothing else. On an
+// unfocused pane the fill stays, so the reader can still see where the tree is,
+// and the text goes quiet so it does not read as the thing the keys are pointed
+// at.
 func (m Model) render(r row, cursor bool) string {
 	fill := m.theme.Background
 	text := m.theme.Text
 	if cursor {
 		fill = m.theme.SelectedBackground
 		if !m.focused {
-			// The bar stays on an unfocused pane so the reader can still see where
-			// the tree is, and the text goes quiet so it does not read as the thing
-			// the keys are pointed at.
 			text = m.theme.Subtle
 		}
 	}
@@ -49,9 +55,9 @@ func (m Model) render(r row, cursor bool) string {
 
 	// The indent gives way before the name does. A branching tree eleven deep
 	// would otherwise spend the whole pane saying how deep it is.
-	depth := min(r.depth*indent, max(m.width-barWidth-nameMin-2, 0))
+	depth := min(r.depth*indent, max(m.width-gutter-nameMin-2, 0))
 
-	room := m.width - barWidth - depth - lipgloss.Width(glyph) - 1
+	room := m.width - gutter - depth - lipgloss.Width(glyph) - 1
 
 	// The trailing cell takes what is left over the name's share, not the other
 	// way round. "renamed, contents unchanged" is 27 columns and would leave a
@@ -65,8 +71,7 @@ func (m Model) render(r row, cursor bool) string {
 	// columns to the churn beside it.
 	name := comp.Clip(comp.Safe(r.n.name), max(room, 0), subtle)
 
-	row := m.bar(cursor, base) +
-		base.Render(strings.Repeat(" ", depth)) +
+	row := base.Render(strings.Repeat(" ", gutter+depth)) +
 		base.Foreground(glyphColor).Render(glyph) +
 		base.Render(" ") +
 		base.Foreground(text).Render(name)
@@ -79,22 +84,6 @@ func (m Model) render(r row, cursor bool) string {
 		row += subtle.Render(trailing)
 	}
 	return comp.Clip(row, m.width, subtle)
-}
-
-// bar is the mark on the row the keys are pointed at.
-//
-// A selected row carries a background too, but a background alone is a row the
-// reader cannot find on a terminal that drops it, and a mark the render tests
-// cannot see once the escapes are stripped off the frame.
-func (m Model) bar(cursor bool, base lipgloss.Style) string {
-	if !cursor {
-		return base.Render("  ")
-	}
-	c := m.theme.Accent
-	if !m.focused {
-		c = m.theme.Subtle
-	}
-	return base.Foreground(c).Render("▎") + base.Render(" ")
 }
 
 // glyph is the row's mark: which way a directory is folded, or how much of a

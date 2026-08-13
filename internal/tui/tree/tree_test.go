@@ -1,6 +1,7 @@
 package tree_test
 
 import (
+	"image/color"
 	"strings"
 	"testing"
 
@@ -22,9 +23,33 @@ func pane(t *testing.T, width, height int) tree.Model {
 	return m
 }
 
-func rows(t *testing.T, m tree.Model) []string {
+// lines is every line the pane drew, the blank one above the tree included.
+func lines(t *testing.T, m tree.Model) []string {
 	t.Helper()
 	return strings.Split(ansi.Strip(m.View()), "\n")
+}
+
+// rows drops that blank line, so a test indexes the tree the way it reads.
+func rows(t *testing.T, m tree.Model) []string {
+	t.Helper()
+	return lines(t, m)[1:]
+}
+
+// fill is the SGR parameters lipgloss writes for a background colour.
+//
+// The cursor row is a fill and nothing else, so a test looks for the colour
+// inside whatever style the row is wearing. A stripped frame cannot see it, and
+// there is no glyph left to look for.
+func fill(c color.Color) string {
+	rendered := lipgloss.NewStyle().Background(c).Render("x")
+	return rendered[len("\x1b["):strings.Index(rendered, "m")]
+}
+
+// cursored reports whether a row is the one under the cursor.
+func cursored(t *testing.T, m tree.Model, i int) bool {
+	t.Helper()
+	raw := strings.Split(m.View(), "\n")[1:]
+	return strings.Contains(raw[i], fill(theme.RosePineMoon.SelectedBackground))
 }
 
 func press(t *testing.T, m tree.Model, keys ...string) (tree.Model, tea.Cmd) {
@@ -84,7 +109,7 @@ func TestFoldingKeepsTheCursorWhereItWas(t *testing.T) {
 	if !strings.Contains(after[5], "▸ internal") {
 		t.Errorf("space did not fold internal: %q", after[5])
 	}
-	if !strings.Contains(after[5], "▎") {
+	if !cursored(t, m, 5) {
 		t.Errorf("the cursor left the row it folded: %q", after[5])
 	}
 	if joined := strings.Join(after, "\n"); strings.Contains(joined, "state.go") {
@@ -172,7 +197,7 @@ func TestSelectReachesIntoAFoldedDirectory(t *testing.T) {
 func TestEveryRowIsExactlyThePane(t *testing.T) {
 	for _, width := range []int{32, 24, 16, 8} {
 		m := pane(t, width, 20)
-		for i, row := range rows(t, m) {
+		for i, row := range lines(t, m) {
 			if got := lipgloss.Width(row); got != width {
 				t.Errorf("at width %d, row %d is %d columns: %q", width, i, got, row)
 			}
@@ -240,7 +265,7 @@ func TestAControlCharacterInAPathCannotBreakTheRow(t *testing.T) {
 	if got := len(strings.Split(view, "\n")); got != 4 {
 		t.Errorf("the pane drew %d lines into a height of 4:\n%q", got, view)
 	}
-	for i, row := range rows(t, m) {
+	for i, row := range lines(t, m) {
 		if w := lipgloss.Width(row); w != 32 {
 			t.Errorf("row %d is %d columns: %q", i, w, row)
 		}
