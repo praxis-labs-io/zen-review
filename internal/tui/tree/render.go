@@ -32,7 +32,13 @@ func (m Model) View() string {
 // at.
 func (m Model) render(r row, cursor bool) string {
 	fill := m.theme.Background
+
+	// A directory is the shape of the changeset rather than a thing to read, so
+	// it takes the accent and the files under it stay in the reading colour.
 	text := m.theme.Text
+	if r.n.dir() {
+		text = m.theme.Accent
+	}
 	if cursor {
 		fill = m.theme.SelectedBackground
 		if !m.focused {
@@ -88,12 +94,17 @@ func (m Model) render(r row, cursor bool) string {
 // empty ring is untouched, a ring with a centre is started, a filled one is
 // done. They come from one circle family so every state is one cell at the
 // same weight, and a burn-down here reads the way a ticket board does.
+//
+// The folders are Nerd Font, which is the one thing on screen that asks
+// anything of the terminal's font. Both render one cell wide, so a font
+// without them draws a replacement box rather than putting every row after it
+// out of step.
 func (m Model) glyph(n *node) (string, color.Color) {
 	if n.dir() {
 		if n.open {
-			return "▾", m.theme.Subtle
+			return "\uf07c", m.theme.Accent
 		}
-		return "▸", m.theme.Subtle
+		return "\uf07b", m.theme.Accent
 	}
 
 	switch n.file.State {

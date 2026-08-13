@@ -1,10 +1,10 @@
 ╭─[1]─Zen Review─────────────────╮╭─[2]─internal/tui/diffpane/painting_the_unified_rows.go─────────╮
-│▾ internal                      ││         @@ -0,0 +1,2 @@                                        │
-│  ▾ cli                         ││                                                                │
+│ internal                      ││         @@ -0,0 +1,2 @@                                        │
+│   cli                         ││                                                                │
 │    ○ render.go            +1 -1││                                                                │
-│  ▾ review                      ││                                                                │
+│   review                      ││                                                                │
 │    ⊙ state.go             +3 -1││                                                                │
-│  ▾ tui/diffpane                ││                                                                │
+│   tui/diffpane                ││                                                                │
 │    ○ painting_the_unifie… +2 -0││                                                                │
 ╰────────────────────────────────╯│                                                                │
 ╭─Review─────────────────────────╮│                                                                │

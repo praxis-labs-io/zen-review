@@ -63,16 +63,16 @@ func TestADirectoryChainIsOneRow(t *testing.T) {
 
 	want := []string{
 		"○ README.md",
-		"▾ assets",
+		" assets",
 		"○ logo.png",
-		"▾ docs/superpowers/specs",
+		" docs/superpowers/specs",
 		"● design.md",
-		"▾ internal",
-		"▾ cli",
+		" internal",
+		" cli",
 		"○ render.go",
-		"▾ review",
+		" review",
 		"⊙ state.go",
-		"▾ tui/diffpane",
+		" tui/diffpane",
 	}
 
 	for i, w := range want {
@@ -80,7 +80,7 @@ func TestADirectoryChainIsOneRow(t *testing.T) {
 			t.Errorf("row %d is %q, want it to hold %q", i, got[i], w)
 		}
 	}
-	if strings.Contains(strings.Join(got, "\n"), "▾ docs\n") {
+	if strings.Contains(strings.Join(got, "\n"), " docs\n") {
 		t.Errorf("docs kept a row of its own:\n%s", strings.Join(got, "\n"))
 	}
 }
@@ -92,14 +92,14 @@ func TestFoldingKeepsTheCursorWhereItWas(t *testing.T) {
 	m, _ = press(t, m, "j", "j", "j", "j", "j")
 
 	before := rows(t, m)[5]
-	if !strings.Contains(before, "▾ internal") {
+	if !strings.Contains(before, " internal") {
 		t.Fatalf("the cursor is not on internal: %q", before)
 	}
 
 	m, _ = press(t, m, " ")
 	after := rows(t, m)
 
-	if !strings.Contains(after[5], "▸ internal") {
+	if !strings.Contains(after[5], " internal") {
 		t.Errorf("space did not fold internal: %q", after[5])
 	}
 	if !cursored(t, m, 5) {
@@ -158,7 +158,7 @@ func TestEnterOpensAFileAndFoldsADirectory(t *testing.T) {
 	if cmd != nil {
 		t.Errorf("enter on a directory asked for a file to be opened")
 	}
-	if got := rows(t, m)[1]; !strings.Contains(got, "▸ assets") {
+	if got := rows(t, m)[1]; !strings.Contains(got, " assets") {
 		t.Errorf("enter did not fold the directory: %q", got)
 	}
 }
