@@ -15,16 +15,16 @@ import (
 	"github.com/zen-review/zen-review/internal/testchangeset"
 )
 
-// TestGoldenFrames locks the layout at the widths that prove something.
-//
-// The goldens hold the frame with its escapes stripped, so a diff in review is
-// readable and a lipgloss bump does not churn every file. What they prove is
-// alignment and clipping; colour is asserted directly further down.
 // code walks the tree to the fixture's two-hunk Go file, counting back from the
 // last row rather than down from the first: the tree opens on a binary file, and
 // the rows between the two are directories a change to the fixture would move.
 var code = []string{"G", "k", "k", "k"}
 
+// TestGoldenFrames locks the layout at the widths that prove something.
+//
+// The goldens hold the frame with its escapes stripped, so a diff in review is
+// readable and a lipgloss bump does not churn every file. What they prove is
+// alignment and clipping; colour is asserted directly further down.
 func TestGoldenFrames(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -39,7 +39,11 @@ func TestGoldenFrames(t *testing.T) {
 		// tree opens on a binary one, which has none.
 		{"narrow", 56, 16, code},
 
+		// Both panes, because the overlay reads its keys off whichever one has
+		// them and only one of the two can be wrong at a time.
 		{"help", 100, 16, []string{"?"}},
+		{"help-diff", 100, 16, []string{"l", "?"}},
+
 		{"folded", 100, 16, []string{"j", "space"}},
 		{"deep", 100, 16, []string{"G"}},
 

@@ -15,9 +15,8 @@ import (
 	"github.com/zen-review/zen-review/internal/tui/diffpane"
 )
 
-// The fixture's two-hunk file, which is what the scroll and the fold are
-// measured against. Sixteen rows: a header and six lines, a blank, a header and
-// seven lines.
+// The fixture's two-hunk file, which is what the scrolling is measured against.
+// Sixteen rows: a header and six lines, a blank, a header and seven lines.
 const twoHunks = "internal/review/state.go"
 
 func pane(t *testing.T, path string, width, height int) diffpane.Model {
@@ -62,9 +61,8 @@ func press(t *testing.T, m diffpane.Model, keys ...tea.KeyPressMsg) diffpane.Mod
 }
 
 var (
-	down  = tea.KeyPressMsg{Code: 'j', Text: "j"}
-	up    = tea.KeyPressMsg{Code: 'k', Text: "k"}
-	space = tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}
+	down = tea.KeyPressMsg{Code: 'j', Text: "j"}
+	up   = tea.KeyPressMsg{Code: 'k', Text: "k"}
 )
 
 // TestAFileIsItsLines: the numbers on both sides, the marker between them, and
@@ -160,6 +158,84 @@ func TestSourceCannotWriteToTheTerminal(t *testing.T) {
 	}
 }
 
+// TestAMissingTrailingNewlineIsSaidSoAndNotShown. Git carries it as an
+// annotation on the line rather than as a line, and a pane that drops it draws
+// a removal and an addition of identical text with nothing to tell the reader
+// what moved.
+func TestAMissingTrailingNewlineIsSaidSoAndNotShown(t *testing.T) {
+	const patch = `diff --git a/eof.go b/eof.go
+index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1b039aafb 100644
+--- a/eof.go
++++ b/eof.go
+@@ -1,1 +1,1 @@
+-package eof
+\ No newline at end of file
++package eof
+`
+
+	c := testchangeset.Derive(t, patch)
+	m := diffpane.New(theme.RosePineMoon)
+	m.SetSize(60, 6)
+	m.SetFile(&c.Files[0])
+
+	got := rows(t, m)
+	if !strings.Contains(got[1], "− package eof") {
+		t.Fatalf("the removal is not where it was expected: %q", got[1])
+	}
+	if !strings.Contains(got[2], `\ No newline at end of file`) {
+		t.Errorf("the annotation does not hang under the line it is about: %q", got[2])
+	}
+	if !strings.Contains(got[3], "+ package eof") {
+		t.Errorf("the annotation displaced the addition: %q", got[3])
+	}
+}
+
+// TestARenameLexesEachSideByItsOwnName. A rename that changes the extension is
+// a different language on the base, and lexing its removals as the head's
+// colours them by a grammar they were never written in.
+func TestARenameLexesEachSideByItsOwnName(t *testing.T) {
+	const comment = "# the old script"
+
+	const patch = `diff --git a/run.py b/run.go
+similarity index 40%
+rename from run.py
+rename to run.go
+index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1b039aafb 100644
+--- a/run.py
++++ b/run.go
+@@ -1,1 +1,1 @@
+-` + comment + `
++package run
+`
+
+	s, ok := syntax.New(theme.RosePineMoon.Syntax)
+	if !ok {
+		t.Fatalf("the theme names a Chroma style Chroma does not have: %q", theme.RosePineMoon.Syntax)
+	}
+
+	// Python reads the line as one comment. Go has no comment starting with a
+	// hash, so it breaks the same text into a run per word and paints the hash
+	// as the error it is, which is why one run of the whole line is the proof.
+	tokens := s.Lines("run.py", comment)[0]
+	if len(tokens) != 1 {
+		t.Fatalf("the Python lexer no longer reads %q as one token: %+v", comment, tokens)
+	}
+
+	c := testchangeset.Derive(t, patch)
+	m := diffpane.New(theme.RosePineMoon)
+	m.SetSize(60, 4)
+	m.SetFile(&c.Files[0])
+
+	want := lipgloss.NewStyle().
+		Background(theme.RosePineMoon.RemovedBackground).
+		Foreground(tokens[0].Color).
+		Render(comment)
+
+	if !strings.Contains(m.View(), want) {
+		t.Errorf("the removed row was lexed as Go rather than as the file it came from:\n%s", joined(t, m))
+	}
+}
+
 // TestCodeIsHighlighted, on a context row so the kind's own tint is not in the
 // way. A stripped frame cannot see a colour, so this reads the raw one.
 func TestCodeIsHighlighted(t *testing.T) {
@@ -231,64 +307,6 @@ func TestChangingFileTakesTheReaderToTheTop(t *testing.T) {
 	m.SetFile(fileAt(t, c, "README.md"))
 	if got := rows(t, m)[0]; !strings.Contains(got, "@@ -1,3 +1,3 @@") {
 		t.Errorf("the new file opened part-way down: %q", got)
-	}
-}
-
-// TestSpaceFoldsTheHunkTheWindowOpensIn, leaving its header and taking its
-// lines away.
-func TestSpaceFoldsTheHunkTheWindowOpensIn(t *testing.T) {
-	m := press(t, pane(t, twoHunks, 60, 20), space)
-
-	got := joined(t, m)
-	if strings.Contains(got, `Unreviewed State = "unread"`) {
-		t.Errorf("the folded hunk kept its lines:\n%s", got)
-	}
-	if !strings.Contains(got, "▸ @@ -10,5") {
-		t.Errorf("the folded hunk lost its header:\n%s", got)
-	}
-	if !strings.Contains(got, "▾ @@ -120,5") {
-		t.Errorf("the hunk below it folded too:\n%s", got)
-	}
-	if !strings.Contains(got, "return Derive(files, rows), nil") {
-		t.Errorf("the hunk below it lost its lines:\n%s", got)
-	}
-}
-
-// TestFoldingAndUnfoldingLeaveTheReaderOnTheSameHunk, including on the last
-// hunk of a file, where the window has to run past the end for the header it
-// folded to reach the top row.
-func TestFoldingAndUnfoldingLeaveTheReaderOnTheSameHunk(t *testing.T) {
-	m := pane(t, twoHunks, 60, 8)
-	m = press(t, m, tea.KeyPressMsg{Code: 'G', Text: "G"})
-
-	m = press(t, m, space)
-	if got := rows(t, m)[0]; !strings.Contains(got, "▸ @@ -120,5") {
-		t.Fatalf("the folded hunk is not on the top row: %q", got)
-	}
-
-	m = press(t, m, space)
-	if got := rows(t, m)[0]; !strings.Contains(got, "▾ @@ -120,5") {
-		t.Errorf("the second press acted on a different hunk: %q", got)
-	}
-	if got := joined(t, m); !strings.Contains(got, "return Derive(files, rows), nil") {
-		t.Errorf("unfolding did not bring the lines back:\n%s", got)
-	}
-}
-
-// TestAFoldSurvivesWalkingAwayFromTheFile. A fold is the reader saying they are
-// done with a hunk for now, and a pane that forgets it on the way past the next
-// file punishes looking at anything else.
-func TestAFoldSurvivesWalkingAwayFromTheFile(t *testing.T) {
-	c := testchangeset.Nested(t)
-
-	m := pane(t, twoHunks, 60, 20)
-	m = press(t, m, space)
-
-	m.SetFile(fileAt(t, c, "README.md"))
-	m.SetFile(fileAt(t, c, twoHunks))
-
-	if got := joined(t, m); !strings.Contains(got, "▸ @@ -10,5") {
-		t.Errorf("the fold was forgotten:\n%s", got)
 	}
 }
 

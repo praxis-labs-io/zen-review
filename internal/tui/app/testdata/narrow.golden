@@ -1,5 +1,5 @@
 ╭─[1]─Zen Review─────────────────╮╭─[2]─internal/revie…╮
-│    cli                        ││           ▾ @@ -10…│
+│    cli                        ││           @@ -10,5…│
 │     ○ render.go          +1 -1 ││  10  10   // State…│
 │    review                     ││  11  11   type Sta…│
 │     ⊙ state.go           +3 -1 ││  12  12   const (  │
@@ -7,7 +7,7 @@
 │     ○ painting_the_unif… +2 -0 ││      13 +     Unre…│
 │ ○ README.md              +1 -1 ││  14  14       Part…│
 │                                ││                    │
-├────────────────────────────────┤│           ▾ @@ -12…│
+├────────────────────────────────┤│           @@ -120,…│
 │ origin/main            a1b2c3d ││ 120 120       rows…│
 │ Generation                   2 ││ 121 121       if e…│
 │ Reviewed                   2/7 ││ 122 122           …│
