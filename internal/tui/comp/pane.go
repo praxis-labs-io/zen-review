@@ -19,6 +19,7 @@ import (
 type Pane struct {
 	theme   theme.Theme
 	title   string
+	count   string
 	index   int
 	footer  string
 	focused bool
@@ -32,9 +33,21 @@ func NewPane(t theme.Theme) Pane {
 	return Pane{theme: t}
 }
 
-// Title sets the text in the top border.
+// Title sets the name in the top border.
 func (p Pane) Title(s string) Pane {
 	p.title = s
+	return p
+}
+
+// Count sets the number after the title, which the pane parenthesises and
+// draws at the weight every count on the pane reads at. Empty leaves it off,
+// so a pane with nothing to count says nothing rather than zero.
+//
+// It is a field rather than part of the title because it does not answer to
+// focus: the title says which pane the keys are on, and how many rows are in
+// it is the same fact either way.
+func (p Pane) Count(s string) Pane {
+	p.count = s
 	return p
 }
 
@@ -120,6 +133,9 @@ func (p Pane) topBorder() string {
 	if p.title != "" {
 		label.WriteString(p.titleStyle().Render(p.title))
 	}
+	if p.count != "" {
+		label.WriteString(p.muted().Render(" (" + p.count + ")"))
+	}
 
 	// The badge and the title are clipped together rather than one after the
 	// other. A pane too narrow for the badge alone would otherwise push the
@@ -132,9 +148,9 @@ func (p Pane) topBorder() string {
 
 // bottomBorder carries the counter, right-aligned one rune in from the corner.
 //
-// The counter is chrome and reads at the border's weight rather than the
-// content's, and it stays there whichever pane has focus. Which pane that is
-// the border already says.
+// It reads at the weight the heading's count does, because it is the same kind
+// of fact, and it stays there whichever pane has focus. Which pane that is the
+// heading already says twice.
 func (p Pane) bottomBorder() string {
 	style := p.borderStyle()
 	mid := p.InnerWidth()
@@ -143,7 +159,7 @@ func (p Pane) bottomBorder() string {
 		return style.Render("╰" + strings.Repeat("─", mid) + "╯")
 	}
 
-	footer := Clip(p.subtle().Render(p.footer), max(mid-1, 0), p.subtle())
+	footer := Clip(p.muted().Render(p.footer), max(mid-1, 0), p.muted())
 	fill := max(mid-lipgloss.Width(footer)-1, 0)
 
 	return style.Render("╰"+strings.Repeat("─", fill)) + footer + style.Render("─╯")
@@ -166,7 +182,7 @@ func (p Pane) borderStyle() lipgloss.Style {
 
 func (p Pane) titleStyle() lipgloss.Style {
 	if p.focused {
-		return lipgloss.NewStyle().Foreground(p.theme.Text).Bold(true)
+		return lipgloss.NewStyle().Foreground(p.theme.Accent).Bold(true)
 	}
 	return p.subtle()
 }
@@ -175,6 +191,10 @@ func (p Pane) indexStyle() lipgloss.Style {
 	if p.focused {
 		return lipgloss.NewStyle().Foreground(p.theme.Accent)
 	}
+	return p.muted()
+}
+
+func (p Pane) muted() lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(p.theme.Muted)
 }
 

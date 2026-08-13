@@ -68,7 +68,8 @@ func (m Model) content() string {
 func (m Model) body() string {
 	tree := m.treePane.
 		Index(1).
-		Title("Files (" + strconv.Itoa(len(m.changeset.Files)) + ")").
+		Title("Files").
+		Count(strconv.Itoa(len(m.changeset.Files))).
 		Footer(m.tree.Scroll().Footer()).
 		Focus(m.focus == focusTree).
 		Render(m.tree.View())

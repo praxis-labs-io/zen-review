@@ -51,15 +51,22 @@ func TestTheBoxIsExactlyTheSizeItWasGiven(t *testing.T) {
 	}
 }
 
-// TestTheBorderCarriesTheIndexAndTheTitle, flush against the left corner.
-func TestTheBorderCarriesTheIndexAndTheTitle(t *testing.T) {
-	top := strip(pane().Size(30, 4).Index(2).Title("Files (7)").Render(""))[0]
+// TestTheBorderCarriesTheIndexTheTitleAndTheCount, flush against the left
+// corner. The pane parenthesises the count, so no caller has to.
+func TestTheBorderCarriesTheIndexTheTitleAndTheCount(t *testing.T) {
+	top := strip(pane().Size(30, 4).Index(2).Title("Files").Count("7").Render(""))[0]
 
 	if want := "╭─[2]─Files (7)"; !strings.HasPrefix(top, want) {
 		t.Errorf("the top border is %q, want it to start %q", top, want)
 	}
 	if !strings.HasSuffix(top, "╮") {
 		t.Errorf("the top border does not close: %q", top)
+	}
+
+	// A pane with nothing to count says nothing rather than zero.
+	bare := strip(pane().Size(30, 4).Index(2).Title("Files").Render(""))[0]
+	if strings.Contains(bare, "(") {
+		t.Errorf("a pane with no count drew parentheses: %q", bare)
 	}
 }
 
@@ -72,12 +79,12 @@ func TestTheHeadingAnswersToFocus(t *testing.T) {
 	lit := map[string]string{
 		"corner": lipgloss.NewStyle().Foreground(t2.Accent).Render("╭"),
 		"index":  lipgloss.NewStyle().Foreground(t2.Accent).Render("[1]"),
-		"title":  lipgloss.NewStyle().Foreground(t2.Text).Bold(true).Render("Files (7)"),
+		"title":  lipgloss.NewStyle().Foreground(t2.Accent).Bold(true).Render("Files"),
 	}
 	dim := map[string]string{
 		"corner": lipgloss.NewStyle().Foreground(t2.BorderSubtleOrBorder()).Render("╭"),
 		"index":  lipgloss.NewStyle().Foreground(t2.Muted).Render("[1]"),
-		"title":  lipgloss.NewStyle().Foreground(t2.Subtle).Render("Files (7)"),
+		"title":  lipgloss.NewStyle().Foreground(t2.Subtle).Render("Files"),
 	}
 
 	for _, tt := range []struct {
@@ -90,7 +97,7 @@ func TestTheHeadingAnswersToFocus(t *testing.T) {
 		{"blurred", false, dim, lit},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			top := strings.Split(pane().Size(30, 4).Index(1).Title("Files (7)").
+			top := strings.Split(pane().Size(30, 4).Index(1).Title("Files").Count("7").
 				Focus(tt.focused).Render(""), "\n")[0]
 
 			for part, want := range tt.want {
