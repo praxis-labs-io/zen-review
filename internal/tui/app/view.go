@@ -226,16 +226,59 @@ func (m Model) overlay(frame string) string {
 // status is what the pane holding the keys can do, against the left edge where
 // the eye starts.
 //
-// The facts join it only when their own box did not fit, and the hint falls
-// back to the way out when they do. Both have to be on screen somewhere, and on
-// a frame that small the pane's own keys are what the reader can find by
-// pressing the one key the bar keeps.
+// The facts join it only when their own box did not fit. Both have to be on
+// screen somewhere, and the keys drop from the tail until the two share the
+// line.
+//
+// A notice takes that right edge from the facts for the one press it lasts. It
+// answers the key just pressed, which outranks a total the next frame shows
+// again.
 func (m Model) status() string {
-	if m.metaShown() {
+	subtle := lipgloss.NewStyle().Foreground(m.theme.Subtle)
+
+	right := m.said()
+	if right == "" && !m.metaShown() {
+		right = m.factLine()
+	}
+	if right == "" {
 		return m.pad(m.bar(m.width), m.width)
 	}
-	hint := m.help.ShortHelpView(m.wayOut())
 
+	// A failed reload takes the whole line. It is a sentence rather than a
+	// label, and the keys are one press away where the reason it gives is not.
+	if m.note.bad {
+		return m.pad(right, m.width)
+	}
+
+	// The right side is measured against the way out and the keys against what
+	// is left, so the bar shrinks around it rather than clipping it. A total or
+	// an answer to the key just pressed misstates itself when it is cut.
+	right = comp.Clip(right, max(m.width-lipgloss.Width(m.help.ShortHelpView(m.wayOut()))-2, 0), subtle)
+	left := m.bar(max(m.width-lipgloss.Width(right)-2, 0))
+
+	gap := m.width - lipgloss.Width(left) - lipgloss.Width(right)
+	if gap < 0 {
+		return m.pad(left, m.width)
+	}
+	return left + strings.Repeat(" ", gap) + right
+}
+
+// said is the notice as it draws, in the theme's error colour when the reload
+// failed and in the facts' own subtle otherwise.
+func (m Model) said() string {
+	if m.note.text == "" {
+		return ""
+	}
+
+	c := m.theme.Subtle
+	if m.note.bad {
+		c = m.theme.Error
+	}
+	return lipgloss.NewStyle().Foreground(c).Render(comp.Safe(m.note.text))
+}
+
+// factLine is the four facts on one line, for the bar that has to carry them.
+func (m Model) factLine() string {
 	muted := lipgloss.NewStyle().Foreground(m.theme.Muted)
 	subtle := lipgloss.NewStyle().Foreground(m.theme.Subtle)
 
@@ -243,15 +286,7 @@ func (m Model) status() string {
 	for _, f := range m.facts() {
 		joined = append(joined, muted.Render(f.label)+" "+f.value)
 	}
-
-	facts := comp.Clip(strings.Join(joined, subtle.Render(dot)),
-		max(m.width-lipgloss.Width(hint)-2, 0), subtle)
-
-	gap := m.width - lipgloss.Width(hint) - lipgloss.Width(facts)
-	if gap < 0 {
-		return m.pad(hint, m.width)
-	}
-	return hint + strings.Repeat(" ", gap) + facts
+	return strings.Join(joined, subtle.Render(dot))
 }
 
 // bar is the status line, with the pane's own keys dropped off the tail until

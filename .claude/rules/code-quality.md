@@ -22,6 +22,7 @@ Don't restate the global rules here.
 
 - **All model mutation happens in `Update`.** A goroutine never touches the model. Anything asynchronous returns a `tea.Cmd` that delivers a typed message, and `Update` applies it. This is the invariant that keeps `-race` quiet.
 - One message type per outcome, named for what happened (`generationBuiltMsg`, `remapFailedMsg`). No shared bag-of-fields message reused across call sites.
+- **A command outlives the program.** Bubble Tea does not wait for one it started, so `Run` returns with a git call still going. Whatever the command borrowed is released after that call finishes, never after `Run` does.
 - `View` is pure. It reads the model and returns a string, it never fetches, mutates, or starts anything.
 - Sub-models own their own keymaps and return commands upward. The root model routes; it doesn't reach into a child's fields.
 

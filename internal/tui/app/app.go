@@ -35,10 +35,18 @@ type Model struct {
 	keys  KeyMap
 	theme theme.Theme
 
+	// src is what the reload key reaches. It is called off the update loop, and
+	// reloading is what keeps two calls from being in flight at once.
+	src       Source
+	reloading bool
+
 	repo      string
 	base      review.Base
 	gen       review.Generation
 	changeset review.Changeset
+
+	// note is what the last reload found, until the next key clears it.
+	note notice
 
 	tree tree.Model
 	diff diffpane.Model
@@ -67,16 +75,18 @@ type Model struct {
 // came here to burn a review down, and the first thing to press is a ring key.
 //
 // The changeset is held by value and the panes point into its files, so it
-// must not be appended to after this.
-func New(t theme.Theme, repo string, base review.Base, g review.Generation, c review.Changeset) Model {
+// must not be appended to after this. A reload replaces it wholesale and
+// re-points both panes rather than growing the one they hold.
+func New(t theme.Theme, src Source, repo string, r Reload) Model {
 	m := Model{
 		keys:      NewKeyMap(),
 		theme:     t,
+		src:       src,
 		repo:      repo,
-		base:      base,
-		gen:       g,
-		changeset: c,
-		tree:      tree.New(t, c),
+		base:      r.Base,
+		gen:       r.Generation,
+		changeset: r.Changeset,
+		tree:      tree.New(t, r.Changeset),
 		diff:      diffpane.New(t),
 		help:      comp.Help(t),
 		treePane:  comp.NewPane(t),
@@ -91,8 +101,12 @@ func New(t theme.Theme, repo string, base review.Base, g review.Generation, c re
 }
 
 // Run opens the reader on the terminal and returns when it closes.
-func Run(ctx context.Context, t theme.Theme, repo string, base review.Base, g review.Generation, c review.Changeset) error {
-	if _, err := tea.NewProgram(New(t, repo, base, g, c), tea.WithContext(ctx)).Run(); err != nil {
+//
+// It can return with a reload still in git. Bubble Tea does not wait for a
+// command it started, so a caller holding the session has to before it lets go
+// of it.
+func Run(ctx context.Context, t theme.Theme, src Source, repo string, r Reload) error {
+	if _, err := tea.NewProgram(New(t, src, repo, r), tea.WithContext(ctx)).Run(); err != nil {
 		return fmt.Errorf("running the reader: %w", err)
 	}
 	return nil
@@ -110,6 +124,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.setFocus(focusDiff)
 		return m, nil
 
+	case reloadedMsg:
+		m.reloading = false
+		m.apply(msg.r)
+		return m, nil
+
+	case reloadFailedMsg:
+		// The changeset on screen is left alone. These writes are a local
+		// transaction that committed or did not, and there is no half-applied
+		// state to paint over.
+		m.reloading = false
+		m.note = notice{text: msg.err.Error(), bad: true}
+		return m, nil
+
 	case tea.KeyPressMsg:
 		return m.press(msg)
 	}
@@ -117,6 +144,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	// One press long, so it goes before the press that ends it is read.
+	m.note = notice{}
+
 	switch {
 	case key.Matches(msg, m.keys.Quit):
 		return m, tea.Quit
@@ -142,6 +172,21 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.Right):
 		m.setFocus(focusDiff)
 		return m, nil
+	}
+
+	// The reload runs off the update loop, one at a time. Two refreshes on one
+	// session race the ref swap against itself, and the loser of that race is a
+	// generation the database never hears about.
+	//
+	// The notice is set either way, so the second press does not blank the bar
+	// while the first is still in git.
+	if key.Matches(msg, m.keys.Reload) {
+		m.note = notice{text: "reloading"}
+		if m.reloading {
+			return m, nil
+		}
+		m.reloading = true
+		return m, m.reload()
 	}
 
 	// The ring answers from either pane and moves both, so it is routed before

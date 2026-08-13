@@ -20,6 +20,8 @@ type KeyMap struct {
 	NextFile key.Binding
 	PrevFile key.Binding
 
+	Reload key.Binding
+
 	Left  key.Binding
 	Right key.Binding
 	Help  key.Binding
@@ -42,6 +44,10 @@ func NewKeyMap() KeyMap {
 		PrevRead: key.NewBinding(key.WithKeys("N"), key.WithHelp("N", "previous unread")),
 		NextFile: key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "next file")),
 		PrevFile: key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "previous file")),
+
+		// A session action, so it sits with the ring rather than in a pane. It is
+		// the one key here that reaches past the screen to the work tree.
+		Reload: key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "reload")),
 
 		// The digits are the badges the panes carry in their borders. They join
 		// the bindings that already move focus rather than being declared beside
@@ -72,7 +78,13 @@ func (m Model) ShortHelp() []key.Binding {
 //
 // The file keys are last, so a hundred columns drops them and a wider terminal
 // keeps them. They are the ring's least-used pair and the only one whose job the
-// tree beside it already does.
+// tree beside it already does. The reload goes above them and below the paging
+// keys, which are pressed far more often.
+//
+// A hundred columns with the tree focused drops the reload too, so the overlay
+// is where a reader on that frame finds it. The two keys the bar never drops
+// are the way out, and a third would take the room the ring needs at
+// fifty-six.
 func (m Model) paneKeys() []key.Binding {
 	own := m.diff.Keys.Hints()
 	if m.focus == focusTree {
@@ -83,6 +95,7 @@ func (m Model) paneKeys() []key.Binding {
 		comp.Pair(m.keys.NextRead, m.keys.PrevRead, "n/N", "unread"),
 		comp.Pair(m.keys.NextHunk, m.keys.PrevHunk, "}/{", "hunk"),
 		m.diff.Keys.Paging(),
+		m.keys.Reload,
 		comp.Pair(m.keys.NextFile, m.keys.PrevFile, "tab", "file"),
 	)
 }
@@ -122,9 +135,12 @@ func (m Model) FullHelp() [][]key.Binding {
 	// they answer from both.
 	movement = append(movement, m.diff.Keys.Scrolling()...)
 
+	// The reload is here and not in the ring's column: the ring moves the cursor
+	// and this moves the changeset under it. It is also the one key the bar
+	// cannot always carry, so this is where a reader on a narrow frame meets it.
 	return [][]key.Binding{
 		movement,
 		m.ringKeys(),
-		append(panes, m.keys.Help, m.keys.Quit),
+		append(panes, m.keys.Reload, m.keys.Help, m.keys.Quit),
 	}
 }

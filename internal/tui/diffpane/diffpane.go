@@ -139,6 +139,17 @@ func (m *Model) SetFile(f *review.File) {
 	m.relayout()
 }
 
+// Restore puts the window back where it was, clamped to the file now in the
+// pane.
+//
+// It is for a reload that found nothing had changed. Replacing the file takes
+// the reader to the top and Select then takes them to their hunk's heading,
+// which throws away where they had scrolled to inside it. A reload that changed
+// nothing owes them that place back.
+func (m *Model) Restore(offset int) {
+	m.offset = max(0, min(offset, m.maxOffset()))
+}
+
 // Select puts the cursor on a hunk of the file in the pane and scrolls to it.
 //
 // The heading goes on the top row. A key that lands on a block is taking the

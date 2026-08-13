@@ -5,12 +5,12 @@
 │  docs/sup╭─Keys─────────────────────────────────────────────────────────────────────╮           │
 │   ● design│ j      down                   n         next unread        h/1 tree pane │           │
 │  internal│ k      up                     N         previous unread    l/2 diff pane │           │
-│    cli   │ g      top                    }         next hunk          ?   help      │           │
-│     ○ rend│ G      bottom                 {         previous hunk      q   quit      │           │
-├───────────│ ctrl+d diff half page down    tab       next file                        │           │
+│    cli   │ g      top                    }         next hunk          s   reload    │           │
+│     ○ rend│ G      bottom                 {         previous hunk      ?   help      │           │
+├───────────│ ctrl+d diff half page down    tab       next file          q   quit      │           │
 │ origin/mai│ ctrl+u diff half page up      shift+tab previous file                    │           │
 │ Generation╰──────────────────────────────────────────────────────────────────────────╯           │
 │ Reviewed                         2/7 ││                                                          │
 │ Changes                   6  +10 -3 ││                                                          │
 ╰──────────────────────────────────────╯╰──────────────────────────────────────────────────────────╯
-j/k scroll · n/N unread · }/{ hunk · ctrl+d/u page · tab file · ? help · q quit                     
+j/k scroll · n/N unread · }/{ hunk · ctrl+d/u page · s reload · tab file · ? help · q quit          

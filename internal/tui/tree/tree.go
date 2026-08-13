@@ -104,6 +104,29 @@ func New(t theme.Theme, c review.Changeset) Model {
 	return m
 }
 
+// SetChangeset rebuilds the tree over a new generation of the same review,
+// carrying across which directories the reader had folded and staying on the
+// file the cursor was on where the changeset still holds it.
+//
+// The rows point into the new changeset's files, so the caller has to keep it
+// where it is, the same as New. Nothing is resized: a reload does not move the
+// pane.
+func (m *Model) SetChangeset(c review.Changeset) {
+	was := m.Path()
+
+	shut := make(map[string]bool)
+	folded(m.roots, shut)
+
+	m.roots = build(c.Files)
+	refold(m.roots, shut)
+	m.rows = flatten(m.roots, 0, nil)
+
+	m.cursor = min(m.cursor, max(len(m.rows)-1, 0))
+	if was == "" || !m.Select(was) {
+		m.scrollToCursor()
+	}
+}
+
 // SetSize gives the pane the room it draws into, which is the inside of the
 // frame and not the frame.
 func (m *Model) SetSize(width, height int) {
