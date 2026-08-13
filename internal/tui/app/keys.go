@@ -40,11 +40,17 @@ func (m Model) ShortHelp() []key.Binding {
 func (m Model) FullHelp() [][]key.Binding {
 	panes := []key.Binding{m.keys.Left, m.keys.Right}
 
+	// The diff pane adds nothing to the pane column: everything it answers to is
+	// movement. The tree has keys of its own.
 	movement := m.diff.Keys.Bindings()
 	if m.focus == focusTree {
 		movement = m.tree.Keys.Movement.Bindings()
 		panes = append(panes, m.tree.Keys.Bindings()...)
 	}
+
+	// The half-page keys are listed under whichever pane has the keys, because
+	// they answer from both.
+	movement = append(movement, m.diff.Keys.Scrolling()...)
 
 	return [][]key.Binding{
 		movement,

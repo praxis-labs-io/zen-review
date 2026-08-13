@@ -161,10 +161,6 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.move(1)
 	case key.Matches(press, m.Keys.Up):
 		m.move(-1)
-	case key.Matches(press, m.Keys.HalfDown):
-		m.move(m.half())
-	case key.Matches(press, m.Keys.HalfUp):
-		m.move(-m.half())
 	case key.Matches(press, m.Keys.Top):
 		m.move(-len(m.rows))
 	case key.Matches(press, m.Keys.Bottom):
@@ -199,12 +195,6 @@ func (m *Model) move(by int) {
 	}
 	m.cursor = min(max(m.cursor+by, 0), len(m.rows)-1)
 	m.scrollToCursor()
-}
-
-// half is how far ctrl+u and ctrl+d go, and never zero on a pane too short to
-// halve.
-func (m Model) half() int {
-	return max(m.height/2, 1)
 }
 
 // toggle folds the directory under the cursor. The cursor stays on it: folding

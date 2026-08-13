@@ -187,7 +187,8 @@ The keymap is shared with zen-octo by convention, written down in both
 without either being hostage to the other's release cycle. zen-kit holds no keys.
 
 ```
-j k g G ctrl+u ctrl+d    movement
+j k g G                  movement
+ctrl+u ctrl+d            page the diff, from either pane
 h l                      tree pane / diff pane
 1 2                      the same two, by the badge in the pane's border
 tab shift+tab            the ring: next / prev hunk
@@ -216,9 +217,10 @@ s                        reload
 until the count reaches zero. `r` advances after marking, so `r r r r` walks the
 whole thing.
 
-Four divergences from zen-octo, all deliberate:
+Five divergences from zen-octo, all deliberate:
 
 - `space` folds, replacing `o`. zen-octo adopts this too.
+- `ctrl+u` / `ctrl+d` page the diff from either pane. zen-octo pages whichever pane has focus, its rail included. Walking the tree here is how a reader gets to a file, and reading it is what they came for.
 - `]` / `[` are tabs in zen-octo and comments here. zen-octo has tabs and zen-review never will.
 - `r` is reply in zen-octo and mark-reviewed here. Neither tool has the other's concept.
 - `v` is jump-to-diff in zen-octo, scoped to the conversation, and range selection here. They do not collide.
@@ -235,6 +237,7 @@ before wrapping, tokenising a side whole. These are this repo's own.
 - **A viewport offset is a line, and a row is not.** Once rows are two lines, scroll arithmetic that lands on the row it wants opens the window on that row's second line with its title cut off above. Round the offset up to the next item boundary, and size the viewport to a whole number of rows or the end-of-list clamp lands back between two lines.
 - **`viewport.EnsureVisible` is not a scroll-to-cursor.** It acts only once the line is already outside the window, then puts it on the top row. Move the offset by hand.
 - **The shortest scroll onto the screen is the wrong one.** A key that lands on a block is taking the reader somewhere, so put the block at the top row, and leave it alone when it already fits on screen whole.
+- **A key cannot aim at a block through the scroll offset.** A pane that fits its content has no offset to move, so a key reading its target off the top row acts on the first block whatever the reader does. Give the pane a cursor or do not give it the key.
 - **A block that answers the line above it cannot go to the top row.** A comment hangs under the code it was written against, so topping the card scrolls that code away. Open a few lines above it, never above the file's heading.
 - **A pane clips overflow silently.** A row wider than the pane loses its trailing columns mid-cell with no ellipsis, and a width test still passes. The row has to fit before the pane sees it.
 - **A glyph is only one cell if lipgloss and the terminal agree it is.** The tree's folders and its file marker are Nerd Font, which is the one thing on screen that asks anything of the terminal's font. Measure a new one with `lipgloss.Width` before using it: a two-cell glyph puts every row after it out of step, where a font missing a one-cell glyph only draws a box.

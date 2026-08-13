@@ -15,6 +15,11 @@ import (
 	"github.com/zen-review/zen-review/internal/testchangeset"
 )
 
+// code walks the tree to the fixture's two-hunk Go file, counting back from the
+// last row rather than down from the first: the tree opens on a binary file, and
+// the rows between the two are directories a change to the fixture would move.
+var code = []string{"G", "k", "k", "k"}
+
 // TestGoldenFrames locks the layout at the widths that prove something.
 //
 // The goldens hold the frame with its escapes stripped, so a diff in review is
@@ -28,12 +33,17 @@ func TestGoldenFrames(t *testing.T) {
 	}{
 		{"open", 100, 16, nil},
 
-		// Narrow enough that a path outruns the tree and a hunk header outruns
+		// Narrow enough that a path outruns the tree and a line of code outruns
 		// the diff pane, which is the only width that proves the panes clip
-		// before they draw.
-		{"narrow", 56, 16, nil},
+		// before they draw. The keys walk to a file that has code in it; the
+		// tree opens on a binary one, which has none.
+		{"narrow", 56, 16, code},
 
+		// Both panes, because the overlay reads its keys off whichever one has
+		// them and only one of the two can be wrong at a time.
 		{"help", 100, 16, []string{"?"}},
+		{"help-diff", 100, 16, []string{"l", "?"}},
+
 		{"folded", 100, 16, []string{"j", "space"}},
 		{"deep", 100, 16, []string{"G"}},
 
@@ -68,17 +78,21 @@ func TestTheFrameIsExactlyTheTerminal(t *testing.T) {
 		{72, 10},
 	}
 
-	for _, size := range sizes {
-		s := open(t, size.width, size.height)
-		lines := s.lines()
+	// Each size twice: as it opens, on a binary file the painter draws no rows
+	// for, and walked to the file that has the longest lines in the fixture.
+	for _, keys := range [][]string{nil, code} {
+		for _, size := range sizes {
+			s := open(t, size.width, size.height).press(keys...)
+			lines := s.lines()
 
-		if len(lines) != size.height {
-			t.Errorf("%dx%d drew %d lines, want %d", size.width, size.height, len(lines), size.height)
-		}
-		for i, line := range lines {
-			if w := lipgloss.Width(line); w != size.width {
-				t.Errorf("%dx%d line %d is %d columns, want %d: %q",
-					size.width, size.height, i, w, size.width, line)
+			if len(lines) != size.height {
+				t.Errorf("%dx%d drew %d lines, want %d", size.width, size.height, len(lines), size.height)
+			}
+			for i, line := range lines {
+				if w := lipgloss.Width(line); w != size.width {
+					t.Errorf("%dx%d line %d is %d columns, want %d: %q",
+						size.width, size.height, i, w, size.width, line)
+				}
 			}
 		}
 	}
@@ -157,6 +171,37 @@ func TestTheCursorIsOnTheRowTheKeysMoved(t *testing.T) {
 			t.Errorf("after %v the cursor is on %q, want %q", tt.keys, found, tt.want)
 		}
 	}
+}
+
+// TestTheHalfPageKeysPageTheDiffFromTheTree. Walking the tree is how the reader
+// gets to a file and reading it is what they came for, so ctrl+d belongs to the
+// pane they are reading whichever one has the keys.
+func TestTheHalfPageKeysPageTheDiffFromTheTree(t *testing.T) {
+	// On the fixture's two-hunk file, with the tree still holding the keys.
+	s := open(t, 100, 16).press(code...)
+	columns := s.treeColumns()
+
+	before := s.frame()
+	s.press("ctrl+d")
+	after := s.frame()
+
+	if before == after {
+		t.Fatalf("ctrl+d moved nothing:\n%s", after)
+	}
+	if got, want := column(after, columns), column(before, columns); got != want {
+		t.Errorf("ctrl+d paged the tree as well:\n%s", got)
+	}
+}
+
+// column is the left pane of a frame, for an assertion about one pane that has
+// to ignore what the other did.
+func column(frame string, width int) string {
+	var b strings.Builder
+	for _, line := range strings.Split(frame, "\n") {
+		runes := []rune(line)
+		b.WriteString(string(runes[:min(width, len(runes))]) + "\n")
+	}
+	return b.String()
 }
 
 // TestTheTreeIsHeadedByTheRepository, so a reader with two of these open knows

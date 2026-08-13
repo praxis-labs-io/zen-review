@@ -1,7 +1,7 @@
-j      down                   h/1   tree pane        ? help                                         
-k      up                     l/2   diff pane        q quit                                         
-g      top                    space fold                                                            
-G      bottom                 enter open the file                                                   
+j      down                   h/1 tree pane    ? help                                               
+k      up                     l/2 diff pane    q quit                                               
+g      top                                                                                          
+G      bottom                                                                                       
 ctrl+d diff half page down                                                                          
 ctrl+u diff half page up                                                                            
                                                                                                     

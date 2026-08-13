@@ -7,12 +7,17 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/zen-kit/zen-kit/syntax"
 	"github.com/zen-kit/zen-kit/theme"
 
 	"github.com/zen-review/zen-review/internal/review"
 	"github.com/zen-review/zen-review/internal/testchangeset"
 	"github.com/zen-review/zen-review/internal/tui/diffpane"
 )
+
+// The fixture's two-hunk file, which is what the scrolling is measured against.
+// Sixteen rows: a header and six lines, a blank, a header and seven lines.
+const twoHunks = "internal/review/state.go"
 
 func pane(t *testing.T, path string, width, height int) diffpane.Model {
 	t.Helper()
@@ -41,6 +46,11 @@ func rows(t *testing.T, m diffpane.Model) []string {
 	return strings.Split(ansi.Strip(m.View()), "\n")
 }
 
+func joined(t *testing.T, m diffpane.Model) string {
+	t.Helper()
+	return strings.Join(rows(t, m), "\n")
+}
+
 func press(t *testing.T, m diffpane.Model, keys ...tea.KeyPressMsg) diffpane.Model {
 	t.Helper()
 
@@ -50,22 +60,25 @@ func press(t *testing.T, m diffpane.Model, keys ...tea.KeyPressMsg) diffpane.Mod
 	return m
 }
 
-// TestAFileIsItsHunkHeaders. This is the folded view the painter unfolds, not a
-// placeholder, so it goes through the same painter.
-func TestAFileIsItsHunkHeaders(t *testing.T) {
-	got := rows(t, pane(t, "internal/review/state.go", 60, 10))
+var (
+	down = tea.KeyPressMsg{Code: 'j', Text: "j"}
+	up   = tea.KeyPressMsg{Code: 'k', Text: "k"}
+)
 
-	want := []string{"@@ -10,5 +10,5 @@ package review", "@@ -120,5 +120,7 @@"}
-	for i, w := range want {
-		found := false
-		for _, row := range got {
-			if strings.Contains(row, w) {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Errorf("no row holds header %d, %q:\n%s", i, w, strings.Join(got, "\n"))
+// TestAFileIsItsLines: the numbers on both sides, the marker between them, and
+// the code. The header alone was the placeholder this replaces.
+func TestAFileIsItsLines(t *testing.T) {
+	got := joined(t, pane(t, "README.md", 60, 10))
+
+	want := []string{
+		"@@ -1,3 +1,3 @@",
+		"  1  1   # zen-review",
+		"  3    − A diff viewer with review features bolted on.",
+		"     3 + A review engine with a TUI attached.",
+	}
+	for _, w := range want {
+		if !strings.Contains(got, w) {
+			t.Errorf("no row reads %q:\n%s", w, got)
 		}
 	}
 }
@@ -79,12 +92,12 @@ func TestAFileWithNoHunksSaysWhy(t *testing.T) {
 	}
 }
 
-// TestEveryRowIsExactlyThePane, at widths where a hunk header cannot fit. A
+// TestEveryRowIsExactlyThePane, at widths where a line of code cannot fit. A
 // pane clips overflow silently, losing trailing cells mid-cell with no
 // ellipsis, and a width test on the unclipped row still passes.
 func TestEveryRowIsExactlyThePane(t *testing.T) {
 	for _, width := range []int{80, 40, 24, 12} {
-		m := pane(t, "internal/review/state.go", width, 10)
+		m := pane(t, twoHunks, width, 10)
 		for i, row := range rows(t, m) {
 			if got := lipgloss.Width(row); got != width {
 				t.Errorf("at width %d, row %d is %d columns: %q", width, i, got, row)
@@ -93,40 +106,193 @@ func TestEveryRowIsExactlyThePane(t *testing.T) {
 	}
 }
 
-// TestALongHeaderIsMarkedWhereItWasCut, so the reader can tell a clipped header
+// TestALineTooWideIsMarkedWhereItWasCut, so the reader can tell a clipped line
 // from a short one.
-func TestALongHeaderIsMarkedWhereItWasCut(t *testing.T) {
-	m := pane(t, "internal/review/state.go", 40, 10)
+func TestALineTooWideIsMarkedWhereItWasCut(t *testing.T) {
+	got := rows(t, pane(t, twoHunks, 40, 10))
 
-	joined := strings.Join(rows(t, m), "\n")
-	if !strings.Contains(joined, "…") {
-		t.Errorf("a header wider than the pane was cut without a mark:\n%s", joined)
+	cut := 0
+	for _, row := range got {
+		if strings.Contains(row, "…") {
+			cut++
+		}
 	}
+	if cut == 0 {
+		t.Errorf("every row fit at 40 columns, so nothing was clipped:\n%s", strings.Join(got, "\n"))
+	}
+}
+
+// TestATabKeepsTheColumnsInStep. A raw tab is a variable number of cells, and
+// one anywhere in a line puts every column after it out of step with the line
+// above. The fixture's Go lines are tab-indented.
+func TestATabKeepsTheColumnsInStep(t *testing.T) {
+	got := joined(t, pane(t, twoHunks, 80, 20))
+	if strings.Contains(got, "\t") {
+		t.Errorf("a raw tab reached the pane:\n%s", got)
+	}
+	if !strings.Contains(got, `−     Unreviewed State = "unread"`) {
+		t.Errorf("the tab did not expand to the painter's width:\n%s", got)
+	}
+}
+
+// TestSourceCannotWriteToTheTerminal. A repository holds whatever it holds, and
+// this one holds escape sequences in its own test fixtures. An escape reaching
+// the pane is run by the terminal and takes the row's width arithmetic with it.
+func TestSourceCannotWriteToTheTerminal(t *testing.T) {
+	patch := "diff --git a/loud.go b/loud.go\n" +
+		"index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1b039aafb 100644\n" +
+		"--- a/loud.go\n" +
+		"+++ b/loud.go\n" +
+		"@@ -1,1 +1,1 @@\n" +
+		"-const old = \"quiet\"\n" +
+		"+const shout = \"\x1b[31mred\x1b[0m\a\"\n"
+
+	c := testchangeset.Derive(t, patch)
+	m := diffpane.New(theme.RosePineMoon)
+	m.SetSize(60, 4)
+	m.SetFile(&c.Files[0])
+
+	got := joined(t, m)
+	if !strings.Contains(got, `const shout = "red?"`) {
+		t.Errorf("the escape and the bell survived into the row:\n%q", got)
+	}
+}
+
+// TestAMissingTrailingNewlineIsSaidSoAndNotShown. Git carries it as an
+// annotation on the line rather than as a line, and a pane that drops it draws
+// a removal and an addition of identical text with nothing to tell the reader
+// what moved.
+func TestAMissingTrailingNewlineIsSaidSoAndNotShown(t *testing.T) {
+	const patch = `diff --git a/eof.go b/eof.go
+index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1b039aafb 100644
+--- a/eof.go
++++ b/eof.go
+@@ -1,1 +1,1 @@
+-package eof
+\ No newline at end of file
++package eof
+`
+
+	c := testchangeset.Derive(t, patch)
+	m := diffpane.New(theme.RosePineMoon)
+	m.SetSize(60, 6)
+	m.SetFile(&c.Files[0])
+
+	got := rows(t, m)
+	if !strings.Contains(got[1], "− package eof") {
+		t.Fatalf("the removal is not where it was expected: %q", got[1])
+	}
+	if !strings.Contains(got[2], `\ No newline at end of file`) {
+		t.Errorf("the annotation does not hang under the line it is about: %q", got[2])
+	}
+	if !strings.Contains(got[3], "+ package eof") {
+		t.Errorf("the annotation displaced the addition: %q", got[3])
+	}
+}
+
+// TestARenameLexesEachSideByItsOwnName. A rename that changes the extension is
+// a different language on the base, and lexing its removals as the head's
+// colours them by a grammar they were never written in.
+func TestARenameLexesEachSideByItsOwnName(t *testing.T) {
+	const comment = "# the old script"
+
+	const patch = `diff --git a/run.py b/run.go
+similarity index 40%
+rename from run.py
+rename to run.go
+index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1b039aafb 100644
+--- a/run.py
++++ b/run.go
+@@ -1,1 +1,1 @@
+-` + comment + `
++package run
+`
+
+	s, ok := syntax.New(theme.RosePineMoon.Syntax)
+	if !ok {
+		t.Fatalf("the theme names a Chroma style Chroma does not have: %q", theme.RosePineMoon.Syntax)
+	}
+
+	// Python reads the line as one comment. Go has no comment starting with a
+	// hash, so it breaks the same text into a run per word and paints the hash
+	// as the error it is, which is why one run of the whole line is the proof.
+	tokens := s.Lines("run.py", comment)[0]
+	if len(tokens) != 1 {
+		t.Fatalf("the Python lexer no longer reads %q as one token: %+v", comment, tokens)
+	}
+
+	c := testchangeset.Derive(t, patch)
+	m := diffpane.New(theme.RosePineMoon)
+	m.SetSize(60, 4)
+	m.SetFile(&c.Files[0])
+
+	want := lipgloss.NewStyle().
+		Background(theme.RosePineMoon.RemovedBackground).
+		Foreground(tokens[0].Color).
+		Render(comment)
+
+	if !strings.Contains(m.View(), want) {
+		t.Errorf("the removed row was lexed as Go rather than as the file it came from:\n%s", joined(t, m))
+	}
+}
+
+// TestCodeIsHighlighted, on a context row so the kind's own tint is not in the
+// way. A stripped frame cannot see a colour, so this reads the raw one.
+func TestCodeIsHighlighted(t *testing.T) {
+	s, ok := syntax.New(theme.RosePineMoon.Syntax)
+	if !ok {
+		t.Fatalf("the theme names a Chroma style Chroma does not have: %q", theme.RosePineMoon.Syntax)
+	}
+
+	keyword := s.Lines(twoHunks, "type State string")[0][0]
+	if keyword.Color == nil {
+		t.Fatalf("the style colours no keyword, so this proves nothing: %+v", keyword)
+	}
+
+	want := lipgloss.NewStyle().Foreground(keyword.Color).Render(keyword.Text)
+	if got := pane(t, twoHunks, 80, 20).View(); !strings.Contains(got, want) {
+		t.Errorf("no row carries the keyword colour for %q", keyword.Text)
+	}
+}
+
+// TestAChangedRowIsNotPaddedInPlainSpaces. Every styled run ends in a reset
+// that clears the background with it, so the pane's own padding on the end of a
+// tinted row would tear a hole in it. The painter runs a tint out to the full
+// width for that reason, and the pane finishes only the rows it left short.
+func TestAChangedRowIsNotPaddedInPlainSpaces(t *testing.T) {
+	m := pane(t, "README.md", 60, 10)
+
+	for _, line := range strings.Split(m.View(), "\n") {
+		if !strings.Contains(ansi.Strip(line), "A review engine with a TUI attached.") {
+			continue
+		}
+		if strings.HasSuffix(line, " ") {
+			t.Errorf("the added row ends in unstyled padding: %q", line)
+		}
+		return
+	}
+	t.Error("the added row is not on the pane")
 }
 
 // TestScrollingStopsAtBothEnds, so a key held down cannot walk the content off
 // the pane.
 func TestScrollingStopsAtBothEnds(t *testing.T) {
-	down := tea.KeyPressMsg{Code: 'j', Text: "j"}
-	up := tea.KeyPressMsg{Code: 'k', Text: "k"}
-
-	// Two hunks with a blank line between them is three lines, in a pane with
-	// room for two.
-	m := pane(t, "internal/review/state.go", 60, 2)
+	m := pane(t, twoHunks, 60, 4)
 
 	top := rows(t, m)
 	if !strings.Contains(top[0], "@@ -10,5") {
 		t.Fatalf("the pane did not open at the top: %q", top[0])
 	}
 
-	m = press(t, m, down, down, down, down)
-	if got := rows(t, m); !strings.Contains(got[1], "@@ -120,5") {
-		t.Errorf("scrolling down ran past the last line: %q", got)
+	m = press(t, m, tea.KeyPressMsg{Code: 'G', Text: "G"})
+	if got := rows(t, m); !strings.Contains(got[len(got)-1], "return Derive(files, rows), nil") {
+		t.Errorf("G did not land on the last line of the file: %q", got[len(got)-1])
 	}
 
+	m = press(t, m, tea.KeyPressMsg{Code: 'g', Text: "g"})
 	m = press(t, m, up, up, up, up)
 	if got := rows(t, m); !strings.Contains(got[0], "@@ -10,5") {
-		t.Errorf("scrolling up ran past the first line: %q", got)
+		t.Errorf("scrolling up ran past the first line: %q", got[0])
 	}
 }
 
@@ -135,8 +301,8 @@ func TestScrollingStopsAtBothEnds(t *testing.T) {
 func TestChangingFileTakesTheReaderToTheTop(t *testing.T) {
 	c := testchangeset.Nested(t)
 
-	m := pane(t, "internal/review/state.go", 60, 2)
-	m = press(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"}, tea.KeyPressMsg{Code: 'j', Text: "j"})
+	m := pane(t, twoHunks, 60, 4)
+	m = press(t, m, down, down)
 
 	m.SetFile(fileAt(t, c, "README.md"))
 	if got := rows(t, m)[0]; !strings.Contains(got, "@@ -1,3 +1,3 @@") {

@@ -24,10 +24,18 @@ import (
 //
 // This is for display. The raw path stays the key a file is looked up under,
 // so a name that had a control character in it still opens.
-func Safe(text string) string {
+func Safe(text string) string { return sanitize(text, ' ') }
+
+// Code is Safe for a line of source, which keeps its tabs. The painter expands
+// one to a fixed number of cells, and a tab flattened to a single space here
+// would collapse the file's indentation on the way past.
+func Code(text string) string { return sanitize(text, '\t') }
+
+// sanitize strips what a terminal would run, and puts tab in place of a tab.
+func sanitize(text string, tab rune) string {
 	return strings.Map(func(r rune) rune {
 		if r == '\t' {
-			return ' '
+			return tab
 		}
 		if unicode.IsControl(r) {
 			return '?'

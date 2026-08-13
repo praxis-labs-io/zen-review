@@ -141,6 +141,16 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	var cmd tea.Cmd
+
+	// The half-page keys page the diff from either pane, so they are routed
+	// before the focus is. Walking the tree is how the reader gets to a file;
+	// reading it is what they came for, and the pane they are reading is the one
+	// worth paging.
+	if key.Matches(msg, m.diff.Keys.Scrolling()...) {
+		m.diff, cmd = m.diff.Update(msg)
+		return m, cmd
+	}
+
 	switch m.focus {
 	case focusTree:
 		m.tree, cmd = m.tree.Update(msg)
