@@ -19,14 +19,19 @@ const (
 	// barWidth is the cursor column and the space after it, which every row pays
 	// for so the rows below the selected one do not shift sideways.
 	barWidth = 2
+
+	// nameMin is the columns a name keeps whatever else wants them. A row that
+	// names no file names nothing.
+	nameMin = 10
 )
 
-// SelectedMsg says the cursor moved onto a file. The pane keeps its focus: the
-// reader is still choosing.
-type SelectedMsg struct{ Path string }
-
-// OpenMsg says the reader picked a file and wants to be reading it.
-type OpenMsg struct{ Path string }
+// OpenMsg says the reader picked the file under the cursor and wants to be
+// reading it.
+//
+// It carries no path. The root reads Path off the model, which is where the
+// answer already is, and a message that carries one can be delivered after the
+// cursor has moved off the row it was about.
+type OpenMsg struct{}
 
 // KeyMap is what the tree answers to on top of the shared movement keys.
 type KeyMap struct {
@@ -125,7 +130,6 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	before := m.cursor
 	switch {
 	case key.Matches(press, m.Keys.Down):
 		m.move(1)
@@ -149,23 +153,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			m.toggle()
 			return m, nil
 		}
-		if path := m.Path(); path != "" {
-			return m, open(path)
+		if m.Path() != "" {
+			return m, open()
 		}
-		return m, nil
-
-	default:
-		return m, nil
-	}
-
-	// A cursor that did not move re-selects nothing. Landing on a directory
-	// leaves the diff pane showing the file the reader came from, because
-	// blanking it would punish walking past a directory row.
-	if m.cursor == before {
-		return m, nil
-	}
-	if path := m.Path(); path != "" {
-		return m, selected(path)
 	}
 	return m, nil
 }
@@ -235,10 +225,6 @@ func (m *Model) scrollToCursor() {
 	m.offset = max(0, min(m.offset, max(len(m.rows)-m.height, 0)))
 }
 
-func selected(path string) tea.Cmd {
-	return func() tea.Msg { return SelectedMsg{Path: path} }
-}
-
-func open(path string) tea.Cmd {
-	return func() tea.Msg { return OpenMsg{Path: path} }
+func open() tea.Cmd {
+	return func() tea.Msg { return OpenMsg{} }
 }

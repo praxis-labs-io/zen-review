@@ -27,17 +27,12 @@ func rows(t *testing.T, m tree.Model) []string {
 	return strings.Split(ansi.Strip(m.View()), "\n")
 }
 
-func press(t *testing.T, m tree.Model, keys ...string) (tree.Model, tea.Msg) {
+func press(t *testing.T, m tree.Model, keys ...string) (tree.Model, tea.Cmd) {
 	t.Helper()
 
-	var last tea.Msg
+	var last tea.Cmd
 	for _, k := range keys {
-		var cmd tea.Cmd
-		m, cmd = m.Update(tea.KeyPressMsg{Code: []rune(k)[0], Text: k})
-		last = nil
-		if cmd != nil {
-			last = cmd()
-		}
+		m, last = m.Update(tea.KeyPressMsg{Code: []rune(k)[0], Text: k})
 	}
 	return m, last
 }
@@ -97,25 +92,28 @@ func TestFoldingKeepsTheCursorWhereItWas(t *testing.T) {
 	}
 }
 
-// TestWalkingSaysWhereItLanded. The diff pane follows a file and ignores a
-// directory, because blanking the pane on the way past one would punish
-// walking the tree.
+// TestWalkingSaysWhereItLanded. The path is read off the model rather than sent
+// in a message, so the root cannot be handed a stale one by two commands that
+// landed out of order.
 func TestWalkingSaysWhereItLanded(t *testing.T) {
 	tests := []struct {
 		name string
 		keys []string
-		want tea.Msg
+		want string
 	}{
-		{"onto a directory", []string{"j"}, nil},
-		{"onto a file", []string{"j", "j"}, tree.SelectedMsg{Path: "assets/logo.png"}},
-		{"off the end", []string{"k"}, nil},
+		{"onto a directory", []string{"j"}, ""},
+		{"onto a file", []string{"j", "j"}, "assets/logo.png"},
+		{"off the end", []string{"k"}, "README.md"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, got := press(t, pane(t, 32, 20), tt.keys...)
-			if got != tt.want {
-				t.Errorf("got %#v, want %#v", got, tt.want)
+			m, cmd := press(t, pane(t, 32, 20), tt.keys...)
+			if got := m.Path(); got != tt.want {
+				t.Errorf("the cursor is on %q, want %q", got, tt.want)
+			}
+			if cmd != nil {
+				t.Errorf("walking the tree returned a command, which cannot be ordered")
 			}
 		})
 	}
@@ -130,8 +128,11 @@ func TestEnterOpensAFileAndFoldsADirectory(t *testing.T) {
 	if cmd == nil {
 		t.Fatalf("enter on a file returned nothing")
 	}
-	if got := cmd(); got != (tree.OpenMsg{Path: "README.md"}) {
-		t.Errorf("got %#v, want an OpenMsg for README.md", got)
+	if got := cmd(); got != (tree.OpenMsg{}) {
+		t.Errorf("got %#v, want an OpenMsg", got)
+	}
+	if got := m.Path(); got != "README.md" {
+		t.Errorf("the root would open %q", got)
 	}
 
 	m, _ = press(t, m, "j")
@@ -193,4 +194,58 @@ func TestTheChurnSurvivesANarrowPane(t *testing.T) {
 		return
 	}
 	t.Fatalf("no row holds state.go")
+}
+
+// TestALongOmissionReasonDoesNotEatTheFilename. "renamed, contents unchanged"
+// is 27 columns, and a 32-column pane spending all of them on the reason names
+// no file at all: two renames become the same row.
+func TestALongOmissionReasonDoesNotEatTheFilename(t *testing.T) {
+	const patch = `diff --git a/old_name_here.go b/new_name_here.go
+similarity index 100%
+rename from old_name_here.go
+rename to new_name_here.go
+`
+
+	m := tree.New(theme.RosePineMoon, testchangeset.Derive(t, patch))
+	m.SetSize(32, 4)
+	m.Focus()
+
+	got := rows(t, m)[0]
+	if !strings.Contains(got, "new_name") {
+		t.Errorf("the reason took the filename's columns: %q", got)
+	}
+	if w := lipgloss.Width(got); w != 32 {
+		t.Errorf("the row is %d columns, want 32: %q", w, got)
+	}
+}
+
+// TestAControlCharacterInAPathCannotBreakTheRow. Git allows a newline and an
+// escape sequence in a filename, and the parser unquotes both. A newline
+// splits the row in two and puts the other pane out of step with it; an escape
+// is run by the terminal.
+func TestAControlCharacterInAPathCannotBreakTheRow(t *testing.T) {
+	const patch = "diff --git \"a/we\\ntwo.go\" \"b/we\\ntwo.go\"\n" +
+		"new file mode 100644\n" +
+		"index 0000000000000000000000000000000000000000..66a52ee7a1d803dc57859c3e95ac9dcdc87c0164\n" +
+		"--- /dev/null\n" +
+		"+++ \"b/we\\ntwo.go\"\n" +
+		"@@ -0,0 +1 @@\n" +
+		"+package two\n"
+
+	m := tree.New(theme.RosePineMoon, testchangeset.Derive(t, patch))
+	m.SetSize(32, 4)
+	m.Focus()
+
+	view := m.View()
+	if got := len(strings.Split(view, "\n")); got != 4 {
+		t.Errorf("the pane drew %d lines into a height of 4:\n%q", got, view)
+	}
+	for i, row := range rows(t, m) {
+		if w := lipgloss.Width(row); w != 32 {
+			t.Errorf("row %d is %d columns: %q", i, w, row)
+		}
+	}
+	if !strings.Contains(ansi.Strip(view), "we?two.go") {
+		t.Errorf("the newline was not escaped for display:\n%q", ansi.Strip(view))
+	}
 }

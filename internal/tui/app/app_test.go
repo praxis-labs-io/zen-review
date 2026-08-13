@@ -58,6 +58,10 @@ func TestTheFrameIsExactlyTheTerminal(t *testing.T) {
 		{56, 16},
 		{56, 6},
 		{200, 40},
+
+		// A base short enough that the facts do not reach the hint on their own,
+		// which is the case that used to leave the last row short of the screen.
+		{72, 10},
 	}
 
 	for _, size := range sizes {
@@ -190,5 +194,40 @@ func TestATerminalTooSmallSaysSo(t *testing.T) {
 	s := open(t, 40, 10)
 	if got := s.frame(); !strings.Contains(got, "the terminal is 40x10") {
 		t.Errorf("a 40-column terminal drew a frame: %q", got)
+	}
+}
+
+// TestTheHintSurvivesANarrowTerminal. Dropping it drops the only thing on
+// screen saying that ? exists, and the reader who needed it is the one on the
+// narrow terminal. It also left the last row short of the screen.
+func TestTheHintSurvivesANarrowTerminal(t *testing.T) {
+	for _, width := range []int{100, 72, 56} {
+		s := open(t, width, 10)
+		bar := s.lines()[9]
+
+		if !strings.Contains(bar, "? help") {
+			t.Errorf("at %d columns the status bar lost the hint: %q", width, bar)
+		}
+		if got := lipgloss.Width(bar); got != width {
+			t.Errorf("at %d columns the status bar is %d wide: %q", width, got, bar)
+		}
+	}
+}
+
+// TestASmallTerminalStillFillsTheScreen. Every other path returns width by
+// height, and a frame that stops short leaves whatever was under it on screen.
+func TestASmallTerminalStillFillsTheScreen(t *testing.T) {
+	for _, size := range []struct{ width, height int }{{54, 20}, {20, 4}, {80, 2}} {
+		s := open(t, size.width, size.height)
+		lines := s.lines()
+
+		if len(lines) != size.height {
+			t.Errorf("%dx%d drew %d lines", size.width, size.height, len(lines))
+		}
+		for i, line := range lines {
+			if got := lipgloss.Width(line); got != size.width {
+				t.Errorf("%dx%d line %d is %d columns: %q", size.width, size.height, i, got, line)
+			}
+		}
 	}
 }

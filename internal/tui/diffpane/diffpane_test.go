@@ -143,3 +143,29 @@ func TestChangingFileTakesTheReaderToTheTop(t *testing.T) {
 		t.Errorf("the new file opened part-way down: %q", got)
 	}
 }
+
+// TestTheGutterFitsTheLastLineAndNoMore. Start plus Lines is the line after the
+// hunk, not its last, so a file ending at 99 sized off 100 buys a third column
+// it never fills and shifts every row of the file right of its neighbours.
+func TestTheGutterFitsTheLastLineAndNoMore(t *testing.T) {
+	const patch = `diff --git a/near.go b/near.go
+index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1b039aafb 100644
+--- a/near.go
++++ b/near.go
+@@ -98,2 +98,2 @@ func near() {
+-	return 98
++	return 99
+`
+
+	c := testchangeset.Derive(t, patch)
+	m := diffpane.New(theme.RosePineMoon)
+	m.SetSize(60, 4)
+	m.SetFile(&c.Files[0])
+
+	// The hunk's last line is 99, so two columns hold it. paint.HunkHeader
+	// indents to gutter*2+5, which is 9 at a gutter of 2 and 11 at 3.
+	got := rows(t, m)[0]
+	if indent := len(got) - len(strings.TrimLeft(got, " ")); indent != 9 {
+		t.Errorf("the header indents %d columns, want 9: %q", indent, got)
+	}
+}

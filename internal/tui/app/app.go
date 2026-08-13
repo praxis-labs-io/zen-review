@@ -68,9 +68,8 @@ func New(t theme.Theme, base review.Base, g review.Generation, c review.Changese
 	m.tree.Focus()
 
 	if len(m.changeset.Files) > 0 {
-		first := m.changeset.Files[0].Diff.Path
-		m.tree.Select(first)
-		m.diff.SetFile(m.fileAt(first))
+		m.tree.Select(m.changeset.Files[0].Diff.Path)
+		m.syncDiff()
 	}
 	return m
 }
@@ -91,12 +90,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resize(msg.Width, msg.Height)
 		return m, nil
 
-	case tree.SelectedMsg:
-		m.diff.SetFile(m.fileAt(msg.Path))
-		return m, nil
-
 	case tree.OpenMsg:
-		m.diff.SetFile(m.fileAt(msg.Path))
 		m.setFocus(focusDiff)
 		return m, nil
 
@@ -138,10 +132,28 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch m.focus {
 	case focusTree:
 		m.tree, cmd = m.tree.Update(msg)
+		m.syncDiff()
 	case focusDiff:
 		m.diff, cmd = m.diff.Update(msg)
 	}
 	return m, cmd
+}
+
+// syncDiff points the diff pane at whatever the tree is on.
+//
+// The tree does not send the path in a message. Bubble Tea runs the commands a
+// model returns concurrently, so two of them raced by a held-down j can land
+// out of order and leave the pane on a file the cursor has already left. The
+// path is on the model, and reading it needs no message at all.
+//
+// A directory row leaves the pane alone. Blanking it on the way past one would
+// punish walking the tree.
+func (m *Model) syncDiff() {
+	path := m.tree.Path()
+	if path == "" || path == m.diff.Path() {
+		return
+	}
+	m.diff.SetFile(m.fileAt(path))
 }
 
 // setFocus points the keys at a pane.

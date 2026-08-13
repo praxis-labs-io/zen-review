@@ -68,7 +68,7 @@ func (m Model) content() string {
 func (m Model) titles() string {
 	return m.pad(m.column("CHANGES", m.focus == focusTree), treeWidth) +
 		m.separator(false) +
-		m.pad(m.column(m.diff.Path(), m.focus == focusDiff), m.diffWidth())
+		m.pad(m.column(comp.Safe(m.diff.Path()), m.focus == focusDiff), m.diffWidth())
 }
 
 func (m Model) body() string {
@@ -101,6 +101,11 @@ func (m Model) overlay() string {
 
 // status is the base, the generation and the burn-down, with the way out on
 // the right.
+//
+// The hint is measured first and the facts are clipped into what is left, not
+// the other way round. Dropping it is dropping the only thing on screen saying
+// that ? exists, and the reader who needed it is the one on the narrow
+// terminal.
 func (m Model) status() string {
 	facts := []string{
 		fmt.Sprintf("%s (%s)", m.base.Ref, short(m.base.SHA)),
@@ -109,12 +114,14 @@ func (m Model) status() string {
 	}
 
 	faint := lipgloss.NewStyle().Foreground(m.theme.Faint)
-	left := faint.Render(strings.Join(facts, dot))
 	right := m.help.ShortHelpView(m.ShortHelp())
 
+	left := comp.Clip(faint.Render(strings.Join(facts, dot)),
+		max(m.width-lipgloss.Width(right)-1, 0), faint)
+
 	gap := m.width - lipgloss.Width(left) - lipgloss.Width(right)
-	if gap < 1 {
-		return comp.Clip(left, m.width, faint)
+	if gap < 0 {
+		return m.pad(right, m.width)
 	}
 	return left + strings.Repeat(" ", gap) + right
 }
@@ -138,11 +145,18 @@ func (m Model) column(text string, focused bool) string {
 	return style.Render(text)
 }
 
+// tooSmall fills the screen the same way every other path does, so the frame
+// is width by height whatever is drawn on it.
 func (m Model) tooSmall() string {
 	text := fmt.Sprintf("the terminal is %dx%d, and this needs %dx%d",
 		m.width, m.height, minWidth, minHeight)
-	return comp.Clip(lipgloss.NewStyle().Foreground(m.theme.Faint).Render(text),
-		m.width, lipgloss.NewStyle())
+
+	lines := []string{m.pad(lipgloss.NewStyle().Foreground(m.theme.Faint).Render(text), m.width)}
+	blank := strings.Repeat(" ", max(m.width, 0))
+	for len(lines) < m.height {
+		lines = append(lines, blank)
+	}
+	return strings.Join(lines[:max(m.height, 1)], "\n")
 }
 
 // pad fits text to exactly width, clipping what does not fit so a pane never

@@ -130,7 +130,7 @@ func (m *Model) relayout() {
 		if i > 0 {
 			m.lines = append(m.lines, "")
 		}
-		m.lines = append(m.lines, m.painter.HunkHeader(h.Diff.Header, gutter, m.width))
+		m.lines = append(m.lines, m.painter.HunkHeader(comp.Safe(h.Diff.Header), gutter, m.width))
 	}
 
 	if len(m.file.Hunks) == 0 {
@@ -173,12 +173,23 @@ func (m Model) half() int {
 // widest is the highest line number the file reaches, which is what sizes the
 // gutter. Both columns take the same width so the marker between them does not
 // move from one row to the next.
+//
+// Start plus Lines is the line after the hunk, not its last, and a hunk ending
+// at 99 sized off 100 buys a third column the file never fills. An empty range
+// has Start 0 and no last line to name.
 func widest(f review.File) int {
 	n := 0
 	for _, h := range f.Hunks {
-		n = max(n, h.Diff.OldStart+h.Diff.OldLines, h.Diff.NewStart+h.Diff.NewLines)
+		n = max(n, last(h.Diff.OldStart, h.Diff.OldLines), last(h.Diff.NewStart, h.Diff.NewLines))
 	}
 	return n
+}
+
+func last(start, lines int) int {
+	if lines == 0 {
+		return start
+	}
+	return start + lines - 1
 }
 
 // emptyReason says why a file has no hunks. The parser already worked it out

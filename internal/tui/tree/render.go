@@ -44,20 +44,29 @@ func (m Model) render(r row, cursor bool) string {
 		base = base.Background(fill)
 	}
 
+	faint := base.Foreground(m.theme.Faint)
 	glyph, glyphColor := m.glyph(r.n)
-	trailing := m.trailing(r.n)
 
-	room := m.width - barWidth - r.depth*indent - lipgloss.Width(glyph) - 1
+	// The indent gives way before the name does. A branching tree eleven deep
+	// would otherwise spend the whole pane saying how deep it is.
+	depth := min(r.depth*indent, max(m.width-barWidth-nameMin-2, 0))
+
+	room := m.width - barWidth - depth - lipgloss.Width(glyph) - 1
+
+	// The trailing cell takes what is left over the name's share, not the other
+	// way round. "renamed, contents unchanged" is 27 columns and would leave a
+	// 32-column pane naming no file at all.
+	trailing := comp.Clip(m.trailing(r.n), max(room-nameMin-1, 0), faint)
 	if trailing != "" {
 		room -= lipgloss.Width(trailing) + 1
 	}
 
-	// The name gives up the columns rather than the churn: a clipped "+12 -3"
-	// misstates the file, and a clipped path still names it.
-	name := comp.Clip(r.n.name, max(room, 0), base.Foreground(m.theme.Faint))
+	// A clipped path still names the file, so the name is what gives up the last
+	// columns to the churn beside it.
+	name := comp.Clip(comp.Safe(r.n.name), max(room, 0), faint)
 
 	row := m.bar(cursor, base) +
-		base.Render(strings.Repeat(" ", r.depth*indent)) +
+		base.Render(strings.Repeat(" ", depth)) +
 		base.Foreground(glyphColor).Render(glyph) +
 		base.Render(" ") +
 		base.Foreground(text).Render(name)
@@ -67,9 +76,9 @@ func (m Model) render(r row, cursor bool) string {
 		row += base.Render(strings.Repeat(" ", gap))
 	}
 	if trailing != "" {
-		row += base.Foreground(m.theme.Faint).Render(trailing)
+		row += faint.Render(trailing)
 	}
-	return comp.Clip(row, m.width, base.Foreground(m.theme.Faint))
+	return comp.Clip(row, m.width, faint)
 }
 
 // bar is the mark on the row the keys are pointed at.
