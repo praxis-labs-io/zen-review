@@ -90,13 +90,15 @@ charm.land/glamour/v2
 
 ## Project Management
 
-Work is tracked in Linear: Praxis Labs workspace, **Zen Review** team (key `ZNR`, tickets `ZNR-###`), reached through the `linear-zen-review` MCP server declared in `.mcp.json`. zen-kit's tickets live here too. Address projects and statuses **by name, never a UUID**; ids don't survive workspace moves.
+Work is tracked in Linear: Praxis Labs workspace, reached through the `linear-zen-review` MCP server declared in `.mcp.json`. This repo's tickets are the **Zen Review** team (key `ZNR`, tickets `ZNR-###`). zen-kit's are the **Zen Kit** team (key `ZNK`). Address projects and statuses **by name, never a UUID**; ids don't survive workspace moves.
+
+Zen Kit has no projects and no tickets yet, and everything filed against zen-kit so far is a `ZNR`. Give the next one a `ZNK` and its own bucket; leave the old ones where they are rather than renumbering links that already point at them.
 
 The bucket names are shared with other teams, so `save_issue` resolving a bare project name can land on another team's copy and fail the call. Pass the Zen Review project id in that one argument when it does.
 
 ### Projects
 
-Five long-running buckets plus the current epic. Every ticket belongs to exactly one:
+Zen Review's five long-running buckets plus the current epic. Every ticket belongs to exactly one:
 
 - **Polish & Bugs**: bugs and rough edges in surfaces that already ship. The dogfood inbox.
 - **Feature Backlog**: net-new capabilities. Ideas live here until promoted.
