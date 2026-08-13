@@ -24,14 +24,19 @@ const (
 	// statusRow is the line the panes do not get.
 	statusRow = 1
 
-	// metaLines is the facts under the tree: the changeset's size, what it is
-	// measured against, which generation is on screen, and the burn-down.
+	// metaLines is the facts under the tree, a blank line at each end of them:
+	// what the changeset is measured against, which generation is on screen, the
+	// burn-down, and how much there is.
 	//
 	// They sit inside the tree's pane, ruled off at its foot, so the rows
 	// scrolling above them never move them. metaIndent is the tree's own gutter,
 	// so a fact lines up under a filename.
-	metaLines  = 4
+	metaLines  = 6
 	metaIndent = 1
+
+	// fileGlyph heads the changed-file count. It is the folders' family, so the
+	// two read as one set.
+	fileGlyph = "\uf15b"
 
 	// minPane is a pane showing anything at all: two borders and a row.
 	minPane = paneChrome + 1
@@ -106,17 +111,21 @@ func (m Model) body() string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, tree, diff)
 }
 
-// meta is the facts at the foot of the tree's pane. Nothing here takes a key,
-// and a box of its own would read as a third pane to move into.
+// meta is the facts at the foot of the tree's pane, read as a key and a value:
+// the label against the left edge and the answer against the right.
+//
+// Nothing here takes a key, and a box of its own would read as a third pane to
+// move into. The blank line at each end matches the list above it.
 func (m Model) meta() string {
 	width := max(m.treePane.InnerWidth()-metaIndent*2, 0)
+	muted := lipgloss.NewStyle().Foreground(m.theme.Muted)
 	subtle := lipgloss.NewStyle().Foreground(m.theme.Subtle)
 
-	rows := m.facts()
-
-	// The size goes last, under the burn-down it is the denominator of.
-	rows = append(rows, spread(m.files(), comp.Churn(lipgloss.NewStyle(), m.theme,
-		m.changeset.Additions, m.changeset.Deletions), width, subtle))
+	rows := []string{""}
+	for _, f := range m.facts() {
+		rows = append(rows, spread(muted.Render(f.label), f.value, width, subtle))
+	}
+	rows = append(rows, "")
 
 	// The pane pads each row out to its own width, which is the gutter on the
 	// right; this is the one on the left.
@@ -127,16 +136,26 @@ func (m Model) meta() string {
 	return strings.Join(rows, "\n")
 }
 
+// fact is one row of that list. The label is chrome and reads at one weight
+// throughout; the value is the part worth looking at.
+type fact struct {
+	label string
+	value string
+}
+
 // facts are what the changeset is measured against, which generation is on
-// screen, and how far down the burn-down has come. They come back styled,
-// because the last of them is not one colour.
-func (m Model) facts() []string {
+// screen, how far down the burn-down has come, and how much there is.
+//
+// The values come back styled. Only two of them carry a colour: the burn-down
+// wears the state it is at, and the churn says which way it went.
+func (m Model) facts() []fact {
 	subtle := lipgloss.NewStyle().Foreground(m.theme.Subtle)
 
-	return []string{
-		subtle.Render(fmt.Sprintf("%s (%s)", m.base.Ref, short(m.base.SHA))),
-		subtle.Render(fmt.Sprintf("generation %d", m.gen.Seq)),
-		m.burndown(),
+	return []fact{
+		{m.base.Ref, subtle.Render(short(m.base.SHA))},
+		{"Generation", subtle.Render(strconv.Itoa(m.gen.Seq))},
+		{"Reviewed", m.burndown()},
+		{"Changes", m.size()},
 	}
 }
 
@@ -157,7 +176,15 @@ func (m Model) burndown() string {
 	}
 
 	return lipgloss.NewStyle().Foreground(c).
-		Render(fmt.Sprintf("%d / %d reviewed", m.changeset.Reviewed, m.changeset.Items))
+		Render(fmt.Sprintf("%d/%d", m.changeset.Reviewed, m.changeset.Items))
+}
+
+// size is how many files changed and by how much.
+func (m Model) size() string {
+	subtle := lipgloss.NewStyle().Foreground(m.theme.Subtle)
+
+	return subtle.Render(fileGlyph+" "+strconv.Itoa(len(m.changeset.Files))) + "  " +
+		comp.Churn(lipgloss.NewStyle(), m.theme, m.changeset.Additions, m.changeset.Deletions)
 }
 
 // spread puts left at the start of a line and right at its end, giving the
@@ -202,8 +229,15 @@ func (m Model) status() string {
 		return m.pad(hint, m.width)
 	}
 
+	muted := lipgloss.NewStyle().Foreground(m.theme.Muted)
 	subtle := lipgloss.NewStyle().Foreground(m.theme.Subtle)
-	facts := comp.Clip(strings.Join(m.facts(), subtle.Render(dot)),
+
+	joined := make([]string, 0, len(m.facts()))
+	for _, f := range m.facts() {
+		joined = append(joined, muted.Render(f.label)+" "+f.value)
+	}
+
+	facts := comp.Clip(strings.Join(joined, subtle.Render(dot)),
 		max(m.width-lipgloss.Width(hint)-2, 0), subtle)
 
 	gap := m.width - lipgloss.Width(hint) - lipgloss.Width(facts)
@@ -235,18 +269,6 @@ func (m Model) pad(text string, width int) string {
 		text += strings.Repeat(" ", gap)
 	}
 	return text
-}
-
-// files is how much there is to read, at the weight the facts under it read at.
-// The churn beside it is the coloured half of the row.
-func (m Model) files() string {
-	n := len(m.changeset.Files)
-
-	text := strconv.Itoa(n) + " files"
-	if n == 1 {
-		text = "1 file"
-	}
-	return lipgloss.NewStyle().Foreground(m.theme.Subtle).Render(text)
 }
 
 // titleize reads a directory name as a name: zen-review becomes Zen Review.

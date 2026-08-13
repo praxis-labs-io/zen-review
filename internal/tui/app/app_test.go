@@ -196,19 +196,27 @@ func TestTheFactsAreDrawnAndColoured(t *testing.T) {
 	th := theme.RosePineMoon
 	s := open(t, 100, 16)
 
+	// Label against the left edge, value against the right.
 	for _, want := range []string{
-		"6 files", "+10 -3",
-		"origin/main (a1b2c3d)", "generation 2", "2 / 7 reviewed",
+		"origin/main            a1b2c3d",
+		"Generation                   2",
+		"Reviewed                   2/7",
 	} {
 		if !strings.Contains(s.frame(), want) {
 			t.Errorf("the facts do not say %q:\n%s", want, s.frame())
 		}
 	}
 
+	// Every label reads at one weight. Only the churn and the burn-down carry a
+	// colour, and they carry different ones.
+	for _, label := range []string{"origin/main", "Generation", "Reviewed", "Changes"} {
+		if want := lipgloss.NewStyle().Foreground(th.Muted).Render(label); !strings.Contains(s.raw(), want) {
+			t.Errorf("the %q label is not muted", label)
+		}
+	}
 	coloured := map[string]string{
-		"the file count": lipgloss.NewStyle().Foreground(th.Subtle).Render("6 files"),
-		"the additions":  lipgloss.NewStyle().Foreground(th.Success).Render("+10"),
-		"the deletions":  lipgloss.NewStyle().Foreground(th.Error).Render("-3"),
+		"the additions": lipgloss.NewStyle().Foreground(th.Success).Render("+10"),
+		"the deletions": lipgloss.NewStyle().Foreground(th.Error).Render("-3"),
 	}
 	for part, style := range coloured {
 		if !strings.Contains(s.raw(), style) {
@@ -242,9 +250,9 @@ func TestTheBurnDownWearsItsOwnState(t *testing.T) {
 		want     string
 		colour   color.Color
 	}{
-		{"nothing read", nil, "0 / 2 reviewed", th.Subtle},
-		{"part read", []store.ReviewedRange{first}, "1 / 2 reviewed", th.Warning},
-		{"all read", []store.ReviewedRange{first, second}, "2 / 2 reviewed", th.Accent},
+		{"nothing read", nil, "0/2", th.Subtle},
+		{"part read", []store.ReviewedRange{first}, "1/2", th.Warning},
+		{"all read", []store.ReviewedRange{first, second}, "2/2", th.Accent},
 	}
 
 	for _, tt := range tests {
@@ -278,7 +286,8 @@ func TestTheFactsSitAtTheFootOfTheTree(t *testing.T) {
 	switch {
 	case rule < 0:
 		t.Fatalf("nothing rules the facts off from the rows:\n%s", strings.Join(lines, "\n"))
-	case first != rule+1:
+	// One blank line between, the way the list above the rule has one.
+	case first != rule+2:
 		t.Errorf("the facts start on line %d and the rule is on %d", first, rule)
 	}
 
@@ -293,10 +302,10 @@ func TestTheFactsSitAtTheFootOfTheTree(t *testing.T) {
 // a reader partway down a long list gets rows against both edges and does not
 // pay two lines for a margin they cannot see the point of.
 func TestThePadsBelongToTheEndsOfTheList(t *testing.T) {
-	// At thirteen high the tree's window is five rows over a list of twelve, so
+	// At fifteen high the tree's window is five rows over a list of twelve, so
 	// there is a top, a middle and a bottom to be in. first and last are the
 	// screen lines that window starts and ends on.
-	const first, last = 1, 5
+	const height, first, last = 15, 1, 5
 
 	tests := []struct {
 		name           string
@@ -310,7 +319,7 @@ func TestThePadsBelongToTheEndsOfTheList(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			lines := open(t, 100, 13).press(tt.keys...).lines()
+			lines := open(t, 100, height).press(tt.keys...).lines()
 
 			// The tree's columns, inside its two borders. Sliced by rune: a
 			// border is three bytes and cutting one in half compares nothing.
@@ -339,7 +348,7 @@ func TestTheBarCarriesTheFactsWhenTheTreeCannot(t *testing.T) {
 			t.Fatalf("the facts drew on a frame with no room for them:\n%s", s.frame())
 		}
 	}
-	for _, want := range []string{"? help", "origin/main (a1b2c3d)", "generation 2", "2 / 7 reviewed"} {
+	for _, want := range []string{"? help", "origin/main a1b2c3d", "Generation 2", "Reviewed 2/7"} {
 		if !strings.Contains(bar, want) {
 			t.Errorf("the bar does not say %q: %q", want, bar)
 		}

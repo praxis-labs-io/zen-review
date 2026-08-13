@@ -5,12 +5,12 @@
 │  docs/superpowers/specs       ││                                                                │
 │  internal                     ││                                                                │
 │    cli                        ││                                                                │
-│     ○ render.go          +1 -1 ││                                                                │
-│    review                     ││                                                                │
 ├────────────────────────────────┤│                                                                │
-│ origin/main (a1b2c3d)          ││                                                                │
-│ generation 2                   ││                                                                │
-│ 2 / 7 reviewed                 ││                                                                │
-│ 6 files                 +10 -3 ││                                                                │
+│                                ││                                                                │
+│ origin/main            a1b2c3d ││                                                                │
+│ Generation                   2 ││                                                                │
+│ Reviewed                   2/7 ││                                                                │
+│ Changes             6  +10 -3 ││                                                                │
+│                                ││                                                                │
 ╰────────────────────────────────╯╰────────────────────────────────────────────────────────────────╯
 ? help • q quit                                                                                     
