@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unicode"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -68,7 +69,7 @@ func (m Model) content() string {
 func (m Model) body() string {
 	tree := m.treePane.
 		Index(1).
-		Title(comp.Safe(m.repo)).
+		Title(titleize(comp.Safe(m.repo))).
 		Count(strconv.Itoa(len(m.changeset.Files))).
 		Footer(m.tree.Scroll().Footer()).
 		Focus(m.focus == focusTree).
@@ -150,6 +151,22 @@ func (m Model) pad(text string, width int) string {
 		text += strings.Repeat(" ", gap)
 	}
 	return text
+}
+
+// titleize reads a directory name as a name: zen-review becomes Zen Review.
+//
+// Only the first letter of each word is touched. Lowercasing the rest would
+// turn a repository called CLAUDE or zenOcto into something nobody named.
+func titleize(name string) string {
+	words := strings.FieldsFunc(name, func(r rune) bool {
+		return r == '-' || r == '_' || unicode.IsSpace(r)
+	})
+	for i, w := range words {
+		runes := []rune(w)
+		runes[0] = unicode.ToUpper(runes[0])
+		words[i] = string(runes)
+	}
+	return strings.Join(words, " ")
 }
 
 func short(sha string) string {

@@ -1,4 +1,4 @@
-╭─[1]─zen-review (6)─────────────╮╭─[2]─internal/tui/diffpane/painting_the_unified_rows.go─────────╮
+╭─[1]─Zen Review (6)─────────────╮╭─[2]─internal/tui/diffpane/painting_the_unified_rows.go─────────╮
 │· README.md                +1 -1││         @@ -0,0 +1,2 @@                                        │
 │▾ assets                        ││                                                                │
 │  · logo.png              binary││                                                                │

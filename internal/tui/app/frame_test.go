@@ -23,11 +23,18 @@ type screen struct {
 
 func open(t *testing.T, width, height int) *screen {
 	t.Helper()
+	return named(t, "zen-review", width, height)
+}
+
+// named opens the reader on a repository of a given name, for the assertions
+// about the heading.
+func named(t *testing.T, repo string, width, height int) *screen {
+	t.Helper()
 
 	base := review.Base{Ref: "origin/main", SHA: "a1b2c3d4e5f67890"}
 	g := review.Generation{Seq: 2}
 
-	s := &screen{t: t, m: app.New(theme.RosePineMoon, "zen-review", base, g, testchangeset.Nested(t))}
+	s := &screen{t: t, m: app.New(theme.RosePineMoon, repo, base, g, testchangeset.Nested(t))}
 	s.send(tea.WindowSizeMsg{Width: width, Height: height})
 	return s
 }

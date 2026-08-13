@@ -157,12 +157,30 @@ func TestTheCursorIsOnTheRowTheKeysMoved(t *testing.T) {
 }
 
 // TestTheTreeIsHeadedByTheRepository, so a reader with two of these open knows
-// which one they are looking at. The count beside it is the changeset's files.
+// which one they are looking at.
+//
+// The directory name reads as a name rather than as a path segment, and only
+// its first letters are touched: lowercasing the rest renames a repository its
+// owner did not.
 func TestTheTreeIsHeadedByTheRepository(t *testing.T) {
-	head := open(t, 100, 16).lines()[0]
+	tests := []struct {
+		repo string
+		want string
+	}{
+		{"zen-review", "─[1]─Zen Review (6)"},
+		{"my_side_project", "─[1]─My Side Project (6)"},
+		{"zenOcto", "─[1]─ZenOcto (6)"},
+		{"CLAUDE", "─[1]─CLAUDE (6)"},
+		{"dotfiles", "─[1]─Dotfiles (6)"},
+	}
 
-	if want := "─[1]─zen-review (6)"; !strings.Contains(head, want) {
-		t.Errorf("the tree is headed %q, want it to hold %q", head, want)
+	for _, tt := range tests {
+		t.Run(tt.repo, func(t *testing.T) {
+			head := named(t, tt.repo, 100, 16).lines()[0]
+			if !strings.Contains(head, tt.want) {
+				t.Errorf("the tree is headed %q, want it to hold %q", head, tt.want)
+			}
+		})
 	}
 }
 
