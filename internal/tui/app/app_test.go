@@ -78,9 +78,11 @@ func TestTheFrameIsExactlyTheTerminal(t *testing.T) {
 		{72, 10},
 	}
 
-	// Each size twice: as it opens, on a binary file the painter draws no rows
-	// for, and walked to the file that has the longest lines in the fixture.
-	for _, keys := range [][]string{nil, code} {
+	// Each size three ways: as it opens, on a binary file the painter draws no
+	// rows for; walked to the file with the longest lines in the fixture; and
+	// under the overlay, which is composited rather than drawn and comes back
+	// with every line's trailing spaces trimmed unless they are put back.
+	for _, keys := range [][]string{nil, code, {"?"}} {
 		for _, size := range sizes {
 			s := open(t, size.width, size.height).press(keys...)
 			lines := s.lines()
