@@ -46,6 +46,10 @@ func (m Model) FullHelp() [][]key.Binding {
 		movement = m.tree.Keys.Movement.Bindings()
 		own = m.tree.Keys.Bindings()
 	}
+
+	// The half-page keys are listed under whichever pane has the keys, because
+	// they answer from both.
+	movement = append(movement, m.diff.Keys.Scrolling()...)
 	panes = append(panes, own...)
 
 	return [][]key.Binding{

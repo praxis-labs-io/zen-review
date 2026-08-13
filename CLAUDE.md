@@ -187,7 +187,8 @@ The keymap is shared with zen-octo by convention, written down in both
 without either being hostage to the other's release cycle. zen-kit holds no keys.
 
 ```
-j k g G ctrl+u ctrl+d    movement
+j k g G                  movement
+ctrl+u ctrl+d            page the diff, from either pane
 h l                      tree pane / diff pane
 1 2                      the same two, by the badge in the pane's border
 tab shift+tab            the ring: next / prev hunk
@@ -216,9 +217,10 @@ s                        reload
 until the count reaches zero. `r` advances after marking, so `r r r r` walks the
 whole thing.
 
-Four divergences from zen-octo, all deliberate:
+Five divergences from zen-octo, all deliberate:
 
 - `space` folds, replacing `o`. zen-octo adopts this too.
+- `ctrl+u` / `ctrl+d` page the diff from either pane. zen-octo pages whichever pane has focus, its rail included. Walking the tree here is how a reader gets to a file, and reading it is what they came for.
 - `]` / `[` are tabs in zen-octo and comments here. zen-octo has tabs and zen-review never will.
 - `r` is reply in zen-octo and mark-reviewed here. Neither tool has the other's concept.
 - `v` is jump-to-diff in zen-octo, scoped to the conversation, and range selection here. They do not collide.

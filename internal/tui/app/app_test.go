@@ -169,6 +169,37 @@ func TestTheCursorIsOnTheRowTheKeysMoved(t *testing.T) {
 	}
 }
 
+// TestTheHalfPageKeysPageTheDiffFromTheTree. Walking the tree is how the reader
+// gets to a file and reading it is what they came for, so ctrl+d belongs to the
+// pane they are reading whichever one has the keys.
+func TestTheHalfPageKeysPageTheDiffFromTheTree(t *testing.T) {
+	// On the fixture's two-hunk file, with the tree still holding the keys.
+	s := open(t, 100, 16).press(code...)
+	columns := s.treeColumns()
+
+	before := s.frame()
+	s.press("ctrl+d")
+	after := s.frame()
+
+	if before == after {
+		t.Fatalf("ctrl+d moved nothing:\n%s", after)
+	}
+	if got, want := column(after, columns), column(before, columns); got != want {
+		t.Errorf("ctrl+d paged the tree as well:\n%s", got)
+	}
+}
+
+// column is the left pane of a frame, for an assertion about one pane that has
+// to ignore what the other did.
+func column(frame string, width int) string {
+	var b strings.Builder
+	for _, line := range strings.Split(frame, "\n") {
+		runes := []rune(line)
+		b.WriteString(string(runes[:min(width, len(runes))]) + "\n")
+	}
+	return b.String()
+}
+
 // TestTheTreeIsHeadedByTheRepository, so a reader with two of these open knows
 // which one they are looking at. What is in it is said in the footer.
 //

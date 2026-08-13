@@ -21,7 +21,7 @@ const (
 	// It is a share of the terminal and not of the content, so it moves when the
 	// window does and never under the reader.
 	treeNum, treeDen = 2, 5
-	treeMin, treeMax = 34, 60
+	treeMin, treeMax = 34, 44
 
 	// paneChrome is the two lines and two columns a pane spends on its border.
 	paneChrome = 2

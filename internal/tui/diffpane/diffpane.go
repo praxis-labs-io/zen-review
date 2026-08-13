@@ -30,17 +30,32 @@ const (
 )
 
 // KeyMap is what the pane answers to.
+//
+// The half-page keys are the pane's rather than the shared movement's, because
+// they page the diff from either pane. The reader walking the tree is reading
+// the diff beside it, and a key that paged the tree under the cursor would take
+// them somewhere they did not ask to go.
 type KeyMap struct {
 	comp.Movement
-	Fold key.Binding
+
+	HalfUp   key.Binding
+	HalfDown key.Binding
+	Fold     key.Binding
 }
 
 // NewKeyMap is the bindings and the help text they carry.
 func NewKeyMap() KeyMap {
 	return KeyMap{
 		Movement: comp.NewMovement(),
+		HalfUp:   key.NewBinding(key.WithKeys("ctrl+u"), key.WithHelp("ctrl+u", "diff half page up")),
+		HalfDown: key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+d", "diff half page down")),
 		Fold:     key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "fold hunk")),
 	}
+}
+
+// Scrolling is the keys that page the diff, which answer from either pane.
+func (k KeyMap) Scrolling() []key.Binding {
+	return []key.Binding{k.HalfDown, k.HalfUp}
 }
 
 // Bindings is the pane's own keys, without the movement it shares.
