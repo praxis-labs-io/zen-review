@@ -28,14 +28,14 @@ func (m Model) View() string {
 // the right edge.
 func (m Model) render(r row, cursor bool) string {
 	fill := m.theme.Background
-	text := m.theme.Primary
+	text := m.theme.Text
 	if cursor {
 		fill = m.theme.SelectedBackground
 		if !m.focused {
 			// The bar stays on an unfocused pane so the reader can still see where
 			// the tree is, and the text goes quiet so it does not read as the thing
 			// the keys are pointed at.
-			text = m.theme.Faint
+			text = m.theme.Subtle
 		}
 	}
 
@@ -44,7 +44,7 @@ func (m Model) render(r row, cursor bool) string {
 		base = base.Background(fill)
 	}
 
-	faint := base.Foreground(m.theme.Faint)
+	subtle := base.Foreground(m.theme.Subtle)
 	glyph, glyphColor := m.glyph(r.n)
 
 	// The indent gives way before the name does. A branching tree eleven deep
@@ -56,14 +56,14 @@ func (m Model) render(r row, cursor bool) string {
 	// The trailing cell takes what is left over the name's share, not the other
 	// way round. "renamed, contents unchanged" is 27 columns and would leave a
 	// 32-column pane naming no file at all.
-	trailing := comp.Clip(m.trailing(r.n), max(room-nameMin-1, 0), faint)
+	trailing := comp.Clip(m.trailing(r.n), max(room-nameMin-1, 0), subtle)
 	if trailing != "" {
 		room -= lipgloss.Width(trailing) + 1
 	}
 
 	// A clipped path still names the file, so the name is what gives up the last
 	// columns to the churn beside it.
-	name := comp.Clip(comp.Safe(r.n.name), max(room, 0), faint)
+	name := comp.Clip(comp.Safe(r.n.name), max(room, 0), subtle)
 
 	row := m.bar(cursor, base) +
 		base.Render(strings.Repeat(" ", depth)) +
@@ -76,9 +76,9 @@ func (m Model) render(r row, cursor bool) string {
 		row += base.Render(strings.Repeat(" ", gap))
 	}
 	if trailing != "" {
-		row += faint.Render(trailing)
+		row += subtle.Render(trailing)
 	}
-	return comp.Clip(row, m.width, faint)
+	return comp.Clip(row, m.width, subtle)
 }
 
 // bar is the mark on the row the keys are pointed at.
@@ -90,9 +90,9 @@ func (m Model) bar(cursor bool, base lipgloss.Style) string {
 	if !cursor {
 		return base.Render("  ")
 	}
-	c := m.theme.Secondary
+	c := m.theme.Accent
 	if !m.focused {
-		c = m.theme.Faint
+		c = m.theme.Subtle
 	}
 	return base.Foreground(c).Render("▎") + base.Render(" ")
 }
@@ -102,9 +102,9 @@ func (m Model) bar(cursor bool, base lipgloss.Style) string {
 func (m Model) glyph(n *node) (string, color.Color) {
 	if n.dir() {
 		if n.open {
-			return "▾", m.theme.Faint
+			return "▾", m.theme.Subtle
 		}
-		return "▸", m.theme.Faint
+		return "▸", m.theme.Subtle
 	}
 
 	switch n.file.State {
@@ -113,7 +113,7 @@ func (m Model) glyph(n *node) (string, color.Color) {
 	case review.Partial:
 		return "~", m.theme.Warning
 	default:
-		return "·", m.theme.Faint
+		return "·", m.theme.Subtle
 	}
 }
 

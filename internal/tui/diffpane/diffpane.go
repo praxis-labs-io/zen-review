@@ -156,7 +156,7 @@ func (m *Model) relayout() {
 // note is a line about the file rather than a line of it, for a file the
 // painter has nothing to draw.
 func (m Model) note(text string) string {
-	style := lipgloss.NewStyle().Foreground(m.theme.Faint)
+	style := lipgloss.NewStyle().Foreground(m.theme.Subtle)
 	return comp.Clip(style.Render(text), m.width, style)
 }
 

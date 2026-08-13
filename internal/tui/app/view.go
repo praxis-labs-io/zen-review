@@ -114,11 +114,11 @@ func (m Model) status() string {
 		fmt.Sprintf("%d / %d reviewed", m.changeset.Reviewed, m.changeset.Items),
 	}
 
-	faint := lipgloss.NewStyle().Foreground(m.theme.Faint)
+	subtle := lipgloss.NewStyle().Foreground(m.theme.Subtle)
 	right := m.help.ShortHelpView(m.ShortHelp())
 
-	left := comp.Clip(faint.Render(strings.Join(facts, dot)),
-		max(m.width-lipgloss.Width(right)-1, 0), faint)
+	left := comp.Clip(subtle.Render(strings.Join(facts, dot)),
+		max(m.width-lipgloss.Width(right)-1, 0), subtle)
 
 	gap := m.width - lipgloss.Width(left) - lipgloss.Width(right)
 	if gap < 0 {
@@ -133,7 +133,7 @@ func (m Model) tooSmall() string {
 	text := fmt.Sprintf("the terminal is %dx%d, and this needs %dx%d",
 		m.width, m.height, minWidth, minHeight)
 
-	lines := []string{m.pad(lipgloss.NewStyle().Foreground(m.theme.Faint).Render(text), m.width)}
+	lines := []string{m.pad(lipgloss.NewStyle().Foreground(m.theme.Subtle).Render(text), m.width)}
 	blank := strings.Repeat(" ", max(m.width, 0))
 	for len(lines) < m.height {
 		lines = append(lines, blank)
@@ -144,7 +144,7 @@ func (m Model) tooSmall() string {
 // pad fits text to exactly width, clipping what does not fit so a pane never
 // pushes its neighbour sideways.
 func (m Model) pad(text string, width int) string {
-	text = comp.Clip(text, width, lipgloss.NewStyle().Foreground(m.theme.Faint))
+	text = comp.Clip(text, width, lipgloss.NewStyle().Foreground(m.theme.Subtle))
 	if gap := width - lipgloss.Width(text); gap > 0 {
 		text += strings.Repeat(" ", gap)
 	}

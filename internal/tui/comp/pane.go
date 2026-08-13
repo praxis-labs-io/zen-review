@@ -96,7 +96,7 @@ func (p Pane) rows(content string) []string {
 	for i := range p.InnerHeight() {
 		line := ""
 		if i < len(lines) {
-			line = Clip(lines[i], p.InnerWidth(), p.faint())
+			line = Clip(lines[i], p.InnerWidth(), p.subtle())
 		}
 		gap := max(p.InnerWidth()-lipgloss.Width(line), 0)
 		out = append(out, side+line+strings.Repeat(" ", gap)+side)
@@ -114,18 +114,18 @@ func (p Pane) topBorder() string {
 	var label strings.Builder
 	label.WriteString(style.Render("─"))
 	if p.index > 0 {
-		label.WriteString(lipgloss.NewStyle().Foreground(p.theme.Secondary).
+		label.WriteString(lipgloss.NewStyle().Foreground(p.theme.Accent).
 			Render("[" + strconv.Itoa(p.index) + "]"))
 		label.WriteString(style.Render("─"))
 	}
 	if p.title != "" {
-		label.WriteString(lipgloss.NewStyle().Foreground(p.theme.Primary).Bold(true).Render(p.title))
+		label.WriteString(lipgloss.NewStyle().Foreground(p.theme.Text).Bold(true).Render(p.title))
 	}
 
 	// The badge and the title are clipped together rather than one after the
 	// other. A pane too narrow for the badge alone would otherwise push the
 	// corner off the frame, and half a badge names no pane.
-	text := Clip(label.String(), mid, p.faint())
+	text := Clip(label.String(), mid, p.subtle())
 	fill := max(mid-lipgloss.Width(text), 0)
 
 	return style.Render("╭") + text + style.Render(strings.Repeat("─", fill)) + style.Render("╮")
@@ -144,22 +144,22 @@ func (p Pane) bottomBorder() string {
 		return style.Render("╰" + strings.Repeat("─", mid) + "╯")
 	}
 
-	footer := Clip(p.faint().Render(p.footer), max(mid-1, 0), p.faint())
+	footer := Clip(p.subtle().Render(p.footer), max(mid-1, 0), p.subtle())
 	fill := max(mid-lipgloss.Width(footer)-1, 0)
 
 	return style.Render("╰"+strings.Repeat("─", fill)) + footer + style.Render("─╯")
 }
 
 func (p Pane) borderStyle() lipgloss.Style {
-	c := p.theme.BorderSecondaryOrBorder()
+	c := p.theme.BorderSubtleOrBorder()
 	if p.focused {
-		c = p.theme.Secondary
+		c = p.theme.Accent
 	}
 	return lipgloss.NewStyle().Foreground(c)
 }
 
-func (p Pane) faint() lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(p.theme.Faint)
+func (p Pane) subtle() lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(p.theme.Subtle)
 }
 
 // Scroll is where a pane's window sits in its content, and renders the counter

@@ -53,9 +53,9 @@ func Clip(row string, width int, mark lipgloss.Style) string {
 func Help(t theme.Theme) help.Model {
 	m := help.New()
 
-	key := lipgloss.NewStyle().Foreground(t.Secondary)
-	desc := lipgloss.NewStyle().Foreground(t.Faint)
-	sep := lipgloss.NewStyle().Foreground(t.BorderFaintOrSecondary())
+	key := lipgloss.NewStyle().Foreground(t.Accent)
+	desc := lipgloss.NewStyle().Foreground(t.Subtle)
+	sep := lipgloss.NewStyle().Foreground(t.BorderMutedOrSubtle())
 
 	m.Styles = help.Styles{
 		Ellipsis:       desc,

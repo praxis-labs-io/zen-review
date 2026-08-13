@@ -113,8 +113,8 @@ func TestFocusMovesBetweenThePanes(t *testing.T) {
 // seam is the two corners where the panes meet, the tree's right and the diff
 // pane's left, coloured for whichever holds the keys.
 func seam(treeFocused bool) string {
-	lit := lipgloss.NewStyle().Foreground(theme.RosePineMoon.Secondary)
-	dim := lipgloss.NewStyle().Foreground(theme.RosePineMoon.BorderSecondaryOrBorder())
+	lit := lipgloss.NewStyle().Foreground(theme.RosePineMoon.Accent)
+	dim := lipgloss.NewStyle().Foreground(theme.RosePineMoon.BorderSubtleOrBorder())
 
 	if treeFocused {
 		return lit.Render("╮") + dim.Render("╭")
