@@ -20,6 +20,13 @@ import "strings"
 // Comparing segments rather than whole paths is what lets a directory's own name
 // place it. "z/deep.go" against "z-x.go" is z before z-x; comparing the joined
 // strings would answer z-x first, on "/" sorting below "-".
+//
+// That is where this parts from zen-octo, which sorts whole paths and then puts
+// the directories of a level ahead of its files. The two agree everywhere except
+// a pair of sibling directories where one name starts the other and the next
+// character is below "/": docs beside docs.old reads one way here and the other
+// way there. This is the answer a file manager gives, and zen-octo is the one
+// that should move.
 func byTree(a, b string) int {
 	as, bs := strings.Split(a, "/"), strings.Split(b, "/")
 

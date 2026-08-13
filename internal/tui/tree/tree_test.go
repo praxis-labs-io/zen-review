@@ -2,6 +2,7 @@ package tree_test
 
 import (
 	"image/color"
+	"slices"
 	"strings"
 	"testing"
 
@@ -359,5 +360,36 @@ func TestAControlCharacterInAPathCannotBreakTheRow(t *testing.T) {
 	}
 	if !strings.Contains(ansi.Strip(view), "we?two.go") {
 		t.Errorf("the newline was not escaped for display:\n%q", ansi.Strip(view))
+	}
+}
+
+// TestTheTreeDrawsTheOrderItWasGiven. Ordering belongs to review.Derive, which
+// hands back directories above the files beside them. The tree sorts nothing,
+// and this is what says so: handed a list out of that order, it draws it out of
+// order rather than quietly putting it right.
+//
+// It is here so a caller building a subset by hand, a filter or a rebuild, finds
+// the rule written down instead of a pane that reads wrong at some later width.
+func TestTheTreeDrawsTheOrderItWasGiven(t *testing.T) {
+	c := testchangeset.Nested(t)
+	slices.Reverse(c.Files)
+
+	m := tree.New(theme.RosePineMoon, c)
+	m.SetSize(40, 20)
+
+	// The top level of the reversed list, in the order it arrived. Sorted, it
+	// would read assets, docs, internal, README.md.
+	want := []string{"README.md", "internal", "docs", "assets"}
+
+	var got []string
+	for _, r := range rows(t, m) {
+		for _, w := range want {
+			if strings.Contains(r, w) {
+				got = append(got, w)
+			}
+		}
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("the tree drew %v, want the order it was handed, %v", got, want)
 	}
 }

@@ -106,6 +106,10 @@ func Derive(files []diff.File, rows []store.ReviewedRange) Changeset {
 		c.Deletions += f.Deletions
 	}
 
+	// Sorted here as well as in Session.Files, which is where the printed table
+	// reads its list and never comes through Derive. This is the sort a caller
+	// building a changeset by hand gets, and on the session's path it runs over
+	// a list already in order.
 	slices.SortFunc(c.Files, func(a, b File) int { return byTree(a.Diff.Path, b.Diff.Path) })
 	return c
 }
