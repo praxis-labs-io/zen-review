@@ -53,12 +53,22 @@ type reloader struct {
 	// Run returns with one still in git. Closing the database between the ref
 	// swap and the row that records it would leave the ref a generation ahead of
 	// the review.
-	mu sync.Mutex
+	//
+	// shut is the other end of the same gap. A command queued but not yet
+	// scheduled runs after close has taken the mutex and let it go, and a refresh
+	// there would run `git add -A` over the work tree for an answer nobody is
+	// left to read.
+	mu   sync.Mutex
+	shut bool
 }
 
 func (r *reloader) Reload() (app.Reload, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
+	if r.shut {
+		return app.Reload{}, errors.New("the reader closed the session before this reload started")
+	}
 
 	g, err := build(r.ctx, r.s)
 	if err != nil {
@@ -72,10 +82,13 @@ func (r *reloader) Reload() (app.Reload, error) {
 	return app.Reload{Base: r.s.Base(), Generation: g, Changeset: c}, nil
 }
 
-// close releases the session, waiting on a reload still running.
+// close releases the session, waiting on a reload still running and refusing
+// any that had not started.
 func (r *reloader) close() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
+	r.shut = true
 	return r.s.Close()
 }
 

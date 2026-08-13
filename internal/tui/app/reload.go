@@ -94,6 +94,12 @@ const (
 type mark struct {
 	at stop
 
+	// from is the file's name on the base side, which is the name that does not
+	// move. Every generation is diffed from the same base, so a file renamed
+	// twice is still reported against the name it started with, and matching on
+	// the name it had last generation loses it the second time.
+	from string
+
 	// nth is the stop's place in the whole changeset, and inFile its place among
 	// the stops of its own file.
 	nth    int
@@ -102,7 +108,14 @@ type mark struct {
 
 // mark reads where the cursor is now.
 func (m Model) mark() mark {
-	k := mark{at: m.cursor}
+	k := mark{at: m.cursor, from: m.cursor.path}
+	for _, f := range m.changeset.Files {
+		if f.Diff.Path == m.cursor.path && f.Diff.OldPath != "" {
+			k.from = f.Diff.OldPath
+			break
+		}
+	}
+
 	for _, s := range m.stops() {
 		if s.path == k.at.path && s.side == k.at.side && s.line == k.at.line {
 			break
@@ -161,7 +174,7 @@ func (m Model) landing(k mark) (stop, drift, bool) {
 		return stop{}, dropped, false
 	}
 
-	path := m.nowAt(k.at.path)
+	path := m.nowAt(k)
 
 	var in []stop
 	for _, s := range stops {
@@ -189,11 +202,15 @@ func (m Model) landing(k mark) (stop, drift, bool) {
 	return in[min(k.inFile, len(in)-1)], shifted, true
 }
 
-// nowAt is where a path lives in the changeset: itself, or the name a rename
-// gave it. Empty when the changeset no longer holds it.
-func (m Model) nowAt(was string) string {
+// nowAt is where the marked file lives in the changeset: under the name it had,
+// or under the one a rename gave it. Empty when the changeset no longer holds
+// it.
+//
+// The rename is matched on the base-side name rather than the one on screen, so
+// a file renamed a second time is still the same file.
+func (m Model) nowAt(k mark) string {
 	for _, f := range m.changeset.Files {
-		if f.Diff.Path == was || (f.Diff.OldPath != "" && f.Diff.OldPath == was) {
+		if f.Diff.Path == k.at.path || (f.Diff.OldPath != "" && f.Diff.OldPath == k.from) {
 			return f.Diff.Path
 		}
 	}

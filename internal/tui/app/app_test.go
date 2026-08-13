@@ -1073,3 +1073,47 @@ func TestTheTreeKeepsAFoldedDirectoryAcrossAReload(t *testing.T) {
 		t.Errorf("a reload unfolded what the reader had folded: %q", got)
 	}
 }
+
+// twiceRenamedPatch is renamedPatch renamed again. Every generation is diffed
+// from the same base, so the file is still reported against a.go and never
+// against the c.go the reader has on screen.
+const twiceRenamedPatch = `diff --git a/a.go b/d.go
+rename from a.go
+rename to d.go
+--- a/a.go
++++ b/d.go
+@@ -1,0 +1,1 @@
++one
+@@ -10,0 +11,1 @@
++ten
+diff --git a/b.go b/b.go
+--- a/b.go
++++ b/b.go
+@@ -1,0 +1,1 @@
++uno
+@@ -10,0 +11,1 @@
++diez
+`
+
+// TestAReloadFollowsAFileRenamedTwice. The name on screen is one generation of
+// a rename and the base-side name is every one of them, so that is what a file
+// is looked up by.
+func TestAReloadFollowsAFileRenamedTwice(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16).press("}")
+	s.reloading(testchangeset.Derive(t, renamedPatch)).press("s")
+
+	if title := s.lines()[0]; !strings.Contains(title, "c.go") {
+		t.Fatalf("the first rename put %q in the pane", title)
+	}
+
+	s.reloading(testchangeset.Derive(t, twiceRenamedPatch)).press("s")
+	if title := s.lines()[0]; !strings.Contains(title, "d.go") {
+		t.Errorf("the pane shows %q, want the file under its second new name", title)
+	}
+	if got := heading(t, s); !strings.Contains(got, "@@ -10,0 +11,1 @@") {
+		t.Errorf("the cursor landed on %q, want the same hunk it was on", got)
+	}
+	if got := s.bar(); strings.Contains(got, "is gone") {
+		t.Errorf("the bar reads %q about a file that was renamed, not lost", got)
+	}
+}

@@ -89,3 +89,30 @@ func TestTheReloaderBringsBackWhatARefreshBuilt(t *testing.T) {
 		t.Error("a reload over a moved work tree built no generation")
 	}
 }
+
+// TestAReloadQueuedPastTheCloseDoesNothing. Bubble Tea does not wait for a
+// command it started, so s then q leaves one queued behind the close. A refresh
+// there runs `git add -A` over the work tree for an answer nobody is left to
+// read.
+func TestAReloadQueuedPastTheCloseDoesNothing(t *testing.T) {
+	repo := testrepo.New(t)
+	repo.Write("a.txt", "one\n")
+	repo.Commit("first")
+	repo.TrackOrigin("main")
+	repo.Git("checkout", "-q", "-b", "feature")
+	repo.Write("a.txt", "two\n")
+
+	s, err := review.Open(t.Context(), repo.Dir(), review.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	src := &reloader{ctx: t.Context(), s: s}
+	if err := src.close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := src.Reload(); err == nil {
+		t.Error("a reload after the close went ahead")
+	}
+}
