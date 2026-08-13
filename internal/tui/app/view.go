@@ -24,14 +24,14 @@ const (
 	// statusRow is the line the panes do not get.
 	statusRow = 1
 
-	// metaLines is the facts under the tree, a blank line at each end of them:
-	// what the changeset is measured against, which generation is on screen, the
-	// burn-down, and how much there is.
+	// metaLines is the facts under the tree: what the changeset is measured
+	// against, which generation is on screen, the burn-down, and how much there
+	// is.
 	//
 	// They sit inside the tree's pane, ruled off at its foot, so the rows
 	// scrolling above them never move them. metaIndent is the tree's own gutter,
 	// so a fact lines up under a filename.
-	metaLines  = 6
+	metaLines  = 4
 	metaIndent = 1
 
 	// fileGlyph heads the changed-file count. It is the folders' family, so the
@@ -115,17 +115,16 @@ func (m Model) body() string {
 // the label against the left edge and the answer against the right.
 //
 // Nothing here takes a key, and a box of its own would read as a third pane to
-// move into. The blank line at each end matches the list above it.
+// move into.
 func (m Model) meta() string {
 	width := max(m.treePane.InnerWidth()-metaIndent*2, 0)
 	muted := lipgloss.NewStyle().Foreground(m.theme.Muted)
 	subtle := lipgloss.NewStyle().Foreground(m.theme.Subtle)
 
-	rows := []string{""}
+	rows := make([]string, 0, metaLines)
 	for _, f := range m.facts() {
 		rows = append(rows, spread(muted.Render(f.label), f.value, width, subtle))
 	}
-	rows = append(rows, "")
 
 	// The pane pads each row out to its own width, which is the gutter on the
 	// right; this is the one on the left.

@@ -286,8 +286,7 @@ func TestTheFactsSitAtTheFootOfTheTree(t *testing.T) {
 	switch {
 	case rule < 0:
 		t.Fatalf("nothing rules the facts off from the rows:\n%s", strings.Join(lines, "\n"))
-	// One blank line between, the way the list above the rule has one.
-	case first != rule+2:
+	case first != rule+1:
 		t.Errorf("the facts start on line %d and the rule is on %d", first, rule)
 	}
 
@@ -302,10 +301,10 @@ func TestTheFactsSitAtTheFootOfTheTree(t *testing.T) {
 // a reader partway down a long list gets rows against both edges and does not
 // pay two lines for a margin they cannot see the point of.
 func TestThePadsBelongToTheEndsOfTheList(t *testing.T) {
-	// At fifteen high the tree's window is five rows over a list of twelve, so
+	// At fifteen high the tree's window is seven rows over a list of twelve, so
 	// there is a top, a middle and a bottom to be in. first and last are the
 	// screen lines that window starts and ends on.
-	const height, first, last = 15, 1, 5
+	const height, first, last = 15, 1, 7
 
 	tests := []struct {
 		name           string
