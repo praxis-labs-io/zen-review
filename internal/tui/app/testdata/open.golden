@@ -1,16 +1,16 @@
-CHANGES                            README.md                                                        
-▎ · README.md              +1 -1 │          @@ -1,3 +1,3 @@                                         
-  ▾ assets                       │                                                                  
-    · logo.png            binary │                                                                  
-  ▾ docs/superpowers/specs       │                                                                  
-    ✓ design.md            +3 -0 │                                                                  
-  ▾ internal                     │                                                                  
-    ▾ cli                        │                                                                  
-      · render.go          +1 -1 │                                                                  
-    ▾ review                     │                                                                  
-      ~ state.go           +3 -1 │                                                                  
-    ▾ tui/diffpane               │                                                                  
-      · painting_the_unif… +2 -0 │                                                                  
-                                 │                                                                  
-                                 │                                                                  
+╭─[1]─Files (6)──────────────────╮╭─[2]─README.md──────────────────────────────────────────────────╮
+│▎ · README.md              +1 -1││         @@ -1,3 +1,3 @@                                        │
+│  ▾ assets                      ││                                                                │
+│    · logo.png            binary││                                                                │
+│  ▾ docs/superpowers/specs      ││                                                                │
+│    ✓ design.md            +3 -0││                                                                │
+│  ▾ internal                    ││                                                                │
+│    ▾ cli                       ││                                                                │
+│      · render.go          +1 -1││                                                                │
+│    ▾ review                    ││                                                                │
+│      ~ state.go           +3 -1││                                                                │
+│    ▾ tui/diffpane              ││                                                                │
+│      · painting_the_unif… +2 -0││                                                                │
+│                                ││                                                                │
+╰────────────────────────────────╯╰────────────────────────────────────────────────────────────────╯
 origin/main (a1b2c3d)  ·  generation 2  ·  2 / 7 reviewed                            ? help • q quit

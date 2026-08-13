@@ -189,6 +189,7 @@ without either being hostage to the other's release cycle. zen-kit holds no keys
 ```
 j k g G ctrl+u ctrl+d    movement
 h l                      tree pane / diff pane
+1 2                      the same two, by the badge in the pane's border
 tab shift+tab            the ring: next / prev hunk
 space                    fold / unfold
 } {                      next / prev file

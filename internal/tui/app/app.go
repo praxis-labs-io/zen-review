@@ -43,6 +43,11 @@ type Model struct {
 	diff diffpane.Model
 	help help.Model
 
+	// The frames the two panes are drawn in. They hold the size, so the model
+	// asks them what is left inside rather than subtracting the border twice.
+	treePane comp.Pane
+	diffPane comp.Pane
+
 	focus   focus
 	showing bool
 
@@ -64,6 +69,8 @@ func New(t theme.Theme, base review.Base, g review.Generation, c review.Changese
 		tree:      tree.New(t, c),
 		diff:      diffpane.New(t),
 		help:      comp.Help(t),
+		treePane:  comp.NewPane(t),
+		diffPane:  comp.NewPane(t),
 	}
 	m.tree.Focus()
 

@@ -97,6 +97,11 @@ func (m *Model) SetSize(width, height int) {
 func (m *Model) Focus() { m.focused = true }
 func (m *Model) Blur()  { m.focused = false }
 
+// Scroll is where the window sits in the rows, for the counter the frame draws.
+func (m Model) Scroll() comp.Scroll {
+	return comp.Scroll{Offset: m.offset, Height: m.height, Total: len(m.rows)}
+}
+
 // Path is the selected file's path, and is empty on a directory row.
 func (m Model) Path() string {
 	n := m.node()

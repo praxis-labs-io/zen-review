@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -11,21 +12,21 @@ import (
 )
 
 const (
-	// treeWidth is the tree pane, fixed. A path is not worth a column of the
-	// diff, and a pane that resizes under the reader is worse than a narrow one.
-	treeWidth = 32
+	// treeWidth is the tree pane, fixed: 32 columns of rows plus the two its
+	// border costs. A path is not worth a column of the diff, and a pane that
+	// resizes under the reader is worse than a narrow one.
+	treeWidth = 34
 
-	// rule is the gap, the vertical line and the gap after it.
-	rule = 3
+	// paneChrome is the two lines and two columns a pane spends on its border.
+	paneChrome = 2
 
-	// titleRow and statusRow are the lines the body does not get.
-	titleRow  = 1
+	// statusRow is the line the panes do not get.
 	statusRow = 1
 
-	// minWidth leaves the diff pane something to draw in. minHeight leaves the
-	// body one line between the title and the status bar.
-	minWidth  = treeWidth + rule + 20
-	minHeight = titleRow + statusRow + 1
+	// minWidth leaves the diff pane twenty columns to draw in. minHeight leaves
+	// each pane its two borders and a row of content between them.
+	minWidth  = treeWidth + paneChrome + 20
+	minHeight = statusRow + paneChrome + 1
 
 	// dot separates the facts on the status bar.
 	dot = "  ·  "
@@ -35,13 +36,15 @@ func (m *Model) resize(width, height int) {
 	m.width, m.height = width, height
 	m.help.SetWidth(width)
 
-	body := m.bodyHeight()
-	m.tree.SetSize(treeWidth, body)
-	m.diff.SetSize(m.diffWidth(), body)
+	m.treePane = m.treePane.Size(treeWidth, m.bodyHeight())
+	m.diffPane = m.diffPane.Size(m.diffWidth(), m.bodyHeight())
+
+	m.tree.SetSize(m.treePane.InnerWidth(), m.treePane.InnerHeight())
+	m.diff.SetSize(m.diffPane.InnerWidth(), m.diffPane.InnerHeight())
 }
 
-func (m Model) bodyHeight() int { return max(m.height-titleRow-statusRow, 0) }
-func (m Model) diffWidth() int  { return max(m.width-treeWidth-rule, 0) }
+func (m Model) bodyHeight() int { return max(m.height-statusRow, 0) }
+func (m Model) diffWidth() int  { return max(m.width-treeWidth, 0) }
 
 func (m Model) View() tea.View {
 	v := tea.NewView(m.content())
@@ -55,34 +58,32 @@ func (m Model) content() string {
 		return m.tooSmall()
 	}
 	if m.showing {
-		return strings.Join([]string{m.titles(), m.overlay(), m.status()}, "\n")
+		return strings.Join([]string{m.overlay(), m.status()}, "\n")
 	}
-	return strings.Join([]string{m.titles(), m.body(), m.status()}, "\n")
+	return strings.Join([]string{m.body(), m.status()}, "\n")
 }
 
-// titles name the two panes: the left one always, the right one with the file
-// it is showing.
-//
-// The title is styled and then padded, not the other way round, so the name
-// carries the colour and the empty columns beside it do not.
-func (m Model) titles() string {
-	return m.pad(m.column("CHANGES", m.focus == focusTree), treeWidth) +
-		m.separator(false) +
-		m.pad(m.column(comp.Safe(m.diff.Path()), m.focus == focusDiff), m.diffWidth())
-}
-
+// body is the two framed panes, joined flush. Their borders meet, so the seam
+// between them is one line rather than a rule with a gap either side.
 func (m Model) body() string {
-	left := strings.Split(m.tree.View(), "\n")
-	right := strings.Split(m.diff.View(), "\n")
+	tree := m.treePane.
+		Index(1).
+		Title("Files (" + strconv.Itoa(len(m.changeset.Files)) + ")").
+		Footer(m.tree.Scroll().Footer()).
+		Focus(m.focus == focusTree).
+		Render(m.tree.View())
 
-	rows := make([]string, 0, len(left))
-	for i := range left {
-		rows = append(rows, left[i]+m.separator(true)+right[i])
-	}
-	return strings.Join(rows, "\n")
+	diff := m.diffPane.
+		Index(2).
+		Title(comp.Safe(m.diff.Path())).
+		Footer(m.diff.Scroll().Footer()).
+		Focus(m.focus == focusDiff).
+		Render(m.diff.View())
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, tree, diff)
 }
 
-// overlay is the full keymap, drawn over the body it replaces.
+// overlay is the full keymap, drawn over the panes it replaces.
 func (m Model) overlay() string {
 	full := m.help
 	full.ShowAll = true
@@ -124,25 +125,6 @@ func (m Model) status() string {
 		return m.pad(right, m.width)
 	}
 	return left + strings.Repeat(" ", gap) + right
-}
-
-// separator is the line between the panes. It runs the height of the body and
-// stops at the status bar, which spans both.
-func (m Model) separator(body bool) string {
-	bar := " "
-	if body {
-		bar = "│"
-	}
-	return " " + lipgloss.NewStyle().Foreground(m.theme.BorderFaintOrSecondary()).Render(bar) + " "
-}
-
-// column titles a pane, quiet when the keys are pointed elsewhere.
-func (m Model) column(text string, focused bool) string {
-	style := lipgloss.NewStyle().Foreground(m.theme.Faint)
-	if focused {
-		style = lipgloss.NewStyle().Foreground(m.theme.Secondary).Bold(true)
-	}
-	return style.Render(text)
 }
 
 // tooSmall fills the screen the same way every other path does, so the frame

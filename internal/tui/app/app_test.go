@@ -81,29 +81,45 @@ func TestTheFrameIsExactlyTheTerminal(t *testing.T) {
 }
 
 // TestFocusMovesBetweenThePanes asserts the colour the frame carries, because
-// which pane has the keys is said in colour and a stripped golden cannot show
-// it.
+// which pane has the keys is said in the border colour and a stripped golden
+// cannot show it.
+//
+// The seam is where the two panes meet, so it carries both answers at once: a
+// frame with the wrong pane lit fails on the same string a frame with both lit
+// does.
 func TestFocusMovesBetweenThePanes(t *testing.T) {
-	active := lipgloss.NewStyle().Foreground(theme.RosePineMoon.Secondary).Bold(true)
-	quiet := lipgloss.NewStyle().Foreground(theme.RosePineMoon.Faint)
-
-	s := open(t, 100, 16)
-	if got := s.raw(); !strings.Contains(got, active.Render("CHANGES")) {
-		t.Errorf("the tree opens without the focused title")
+	tests := []struct {
+		name string
+		keys []string
+		tree bool
+	}{
+		{"the tree opens with the keys", nil, true},
+		{"l moves them right", []string{"l"}, false},
+		{"h moves them back", []string{"l", "h"}, true},
+		{"2 moves them right", []string{"2"}, false},
+		{"1 moves them back", []string{"2", "1"}, true},
 	}
 
-	s.press("l")
-	if got := s.raw(); !strings.Contains(got, quiet.Render("CHANGES")) {
-		t.Errorf("l left the tree title looking focused")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := open(t, 100, 16).press(tt.keys...)
+			if got := s.raw(); !strings.Contains(got, seam(tt.tree)) {
+				t.Errorf("the border does not say the keys are on the tree = %v", tt.tree)
+			}
+		})
 	}
-	if got := s.raw(); !strings.Contains(got, active.Render("README.md")) {
-		t.Errorf("l did not focus the diff pane")
-	}
+}
 
-	s.press("h")
-	if got := s.raw(); !strings.Contains(got, active.Render("CHANGES")) {
-		t.Errorf("h did not put the focus back on the tree")
+// seam is the two corners where the panes meet, the tree's right and the diff
+// pane's left, coloured for whichever holds the keys.
+func seam(treeFocused bool) string {
+	lit := lipgloss.NewStyle().Foreground(theme.RosePineMoon.Secondary)
+	dim := lipgloss.NewStyle().Foreground(theme.RosePineMoon.BorderSecondaryOrBorder())
+
+	if treeFocused {
+		return lit.Render("╮") + dim.Render("╭")
 	}
+	return dim.Render("╮") + lit.Render("╭")
 }
 
 // TestTheStatusBarSaysWhereTheReviewIs keeps the three facts the bar exists for
@@ -122,18 +138,16 @@ func TestTheStatusBarSaysWhereTheReviewIs(t *testing.T) {
 // TestOpeningAFileMovesTheReaderToIt separates the two things enter does from
 // what walking the tree does.
 func TestOpeningAFileMovesTheReaderToIt(t *testing.T) {
-	active := lipgloss.NewStyle().Foreground(theme.RosePineMoon.Secondary).Bold(true)
-
 	s := open(t, 100, 16).press("j", "j", "j", "j")
 	if title := s.lines()[0]; !strings.Contains(title, "docs/superpowers/specs/design.md") {
 		t.Errorf("walking onto a file did not open it in the diff pane: %q", title)
 	}
-	if !strings.Contains(s.raw(), active.Render("CHANGES")) {
+	if !strings.Contains(s.raw(), seam(true)) {
 		t.Errorf("walking the tree gave the focus away")
 	}
 
 	s.press("enter")
-	if !strings.Contains(s.raw(), active.Render("docs/superpowers/specs/design.md")) {
+	if !strings.Contains(s.raw(), seam(false)) {
 		t.Errorf("enter did not move the focus to the diff pane")
 	}
 }
