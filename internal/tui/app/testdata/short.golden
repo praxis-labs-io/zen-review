@@ -1,8 +1,8 @@
 ╭─[1]─Files (6)──────────────────╮╭─[2]─internal/tui/diffpane/painting_the_unified_rows.go─────────╮
 │                                ││         @@ -0,0 +1,2 @@                                        │
-│    ▾ review                    ││                                                                │
-│      ~ state.go           +3 -1││                                                                │
-│    ▾ tui/diffpane              ││                                                                │
-│      · painting_the_unif… +2 -0││                                                                │
+│   ▾ review                     ││                                                                │
+│     ~ state.go            +3 -1││                                                                │
+│   ▾ tui/diffpane               ││                                                                │
+│     · painting_the_unifi… +2 -0││                                                                │
 ╰──────────────────────────12/12─╯╰────────────────────────────────────────────────────────────────╯
 origin/main (a1b2c3d)  ·  generation 2  ·  2 / 7 reviewed                            ? help • q quit

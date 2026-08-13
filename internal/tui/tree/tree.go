@@ -16,9 +16,9 @@ const (
 	// indent is one level of nesting, in columns.
 	indent = 2
 
-	// gutter is the columns every row starts in from the pane's edge, so a name
-	// does not sit against the border and a filled row has something to fill.
-	gutter = 2
+	// gutter is the column every row starts in from the pane's edge, so a glyph
+	// does not sit against the border.
+	gutter = 1
 
 	// topPad is the blank line above the first row. The tree's first name sits
 	// under the pane's title rather than against it.
