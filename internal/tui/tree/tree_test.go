@@ -131,6 +131,26 @@ func TestALevelSortsLikeAFileTree(t *testing.T) {
 	}
 }
 
+// TestTheCursorSurvivesATerminalWithoutColour. The row is a filled background,
+// and a terminal that drops colour drops the fill with it: the reader presses j
+// and watches nothing move. Bold is not a colour and comes through.
+func TestTheCursorSurvivesATerminalWithoutColour(t *testing.T) {
+	th := theme.RosePineMoon
+	m, _ := press(t, pane(t, 32, 20), "j")
+
+	on := lipgloss.NewStyle().
+		Background(th.SelectedBackground).Foreground(th.Text).Bold(true).Render("logo.png")
+	off := lipgloss.NewStyle().Foreground(th.Text).Bold(true).Render("README.md")
+
+	view := m.View()
+	if !strings.Contains(view, on) {
+		t.Errorf("the row under the cursor is not bold, so a terminal without colour shows no cursor")
+	}
+	if strings.Contains(view, off) {
+		t.Errorf("a row the cursor is not on is bold")
+	}
+}
+
 // TestOneRowShowsTheRowAndNotAPad. The pads are the ends of the list, and a
 // pane with a single line has no room for a pad and the row it belongs to.
 // Snapping to one there draws an empty tree on the smallest terminal that runs.

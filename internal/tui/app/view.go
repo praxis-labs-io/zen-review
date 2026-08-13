@@ -105,9 +105,13 @@ func (m Model) content() string {
 func (m Model) body() string {
 	muted := lipgloss.NewStyle().Foreground(m.theme.Muted)
 
+	// The note is set again here, not just at resize. Its height is fixed at
+	// metaLines, which is what resize needed it for, but its text is derived
+	// from the changeset and has to be built on the frame that shows it.
 	tree := m.treePane.
 		Index(1).
 		Title(titleize(comp.Safe(m.repo))).
+		Note(m.meta()).
 		Focus(m.focus == focusTree).
 		Render(m.tree.View())
 

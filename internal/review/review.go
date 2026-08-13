@@ -95,10 +95,20 @@ func (s *Session) Kind() store.Kind { return s.row.Kind }
 // Branch is empty on a session that is not keyed to one.
 func (s *Session) Branch() string { return s.row.Branch }
 
-// Repo names the repository under review, which is its work tree's directory
-// name. That is what a reader recognises; the absolute path is not, and it is
-// too long to put anywhere a name goes.
-func (s *Session) Repo() string { return filepath.Base(s.repo.Root()) }
+// Repo names the repository under review. That is what a reader recognises;
+// the absolute path is not, and it is too long to put anywhere a name goes.
+//
+// It comes off the common directory rather than the work tree, because a
+// linked worktree and the checkout it came from share one session, keyed on
+// exactly that directory. Naming the work tree would give one review two names
+// depending on which directory it was opened from.
+func (s *Session) Repo() string {
+	dir := s.repo.CommonDir()
+	if filepath.Base(dir) == ".git" {
+		dir = filepath.Dir(dir)
+	}
+	return strings.TrimSuffix(filepath.Base(dir), ".git")
+}
 
 // Base is what the changeset is measured from.
 func (s *Session) Base() Base { return s.base }

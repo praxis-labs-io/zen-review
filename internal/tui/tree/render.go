@@ -57,6 +57,11 @@ func (m Model) render(r row, cursor bool) string {
 		base = base.Background(fill)
 	}
 
+	// The name on the cursor row is bold as well as filled. A terminal that
+	// drops colour keeps bold, and the fill is the only other thing marking the
+	// row: under NO_COLOR the reader would press j and watch nothing move.
+	nameStyle := base.Foreground(text).Bold(cursor)
+
 	subtle := base.Foreground(m.theme.Subtle)
 	glyph, glyphColor := m.glyph(r.n)
 
@@ -81,7 +86,7 @@ func (m Model) render(r row, cursor bool) string {
 	row := base.Render(strings.Repeat(" ", gutter+depth)) +
 		base.Foreground(glyphColor).Render(glyph) +
 		base.Render(" ") +
-		base.Foreground(text).Render(name)
+		nameStyle.Render(name)
 
 	gap := m.width - lipgloss.Width(row) - lipgloss.Width(trailing) - gutter
 	if gap > 0 {

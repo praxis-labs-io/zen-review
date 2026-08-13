@@ -213,19 +213,38 @@ func TestALocalBranchAlreadyInTheBaseIsNotACandidate(t *testing.T) {
 	}
 }
 
-// TestRepoNamesTheWorkTree. It is what the reader is shown to say which
-// repository is on screen, so it has to be the directory's name rather than
-// the path to it or the name of a temporary directory above it.
-func TestRepoNamesTheWorkTree(t *testing.T) {
+// TestRepoNamesTheRepository. It is what the reader is shown to say which
+// repository is on screen, so it has to be a name rather than the path to one.
+//
+// A linked worktree gets the same name as the checkout it came from: the two
+// share one session, keyed on the common directory, and one review answering to
+// two names depending on where it was opened is worse than a name that is not
+// the directory you are standing in.
+func TestRepoNamesTheRepository(t *testing.T) {
 	f := branched(t)
+	want := filepath.Base(f.Dir())
+
 	s := f.mustOpen("")
 	t.Cleanup(func() { _ = s.Close() })
 
-	if got, want := s.Repo(), filepath.Base(f.Dir()); got != want {
+	if got := s.Repo(); got != want {
 		t.Errorf("Repo() = %q, want %q", got, want)
 	}
 	if strings.ContainsRune(s.Repo(), filepath.Separator) {
 		t.Errorf("Repo() = %q, want a name and not a path", s.Repo())
+	}
+
+	linked := filepath.Join(t.TempDir(), "a-worktree-of-its-own")
+	f.Git("worktree", "add", "-q", "-b", "side", linked)
+
+	w, err := review.Open(t.Context(), linked, review.Options{})
+	if err != nil {
+		t.Fatalf("opening a session in a worktree: %v", err)
+	}
+	t.Cleanup(func() { _ = w.Close() })
+
+	if got := w.Repo(); got != want {
+		t.Errorf("from a worktree Repo() = %q, want %q", got, want)
 	}
 }
 
