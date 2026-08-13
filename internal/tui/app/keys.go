@@ -40,11 +40,13 @@ func (m Model) ShortHelp() []key.Binding {
 func (m Model) FullHelp() [][]key.Binding {
 	panes := []key.Binding{m.keys.Left, m.keys.Right}
 
-	movement := m.diff.Keys.Bindings()
+	movement := m.diff.Keys.Movement.Bindings()
+	own := m.diff.Keys.Bindings()
 	if m.focus == focusTree {
 		movement = m.tree.Keys.Movement.Bindings()
-		panes = append(panes, m.tree.Keys.Bindings()...)
+		own = m.tree.Keys.Bindings()
 	}
+	panes = append(panes, own...)
 
 	return [][]key.Binding{
 		movement,

@@ -20,6 +20,11 @@ import (
 // The goldens hold the frame with its escapes stripped, so a diff in review is
 // readable and a lipgloss bump does not churn every file. What they prove is
 // alignment and clipping; colour is asserted directly further down.
+// code walks the tree to the fixture's two-hunk Go file, counting back from the
+// last row rather than down from the first: the tree opens on a binary file, and
+// the rows between the two are directories a change to the fixture would move.
+var code = []string{"G", "k", "k", "k"}
+
 func TestGoldenFrames(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -28,10 +33,11 @@ func TestGoldenFrames(t *testing.T) {
 	}{
 		{"open", 100, 16, nil},
 
-		// Narrow enough that a path outruns the tree and a hunk header outruns
+		// Narrow enough that a path outruns the tree and a line of code outruns
 		// the diff pane, which is the only width that proves the panes clip
-		// before they draw.
-		{"narrow", 56, 16, nil},
+		// before they draw. The keys walk to a file that has code in it; the
+		// tree opens on a binary one, which has none.
+		{"narrow", 56, 16, code},
 
 		{"help", 100, 16, []string{"?"}},
 		{"folded", 100, 16, []string{"j", "space"}},
@@ -68,17 +74,21 @@ func TestTheFrameIsExactlyTheTerminal(t *testing.T) {
 		{72, 10},
 	}
 
-	for _, size := range sizes {
-		s := open(t, size.width, size.height)
-		lines := s.lines()
+	// Each size twice: as it opens, on a binary file the painter draws no rows
+	// for, and walked to the file that has the longest lines in the fixture.
+	for _, keys := range [][]string{nil, code} {
+		for _, size := range sizes {
+			s := open(t, size.width, size.height).press(keys...)
+			lines := s.lines()
 
-		if len(lines) != size.height {
-			t.Errorf("%dx%d drew %d lines, want %d", size.width, size.height, len(lines), size.height)
-		}
-		for i, line := range lines {
-			if w := lipgloss.Width(line); w != size.width {
-				t.Errorf("%dx%d line %d is %d columns, want %d: %q",
-					size.width, size.height, i, w, size.width, line)
+			if len(lines) != size.height {
+				t.Errorf("%dx%d drew %d lines, want %d", size.width, size.height, len(lines), size.height)
+			}
+			for i, line := range lines {
+				if w := lipgloss.Width(line); w != size.width {
+					t.Errorf("%dx%d line %d is %d columns, want %d: %q",
+						size.width, size.height, i, w, size.width, line)
+				}
 			}
 		}
 	}
