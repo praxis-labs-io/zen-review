@@ -1,16 +1,16 @@
 ╭─[1]─Files (6)──────────────────╮╭─[2]─README.md──────────────────────────────────────────────────╮
-│                                ││         @@ -1,3 +1,3 @@                                        │
-│ · README.md               +1 -1││                                                                │
-│ ▸ assets                       ││                                                                │
-│ ▾ docs/superpowers/specs       ││                                                                │
-│   ✓ design.md             +3 -0││                                                                │
-│ ▾ internal                     ││                                                                │
-│   ▾ cli                        ││                                                                │
-│     · render.go           +1 -1││                                                                │
-│   ▾ review                     ││                                                                │
-│     ~ state.go            +3 -1││                                                                │
-│   ▾ tui/diffpane               ││                                                                │
-│     · painting_the_unifi… +2 -0││                                                                │
+│· README.md                +1 -1││         @@ -1,3 +1,3 @@                                        │
+│▸ assets                        ││                                                                │
+│▾ docs/superpowers/specs        ││                                                                │
+│  ✓ design.md              +3 -0││                                                                │
+│▾ internal                      ││                                                                │
+│  ▾ cli                         ││                                                                │
+│    · render.go            +1 -1││                                                                │
+│  ▾ review                      ││                                                                │
+│    ~ state.go             +3 -1││                                                                │
+│  ▾ tui/diffpane                ││                                                                │
+│    · painting_the_unifie… +2 -0││                                                                │
+│                                ││                                                                │
 │                                ││                                                                │
 ╰────────────────────────────────╯╰────────────────────────────────────────────────────────────────╯
 origin/main (a1b2c3d)  ·  generation 2  ·  2 / 7 reviewed                            ? help • q quit

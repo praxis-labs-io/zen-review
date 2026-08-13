@@ -12,16 +12,12 @@ import (
 )
 
 func (m Model) View() string {
-	blank := strings.Repeat(" ", max(0, m.width))
-
 	lines := make([]string, 0, m.height)
-	for range min(topPad, m.height) {
-		lines = append(lines, blank)
-	}
-
 	for i := m.offset; i < len(m.rows) && len(lines) < m.height; i++ {
 		lines = append(lines, m.render(m.rows[i], i == m.cursor))
 	}
+
+	blank := strings.Repeat(" ", max(0, m.width))
 	for len(lines) < m.height {
 		lines = append(lines, blank)
 	}
@@ -55,9 +51,9 @@ func (m Model) render(r row, cursor bool) string {
 
 	// The indent gives way before the name does. A branching tree eleven deep
 	// would otherwise spend the whole pane saying how deep it is.
-	depth := min(r.depth*indent, max(m.width-gutter-nameMin-2, 0))
+	depth := min(r.depth*indent, max(m.width-nameMin-2, 0))
 
-	room := m.width - gutter - depth - lipgloss.Width(glyph) - 1
+	room := m.width - depth - lipgloss.Width(glyph) - 1
 
 	// The trailing cell takes what is left over the name's share, not the other
 	// way round. "renamed, contents unchanged" is 27 columns and would leave a
@@ -71,7 +67,7 @@ func (m Model) render(r row, cursor bool) string {
 	// columns to the churn beside it.
 	name := comp.Clip(comp.Safe(r.n.name), max(room, 0), subtle)
 
-	row := base.Render(strings.Repeat(" ", gutter+depth)) +
+	row := base.Render(strings.Repeat(" ", depth)) +
 		base.Foreground(glyphColor).Render(glyph) +
 		base.Render(" ") +
 		base.Foreground(text).Render(name)
