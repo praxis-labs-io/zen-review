@@ -59,40 +59,30 @@ func build(files []review.File) []*node {
 }
 
 // order sorts one level and everything under it: directories before files, and
-// inside each group the dot-prefixed names before the rest.
+// by byte within each group. It is zen-octo's rule, so a changeset laid out in
+// one tool reads the same in the other.
 //
 // Git's order is the order it walked the index in, which drops a root file
-// above every directory that holds the rest of the changeset. The sort is by
-// byte, so a name starting in upper case sorts above one in lower, which is
-// what puts CLAUDE.md over go.mod.
+// above every directory that holds the rest of the changeset.
+//
+// Byte order needs no case of its own for a dotted name: "." sorts below every
+// letter, so .github lands above cmd and .gitignore above CLAUDE.md. A rule
+// spelling that out would only change the answer for a name starting below ".",
+// where it would put .gitignore above -report.txt for no reason anyone asked
+// for.
 func order(nodes []*node) {
 	slices.SortFunc(nodes, func(a, b *node) int {
 		if a.dir() != b.dir() {
-			return boolCmp(b.dir(), a.dir())
-		}
-		if da, db := dotted(a.name), dotted(b.name); da != db {
-			return boolCmp(db, da)
+			if a.dir() {
+				return -1
+			}
+			return 1
 		}
 		return strings.Compare(a.name, b.name)
 	})
 
 	for _, n := range nodes {
 		order(n.kids)
-	}
-}
-
-func dotted(name string) bool { return strings.HasPrefix(name, ".") }
-
-// boolCmp orders false before true, so the caller passes the flag it wants
-// last on the left.
-func boolCmp(a, b bool) int {
-	switch {
-	case a == b:
-		return 0
-	case b:
-		return -1
-	default:
-		return 1
 	}
 }
 

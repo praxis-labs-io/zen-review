@@ -97,7 +97,8 @@ func TestADirectoryChainIsOneRow(t *testing.T) {
 	}
 }
 
-// TestALevelSortsLikeAFileTree. Git's order is the order it walked the index
+// TestALevelSortsLikeAFileTree: directories above files, by byte within each
+// group, which is zen-octo's rule. Git's order is the order it walked the index
 // in, which drops a root file above every directory holding the rest.
 func TestALevelSortsLikeAFileTree(t *testing.T) {
 	// Deliberately the wrong way round in the patch, so a tree that kept git's
@@ -114,12 +115,14 @@ func TestALevelSortsLikeAFileTree(t *testing.T) {
 	m := tree.New(theme.RosePineMoon, testchangeset.Derive(t, patch))
 	m.SetSize(40, 20)
 
+	// Byte order does the work: "." sorts below every letter and upper case
+	// below lower, so the dotted names lead each group with no rule of their own.
 	want := []string{
-		".github/workflows", "ci.yml", // dot directory, first
+		".github/workflows", "ci.yml",
 		"cmd", "a.go",
 		"internal", "b.go",
-		".gitignore", // dot file, above the rest
-		"CLAUDE.md",  // upper case sorts above lower
+		".gitignore",
+		"CLAUDE.md",
 		"go.sum",
 	}
 
