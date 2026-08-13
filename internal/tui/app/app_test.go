@@ -78,9 +78,11 @@ func TestTheFrameIsExactlyTheTerminal(t *testing.T) {
 		{72, 10},
 	}
 
-	// Each size twice: as it opens, on a binary file the painter draws no rows
-	// for, and walked to the file that has the longest lines in the fixture.
-	for _, keys := range [][]string{nil, code} {
+	// Each size three ways: as it opens, on a binary file the painter draws no
+	// rows for; walked to the file with the longest lines in the fixture; and
+	// under the overlay, which is composited rather than drawn and comes back
+	// with every line's trailing spaces trimmed unless they are put back.
+	for _, keys := range [][]string{nil, code, {"?"}} {
 		for _, size := range sizes {
 			s := open(t, size.width, size.height).press(keys...)
 			lines := s.lines()
@@ -202,6 +204,38 @@ func column(frame string, width int) string {
 		b.WriteString(string(runes[:min(width, len(runes))]) + "\n")
 	}
 	return b.String()
+}
+
+// TestTheOverlayStaysABoxOnTheSmallestFrame. The compositor clips what does not
+// fit, and a clipped box loses the border off two of its sides: the reader sees
+// an unclosed rectangle and no bottom row. The modal is sized into the frame so
+// the pane clips its content instead.
+func TestTheOverlayStaysABoxOnTheSmallestFrame(t *testing.T) {
+	for _, size := range []struct{ width, height int }{
+		// The smallest frame that draws panes at all, and one row more.
+		{56, 4},
+		{56, 6},
+		{72, 10},
+		{100, 16},
+	} {
+		frame := open(t, size.width, size.height).press("?").frame()
+
+		for _, corner := range []string{"╭", "╮", "╰", "╯"} {
+			if !strings.Contains(frame, corner) {
+				t.Errorf("at %dx%d the box has no %s:\n%s", size.width, size.height, corner, frame)
+			}
+		}
+	}
+}
+
+// TestTheOverlaySaysWhichPaneAKeyMoves. The overlay lists a pane's keys in one
+// column, so a key that moves the other pane has to say so or the column reads
+// as one more way to move this one.
+func TestTheOverlaySaysWhichPaneAKeyMoves(t *testing.T) {
+	tree := open(t, 100, 16).press("?").frame()
+	if !strings.Contains(tree, "ctrl+d diff half page down") {
+		t.Errorf("the tree's column claims ctrl+d pages the tree:\n%s", tree)
+	}
 }
 
 // TestTheTreeIsHeadedByTheRepository, so a reader with two of these open knows
@@ -414,11 +448,44 @@ func TestTheHintIsAgainstTheLeftEdge(t *testing.T) {
 	for _, width := range []int{100, 72, 56} {
 		bar := open(t, width, 16).lines()[15]
 
-		if !strings.HasPrefix(bar, "? help") {
+		if !strings.HasPrefix(bar, "j/k") {
 			t.Errorf("at %d columns the bar starts %q", width, bar)
 		}
 		if got := lipgloss.Width(bar); got != width {
 			t.Errorf("at %d columns the bar is %d wide: %q", width, got, bar)
+		}
+
+		// The bar cuts from the right, so a pane hint that does not fit would
+		// take these with it and leave nothing on screen saying the overlay is
+		// there. The reader who needs that is the one on the narrow terminal.
+		if !strings.Contains(bar, "? help") || !strings.Contains(bar, "q quit") {
+			t.Errorf("at %d columns the bar lost the way out: %q", width, bar)
+		}
+	}
+}
+
+// TestTheBarSaysWhatThePaneHoldingTheKeysCanDo. The overlay is a keypress away
+// and nothing on screen said the keypress existed.
+func TestTheBarSaysWhatThePaneHoldingTheKeysCanDo(t *testing.T) {
+	tree := open(t, 100, 16).lines()[15]
+	for _, want := range []string{"j/k move", "enter open", "space fold"} {
+		if !strings.Contains(tree, want) {
+			t.Errorf("the tree holds the keys and the bar does not say %q: %q", want, tree)
+		}
+	}
+
+	diff := open(t, 100, 16).press("l").lines()[15]
+	if !strings.Contains(diff, "j/k scroll") {
+		t.Errorf("the diff holds the keys and the bar reads %q", diff)
+	}
+	if strings.Contains(diff, "space fold") {
+		t.Errorf("the bar still names a key of the pane that lost the keys: %q", diff)
+	}
+
+	// The one that answers from both, said the same way from either.
+	for _, bar := range []string{tree, diff} {
+		if !strings.Contains(bar, "ctrl+d/u page the diff") {
+			t.Errorf("the bar drops the key that crosses the panes: %q", bar)
 		}
 	}
 }

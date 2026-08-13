@@ -47,6 +47,21 @@ func (k KeyMap) Scrolling() []key.Binding {
 	return []key.Binding{k.HalfDown, k.HalfUp}
 }
 
+// Hints is what the status bar says this pane can do while it holds the keys.
+func (k KeyMap) Hints() []key.Binding {
+	return []key.Binding{comp.Pair(k.Down, k.Up, "j/k", "scroll")}
+}
+
+// Paging is the half-page keys as the status bar names them, which is once.
+//
+// The bindings say "diff" and the bar's label does not need to: the bar has one
+// entry for the pair and no room, while the overlay lists them in the column of
+// whichever pane holds the keys, where an unqualified "half page down" would
+// read as one more way to move the tree.
+func (k KeyMap) Paging() key.Binding {
+	return comp.Pair(k.HalfDown, k.HalfUp, "ctrl+d/u", "page the diff")
+}
+
 // Model is the diff pane. It renders the file it was given and holds no review
 // state of its own.
 type Model struct {

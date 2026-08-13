@@ -27,9 +27,34 @@ func NewKeyMap() KeyMap {
 	}
 }
 
-// ShortHelp is the line on the status bar. It stays short enough to survive a
-// narrow terminal, where the rest is one keypress away.
+// ShortHelp is the line on the status bar: what the pane holding the keys can
+// do, then the two that answer from anywhere.
+//
+// It changes with focus, because the point of the line is what the next press
+// would do. The rest is one keypress away.
 func (m Model) ShortHelp() []key.Binding {
+	return append(m.paneKeys(), m.wayOut()...)
+}
+
+// paneKeys is what the pane holding the keys can do. The bar drops from the
+// tail, so the last of these is the first to go.
+//
+// The paging keys are last. They are the ones a reader would not guess, which
+// argues for keeping them, but the bar only runs short on a terminal narrow
+// enough that the diff pane is a sliver, and paging a sliver is the least of
+// what the reader wants there.
+func (m Model) paneKeys() []key.Binding {
+	own := m.diff.Keys.Hints()
+	if m.focus == focusTree {
+		own = m.tree.Keys.Hints()
+	}
+	return append(own, m.diff.Keys.Paging())
+}
+
+// wayOut is the two the bar never drops. They are the only thing on screen
+// saying the overlay exists, and the reader who needs that is the one on the
+// terminal too narrow for the rest.
+func (m Model) wayOut() []key.Binding {
 	return []key.Binding{m.keys.Help, m.keys.Quit}
 }
 

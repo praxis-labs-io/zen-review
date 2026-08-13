@@ -94,10 +94,11 @@ func (m Model) content() string {
 	if m.width < minWidth || m.height < minHeight {
 		return m.tooSmall()
 	}
+	frame := strings.Join([]string{m.body(), m.status()}, "\n")
 	if m.showing {
-		return strings.Join([]string{m.overlay(), m.status()}, "\n")
+		return m.overlay(frame)
 	}
-	return strings.Join([]string{m.body(), m.status()}, "\n")
+	return frame
 }
 
 // body is the two framed panes, joined flush. Their borders meet, so the seam
@@ -213,34 +214,27 @@ func spread(left, right string, width int, mark lipgloss.Style) string {
 	return left + strings.Repeat(" ", gap) + right
 }
 
-// overlay is the full keymap, drawn over the panes it replaces.
-func (m Model) overlay() string {
+// overlay is the full keymap, in a box over the frame rather than in place of
+// it. The reader asked what the keys are, not to be taken off the page.
+func (m Model) overlay(frame string) string {
 	full := m.help
 	full.ShowAll = true
 
-	lines := strings.Split(full.View(m), "\n")
-	for i, line := range lines {
-		lines[i] = m.pad(line, m.width)
-	}
-
-	blank := strings.Repeat(" ", m.width)
-	for len(lines) < m.bodyHeight() {
-		lines = append(lines, blank)
-	}
-	return strings.Join(lines[:m.bodyHeight()], "\n")
+	return comp.Over(frame, comp.Modal(m.theme, "Keys", full.View(m), m.width, m.height), m.width, m.height)
 }
 
-// status is the way out, against the left edge where the eye starts.
+// status is what the pane holding the keys can do, against the left edge where
+// the eye starts.
 //
-// The facts join it only when their own box did not fit. They have to be
-// somewhere, and the hint keeps the left: dropping it drops the only thing on
-// screen saying that ? exists, and the reader who needed it is the one on the
-// small terminal.
+// The facts join it only when their own box did not fit, and the hint falls
+// back to the way out when they do. Both have to be on screen somewhere, and on
+// a frame that small the pane's own keys are what the reader can find by
+// pressing the one key the bar keeps.
 func (m Model) status() string {
-	hint := m.help.ShortHelpView(m.ShortHelp())
 	if m.metaShown() {
-		return m.pad(hint, m.width)
+		return m.pad(m.bar(m.width), m.width)
 	}
+	hint := m.help.ShortHelpView(m.wayOut())
 
 	muted := lipgloss.NewStyle().Foreground(m.theme.Muted)
 	subtle := lipgloss.NewStyle().Foreground(m.theme.Subtle)
@@ -258,6 +252,30 @@ func (m Model) status() string {
 		return m.pad(hint, m.width)
 	}
 	return hint + strings.Repeat(" ", gap) + facts
+}
+
+// bar is the status line, with the pane's own keys dropped off the tail until
+// it fits.
+//
+// ShortHelpView cuts the line from the right, which would take the way out with
+// it and leave a bar that names three keys and no way to see the rest. Dropping
+// a whole key is what the overlay does with a hint too: half a key teaches
+// nothing.
+func (m Model) bar(width int) string {
+	// Measured against a help with no width of its own. One that has a width
+	// truncates before returning, so every candidate comes back already cut and
+	// the first one measures as fitting.
+	h := m.help
+	h.SetWidth(0)
+
+	own, out := m.paneKeys(), m.wayOut()
+	for n := len(own); n > 0; n-- {
+		line := h.ShortHelpView(append(own[:n:n], out...))
+		if lipgloss.Width(line) <= width {
+			return line
+		}
+	}
+	return h.ShortHelpView(out)
 }
 
 // tooSmall fills the screen the same way every other path does, so the frame

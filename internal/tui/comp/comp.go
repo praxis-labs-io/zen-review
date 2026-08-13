@@ -75,6 +75,10 @@ func Churn(base lipgloss.Style, t theme.Theme, added, removed int) string {
 func Help(t theme.Theme) help.Model {
 	m := help.New()
 
+	// The same dot the facts are separated by, rather than bubbles' bullet. One
+	// screen reads at one weight.
+	m.ShortSeparator = " · "
+
 	key := lipgloss.NewStyle().Foreground(t.Accent)
 	desc := lipgloss.NewStyle().Foreground(t.Subtle)
 	sep := lipgloss.NewStyle().Foreground(t.BorderMutedOrSubtle())

@@ -54,13 +54,24 @@ func NewKeyMap() KeyMap {
 	return KeyMap{
 		Movement: comp.NewMovement(),
 		Toggle:   key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "fold")),
-		Open:     key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "open the file")),
+		Open:     key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "open")),
 	}
 }
 
 // Bindings is the tree's own keys, without the movement it shares.
 func (k KeyMap) Bindings() []key.Binding {
 	return []key.Binding{k.Toggle, k.Open}
+}
+
+// Hints is what the status bar says this pane can do while it holds the keys,
+// most worth saying first. The bar is one line for the whole frame, so a pane
+// names the few keys that are its own rather than everything it answers to.
+func (k KeyMap) Hints() []key.Binding {
+	return []key.Binding{
+		comp.Pair(k.Down, k.Up, "j/k", "move"),
+		k.Open,
+		k.Toggle,
+	}
 }
 
 // Model is the tree pane. It renders the changeset it was built from and holds

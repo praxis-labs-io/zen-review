@@ -13,4 +13,4 @@
 │ Reviewed                         2/7 ││                                                          │
 │ Changes                   6  +10 -3 ││                                                          │
 ╰──────────────────────────────────────╯╰──────────────────────────────────────────────────────────╯
-? help • q quit                                                                                     
+j/k move · enter open · space fold · ctrl+d/u page the diff · ? help · q quit                       
