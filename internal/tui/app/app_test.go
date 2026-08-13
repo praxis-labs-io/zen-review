@@ -1,6 +1,7 @@
 package app_test
 
 import (
+	"image/color"
 	"strings"
 	"testing"
 
@@ -10,6 +11,8 @@ import (
 	"github.com/zen-kit/zen-kit/theme"
 
 	"github.com/zen-review/zen-review/internal/golden"
+	"github.com/zen-review/zen-review/internal/store"
+	"github.com/zen-review/zen-review/internal/testchangeset"
 )
 
 // TestGoldenFrames locks the layout at the widths that prove something.
@@ -211,6 +214,48 @@ func TestTheFactsAreDrawnAndColoured(t *testing.T) {
 		if !strings.Contains(s.raw(), style) {
 			t.Errorf("%s is not in its own colour", part)
 		}
+	}
+}
+
+// TestTheBurnDownWearsItsOwnState. It is the same ladder as the glyphs beside
+// the filenames, so the one number and the whole column agree at a glance.
+func TestTheBurnDownWearsItsOwnState(t *testing.T) {
+	th := theme.RosePineMoon
+
+	// Two hunks in one file, so there is a half-way to be at. They only add, so
+	// each has one anchor and one range covers it: a hunk that also removes has
+	// a second anchor on the base side and takes two.
+	const patch = `diff --git a/a.go b/a.go
+--- a/a.go
++++ b/a.go
+@@ -1,0 +1,1 @@
++one
+@@ -10,0 +11,1 @@
++ten
+`
+	first := testchangeset.Head("a.go", 1, 1)
+	second := testchangeset.Head("a.go", 11, 11)
+
+	tests := []struct {
+		name     string
+		reviewed []store.ReviewedRange
+		want     string
+		colour   color.Color
+	}{
+		{"nothing read", nil, "0 / 2 reviewed", th.Subtle},
+		{"part read", []store.ReviewedRange{first}, "1 / 2 reviewed", th.Warning},
+		{"all read", []store.ReviewedRange{first, second}, "2 / 2 reviewed", th.Accent},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := over(t, testchangeset.Derive(t, patch, tt.reviewed...), 100, 16)
+
+			want := lipgloss.NewStyle().Foreground(tt.colour).Render(tt.want)
+			if !strings.Contains(s.raw(), want) {
+				t.Errorf("the burn-down does not read %q in its own colour:\n%s", tt.want, s.frame())
+			}
+		})
 	}
 }
 

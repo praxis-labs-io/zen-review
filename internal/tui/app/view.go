@@ -112,10 +112,7 @@ func (m Model) meta() string {
 	width := max(m.treePane.InnerWidth()-metaIndent*2, 0)
 	subtle := lipgloss.NewStyle().Foreground(m.theme.Subtle)
 
-	var rows []string
-	for _, fact := range m.facts() {
-		rows = append(rows, subtle.Render(fact))
-	}
+	rows := m.facts()
 
 	// The size goes last, under the burn-down it is the denominator of.
 	rows = append(rows, spread(m.files(), comp.Churn(lipgloss.NewStyle(), m.theme,
@@ -131,13 +128,36 @@ func (m Model) meta() string {
 }
 
 // facts are what the changeset is measured against, which generation is on
-// screen, and how far down the burn-down has come.
+// screen, and how far down the burn-down has come. They come back styled,
+// because the last of them is not one colour.
 func (m Model) facts() []string {
+	subtle := lipgloss.NewStyle().Foreground(m.theme.Subtle)
+
 	return []string{
-		fmt.Sprintf("%s (%s)", m.base.Ref, short(m.base.SHA)),
-		fmt.Sprintf("generation %d", m.gen.Seq),
-		fmt.Sprintf("%d / %d reviewed", m.changeset.Reviewed, m.changeset.Items),
+		subtle.Render(fmt.Sprintf("%s (%s)", m.base.Ref, short(m.base.SHA))),
+		subtle.Render(fmt.Sprintf("generation %d", m.gen.Seq)),
+		m.burndown(),
 	}
+}
+
+// burndown reads at the state a file at the same fraction would: nothing read
+// is the unreviewed grey, part of it the partial gold, all of it the reviewed
+// accent. It is the same ladder as the glyphs beside the filenames, so the one
+// number and the whole column agree at a glance.
+//
+// A changeset with nothing in it stays grey. Vacuously complete is still a
+// claim that work was done.
+func (m Model) burndown() string {
+	c := m.theme.Subtle
+	switch {
+	case m.changeset.Items > 0 && m.changeset.Reviewed == m.changeset.Items:
+		c = m.theme.Accent
+	case m.changeset.Reviewed > 0:
+		c = m.theme.Warning
+	}
+
+	return lipgloss.NewStyle().Foreground(c).
+		Render(fmt.Sprintf("%d / %d reviewed", m.changeset.Reviewed, m.changeset.Items))
 }
 
 // spread puts left at the start of a line and right at its end, giving the
@@ -183,7 +203,7 @@ func (m Model) status() string {
 	}
 
 	subtle := lipgloss.NewStyle().Foreground(m.theme.Subtle)
-	facts := comp.Clip(subtle.Render(strings.Join(m.facts(), dot)),
+	facts := comp.Clip(strings.Join(m.facts(), subtle.Render(dot)),
 		max(m.width-lipgloss.Width(hint)-2, 0), subtle)
 
 	gap := m.width - lipgloss.Width(hint) - lipgloss.Width(facts)

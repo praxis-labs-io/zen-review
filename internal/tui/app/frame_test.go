@@ -30,11 +30,23 @@ func open(t *testing.T, width, height int) *screen {
 // about the heading.
 func named(t *testing.T, repo string, width, height int) *screen {
 	t.Helper()
+	return build(t, repo, testchangeset.Nested(t), width, height)
+}
+
+// over opens the reader on a changeset of the test's own, for the assertions
+// about how far down the review is.
+func over(t *testing.T, c review.Changeset, width, height int) *screen {
+	t.Helper()
+	return build(t, "zen-review", c, width, height)
+}
+
+func build(t *testing.T, repo string, c review.Changeset, width, height int) *screen {
+	t.Helper()
 
 	base := review.Base{Ref: "origin/main", SHA: "a1b2c3d4e5f67890"}
 	g := review.Generation{Seq: 2}
 
-	s := &screen{t: t, m: app.New(theme.RosePineMoon, repo, base, g, testchangeset.Nested(t))}
+	s := &screen{t: t, m: app.New(theme.RosePineMoon, repo, base, g, c)}
 	s.send(tea.WindowSizeMsg{Width: width, Height: height})
 	return s
 }
