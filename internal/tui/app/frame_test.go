@@ -78,13 +78,6 @@ func (s *screen) raw() string {
 	return s.m.View().Content
 }
 
-// rawLine is one line of the screen with its escapes intact, for the colour a
-// stripped frame cannot carry.
-func (s *screen) rawLine(i int) string {
-	s.t.Helper()
-	return strings.Split(s.raw(), "\n")[i]
-}
-
 func (s *screen) lines() []string {
 	s.t.Helper()
 	return strings.Split(s.frame(), "\n")

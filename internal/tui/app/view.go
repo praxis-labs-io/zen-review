@@ -24,12 +24,19 @@ const (
 	// statusRow is the line the panes do not get.
 	statusRow = 1
 
+	// metaLines is the facts under the tree: the changeset's size, what it is
+	// measured against, which generation is on screen, and the burn-down.
+	metaLines = 4
+
+	// minPane is a pane showing anything at all: two borders and a row.
+	minPane = paneChrome + 1
+
 	// minWidth leaves the diff pane twenty columns to draw in. minHeight leaves
 	// each pane its two borders and a row of content between them.
 	minWidth  = treeWidth + paneChrome + 20
-	minHeight = statusRow + paneChrome + 1
+	minHeight = statusRow + minPane
 
-	// dot separates the facts on the status bar.
+	// dot separates the facts when the status bar has to carry them.
 	dot = "  ·  "
 )
 
@@ -37,7 +44,8 @@ func (m *Model) resize(width, height int) {
 	m.width, m.height = width, height
 	m.help.SetWidth(width)
 
-	m.treePane = m.treePane.Size(treeWidth, m.bodyHeight())
+	m.treePane = m.treePane.Size(treeWidth, m.bodyHeight()-m.metaHeight())
+	m.metaPane = m.metaPane.Size(treeWidth, m.metaHeight())
 	m.diffPane = m.diffPane.Size(m.diffWidth(), m.bodyHeight())
 
 	m.tree.SetSize(m.treePane.InnerWidth(), m.treePane.InnerHeight())
@@ -46,6 +54,16 @@ func (m *Model) resize(width, height int) {
 
 func (m Model) bodyHeight() int { return max(m.height-statusRow, 0) }
 func (m Model) diffWidth() int  { return max(m.width-treeWidth, 0) }
+
+// metaHeight is what the facts box takes out of the tree, and zero on a frame
+// that cannot spare it. The tree is what the reader came for, so it keeps its
+// rows and the status bar carries the facts instead.
+func (m Model) metaHeight() int {
+	if m.height < statusRow+metaLines+paneChrome+minPane {
+		return 0
+	}
+	return metaLines + paneChrome
+}
 
 func (m Model) View() tea.View {
 	v := tea.NewView(m.content())
@@ -69,13 +87,16 @@ func (m Model) content() string {
 func (m Model) body() string {
 	muted := lipgloss.NewStyle().Foreground(m.theme.Muted)
 
-	tree := m.treePane.
+	left := m.treePane.
 		Index(1).
 		Title(titleize(comp.Safe(m.repo))).
-		Footer(m.files(), comp.Churn(lipgloss.NewStyle(), m.theme,
-			m.changeset.Additions, m.changeset.Deletions)).
 		Focus(m.focus == focusTree).
 		Render(m.tree.View())
+
+	if m.metaHeight() > 0 {
+		left = lipgloss.JoinVertical(lipgloss.Left, left,
+			m.metaPane.Title("Review").Render(m.meta()))
+	}
 
 	diff := m.diffPane.
 		Index(2).
@@ -84,7 +105,46 @@ func (m Model) body() string {
 		Focus(m.focus == focusDiff).
 		Render(m.diff.View())
 
-	return lipgloss.JoinHorizontal(lipgloss.Top, tree, diff)
+	return lipgloss.JoinHorizontal(lipgloss.Top, left, diff)
+}
+
+// meta is the static box under the tree. It takes no keys and carries no
+// index, which is how a reader can tell it is not somewhere to go.
+func (m Model) meta() string {
+	width := m.metaPane.InnerWidth()
+	subtle := lipgloss.NewStyle().Foreground(m.theme.Subtle)
+
+	rows := []string{
+		spread(m.files(), comp.Churn(lipgloss.NewStyle(), m.theme,
+			m.changeset.Additions, m.changeset.Deletions), width, subtle),
+	}
+	for _, fact := range m.facts() {
+		rows = append(rows, comp.Clip(subtle.Render(fact), width, subtle))
+	}
+	return strings.Join(rows, "\n")
+}
+
+// facts are what the changeset is measured against, which generation is on
+// screen, and how far down the burn-down has come.
+func (m Model) facts() []string {
+	return []string{
+		fmt.Sprintf("%s (%s)", m.base.Ref, short(m.base.SHA)),
+		fmt.Sprintf("generation %d", m.gen.Seq),
+		fmt.Sprintf("%d / %d reviewed", m.changeset.Reviewed, m.changeset.Items),
+	}
+}
+
+// spread puts left at the start of a line and right at its end, giving the
+// right whatever it asks for and clipping the left into what is left over. The
+// right is a total, and a clipped total misstates it.
+func spread(left, right string, width int, mark lipgloss.Style) string {
+	left = comp.Clip(left, max(width-lipgloss.Width(right)-1, 0), mark)
+
+	gap := width - lipgloss.Width(left) - lipgloss.Width(right)
+	if gap < 0 {
+		return comp.Clip(right, width, mark)
+	}
+	return left + strings.Repeat(" ", gap) + right
 }
 
 // overlay is the full keymap, drawn over the panes it replaces.
@@ -104,31 +164,27 @@ func (m Model) overlay() string {
 	return strings.Join(lines[:m.bodyHeight()], "\n")
 }
 
-// status is the base, the generation and the burn-down, with the way out on
-// the right.
+// status is the way out, against the left edge where the eye starts.
 //
-// The hint is measured first and the facts are clipped into what is left, not
-// the other way round. Dropping it is dropping the only thing on screen saying
-// that ? exists, and the reader who needed it is the one on the narrow
-// terminal.
+// The facts join it only when their own box did not fit. They have to be
+// somewhere, and the hint keeps the left: dropping it drops the only thing on
+// screen saying that ? exists, and the reader who needed it is the one on the
+// small terminal.
 func (m Model) status() string {
-	facts := []string{
-		fmt.Sprintf("%s (%s)", m.base.Ref, short(m.base.SHA)),
-		fmt.Sprintf("generation %d", m.gen.Seq),
-		fmt.Sprintf("%d / %d reviewed", m.changeset.Reviewed, m.changeset.Items),
+	hint := m.help.ShortHelpView(m.ShortHelp())
+	if m.metaHeight() > 0 {
+		return m.pad(hint, m.width)
 	}
 
 	subtle := lipgloss.NewStyle().Foreground(m.theme.Subtle)
-	right := m.help.ShortHelpView(m.ShortHelp())
+	facts := comp.Clip(subtle.Render(strings.Join(m.facts(), dot)),
+		max(m.width-lipgloss.Width(hint)-2, 0), subtle)
 
-	left := comp.Clip(subtle.Render(strings.Join(facts, dot)),
-		max(m.width-lipgloss.Width(right)-1, 0), subtle)
-
-	gap := m.width - lipgloss.Width(left) - lipgloss.Width(right)
+	gap := m.width - lipgloss.Width(hint) - lipgloss.Width(facts)
 	if gap < 0 {
-		return m.pad(right, m.width)
+		return m.pad(hint, m.width)
 	}
-	return left + strings.Repeat(" ", gap) + right
+	return hint + strings.Repeat(" ", gap) + facts
 }
 
 // tooSmall fills the screen the same way every other path does, so the frame

@@ -184,35 +184,80 @@ func TestTheTreeIsHeadedByTheRepository(t *testing.T) {
 	}
 }
 
-// TestTheTreesFooterSaysHowMuchThereIs. One grey across the whole line says how
-// much changed and not which way it went, which is the half a reader is
-// scanning for.
-func TestTheTreesFooterSaysHowMuchThereIs(t *testing.T) {
+// TestTheFactsAreInTheirOwnBox, under the tree and out of the goldens, where a
+// layout change would hide their loss.
+//
+// The counts carry their own colours: one grey across the line says how much
+// changed and not which way it went, which is the half a reader scans for.
+func TestTheFactsAreInTheirOwnBox(t *testing.T) {
 	th := theme.RosePineMoon
-	foot := open(t, 100, 16).rawLine(14)
+	s := open(t, 100, 16)
 
-	want := map[string]string{
+	for _, want := range []string{
+		"─Review─", "6 files", "+10 -3",
+		"origin/main (a1b2c3d)", "generation 2", "2 / 7 reviewed",
+	} {
+		if !strings.Contains(s.frame(), want) {
+			t.Errorf("the box does not say %q:\n%s", want, s.frame())
+		}
+	}
+
+	coloured := map[string]string{
 		"the file count": lipgloss.NewStyle().Foreground(th.Accent).Render("6 files"),
 		"the additions":  lipgloss.NewStyle().Foreground(th.Success).Render("+10"),
 		"the deletions":  lipgloss.NewStyle().Foreground(th.Error).Render("-3"),
 	}
-
-	for part, style := range want {
-		if !strings.Contains(foot, style) {
-			t.Errorf("%s is not in its own colour: %q", part, ansi.Strip(foot))
+	for part, style := range coloured {
+		if !strings.Contains(s.raw(), style) {
+			t.Errorf("%s is not in its own colour", part)
 		}
 	}
 }
 
-// TestTheStatusBarSaysWhereTheReviewIs keeps the three facts the bar exists for
-// out of the goldens, where a layout change would hide their loss.
-func TestTheStatusBarSaysWhereTheReviewIs(t *testing.T) {
-	s := open(t, 100, 16)
-	bar := s.lines()[15]
+// TestTheBoxIsNotSomewhereToGo. It takes no keys, so it carries no index and
+// its border never lights: h, l, 1 and 2 reach the two panes that do.
+func TestTheBoxIsNotSomewhereToGo(t *testing.T) {
+	head := ""
+	for _, line := range open(t, 100, 16).lines() {
+		if strings.Contains(line, "─Review─") {
+			head = line
+			break
+		}
+	}
+	if head == "" {
+		t.Fatalf("no box")
+	}
+	if strings.Contains(head, "[3]") {
+		t.Errorf("the box is numbered as though a key went there: %q", head)
+	}
+}
 
-	for _, want := range []string{"origin/main (a1b2c3d)", "generation 2", "2 / 7 reviewed"} {
+// TestTheBarCarriesTheFactsWhenTheBoxCannot. The facts have to be somewhere,
+// and a frame too short for the box is still a frame someone is reading.
+func TestTheBarCarriesTheFactsWhenTheBoxCannot(t *testing.T) {
+	s := open(t, 100, 9)
+	bar := s.lines()[8]
+
+	if strings.Contains(s.frame(), "─Review─") {
+		t.Fatalf("the box drew on a frame with no room for it:\n%s", s.frame())
+	}
+	for _, want := range []string{"? help", "origin/main (a1b2c3d)", "generation 2", "2 / 7 reviewed"} {
 		if !strings.Contains(bar, want) {
-			t.Errorf("the status bar does not say %q: %q", want, bar)
+			t.Errorf("the bar does not say %q: %q", want, bar)
+		}
+	}
+}
+
+// TestTheHintIsAgainstTheLeftEdge, where the eye starts.
+func TestTheHintIsAgainstTheLeftEdge(t *testing.T) {
+	for _, width := range []int{100, 72, 56} {
+		bar := open(t, width, 16).lines()[15]
+
+		if !strings.HasPrefix(bar, "? help") {
+			t.Errorf("at %d columns the bar starts %q", width, bar)
+		}
+		if got := lipgloss.Width(bar); got != width {
+			t.Errorf("at %d columns the bar is %d wide: %q", width, got, bar)
 		}
 	}
 }
@@ -293,13 +338,14 @@ func TestATerminalTooSmallSaysSo(t *testing.T) {
 	}
 }
 
-// TestTheHintSurvivesANarrowTerminal. Dropping it drops the only thing on
-// screen saying that ? exists, and the reader who needed it is the one on the
-// narrow terminal. It also left the last row short of the screen.
-func TestTheHintSurvivesANarrowTerminal(t *testing.T) {
+// TestTheHintSurvivesTheFactsBesideIt, at the one height where the two share
+// the bar. Dropping it drops the only thing on screen saying that ? exists, and
+// the reader who needed it is the one on the small terminal. It also left the
+// last row short of the screen.
+func TestTheHintSurvivesTheFactsBesideIt(t *testing.T) {
 	for _, width := range []int{100, 72, 56} {
-		s := open(t, width, 10)
-		bar := s.lines()[9]
+		s := open(t, width, 9)
+		bar := s.lines()[8]
 
 		if !strings.Contains(bar, "? help") {
 			t.Errorf("at %d columns the status bar lost the hint: %q", width, bar)

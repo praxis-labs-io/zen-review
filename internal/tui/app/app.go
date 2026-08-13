@@ -48,6 +48,7 @@ type Model struct {
 	// asks them what is left inside rather than subtracting the border twice.
 	treePane comp.Pane
 	diffPane comp.Pane
+	metaPane comp.Pane
 
 	focus   focus
 	showing bool
@@ -73,6 +74,7 @@ func New(t theme.Theme, repo string, base review.Base, g review.Generation, c re
 		help:      comp.Help(t),
 		treePane:  comp.NewPane(t),
 		diffPane:  comp.NewPane(t),
+		metaPane:  comp.NewPane(t),
 	}
 	m.tree.Focus()
 
