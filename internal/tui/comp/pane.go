@@ -51,8 +51,8 @@ func (p Pane) Footer(s string) Pane {
 	return p
 }
 
-// Focus colours the border, and is the only thing on the pane that says where
-// the keys go.
+// Focus lights the heading and the border, which is the only thing on the pane
+// that says where the keys go.
 func (p Pane) Focus(v bool) Pane {
 	p.focused = v
 	return p
@@ -114,12 +114,11 @@ func (p Pane) topBorder() string {
 	var label strings.Builder
 	label.WriteString(style.Render("─"))
 	if p.index > 0 {
-		label.WriteString(lipgloss.NewStyle().Foreground(p.theme.Accent).
-			Render("[" + strconv.Itoa(p.index) + "]"))
+		label.WriteString(p.indexStyle().Render("[" + strconv.Itoa(p.index) + "]"))
 		label.WriteString(style.Render("─"))
 	}
 	if p.title != "" {
-		label.WriteString(lipgloss.NewStyle().Foreground(p.theme.Text).Bold(true).Render(p.title))
+		label.WriteString(p.titleStyle().Render(p.title))
 	}
 
 	// The badge and the title are clipped together rather than one after the
@@ -150,12 +149,33 @@ func (p Pane) bottomBorder() string {
 	return style.Render("╰"+strings.Repeat("─", fill)) + footer + style.Render("─╯")
 }
 
+// The whole heading answers to focus, not the border alone: the border is a
+// thin rule around the edge of the screen, and a reader glancing back after
+// typing finds the name before they find the line under it.
+//
+// The three weights move together. A lit border under a dim name reads as two
+// panes half-focused rather than one focused pane.
+
 func (p Pane) borderStyle() lipgloss.Style {
 	c := p.theme.BorderSubtleOrBorder()
 	if p.focused {
 		c = p.theme.Accent
 	}
 	return lipgloss.NewStyle().Foreground(c)
+}
+
+func (p Pane) titleStyle() lipgloss.Style {
+	if p.focused {
+		return lipgloss.NewStyle().Foreground(p.theme.Text).Bold(true)
+	}
+	return p.subtle()
+}
+
+func (p Pane) indexStyle() lipgloss.Style {
+	if p.focused {
+		return lipgloss.NewStyle().Foreground(p.theme.Accent)
+	}
+	return lipgloss.NewStyle().Foreground(p.theme.Muted)
 }
 
 func (p Pane) subtle() lipgloss.Style {

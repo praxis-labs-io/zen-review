@@ -63,6 +63,50 @@ func TestTheBorderCarriesTheIndexAndTheTitle(t *testing.T) {
 	}
 }
 
+// TestTheHeadingAnswersToFocus. A lit border under a dim name reads as two
+// panes half-focused rather than one focused pane, so the index, the title and
+// the border move together.
+func TestTheHeadingAnswersToFocus(t *testing.T) {
+	t2 := theme.RosePineMoon
+
+	lit := map[string]string{
+		"corner": lipgloss.NewStyle().Foreground(t2.Accent).Render("╭"),
+		"index":  lipgloss.NewStyle().Foreground(t2.Accent).Render("[1]"),
+		"title":  lipgloss.NewStyle().Foreground(t2.Text).Bold(true).Render("Files (7)"),
+	}
+	dim := map[string]string{
+		"corner": lipgloss.NewStyle().Foreground(t2.BorderSubtleOrBorder()).Render("╭"),
+		"index":  lipgloss.NewStyle().Foreground(t2.Muted).Render("[1]"),
+		"title":  lipgloss.NewStyle().Foreground(t2.Subtle).Render("Files (7)"),
+	}
+
+	for _, tt := range []struct {
+		name    string
+		focused bool
+		want    map[string]string
+		gone    map[string]string
+	}{
+		{"focused", true, lit, dim},
+		{"blurred", false, dim, lit},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			top := strings.Split(pane().Size(30, 4).Index(1).Title("Files (7)").
+				Focus(tt.focused).Render(""), "\n")[0]
+
+			for part, want := range tt.want {
+				if !strings.Contains(top, want) {
+					t.Errorf("the %s does not answer to focus = %v", part, tt.focused)
+				}
+			}
+			for part, unwanted := range tt.gone {
+				if strings.Contains(top, unwanted) {
+					t.Errorf("the %s is still drawn for focus = %v", part, !tt.focused)
+				}
+			}
+		})
+	}
+}
+
 // TestANarrowPaneClipsItsTitle rather than pushing the corner off the frame.
 func TestANarrowPaneClipsItsTitle(t *testing.T) {
 	long := "internal/tui/diffpane/painting_the_unified_view.go"
