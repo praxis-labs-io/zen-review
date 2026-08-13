@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"sync"
 
@@ -84,8 +85,20 @@ func (r *reloader) Reload() (app.Reload, error) {
 
 // close releases the session, waiting on a reload still running and refusing
 // any that had not started.
-func (r *reloader) close() error {
-	r.mu.Lock()
+//
+// The wait happens with the reader already off the screen, so it says what it
+// is doing. `git add -A` over a large work tree takes long enough that a shell
+// sitting silent reads as a hang, and the context the reload holds is the
+// program's rather than the keypress's: quitting does not cancel it, because a
+// refresh cancelled between the ref swap and the row that records it is the one
+// outcome this waits to avoid.
+func (r *reloader) close(out io.Writer) error {
+	if !r.mu.TryLock() {
+		// Discarded: the session still has to close, and a stderr that cannot
+		// take a line has nowhere to report that it could not.
+		_, _ = fmt.Fprintln(out, "waiting for a refresh to finish")
+		r.mu.Lock()
+	}
 	defer r.mu.Unlock()
 
 	r.shut = true
@@ -103,7 +116,7 @@ func runTUI(cmd *cobra.Command, opts *options) (err error) {
 	}
 
 	src := &reloader{ctx: cmd.Context(), s: s}
-	defer func() { err = errors.Join(err, src.close()) }()
+	defer func() { err = errors.Join(err, src.close(cmd.ErrOrStderr())) }()
 
 	r, err := src.Reload()
 	if err != nil {

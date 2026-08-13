@@ -102,7 +102,10 @@ func TestTheFrameIsExactlyTheTerminal(t *testing.T) {
 	// rows for; walked to the file with the longest lines in the fixture; and
 	// under the overlay, which is composited rather than drawn and comes back
 	// with every line's trailing spaces trimmed unless they are put back.
-	for _, keys := range [][]string{nil, code, {"?"}} {
+	// The s is the three-piece bar: the keys, a gap, and the notice. Its width
+	// arithmetic is the newest on the frame and the one a golden covers at one
+	// width only.
+	for _, keys := range [][]string{nil, code, {"?"}, {"s"}} {
 		for _, size := range sizes {
 			s := open(t, size.width, size.height).press(keys...)
 			lines := s.lines()
@@ -1115,5 +1118,72 @@ func TestAReloadFollowsAFileRenamedTwice(t *testing.T) {
 	}
 	if got := s.bar(); strings.Contains(got, "is gone") {
 		t.Errorf("the bar reads %q about a file that was renamed, not lost", got)
+	}
+}
+
+// recreatedPatch renames a.go to c.go and writes a new a.go in the same
+// generation, so both names are on screen and only one holds what the reader
+// was reading.
+const recreatedPatch = `diff --git a/a.go b/a.go
+--- /dev/null
++++ b/a.go
+@@ -0,0 +1,1 @@
++brand new
+diff --git a/a.go b/c.go
+rename from a.go
+rename to c.go
+--- a/a.go
++++ b/c.go
+@@ -1,0 +1,1 @@
++one
+@@ -10,0 +11,1 @@
++ten
+diff --git a/b.go b/b.go
+--- a/b.go
++++ b/b.go
+@@ -1,0 +1,1 @@
++uno
+@@ -10,0 +11,1 @@
++diez
+`
+
+// TestARenameBeatsAFileWrittenBackUnderTheOldName. Both names are in the
+// changeset and only one of them holds the content the reader was reading.
+func TestARenameBeatsAFileWrittenBackUnderTheOldName(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16).press("}")
+	s.reloading(testchangeset.Derive(t, recreatedPatch)).press("s")
+
+	if title := s.lines()[0]; !strings.Contains(title, "c.go") {
+		t.Errorf("the pane shows %q, want the file the reader's content moved to", title)
+	}
+}
+
+// TestTheBarKeepsSayingAReloadIsRunning. A press does not end a git call, and
+// the bar is the only thing on screen saying one is happening.
+func TestTheBarKeepsSayingAReloadIsRunning(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
+
+	running := s.hold(keystroke("s"))
+	s.hold(keystroke("j"))
+
+	if got := s.bar(); !strings.Contains(got, "reloading") {
+		t.Errorf("a press while the reload was in git blanked the bar: %q", got)
+	}
+	s.drain(running)
+}
+
+// TestAFailedReloadStillFillsTheBar. The error takes the whole line, and a
+// sentence written for a terminal is longer than most of them.
+func TestAFailedReloadStillFillsTheBar(t *testing.T) {
+	long := "another zen-review refreshed this session first, so nothing was built: run it again"
+
+	for _, width := range []int{200, 100, 72, 56} {
+		s := over(t, testchangeset.Derive(t, ringPatch), width, 16)
+		s.src.err = errors.New(long)
+		s.press("s")
+
+		if got := lipgloss.Width(s.bar()); got != width {
+			t.Errorf("at %d columns the error bar is %d wide: %q", width, got, s.bar())
+		}
 	}
 }

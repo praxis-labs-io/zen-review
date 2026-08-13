@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"io"
 	"testing"
 
 	"github.com/zen-review/zen-review/internal/review"
@@ -50,7 +51,7 @@ func TestTheReloaderBringsBackWhatARefreshBuilt(t *testing.T) {
 
 	src := &reloader{ctx: t.Context(), s: s}
 	defer func() {
-		if err := src.close(); err != nil {
+		if err := src.close(io.Discard); err != nil {
 			t.Error(err)
 		}
 	}()
@@ -108,7 +109,7 @@ func TestAReloadQueuedPastTheCloseDoesNothing(t *testing.T) {
 	}
 
 	src := &reloader{ctx: t.Context(), s: s}
-	if err := src.close(); err != nil {
+	if err := src.close(io.Discard); err != nil {
 		t.Fatal(err)
 	}
 

@@ -144,8 +144,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	// One press long, so it goes before the press that ends it is read.
-	m.note = notice{}
+	// One press long, so it goes before the press that ends it is read. A reload
+	// still in git is the exception: the press did not end that, and the bar is
+	// the only thing saying it is happening.
+	if !m.reloading {
+		m.note = notice{}
+	}
 
 	switch {
 	case key.Matches(msg, m.keys.Quit):

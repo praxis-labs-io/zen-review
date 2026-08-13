@@ -208,9 +208,19 @@ func (m Model) landing(k mark) (stop, drift, bool) {
 //
 // The rename is matched on the base-side name rather than the one on screen, so
 // a file renamed a second time is still the same file.
+//
+// A rename beats a plain match, and the two passes are what makes it. An agent
+// renaming a.go to c.go and writing a new a.go in the same generation leaves
+// both on screen, and the one the reader was reading is the one their content
+// went to.
 func (m Model) nowAt(k mark) string {
 	for _, f := range m.changeset.Files {
-		if f.Diff.Path == k.at.path || (f.Diff.OldPath != "" && f.Diff.OldPath == k.from) {
+		if f.Diff.OldPath != "" && f.Diff.OldPath == k.from {
+			return f.Diff.Path
+		}
+	}
+	for _, f := range m.changeset.Files {
+		if f.Diff.Path == k.at.path {
 			return f.Diff.Path
 		}
 	}
