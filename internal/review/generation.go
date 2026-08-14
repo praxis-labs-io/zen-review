@@ -100,8 +100,14 @@ func tooLarge(files []string) *TooLargeError {
 	return &TooLargeError{Count: len(files), Limit: maxFiles, Dir: dir, InDir: n}
 }
 
-// Ref is where this session's generations are chained, one commit per
-// generation. `git log --first-parent` on it walks the review.
+// Ref is where this session's generations are chained. `git log --first-parent`
+// on it walks the review.
+//
+// It can hold one commit the database has no row for. The ref moves before the
+// row, so an instance that loses the session between the two leaves its commit
+// behind, and so does a crash there. Nothing reviewed is lost either way: the
+// next refresh parents on it, and a generation that was never recorded was never
+// reviewed against.
 func (s *Session) Ref() string { return refPrefix + s.row.ID }
 
 // Refresh brings the session up to date, building a generation when the

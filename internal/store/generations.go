@@ -216,17 +216,20 @@ func (db *DB) AddGeneration(ctx context.Context, g Generation, files []GenFile, 
 // it again.
 var ErrStaleGeneration = errors.New("the generation is no longer the session's latest")
 
-// assertLatest refuses a write aimed at a superseded generation. A session with
-// no generation at all refuses everything, because there is nothing to aim at.
+// assertLatest refuses a write aimed at a generation that is not the session's
+// current one.
+//
+// Zero is a session with none, which is what the first generation is written
+// against. It is a claim like any other and is asserted like one: a session that
+// grew a generation between the caller reading none and writing is a caller
+// about to write a second first generation. No row can name generation zero, so
+// nothing else can reach that arm.
 func assertLatest(ctx context.Context, tx *sql.Tx, sessionID string, generationID int64) error {
 	const q = "SELECT id FROM generations WHERE session_id = ? ORDER BY seq DESC LIMIT 1"
 
 	var latest int64
 	err := tx.QueryRowContext(ctx, q, sessionID).Scan(&latest)
-	if errors.Is(err, sql.ErrNoRows) {
-		return ErrStaleGeneration
-	}
-	if err != nil {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("reading the latest generation of %s: %w", sessionID, err)
 	}
 	if latest != generationID {
@@ -243,19 +246,23 @@ func assertLatest(ctx context.Context, tx *sql.Tx, sessionID string, generationI
 // committed during that work would be read past. Nothing the git work depends on
 // is a row, so the rows can be left until the transaction holds the write lock.
 //
-// From has to still be the latest, or something advanced the session while this
-// generation was being built and this one is carrying out of a generation two
-// behind. That drops every write made against the one in between, comments
-// included, and those are left pinned to a generation nothing reads again.
+// From has to still be the session's current generation, or something advanced
+// it while this one was being built and this one is carrying out of a generation
+// two behind. That drops every write made against the one in between, comments
+// included, and those are left pinned to a generation nothing reads again. A
+// From of zero says the session had none, and asserts exactly that.
+//
+// A nil Carry asserts nothing and writes the generation as it stands, which is
+// what a caller assembling rows by hand wants and nothing in the engine does.
 func carried(ctx context.Context, tx *sql.Tx, sessionID string, adv Advance) (Carry, error) {
 	if adv.Carry == nil {
 		return Carry{}, nil
 	}
-	if adv.From == 0 {
-		return adv.Carry(Prior{}), nil
-	}
 	if err := assertLatest(ctx, tx, sessionID, adv.From); err != nil {
 		return Carry{}, err
+	}
+	if adv.From == 0 {
+		return adv.Carry(Prior{}), nil
 	}
 
 	var p Prior

@@ -184,10 +184,15 @@ func (db *DB) Comment(ctx context.Context, id string) (Comment, bool, error) {
 }
 
 // FreezeComment stops a comment moving: the state it stopped in, and where its
-// anchor was when it did.
+// anchor was when it did. It returns the row as it landed, and false when the
+// swap was lost.
 //
-// The location goes in the same write as the state. A frozen comment without one
-// is a comment that lost where it was, and there is no later pass to fill it in.
+// The location goes in the same write as the state, off the row's own columns.
+// A frozen comment without one is a comment that lost where it was, and there is
+// no later pass to fill it in. Taking it from the caller's read instead would
+// write where the anchor was a moment ago: a refresh translating an anchor
+// forward leaves the comment open, so the state swap still wins and records a
+// line the comment no longer sits on.
 //
 // was is the state the caller read before deciding this transition was allowed,
 // and the write only lands while the row is still in it. It reports false when it
@@ -198,25 +203,22 @@ func (db *DB) FreezeComment(
 	ctx context.Context,
 	id string,
 	was, state CommentState,
-	lastPath string,
-	lastLine int,
 	now time.Time,
-) (bool, error) {
+) (Comment, bool, error) {
 	const q = `
 		UPDATE comments
-		SET state = ?, last_path = ?, last_line = ?, updated_at = ?
-		WHERE id = ? AND state = ?`
+		SET state = ?, last_path = path, last_line = start_line, updated_at = ?
+		WHERE id = ? AND state = ?
+		RETURNING ` + commentColumns
 
-	res, err := db.handle.ExecContext(ctx, q, string(state), lastPath, lastLine, stamp(now), id, string(was))
-	if err != nil {
-		return false, fmt.Errorf("marking the comment %s as %s: %w", id, state, err)
+	c, err := scanComment(db.handle.QueryRowContext(ctx, q, string(state), stamp(now), id, string(was)))
+	if errors.Is(err, sql.ErrNoRows) {
+		return Comment{}, false, nil
 	}
-
-	changed, err := res.RowsAffected()
 	if err != nil {
-		return false, fmt.Errorf("marking the comment %s as %s: %w", id, state, err)
+		return Comment{}, false, fmt.Errorf("marking the comment %s as %s: %w", id, state, err)
 	}
-	return changed == 1, nil
+	return c, true, nil
 }
 
 // comments runs one of the listing queries above.

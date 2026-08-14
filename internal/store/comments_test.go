@@ -113,8 +113,8 @@ func TestOnlyTheOpenCommentsOfOneGenerationAreCarried(t *testing.T) {
 	comment(t, db, s, first, "open-here", 4)
 
 	closed := comment(t, db, s, first, "resolved-here", 11)
-	if _, err := db.FreezeComment(t.Context(), closed.ID,
-		store.CommentOpen, store.CommentResolved, "a.go", 11, epoch); err != nil {
+	if _, _, err := db.FreezeComment(t.Context(), closed.ID,
+		store.CommentOpen, store.CommentResolved, epoch); err != nil {
 		t.Fatalf("resolving the comment: %v", err)
 	}
 
@@ -166,7 +166,7 @@ func TestACarriedAnchorMovesOntoTheNewGeneration(t *testing.T) {
 
 	second, err := db.AddGeneration(t.Context(), store.Generation{
 		SessionID: s.ID, BaseSha: "base", HeadSha: "head", CommitSha: "two", CreatedAt: epoch.Add(time.Hour),
-	}, []store.GenFile{{Path: "b.go", Status: diff.FileRenamed, OldPath: "a.go"}}, carrying(store.Carry{
+	}, []store.GenFile{{Path: "b.go", Status: diff.FileRenamed, OldPath: "a.go"}}, carrying(first, store.Carry{
 		Comments: []store.CommentMove{{ID: c.ID, Path: "b.go", LineRange: store.LineRange{Start: 11, End: 11}}},
 	}))
 	if err != nil {
@@ -208,7 +208,7 @@ func TestALostAnchorOrphansTheCommentWhereItStands(t *testing.T) {
 
 	if _, err := db.AddGeneration(t.Context(), store.Generation{
 		SessionID: s.ID, BaseSha: "base", HeadSha: "head", CommitSha: "two", CreatedAt: epoch.Add(time.Hour),
-	}, nil, carrying(store.Carry{Comments: []store.CommentMove{{ID: c.ID, Lost: true}}})); err != nil {
+	}, nil, carrying(first, store.Carry{Comments: []store.CommentMove{{ID: c.ID, Lost: true}}})); err != nil {
 		t.Fatalf("adding the generation: %v", err)
 	}
 
@@ -239,7 +239,7 @@ func TestAGenerationAndItsCommentMovesLandTogetherOrNotAtAll(t *testing.T) {
 
 	_, err := db.AddGeneration(t.Context(), store.Generation{
 		SessionID: s.ID, BaseSha: "base", HeadSha: "head", CommitSha: "two", CreatedAt: epoch,
-	}, nil, carrying(store.Carry{
+	}, nil, carrying(first, store.Carry{
 		Comments: []store.CommentMove{{ID: c.ID, Path: "a.go", LineRange: store.LineRange{Start: 4, End: 9}}},
 	}))
 	if err == nil {
@@ -266,8 +266,9 @@ func TestAGenerationAndItsCommentMovesLandTogetherOrNotAtAll(t *testing.T) {
 	}
 }
 
-// The state and the location go in one write. A frozen comment without one is a
-// comment that lost where it was, and there is no later pass to fill it in.
+// The state and the location go in one write, the location read off the row
+// rather than taken from the caller. A frozen comment without one is a comment
+// that lost where it was, and there is no later pass to fill it in.
 func TestFreezingACommentRecordsWhereItWas(t *testing.T) {
 	db := open(t)
 	s := session(t, db, "freezing")
@@ -275,8 +276,8 @@ func TestFreezingACommentRecordsWhereItWas(t *testing.T) {
 	c := comment(t, db, s, g, "claimed", 4)
 
 	later := epoch.Add(time.Hour)
-	won, err := db.FreezeComment(t.Context(), c.ID,
-		store.CommentOpen, store.CommentAddressed, c.Path, c.Start, later)
+	frozen, won, err := db.FreezeComment(t.Context(), c.ID,
+		store.CommentOpen, store.CommentAddressed, later)
 	if err != nil {
 		t.Fatalf("addressing the comment: %v", err)
 	}
@@ -287,6 +288,11 @@ func TestFreezingACommentRecordsWhereItWas(t *testing.T) {
 	got, _, err := db.Comment(t.Context(), c.ID)
 	if err != nil {
 		t.Fatalf("reading the comment: %v", err)
+	}
+	// The row it answered with is the row it wrote. A caller reading the state off
+	// its own copy would be reading the one it held before the write.
+	if frozen != got {
+		t.Errorf("answered with %+v, want the row it wrote, %+v", frozen, got)
 	}
 	if got.State != store.CommentAddressed {
 		t.Errorf("state = %s, want addressed", got.State)
@@ -302,6 +308,36 @@ func TestFreezingACommentRecordsWhereItWas(t *testing.T) {
 	}
 }
 
+// A carry moving an open anchor leaves the state alone, so the swap still wins.
+// What it records has to be where the anchor is by then, not where the caller
+// read it a moment before.
+func TestFreezingRecordsTheAnchorTheRowHasNow(t *testing.T) {
+	db := open(t)
+	s := session(t, db, "moved-under")
+	first := holding(t, db, s, "one")
+	c := comment(t, db, s, first, "shifted", 4)
+
+	if _, err := db.AddGeneration(t.Context(), store.Generation{
+		SessionID: s.ID, BaseSha: "base", HeadSha: "head", CommitSha: "two", CreatedAt: epoch,
+	}, []store.GenFile{{Path: "b.go", Status: diff.FileRenamed, OldPath: "a.go"}}, carrying(first, store.Carry{
+		Comments: []store.CommentMove{{ID: c.ID, Path: "b.go", LineRange: store.LineRange{Start: 11, End: 11}}},
+	})); err != nil {
+		t.Fatalf("adding the generation: %v", err)
+	}
+
+	// c is the read the caller started from, and says a.go:4.
+	frozen, won, err := db.FreezeComment(t.Context(), c.ID,
+		store.CommentOpen, store.CommentResolved, epoch.Add(time.Hour))
+	if err != nil || !won {
+		t.Fatalf("resolving the comment: won = %v, err = %v", won, err)
+	}
+
+	if frozen.LastPath != "b.go" || frozen.LastLine != 11 {
+		t.Errorf("last known = %s:%d, want b.go:11, where the carry left it",
+			frozen.LastPath, frozen.LastLine)
+	}
+}
+
 // The state a caller read is what the write lands against. Without the swap the
 // decision and the write are two statements, and a resolve landing between them
 // would be overwritten by an address that was refused the moment it was read.
@@ -311,13 +347,13 @@ func TestFreezingAgainstAStateThatMovedChangesNothing(t *testing.T) {
 	g := holding(t, db, s, "one")
 	c := comment(t, db, s, g, "raced", 4)
 
-	won, err := db.FreezeComment(t.Context(), c.ID, store.CommentOpen, store.CommentResolved, "a.go", 4, epoch)
+	_, won, err := db.FreezeComment(t.Context(), c.ID, store.CommentOpen, store.CommentResolved, epoch)
 	if err != nil || !won {
 		t.Fatalf("resolving the comment: won = %v, err = %v", won, err)
 	}
 
 	later := epoch.Add(time.Hour)
-	won, err = db.FreezeComment(t.Context(), c.ID, store.CommentOpen, store.CommentAddressed, "a.go", 4, later)
+	_, won, err = db.FreezeComment(t.Context(), c.ID, store.CommentOpen, store.CommentAddressed, later)
 	if err != nil {
 		t.Fatalf("addressing the comment: %v", err)
 	}
@@ -348,15 +384,15 @@ func TestACommentStateOutsideTheVocabularyIsRefused(t *testing.T) {
 		store.CommentOpen, store.CommentAddressed, store.CommentResolved, store.CommentOrphaned,
 	} {
 		c := comment(t, db, s, g, string(state), 4)
-		if _, err := db.FreezeComment(t.Context(), c.ID,
-			store.CommentOpen, state, "a.go", 4, epoch); err != nil {
+		if _, _, err := db.FreezeComment(t.Context(), c.ID,
+			store.CommentOpen, state, epoch); err != nil {
 			t.Errorf("the state %q was refused: %v", state, err)
 		}
 	}
 
 	c := comment(t, db, s, g, "outside", 4)
-	if _, err := db.FreezeComment(t.Context(), c.ID,
-		store.CommentOpen, store.CommentState("done"), "a.go", 4, epoch); err == nil {
+	if _, _, err := db.FreezeComment(t.Context(), c.ID,
+		store.CommentOpen, store.CommentState("done"), epoch); err == nil {
 		t.Error("a state outside the vocabulary should be refused")
 	}
 }

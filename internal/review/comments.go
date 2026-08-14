@@ -233,13 +233,15 @@ func (s *Session) freeze(
 		}
 
 		now := time.Now().UTC().Truncate(time.Second)
-		won, err := s.db.FreezeComment(ctx, id, c.State, to, c.Path, c.Start, now)
+		frozen, won, err := s.db.FreezeComment(ctx, id, c.State, to, now)
 		if err != nil {
 			return store.Comment{}, err
 		}
 		if won {
-			c.State, c.LastPath, c.LastLine, c.UpdatedAt = to, c.Path, c.Start, now
-			return c, nil
+			// The row as it landed, rather than the read this go started from. A
+			// refresh between the two moves the anchor, and the write records where
+			// it moved to.
+			return frozen, nil
 		}
 	}
 	return store.Comment{}, fmt.Errorf("the comment %s is being changed from somewhere else faster than this can read it", id)

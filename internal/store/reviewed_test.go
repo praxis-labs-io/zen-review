@@ -324,13 +324,13 @@ func TestAGenerationAndItsCarriedRangesLandTogetherOrNotAtAll(t *testing.T) {
 	db := open(t)
 	s := session(t, db, "carried")
 
-	carry := carrying(store.Carry{Ranges: []store.ReviewedRange{
+	rows := store.Carry{Ranges: []store.ReviewedRange{
 		{Path: "a.go", Side: store.SideHead, LineRange: store.LineRange{Start: 1, End: 5}, CreatedAt: epoch},
-	}})
+	}}
 
 	first, err := db.AddGeneration(t.Context(), store.Generation{
 		SessionID: s.ID, BaseSha: "base", HeadSha: "head", CommitSha: "one", CreatedAt: epoch,
-	}, nil, carry)
+	}, nil, carrying(store.Generation{}, rows))
 	if err != nil {
 		t.Fatalf("adding the first generation: %v", err)
 	}
@@ -342,7 +342,7 @@ func TestAGenerationAndItsCarriedRangesLandTogetherOrNotAtAll(t *testing.T) {
 
 	_, err = db.AddGeneration(t.Context(), store.Generation{
 		SessionID: s.ID, BaseSha: "base", HeadSha: "head", CommitSha: "two", CreatedAt: epoch,
-	}, []store.GenFile{{Path: "a.go"}, {Path: "a.go"}}, carry)
+	}, []store.GenFile{{Path: "a.go"}, {Path: "a.go"}}, carrying(first, rows))
 	if err == nil {
 		t.Fatal("two files at one path should not write")
 	}

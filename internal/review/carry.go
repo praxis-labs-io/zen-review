@@ -30,7 +30,12 @@ import (
 // to stamp and nothing to carry.
 func (s *Session) carry(ctx context.Context, latest store.Generation, found bool, tree string, files []diff.File) (store.Advance, error) {
 	if !found {
-		return store.Advance{}, nil
+		// Nothing to carry, and still a claim: the session had no generation, and
+		// has to have none when the row lands. Two instances building the first one
+		// both swap against an absent ref, and the one that reads the ref after the
+		// other moved it wins its swap and would write a second first generation,
+		// carrying nothing out of the one it never saw.
+		return store.Advance{Carry: func(store.Prior) store.Carry { return store.Carry{} }}, nil
 	}
 
 	was, err := s.repo.Tree(ctx, latest.CommitSha)

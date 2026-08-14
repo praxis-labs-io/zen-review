@@ -165,6 +165,72 @@ func TestARefreshThatLosesTheSessionUnderItWritesNothing(t *testing.T) {
 	assertRanges(t, f.storedRanges(handle(latest)), []string{"code.txt head 6:10"})
 }
 
+// The same lost session on a fresh one, where there is no generation to name and
+// so nothing that looked like a claim to check. Two instances build the first
+// generation, the second takes the swap, and this one would write a second first
+// generation carrying nothing out of the one it never saw.
+func TestAFirstRefreshThatLosesTheSessionWritesNothing(t *testing.T) {
+	f := branched(t)
+	f.Write("code.txt", numbered(1, 20))
+	f.Commit("add code")
+	s := f.mustOpen("")
+
+	var once sync.Once
+	s.DuringRefresh(func() {
+		once.Do(func() {
+			other := f.mustOpen("")
+			g := f.refresh(other)
+			f.mark(other, g, "code.txt", store.SideHead, review.Range{Start: 5, End: 9})
+		})
+	})
+	t.Cleanup(func() { s.DuringRefresh(nil) })
+
+	_, err := s.Refresh(t.Context())
+
+	if !errors.Is(err, git.ErrRefMoved) {
+		t.Fatalf("err = %v, want it to read as the lost race it is", err)
+	}
+
+	latest, found := f.latest(s.ID())
+	if !found || latest.Seq != 1 {
+		t.Fatalf("latest = %+v, want the one generation the other instance wrote", latest)
+	}
+	assertRanges(t, f.storedRanges(handle(latest)), []string{"code.txt head 5:9"})
+}
+
+// A carry moving an open anchor leaves the comment open, so a resolve reading it
+// a moment earlier still wins the swap. Where it stopped is where the carry left
+// it, not where the read found it.
+func TestAResolveRecordsWhereARefreshLeftTheComment(t *testing.T) {
+	f, s, _, c := commented(t)
+
+	var once sync.Once
+	s.BeforeFreeze(func() {
+		once.Do(func() {
+			f.Write("code.txt", "inserted\n"+numbered(1, 20))
+			f.refresh(f.mustOpen(""))
+		})
+	})
+	t.Cleanup(func() { s.BeforeFreeze(nil) })
+
+	got, err := s.ResolveComment(t.Context(), c.ID)
+
+	if err != nil {
+		t.Fatalf("resolving the comment: %v", err)
+	}
+	// The comment was written on line 10 and the inserted line moved it to 11.
+	if got.LastLine != 11 {
+		t.Errorf("answered with last line %d, want 11, where the refresh left it", got.LastLine)
+	}
+	stored := f.storedComment(c.ID)
+	if stored.State != store.CommentResolved {
+		t.Errorf("state = %s, want resolved", stored.State)
+	}
+	if stored.LastPath != "code.txt" || stored.LastLine != 11 {
+		t.Errorf("last known = %s:%d, want code.txt:11", stored.LastPath, stored.LastLine)
+	}
+}
+
 // The reverse ordering of the case above: the refresh gets there first and the
 // state change arrives with the comment already orphaned under it.
 //

@@ -36,10 +36,11 @@ func open(t *testing.T) *store.DB {
 	return db
 }
 
-// carrying hands AddGeneration a carry the test built by hand, which is what
-// stands in for the translation the engine passes down.
-func carrying(c store.Carry) store.Advance {
-	return store.Advance{Carry: func(store.Prior) store.Carry { return c }}
+// carrying hands AddGeneration a carry the test built by hand, out of the
+// generation named, which is what stands in for the translation the engine
+// passes down. The zero generation is a session that had none.
+func carrying(from store.Generation, c store.Carry) store.Advance {
+	return store.Advance{From: from.ID, Carry: func(store.Prior) store.Carry { return c }}
 }
 
 // session is a saved session the generation tests can hang rows off.
@@ -363,7 +364,7 @@ func TestACarriedCutLandsOnTheFileItNames(t *testing.T) {
 	}
 	g, err := db.AddGeneration(t.Context(), store.Generation{
 		SessionID: s.ID, BaseSha: "base", HeadSha: "head", CommitSha: "commit", CreatedAt: epoch,
-	}, files, carrying(store.Carry{Cut: map[string]bool{"a.go": true, "gone.go": true}}))
+	}, files, carrying(store.Generation{}, store.Carry{Cut: map[string]bool{"a.go": true, "gone.go": true}}))
 	if err != nil {
 		t.Fatalf("adding the generation: %v", err)
 	}
@@ -404,7 +405,7 @@ func TestAWriteSettlesOnlyTheCutItNames(t *testing.T) {
 	}
 	g, err := db.AddGeneration(t.Context(), store.Generation{
 		SessionID: s.ID, BaseSha: "base", HeadSha: "head", CommitSha: "commit", CreatedAt: epoch,
-	}, files, carrying(store.Carry{Cut: map[string]bool{"new.go": true, "z.go": true}}))
+	}, files, carrying(store.Generation{}, store.Carry{Cut: map[string]bool{"new.go": true, "z.go": true}}))
 	if err != nil {
 		t.Fatalf("adding the generation: %v", err)
 	}
