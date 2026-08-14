@@ -90,6 +90,13 @@ func (db *DB) ReviewedRanges(ctx context.Context, generationID int64) ([]Reviewe
 // first, and takes now only where it covers lines nothing had marked. Stamping
 // the whole set with now would make an unrelated mark on line 40 reset when line
 // 5 was read.
+// answers is the head-side path whose recorded cut this write settles, empty for
+// a write that settles none. It goes in the same transaction as the ranges,
+// because a cleared record beside ranges that never landed is a file reading as
+// nobody's business.
+//
+// It is a second argument rather than path because a base-side write stores
+// under the file's base name and gen_files keys on its head one.
 func (db *DB) UpdateReviewedRanges(
 	ctx context.Context,
 	sessionID string,
@@ -97,6 +104,7 @@ func (db *DB) UpdateReviewedRanges(
 	path string,
 	side Side,
 	now time.Time,
+	answers string,
 	change func([]LineRange) []LineRange,
 ) (err error) {
 	tx, err := db.handle.BeginTx(ctx, nil)
@@ -155,6 +163,13 @@ func (db *DB) UpdateReviewedRanges(
 			CreatedAt: readAt(current, r, now),
 		}); err != nil {
 			return err
+		}
+	}
+
+	if answers != "" {
+		const settle = "UPDATE gen_files SET cut = 0 WHERE generation_id = ? AND path = ?"
+		if _, err = tx.ExecContext(ctx, settle, generationID, answers); err != nil {
+			return fmt.Errorf("clearing the cut recorded against %s: %w", answers, err)
 		}
 	}
 

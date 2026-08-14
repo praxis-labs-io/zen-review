@@ -165,10 +165,11 @@ func TestAWholeFileMarkDroppedByABaseChangeIsNotRecorded(t *testing.T) {
 	assertRanges(t, f.storedCuts(next), nil)
 }
 
-// Base-side ranges are the deletion-only hunks, and their diff runs only when
-// the base moved. A base move that takes lines off one is a changed scope, not
-// content changing under a reader, so it is not recorded.
-func TestABaseMoveThatTakesBaseSideLinesIsNotRecorded(t *testing.T) {
+// Base-side ranges are the deletion-only hunks. Upstream rewriting the very
+// lines whose removal somebody read is content moving under a reader, the same
+// as on the head side, and it is recorded under the name the changeset lists the
+// file by rather than the base name the range is stored under.
+func TestUpstreamRewritingTheLinesBehindABaseSideMarkIsRecorded(t *testing.T) {
 	f := newFixture(t)
 	f.Write("code.txt", numbered(1, 20))
 	f.Commit("first")
@@ -201,7 +202,72 @@ func TestABaseMoveThatTakesBaseSideLinesIsNotRecorded(t *testing.T) {
 	// The mark is gone, so the base translation did take it. Without this the
 	// case passes on a base that never moved.
 	assertRanges(t, f.storedRanges(next), nil)
-	assertRanges(t, f.storedCuts(next), nil)
+	assertRanges(t, f.storedCuts(next), []string{"code.txt"})
+}
+
+// A base-side range is stored under the file's base name, which a rename makes a
+// different one from the name gen_files keys on. Recorded under the base name it
+// would land on no row at all, or on another file's.
+func TestABaseSideCutOnARenamedFileIsRecordedUnderItsHeadName(t *testing.T) {
+	f := newFixture(t)
+	f.Write("old.txt", numbered(1, 20))
+	f.Commit("first")
+	f.TrackOrigin("main")
+
+	f.Git("checkout", "-q", "-b", "feature")
+	f.Git("mv", "old.txt", "new.txt")
+	f.Write("new.txt", numbered(1, 9)+numbered(13, 20))
+	f.Commit("move it and drop three lines")
+
+	s := f.mustOpen("")
+	first := f.refresh(s)
+	f.mark(s, first, "new.txt", store.SideBase, review.Range{Start: 10, End: 12})
+	assertRanges(t, f.storedRanges(first), []string{"old.txt base 10:12"})
+
+	f.Git("checkout", "-q", "main")
+	f.Write("old.txt", numbered(1, 9)+"alpha\nbeta\ngamma\n"+numbered(13, 20))
+	f.Commit("upstream rewrites the middle")
+	f.TrackOrigin("main")
+	f.Git("checkout", "-q", "feature")
+	f.Git("merge", "-q", "-X", "ours", "-m", "merge upstream", "main")
+
+	next := f.refresh(s)
+	if next.ID == first.ID {
+		t.Fatal("the base move built no new generation")
+	}
+	assertRanges(t, f.storedRanges(next), nil)
+	assertRanges(t, f.storedCuts(next), []string{"new.txt"})
+}
+
+// The refresh clears the record for a file read end to end, and a refresh only
+// runs when something moved. Reading a file and then taking a line back by hand
+// leaves nothing due to run, so the unmark has to answer the record itself or it
+// stands for good.
+func TestAnUnmarkAnswersTheRecord(t *testing.T) {
+	f, s, _ := marked(t)
+
+	f.Write("code.txt", numbered(1, 4)+"alpha\nbeta\ngamma\ndelta\nepsilon\n"+numbered(10, 20))
+	cut := f.refresh(s)
+	assertRanges(t, f.storedCuts(cut), []string{"code.txt"})
+
+	f.mark(s, cut, "code.txt", store.SideHead, review.Range{Start: 1, End: 20})
+	if err := s.Unmark(t.Context(), cut, "code.txt", store.SideHead,
+		[]review.Range{{Start: 3, End: 3}}); err != nil {
+		t.Fatalf("unmarking: %v", err)
+	}
+
+	assertRanges(t, f.storedCuts(cut), nil)
+
+	c, err := s.Changeset(t.Context(), cut)
+	if err != nil {
+		t.Fatalf("reading the changeset: %v", err)
+	}
+	for _, file := range c.Files {
+		if file.Changed {
+			t.Errorf("%s reads as changed after review, and the reader took the line back themselves",
+				file.Diff.Path)
+		}
+	}
 }
 
 // The record is what a reader comes back to, so it has to outlive the refresh

@@ -56,13 +56,12 @@ func (s *Session) carry(ctx context.Context, latest store.Generation, found bool
 
 	// Base-side rows exist only for deletion-only hunks somebody marked, so this
 	// is nearly always nothing, and the base diff is the expensive one when it
-	// does fire. Its diff runs only when the base moved, and a base move that
-	// merges a reviewed hunk with a newly in-scope one is a changed scope rather
-	// than changed content, so the cuts it reports are dropped.
-	base, _, err := s.translate(ctx, rows, store.SideBase, latest.BaseSha, s.base.SHA, nil)
+	// does fire. prior is head-keyed and is carried on the head side alone.
+	base, baseCut, err := s.translate(ctx, rows, store.SideBase, latest.BaseSha, s.base.SHA, nil)
 	if err != nil {
 		return store.Carry{}, err
 	}
+	onHead(cut, baseCut, files)
 
 	carried := append(head, base...)
 	return store.Carry{Ranges: carried, Cut: settled(cut, files, carried)}, nil
@@ -84,6 +83,30 @@ func (s *Session) cuts(ctx context.Context, generationID int64) (map[string]bool
 		}
 	}
 	return out, nil
+}
+
+// onHead folds the base side's cuts into the head side's, under the name the
+// changeset lists each file by.
+//
+// A base-side range belongs to a deletion-only hunk, and it fails to translate
+// when upstream rewrote the very lines whose removal somebody read. That is
+// content moving under a reader, the same as on the head side. What a base move
+// does that is not a cut is widen the scope, merging a reviewed hunk with a
+// newly in-scope one, and that leaves every stored range translating cleanly, so
+// it never reaches here.
+//
+// A base path the new changeset does not list has no row to be recorded on, and
+// is dropped.
+func onHead(cut, base map[string]bool, files []diff.File) {
+	if len(base) == 0 {
+		return
+	}
+
+	for _, f := range files {
+		if base[baseName(f)] {
+			cut[f.Path] = true
+		}
+	}
 }
 
 // settled drops the files that read reviewed again.

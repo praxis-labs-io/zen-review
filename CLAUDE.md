@@ -175,8 +175,15 @@ fails to translate disappears.
 `changed after review` is the refresh writing down what it took, on
 `gen_files.cut`. It cannot be read back off the coverage: a range the
 translation cut and a range somebody unmarked leave the same coverage behind,
-and only the refresh ran the translation. The record stands until the file reads
-reviewed again, and follows a rename through the same diff the ranges do.
+and only the refresh ran the translation. The record follows a rename through
+the same diff the ranges do, and stands until the file reads reviewed again or
+an unmark settles it, because a refresh only runs when something moved.
+
+A base-side range fails to translate when upstream rewrote the lines whose
+removal somebody read, which is the same fact on the other side, and it is
+recorded under the name the changeset lists the file by. What a base move does
+that is not a cut is widen the scope, and that leaves every stored range
+translating cleanly.
 
 Deletion-only hunks have no head-side lines and anchor to base-side ranges.
 

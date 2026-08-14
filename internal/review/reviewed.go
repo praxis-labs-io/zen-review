@@ -42,15 +42,21 @@ func (e *StaleGenerationError) Error() string {
 // Lines are explicit here. Naming a hunk is a question about the parsed diff and
 // is answered a layer up.
 func (s *Session) Mark(ctx context.Context, g Generation, path string, side store.Side, rs []Range) error {
-	return s.updateReviewed(ctx, g, path, side, func(cur []store.LineRange) []store.LineRange {
+	return s.updateReviewed(ctx, g, path, side, "", func(cur []store.LineRange) []store.LineRange {
 		return lineRanges(merge(append(ranges(cur), rs...)))
 	})
 }
 
 // Unmark takes lines back out of what was reviewed, cutting a stored range where
 // the two overlap rather than dropping it whole.
+//
+// It also settles any cut the refresh recorded against the file. That record is
+// the refresh reporting what it took off a reader's coverage, and a reader
+// taking lines back by hand has made the coverage their own. Leaving it would
+// have the file read as changed after review for a cut the reader may already
+// have answered, with no refresh due to write it away.
 func (s *Session) Unmark(ctx context.Context, g Generation, path string, side store.Side, rs []Range) error {
-	return s.updateReviewed(ctx, g, path, side, func(cur []store.LineRange) []store.LineRange {
+	return s.updateReviewed(ctx, g, path, side, path, func(cur []store.LineRange) []store.LineRange {
 		return lineRanges(subtract(ranges(cur), rs))
 	})
 }
@@ -71,6 +77,7 @@ func (s *Session) updateReviewed(
 	g Generation,
 	path string,
 	side store.Side,
+	answers string,
 	change func([]store.LineRange) []store.LineRange,
 ) error {
 	latest, found, err := s.db.LatestGeneration(ctx, s.row.ID)
@@ -88,7 +95,7 @@ func (s *Session) updateReviewed(
 	}
 
 	now := time.Now().UTC().Truncate(time.Second)
-	return s.db.UpdateReviewedRanges(ctx, s.row.ID, g.ID, path, side, now, change)
+	return s.db.UpdateReviewedRanges(ctx, s.row.ID, g.ID, path, side, now, answers, change)
 }
 
 // basePath is the name a file had on the base side of a generation.

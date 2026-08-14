@@ -310,6 +310,46 @@ func TestACarriedCutLandsOnTheFileItNames(t *testing.T) {
 	}
 }
 
+// The clear rides in the ranges transaction, and it names the head-side path
+// while the ranges are stored under the base one. Passing nothing leaves the
+// record where it was.
+func TestAWriteSettlesOnlyTheCutItNames(t *testing.T) {
+	db := open(t)
+	s := session(t, db, "settling")
+
+	files := []store.GenFile{
+		{Path: "new.go", OldPath: "old.go", Status: diff.FileRenamed, BaseBlob: "b1", HeadBlob: "h1"},
+		{Path: "z.go", Status: diff.FileModified, BaseBlob: "b2", HeadBlob: "h2"},
+	}
+	g, err := db.AddGeneration(t.Context(), store.Generation{
+		SessionID: s.ID, BaseSha: "base", HeadSha: "head", CommitSha: "commit", CreatedAt: epoch,
+	}, files, store.Carry{Cut: map[string]bool{"new.go": true, "z.go": true}})
+	if err != nil {
+		t.Fatalf("adding the generation: %v", err)
+	}
+
+	// A base-side write, stored under old.go and settling the row keyed new.go.
+	if err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "old.go", store.SideBase, epoch, "new.go",
+		keep(store.LineRange{Start: 1, End: 3})); err != nil {
+		t.Fatalf("writing the base-side ranges: %v", err)
+	}
+	if err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "z.go", store.SideHead, epoch, "",
+		keep(store.LineRange{Start: 1, End: 3})); err != nil {
+		t.Fatalf("writing z.go: %v", err)
+	}
+
+	got, err := db.GenFiles(t.Context(), g.ID)
+	if err != nil {
+		t.Fatalf("reading the files: %v", err)
+	}
+	if got[0].Cut {
+		t.Errorf("new.go still holds a cut the write named")
+	}
+	if !got[1].Cut {
+		t.Errorf("z.go lost a cut no write named")
+	}
+}
+
 // The database is a file, and the whole point of it is that a review resumes
 // days later. A second Open has to find the schema already there and leave it
 // alone.

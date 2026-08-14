@@ -235,3 +235,33 @@ func TestGenFileStatusIsConstrainedToTheVocabulary(t *testing.T) {
 		t.Error("a status outside the vocabulary should be refused")
 	}
 }
+
+// Go cannot put anything but 0 or 1 in this column, so the CHECK is what stops a
+// hand-edited database from reaching a scan into a bool and failing there,
+// nowhere near the write that did it.
+func TestGenFileCutIsConstrainedToABoolean(t *testing.T) {
+	db := openHere(t)
+	ctx := t.Context()
+
+	now := time.Now().UTC().Truncate(time.Second)
+	if err := db.SaveSession(ctx, Session{ID: "s", RepoPath: "/repo", Kind: KindBranch, Branch: "main", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("saving the session: %v", err)
+	}
+
+	g, err := db.AddGeneration(ctx,
+		Generation{SessionID: "s", BaseSha: "b", HeadSha: "h", CommitSha: "c", CreatedAt: now},
+		[]GenFile{{Path: "a.txt", Status: diff.FileModified}}, Carry{})
+	if err != nil {
+		t.Fatalf("adding the generation: %v", err)
+	}
+
+	const set = "UPDATE gen_files SET cut = ? WHERE generation_id = ? AND path = 'a.txt'"
+	for _, ok := range []int{0, 1} {
+		if _, err := db.handle.ExecContext(ctx, set, ok, g.ID); err != nil {
+			t.Errorf("cut = %d was refused: %v", ok, err)
+		}
+	}
+	if _, err := db.handle.ExecContext(ctx, set, 2, g.ID); err == nil {
+		t.Error("cut = 2 should be refused")
+	}
+}

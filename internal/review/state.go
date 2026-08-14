@@ -99,11 +99,9 @@ type Changeset struct {
 // same coverage behind, so only the refresh can tell them apart, because only
 // the refresh ran the translation. It is reported on a file that has lines left
 // to read and dropped on one that reads reviewed, so finishing a file clears the
-// flag without waiting for the next refresh to write it away.
-//
-// One case reads wrong until that write: unmarking a file between the cut and
-// the next refresh brings the flag back, because the refresh cleared it against
-// a coverage the unmark has since lowered.
+// flag without waiting for the next refresh to write the row away. An unmark
+// settles the row itself, because a refresh only runs when something moved and a
+// reader who takes lines back by hand has left nothing due to run.
 func Derive(files []diff.File, rows []store.ReviewedRange, cut map[string]bool) Changeset {
 	cur := coverageOf(rows)
 
