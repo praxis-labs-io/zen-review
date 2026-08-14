@@ -308,8 +308,8 @@ func span(r review.Range) string {
 }
 
 // body is what was written: the text passed, or stdin when it is -, so prose
-// with newlines in it does not have to survive a shell. what names the thing
-// being read, for the one message that has to say.
+// with newlines in it does not have to survive a shell. Only the stdin failure
+// uses what, to name the thing it was reading.
 //
 // Trailing whitespace goes, because a heredoc ends in a newline and a comment
 // does not. Leading whitespace stays: the listing reads an indented line as one

@@ -133,16 +133,16 @@ func (v exportView) markdown() string {
 // true than they look.
 func (v exportView) meta(b *strings.Builder) {
 	fmt.Fprintf(b, "base `%s` (%s)", v.Base.Ref, short(v.Base.SHA))
-	if !v.Exists {
+	if v.Exists {
+		fmt.Fprintf(b, ", generation %d\n%d of %d reviewed, %s\n",
+			v.Generation.Seq, v.Reviewed, v.Items, outstanding(len(v.Comments)))
+	} else {
 		b.WriteString("\nNo generation yet, so nothing has been reviewed. Run `zen-review refresh`.\n")
-		return
 	}
 
-	fmt.Fprintf(b, ", generation %d\n%d of %d reviewed, %s\n",
-		v.Generation.Seq, v.Reviewed, v.Items, outstanding(len(v.Comments)))
-
 	// A paste lands in front of somebody who cannot see this repository, so what
-	// the lines below no longer describe has to travel with them.
+	// the lines below no longer describe has to travel with them. reason is fresh
+	// on a session with no generation, so the two cases share the rest of this.
 	switch v.reason() {
 	case staleBase:
 		fmt.Fprintf(b, "\nThe base has moved to %s since generation %d was measured, so the lines below may have too.\n",
@@ -153,10 +153,32 @@ func (v exportView) meta(b *strings.Builder) {
 	case fresh:
 	}
 
+	// A frozen comment records where its anchor was when it stopped, which is not
+	// where the generation named above puts that file. The state word beside each
+	// one does not say so, and the reader of a paste cannot check.
+	if settled(v.Comments) {
+		b.WriteString("\nAn addressed or orphaned comment stopped moving when it was settled, " +
+			"so its line is where it was then.\n")
+	}
+
+	// Last, and on both paths. A session with nothing built yet is the one case
+	// with no earlier warning that a file is missing from what is being reported,
+	// and an edit nobody can see is the failure this tool exists to prevent.
 	if len(v.Skipped) > 0 {
 		fmt.Fprintf(b, "\ngit could not read %s just now, so they are not in this review: %s\n",
 			plural(len(v.Skipped), "path"), strings.Join(v.Skipped, ", "))
 	}
+}
+
+// settled reports a comment that has stopped moving. The report lists open,
+// addressed and orphaned, so anything not open is one whose line is frozen.
+func settled(comments []store.Comment) bool {
+	for _, c := range comments {
+		if c.State != store.CommentOpen {
+			return true
+		}
+	}
+	return false
 }
 
 // outstanding is what is left to answer, said once. A report that counted zero

@@ -34,6 +34,17 @@ func TestTheReportSaysWhatItsReferencesAreWorth(t *testing.T) {
 	unbuilt := reported(exportView{})
 	unbuilt.Exists = false
 	unbuilt.Generation = review.Generation{}
+	unbuilt.Skipped = []string{"locked.txt"}
+
+	stopped := reported(exportView{Comments: []store.Comment{{
+		ID:        "9a8b7c6d5e4f",
+		Path:      "internal/cli/export.go",
+		Side:      store.SideHead,
+		Scope:     store.ScopeRange,
+		LineRange: store.LineRange{Start: 41, End: 48},
+		State:     store.CommentOrphaned,
+		Body:      "this one lost its anchor",
+	}}})
 
 	commented := reported(exportView{Comments: []store.Comment{{
 		ID:        "3f2a1b0c9d8e",
@@ -82,9 +93,14 @@ func TestTheReportSaysWhatItsReferencesAreWorth(t *testing.T) {
 			want: []string{"git could not read 2 paths just now", "vendored/, locked.txt"},
 		},
 		{
-			name:   "nothing built yet",
-			v:      unbuilt,
-			want:   []string{"No generation yet, so nothing has been reviewed.", "zen-review refresh"},
+			// The one case with no earlier warning that a file is missing from what is
+			// being reported, so it is the one that has to carry it.
+			name: "nothing built yet, and a path git could not read",
+			v:    unbuilt,
+			want: []string{
+				"No generation yet, so nothing has been reviewed.", "zen-review refresh",
+				"git could not read 1 path just now", "locked.txt",
+			},
 			absent: []string{"reviewed, ", "generation 2"},
 		},
 		{
@@ -96,7 +112,18 @@ func TestTheReportSaysWhatItsReferencesAreWorth(t *testing.T) {
 				"**`internal/cli/export.go:41-48`** head, open, `3f2a1b0c9d8e`",
 				"\nthe early return misses the comment case\n",
 			},
-			absent: []string{"nothing unresolved"},
+			absent: []string{"nothing unresolved", "stopped moving"},
+		},
+		{
+			// The line is where the anchor was when the comment settled, which is not
+			// where the generation named above puts that file. The reader of a paste
+			// cannot check, and the state word beside it does not say so.
+			name: "a comment that has stopped moving",
+			v:    stopped,
+			want: []string{
+				"An addressed or orphaned comment stopped moving when it was settled",
+				"**`internal/cli/export.go:41-48`** head, orphaned, `9a8b7c6d5e4f`",
+			},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
