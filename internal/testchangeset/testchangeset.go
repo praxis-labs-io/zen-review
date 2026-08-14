@@ -15,7 +15,9 @@ import (
 	"github.com/zen-review/zen-review/internal/store"
 )
 
-// Derive is the changeset a patch and a set of read ranges make.
+// Derive is the changeset a patch and a set of read ranges make. No file reads
+// as changed after review: that fact comes from a refresh, and there is none
+// here.
 func Derive(t *testing.T, patch string, reviewed ...store.ReviewedRange) review.Changeset {
 	t.Helper()
 
@@ -23,7 +25,7 @@ func Derive(t *testing.T, patch string, reviewed ...store.ReviewedRange) review.
 	if len(files) == 0 {
 		t.Fatalf("the patch parsed to no files, so the fixture is malformed")
 	}
-	return review.Derive(files, reviewed)
+	return review.Derive(files, reviewed, nil)
 }
 
 // Head is one read range on the head side.

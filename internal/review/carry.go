@@ -29,7 +29,15 @@ func (s *Session) carry(ctx context.Context, latest store.Generation, found bool
 	if err != nil {
 		return store.Carry{}, err
 	}
-	if len(rows) == 0 {
+
+	// One indexed read, against two whole-tree diffs already in this window. It
+	// runs before the early return because a file cut to nothing has no ranges
+	// left, and that is the case the record exists for.
+	prior, err := s.cuts(ctx, latest.ID)
+	if err != nil {
+		return store.Carry{}, err
+	}
+	if len(rows) == 0 && len(prior) == 0 {
 		// Every refresh before the first mark, and the reason neither diff runs
 		// on the common path.
 		return store.Carry{}, nil
@@ -40,7 +48,7 @@ func (s *Session) carry(ctx context.Context, latest store.Generation, found bool
 		return store.Carry{}, err
 	}
 
-	head, err := s.translate(ctx, rows, store.SideHead, was, tree)
+	head, cut, err := s.translate(ctx, rows, store.SideHead, was, tree, prior)
 	if err != nil {
 		return store.Carry{}, err
 	}
@@ -48,12 +56,76 @@ func (s *Session) carry(ctx context.Context, latest store.Generation, found bool
 
 	// Base-side rows exist only for deletion-only hunks somebody marked, so this
 	// is nearly always nothing, and the base diff is the expensive one when it
-	// does fire.
-	base, err := s.translate(ctx, rows, store.SideBase, latest.BaseSha, s.base.SHA)
+	// does fire. prior is head-keyed and is carried on the head side alone.
+	base, baseCut, err := s.translate(ctx, rows, store.SideBase, latest.BaseSha, s.base.SHA, nil)
 	if err != nil {
 		return store.Carry{}, err
 	}
-	return store.Carry{Ranges: append(head, base...)}, nil
+	onHead(cut, baseCut, files)
+
+	carried := append(head, base...)
+	return store.Carry{Ranges: carried, Cut: settled(cut, files, carried)}, nil
+}
+
+// cuts is what the previous generation was left holding, keyed by the path each
+// file had there. translate moves the key onto the new path, so a file renamed
+// between two generations keeps its record without a second diff.
+func (s *Session) cuts(ctx context.Context, generationID int64) (map[string]bool, error) {
+	files, err := s.db.GenFiles(ctx, generationID)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make(map[string]bool)
+	for _, f := range files {
+		if f.Cut {
+			out[f.Path] = true
+		}
+	}
+	return out, nil
+}
+
+// onHead folds the base side's cuts into the head side's, under the name the
+// changeset lists each file by.
+//
+// A base-side range belongs to a deletion-only hunk, and it fails to translate
+// when upstream rewrote the very lines whose removal somebody read. That is
+// content moving under a reader, the same as on the head side. What a base move
+// does that is not a cut is widen the scope, merging a reviewed hunk with a
+// newly in-scope one, and that leaves every stored range translating cleanly, so
+// it never reaches here.
+//
+// A base path the new changeset does not list has no row to be recorded on, and
+// is dropped.
+func onHead(cut, base map[string]bool, files []diff.File) {
+	if len(base) == 0 {
+		return
+	}
+
+	for _, f := range files {
+		if base[baseName(f)] {
+			cut[f.Path] = true
+		}
+	}
+}
+
+// settled drops the files that read reviewed again.
+//
+// The record says lines changed after they were read, and a file read end to
+// end has none of those lines left to point at. Clearing it here rather than at
+// the next mark is what keeps the write in one place: a mark made after this
+// generation is written raises the coverage, and Derive suppresses the record
+// against it until this runs again.
+func settled(cut map[string]bool, files []diff.File, carried []store.ReviewedRange) map[string]bool {
+	if len(cut) == 0 {
+		return nil
+	}
+	for _, f := range Derive(files, carried, nil).Files {
+		if f.State == Reviewed {
+			delete(cut, f.Diff.Path)
+		}
+	}
+	return cut
 }
 
 // hunky is every path whose changeset entry has lines to read.
@@ -88,7 +160,12 @@ func readable(rows []store.ReviewedRange, hunks map[string]bool) []store.Reviewe
 	return out
 }
 
-// translate carries one side's ranges from one tree-ish to another.
+// translate carries one side's ranges from one tree-ish to another, and reports
+// which files it took lines off.
+//
+// prior is the cuts already recorded against these files, keyed by the path they
+// had on the from side. They come back keyed by the path they have on the to
+// side, so a rename carries the record with the ranges.
 //
 // Equal ends need no diff and no translation, which is the rebase that leaves
 // the content byte-identical: every mark comes through and the doc's promise
@@ -98,19 +175,22 @@ func (s *Session) translate(
 	rows []store.ReviewedRange,
 	side store.Side,
 	from, to string,
-) ([]store.ReviewedRange, error) {
+	prior map[string]bool,
+) ([]store.ReviewedRange, map[string]bool, error) {
 	mine := onSide(rows, side)
-	if len(mine) == 0 || from == to {
-		return mine, nil
+	if (len(mine) == 0 && len(prior) == 0) || from == to {
+		// Identical ends move no file, so a prior record keeps the path it had.
+		return mine, copied(prior), nil
 	}
 
 	patch, err := s.repo.RemapDiff(ctx, from, to)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	moved := byOldPath(diff.Parse(patch))
 
 	var out []store.ReviewedRange
+	cut := make(map[string]bool)
 	for _, g := range groups(mine) {
 		f, changed := moved[g.path]
 		if !changed {
@@ -124,7 +204,9 @@ func (s *Session) translate(
 
 		// The new path, so a range follows a renamed file. Where nothing moved
 		// it is the path it already had.
-		for _, r := range Translate(f).Ranges(rangesOf(g.rows)) {
+		before := rangesOf(g.rows)
+		after := Translate(f).Ranges(before)
+		for _, r := range after {
 			out = append(out, store.ReviewedRange{
 				Path:      f.Path,
 				Side:      side,
@@ -132,8 +214,64 @@ func (s *Session) translate(
 				CreatedAt: g.read,
 			})
 		}
+		if shrank(before, after) {
+			cut[f.Path] = true
+		}
 	}
-	return out, nil
+
+	// A prior record follows its file through the same lookup, and does it
+	// whether or not the file still has ranges. One cut to nothing has none, and
+	// dropping the record there would lose it on the rewrite it was written for.
+	for p := range prior {
+		if f, changed := moved[p]; changed {
+			cut[f.Path] = true
+			continue
+		}
+		cut[p] = true
+	}
+	return out, cut, nil
+}
+
+func copied(m map[string]bool) map[string]bool {
+	out := make(map[string]bool, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
+}
+
+// shrank reports whether a file came out of a translation holding less than it
+// went in with.
+//
+// Both sides are normalised, the stored rows by the write that made them and the
+// translated ones by Ranges, so the two line counts are comparable. A whole-file
+// mark holds no lines and is its own test: it survives only where the file's
+// bytes did.
+func shrank(before, after []Range) bool {
+	if marksWhole(before) && !marksWhole(after) {
+		return true
+	}
+	return spanned(after) < spanned(before)
+}
+
+func spanned(rs []Range) int {
+	n := 0
+	for _, r := range rs {
+		if r.whole() {
+			continue
+		}
+		n += r.End - r.Start + 1
+	}
+	return n
+}
+
+func marksWhole(rs []Range) bool {
+	for _, r := range rs {
+		if r.whole() {
+			return true
+		}
+	}
+	return false
 }
 
 // byOldPath indexes a remap diff by the path each file had on its old side,

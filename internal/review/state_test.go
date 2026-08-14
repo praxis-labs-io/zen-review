@@ -53,11 +53,15 @@ func hunkLines(f review.File) []string {
 }
 
 // describe is what the table below reads: a line per file, a line per hunk under
-// it, and the burn-down last.
+// it, and the burn-down last. A file the refresh cut says so after its state.
 func describe(c review.Changeset) []string {
 	out := make([]string, 0, len(c.Files)+1)
 	for _, f := range c.Files {
-		out = append(out, fmt.Sprintf("%s %s %d/%d", f.Diff.Path, f.State, f.Reviewed, f.Items))
+		changed := ""
+		if f.Changed {
+			changed = " changed"
+		}
+		out = append(out, fmt.Sprintf("%s %s%s %d/%d", f.Diff.Path, f.State, changed, f.Reviewed, f.Items))
 		out = append(out, hunkLines(f)...)
 	}
 	return append(out, fmt.Sprintf("%d of %d", c.Reviewed, c.Items))
@@ -84,6 +88,7 @@ func TestDeriveReadsStateOutOfTheRanges(t *testing.T) {
 		name  string
 		files []diff.File
 		rows  []store.ReviewedRange
+		cut   map[string]bool
 		want  []string
 	}{
 		{
@@ -225,11 +230,40 @@ func TestDeriveReadsStateOutOfTheRanges(t *testing.T) {
 				"1 of 2",
 			},
 		},
+		{
+			name:  "a file the refresh cut, with lines left to read",
+			files: twoLines(),
+			rows:  []store.ReviewedRange{row("a.go", store.SideHead, 11, 11)},
+			cut:   map[string]bool{"a.go": true},
+			want:  []string{"a.go partial changed 0/1", "  head 11:12 partial", "0 of 1"},
+		},
+		{
+			name:  "a file the refresh cut and nothing survived on",
+			files: twoLines(),
+			cut:   map[string]bool{"a.go": true},
+			want:  []string{"a.go unreviewed changed 0/1", "  head 11:12 unreviewed", "0 of 1"},
+		},
+		{
+			// Reading it end to end answers the record, and waiting for the next
+			// refresh to clear the row would leave the flag on a file with nothing
+			// left to point at.
+			name:  "a file the refresh cut and the reader has since finished",
+			files: twoLines(),
+			rows:  []store.ReviewedRange{row("a.go", store.SideHead, 11, 12)},
+			cut:   map[string]bool{"a.go": true},
+			want:  []string{"a.go reviewed 1/1", "  head 11:12 reviewed", "1 of 1"},
+		},
+		{
+			name:  "a cut naming a path the changeset does not hold",
+			files: twoLines(),
+			cut:   map[string]bool{"gone.go": true},
+			want:  []string{"a.go unreviewed 0/1", "  head 11:12 unreviewed", "0 of 1"},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assertRanges(t, describe(review.Derive(tt.files, tt.rows)), tt.want)
+			assertRanges(t, describe(review.Derive(tt.files, tt.rows, tt.cut)), tt.want)
 		})
 	}
 }
@@ -239,7 +273,7 @@ func TestAHunkIsFoundByThePathSideAndLineItIsNamedUnder(t *testing.T) {
 		Path:   "mixed.go",
 		Status: diff.FileModified,
 		Hunks:  []diff.Hunk{hunk(5, 5, "---"), hunk(30, 27, " -+ ")},
-	}}, nil)
+	}}, nil, nil)
 
 	tests := []struct {
 		name  string

@@ -54,6 +54,12 @@ type File struct {
 	State State
 	Hunks []Hunk
 
+	// Changed is a refresh reporting that it took reviewed lines off this file:
+	// the content moved under a mark rather than the mark being withdrawn. It
+	// stands beside State rather than inside it, because how much has been read
+	// and why it is no longer all of it are different questions.
+	Changed bool
+
 	// Reviewed and Items are this file's share of the burn-down. An item is one
 	// hunk, or the whole file when it has none.
 	Reviewed int
@@ -83,22 +89,26 @@ type Changeset struct {
 //
 // Files come back in the order a file tree reads, not the order git walked the
 // index in, so every reader of a changeset is looking at one list. It holds no
-// git and no database, and it makes no claim about how the ranges
-// got there. A hunk is reviewed when every line of every anchor it has is
-// covered, unreviewed when none is, and partial in between. A file is reviewed
-// when every hunk is, or when a file with no hunks carries a whole-file mark.
+// git and no database. A hunk is reviewed when every line of every anchor it has
+// is covered, unreviewed when none is, and partial in between. A file is
+// reviewed when every hunk is, or when a file with no hunks carries a whole-file
+// mark.
 //
-// What it deliberately does not say is that something changed after review. A
-// range that failed to translate and a range somebody withdrew leave the same
-// coverage behind, so a read of that coverage cannot tell them apart. Only the
-// refresh knows, because only the refresh ran the translation, and until it
-// records what it cut this reports how much has been read and nothing about why.
-func Derive(files []diff.File, rows []store.ReviewedRange) Changeset {
+// cut names the files a refresh took reviewed lines off, and nothing here infers
+// it. A range that failed to translate and a range somebody withdrew leave the
+// same coverage behind, so only the refresh can tell them apart, because only
+// the refresh ran the translation. It is reported on a file that has lines left
+// to read and dropped on one that reads reviewed, so finishing a file clears the
+// flag without waiting for the next refresh to write the row away. An unmark
+// settles the row itself, because a refresh only runs when something moved and a
+// reader who takes lines back by hand has left nothing due to run.
+func Derive(files []diff.File, rows []store.ReviewedRange, cut map[string]bool) Changeset {
 	cur := coverageOf(rows)
 
 	c := Changeset{Files: make([]File, 0, len(files))}
 	for _, f := range files {
 		file := deriveFile(f, cur)
+		file.Changed = cut[f.Path] && file.State != Reviewed
 		c.Files = append(c.Files, file)
 		c.Reviewed += file.Reviewed
 		c.Items += file.Items
@@ -144,7 +154,12 @@ func (s *Session) Changeset(ctx context.Context, g Generation) (Changeset, error
 	if err != nil {
 		return Changeset{}, err
 	}
-	return Derive(files, rows), nil
+
+	cut, err := s.cuts(ctx, g.ID)
+	if err != nil {
+		return Changeset{}, err
+	}
+	return Derive(files, rows, cut), nil
 }
 
 // deriveFile is one file's hunks and the state that falls out of them.

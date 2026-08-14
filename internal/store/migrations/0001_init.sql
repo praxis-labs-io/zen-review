@@ -78,8 +78,8 @@ CREATE TABLE gen_files (
 
 -- Reviewed state is line ranges, never hunk indices: an agent inserting twenty
 -- lines above a hunk leaves different code wearing the same label. A range that
--- fails to translate from one generation to the next disappears, and that is
--- what makes a hunk read as changed after review.
+-- fails to translate from one generation to the next disappears, and the
+-- refresh records the file it came off on gen_files.cut.
 --
 -- side is 'head' except for a deletion-only hunk, which has no head-side lines
 -- and anchors to the base blob instead.

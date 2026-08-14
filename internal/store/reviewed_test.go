@@ -54,7 +54,7 @@ func TestReviewedRangesComeBackOrderedByPathSideAndLine(t *testing.T) {
 		{"a.go", store.SideHead, []store.LineRange{{Start: 1, End: 3}}},
 	}
 	for _, w := range writes {
-		if err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, w.path, w.side, epoch, keep(w.ranges...)); err != nil {
+		if err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, w.path, w.side, epoch, "", keep(w.ranges...)); err != nil {
 			t.Fatalf("writing the ranges of %s: %v", w.path, err)
 		}
 	}
@@ -86,13 +86,13 @@ func TestAnUpdateReplacesWhatTheChangeFunctionWasHanded(t *testing.T) {
 	db := open(t)
 	s, g := generation(t, db, "replace")
 
-	if err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "a.go", store.SideHead, epoch,
+	if err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "a.go", store.SideHead, epoch, "",
 		keep(store.LineRange{Start: 1, End: 5}, store.LineRange{Start: 20, End: 25})); err != nil {
 		t.Fatalf("writing the first set: %v", err)
 	}
 
 	var handed []store.LineRange
-	err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "a.go", store.SideHead, epoch,
+	err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "a.go", store.SideHead, epoch, "",
 		func(cur []store.LineRange) []store.LineRange {
 			handed = cur
 			return []store.LineRange{{Start: 20, End: 25}}
@@ -117,11 +117,11 @@ func TestAnUpdateReturningNothingClearsTheFile(t *testing.T) {
 	db := open(t)
 	s, g := generation(t, db, "cleared")
 
-	if err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "a.go", store.SideHead, epoch,
+	if err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "a.go", store.SideHead, epoch, "",
 		keep(store.LineRange{Start: 1, End: 5})); err != nil {
 		t.Fatalf("writing: %v", err)
 	}
-	if err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "a.go", store.SideHead, epoch, keep()); err != nil {
+	if err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "a.go", store.SideHead, epoch, "", keep()); err != nil {
 		t.Fatalf("clearing: %v", err)
 	}
 
@@ -140,13 +140,13 @@ func TestAnUpdateLeavesTheOtherKeysAlone(t *testing.T) {
 		path string
 		side store.Side
 	}{{"a.go", store.SideHead}, {"a.go", store.SideBase}, {"b.go", store.SideHead}} {
-		if err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, w.path, w.side, epoch,
+		if err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, w.path, w.side, epoch, "",
 			keep(store.LineRange{Start: 1, End: 5})); err != nil {
 			t.Fatalf("writing %s %s: %v", w.path, w.side, err)
 		}
 	}
 
-	if err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "a.go", store.SideHead, epoch, keep()); err != nil {
+	if err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "a.go", store.SideHead, epoch, "", keep()); err != nil {
 		t.Fatalf("clearing a.go head: %v", err)
 	}
 
@@ -198,7 +198,7 @@ func TestTwoInstancesMarkingOneFileBothSurvive(t *testing.T) {
 			// Each instance marks its own two lines, well clear of every other
 			// so nothing merges and a lost write is a missing row.
 			mine := store.LineRange{Start: i*10 + 1, End: i*10 + 2}
-			errs[i] = db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "a.go", store.SideHead, epoch,
+			errs[i] = db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "a.go", store.SideHead, epoch, "",
 				func(cur []store.LineRange) []store.LineRange { return append(cur, mine) })
 		}()
 	}
@@ -267,11 +267,11 @@ func TestAMarkKeepsTheReadTimeOfTheRangesItDoesNotTouch(t *testing.T) {
 	monday := epoch
 	friday := epoch.Add(96 * time.Hour)
 
-	if err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "a.go", store.SideHead, monday,
+	if err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "a.go", store.SideHead, monday, "",
 		keep(store.LineRange{Start: 5, End: 9})); err != nil {
 		t.Fatalf("marking on monday: %v", err)
 	}
-	if err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "a.go", store.SideHead, friday,
+	if err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "a.go", store.SideHead, friday, "",
 		keep(store.LineRange{Start: 5, End: 9}, store.LineRange{Start: 40, End: 44})); err != nil {
 		t.Fatalf("marking on friday: %v", err)
 	}
@@ -289,7 +289,7 @@ func TestAMarkKeepsTheReadTimeOfTheRangesItDoesNotTouch(t *testing.T) {
 
 	// A range that swallows an older one inherits its time, because those lines
 	// have been read since then whatever shape the range now has.
-	if err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "a.go", store.SideHead, friday,
+	if err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "a.go", store.SideHead, friday, "",
 		keep(store.LineRange{Start: 1, End: 50})); err != nil {
 		t.Fatalf("widening: %v", err)
 	}
@@ -351,8 +351,7 @@ func TestASideOutsideTheVocabularyIsRefused(t *testing.T) {
 	db := open(t)
 	s, g := generation(t, db, "side")
 
-	err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "a.go", store.Side("both"), epoch,
-		keep(store.LineRange{Start: 1, End: 1}))
+	err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "a.go", store.Side("both"), epoch, "", keep(store.LineRange{Start: 1, End: 1}))
 	if err == nil {
 		t.Fatal("a side outside the vocabulary should be refused")
 	}

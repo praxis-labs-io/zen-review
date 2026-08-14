@@ -268,6 +268,88 @@ func TestGenFilesComeBackOrderedByPath(t *testing.T) {
 	}
 }
 
+// The cut arrives on the Carry rather than on the files, because it is review
+// state moved into the generation and the file list is built off the parsed
+// diff. A key naming a path the generation does not hold is ignored: that is a
+// file whose content moved and then stopped differing from the base.
+func TestACarriedCutLandsOnTheFileItNames(t *testing.T) {
+	db := open(t)
+	s := session(t, db, "cuts")
+
+	files := []store.GenFile{
+		{Path: "a.go", Status: diff.FileModified, BaseBlob: "b1", HeadBlob: "h1"},
+		{Path: "z.go", Status: diff.FileModified, BaseBlob: "b2", HeadBlob: "h2"},
+	}
+	g, err := db.AddGeneration(t.Context(), store.Generation{
+		SessionID: s.ID, BaseSha: "base", HeadSha: "head", CommitSha: "commit", CreatedAt: epoch,
+	}, files, store.Carry{Cut: map[string]bool{"a.go": true, "gone.go": true}})
+	if err != nil {
+		t.Fatalf("adding the generation: %v", err)
+	}
+
+	got, err := db.GenFiles(t.Context(), g.ID)
+	if err != nil {
+		t.Fatalf("reading the files: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d files, want 2", len(got))
+	}
+	if !got[0].Cut {
+		t.Errorf("a.go came back without the cut it was written with")
+	}
+	if got[1].Cut {
+		t.Errorf("z.go came back cut, and nothing said it was")
+	}
+
+	one, found, err := db.GenFile(t.Context(), g.ID, "a.go")
+	if err != nil || !found {
+		t.Fatalf("reading a.go: found = %v, err = %v", found, err)
+	}
+	if !one.Cut {
+		t.Error("a.go read one at a time came back without the cut")
+	}
+}
+
+// The clear rides in the ranges transaction, and it names the head-side path
+// while the ranges are stored under the base one. Passing nothing leaves the
+// record where it was.
+func TestAWriteSettlesOnlyTheCutItNames(t *testing.T) {
+	db := open(t)
+	s := session(t, db, "settling")
+
+	files := []store.GenFile{
+		{Path: "new.go", OldPath: "old.go", Status: diff.FileRenamed, BaseBlob: "b1", HeadBlob: "h1"},
+		{Path: "z.go", Status: diff.FileModified, BaseBlob: "b2", HeadBlob: "h2"},
+	}
+	g, err := db.AddGeneration(t.Context(), store.Generation{
+		SessionID: s.ID, BaseSha: "base", HeadSha: "head", CommitSha: "commit", CreatedAt: epoch,
+	}, files, store.Carry{Cut: map[string]bool{"new.go": true, "z.go": true}})
+	if err != nil {
+		t.Fatalf("adding the generation: %v", err)
+	}
+
+	// A base-side write, stored under old.go and settling the row keyed new.go.
+	if err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "old.go", store.SideBase, epoch, "new.go",
+		keep(store.LineRange{Start: 1, End: 3})); err != nil {
+		t.Fatalf("writing the base-side ranges: %v", err)
+	}
+	if err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "z.go", store.SideHead, epoch, "",
+		keep(store.LineRange{Start: 1, End: 3})); err != nil {
+		t.Fatalf("writing z.go: %v", err)
+	}
+
+	got, err := db.GenFiles(t.Context(), g.ID)
+	if err != nil {
+		t.Fatalf("reading the files: %v", err)
+	}
+	if got[0].Cut {
+		t.Errorf("new.go still holds a cut the write named")
+	}
+	if !got[1].Cut {
+		t.Errorf("z.go lost a cut no write named")
+	}
+}
+
 // The database is a file, and the whole point of it is that a review resumes
 // days later. A second Open has to find the schema already there and leave it
 // alone.
