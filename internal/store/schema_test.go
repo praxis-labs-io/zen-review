@@ -3,6 +3,7 @@ package store
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -263,5 +264,210 @@ func TestGenFileCutIsConstrainedToABoolean(t *testing.T) {
 	}
 	if _, err := db.handle.ExecContext(ctx, set, 2, g.ID); err == nil {
 		t.Error("cut = 2 should be refused")
+	}
+}
+
+// The comments table has no Go writer yet, so the rows below are raw SQL. What
+// is under test is the schema, and a row type would only be a second way to
+// spell it.
+
+// anchored is a session with two generations, which is the least a comment
+// needs: the one it was created at, and the one a refresh has since moved it
+// onto.
+func anchored(t *testing.T, db *DB) (created, current int64) {
+	t.Helper()
+
+	now := time.Now().UTC().Truncate(time.Second)
+	if err := db.SaveSession(t.Context(),
+		Session{ID: "s", RepoPath: "/repo", Kind: KindBranch, Branch: "main", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("saving the session: %v", err)
+	}
+
+	var ids [2]int64
+	for i := range ids {
+		g, err := db.AddGeneration(t.Context(),
+			Generation{SessionID: "s", BaseSha: "b", HeadSha: "h", CommitSha: "c", CreatedAt: now},
+			[]GenFile{{Path: "a.txt", Status: diff.FileModified}}, Carry{})
+		if err != nil {
+			t.Fatalf("adding a generation: %v", err)
+		}
+		ids[i] = g.ID
+	}
+	return ids[0], ids[1]
+}
+
+// commentRow is the columns the tests below vary. Everything else is held
+// constant by writeComment.
+type commentRow struct {
+	id      string
+	gen     int64
+	created int64
+	scope   string
+	state   string
+	start   int
+	end     int
+}
+
+func writeComment(t *testing.T, db *DB, c commentRow) error {
+	t.Helper()
+
+	const q = `
+		INSERT INTO comments (
+			id, session_id, generation_id, created_generation_id,
+			path, side, start_line, end_line, scope, body, state,
+			created_at, updated_at)
+		VALUES (?, 's', ?, ?, 'a.txt', 'head', ?, ?, ?, 'this reads backwards', ?,
+			'2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`
+
+	state := c.state
+	if state == "" {
+		state = "open"
+	}
+	_, err := db.handle.ExecContext(t.Context(), q, c.id, c.gen, c.created, c.start, c.end, c.scope, state)
+	return err
+}
+
+// 'session' is gone: sessions.summary already holds the note about the whole
+// review, and a comment scoped to nothing in particular was the second way to
+// write it.
+//
+// The refused rows carry lines, so the CHECK on scope is the only thing that can
+// turn them away. Written without them they would fail the agreement CHECK
+// instead, and this would pass against a vocabulary that had never been
+// narrowed.
+func TestACommentIsScopedToALineARangeOrAFile(t *testing.T) {
+	db := openHere(t)
+	created, _ := anchored(t, db)
+
+	for _, tc := range []struct {
+		scope      string
+		start, end int
+		ok         bool
+	}{
+		{scope: "line", start: 4, end: 4, ok: true},
+		{scope: "range", start: 4, end: 9, ok: true},
+		{scope: "file", ok: true},
+		{scope: "session", start: 4, end: 9},
+		{scope: "hunk", start: 4, end: 9},
+	} {
+		t.Run(tc.scope, func(t *testing.T) {
+			err := writeComment(t, db, commentRow{
+				id: tc.scope, gen: created, created: created,
+				scope: tc.scope, start: tc.start, end: tc.end,
+			})
+			if tc.ok && err != nil {
+				t.Fatalf("the scope %q was refused: %v", tc.scope, err)
+			}
+			if !tc.ok && err == nil {
+				t.Fatalf("the scope %q should be refused", tc.scope)
+			}
+		})
+	}
+}
+
+// A scope is a claim about what the comment is on, and the lines are how that
+// claim is kept. The two disagreeing is a comment that cannot be translated as
+// what it says it is.
+func TestACommentsScopeAndItsLinesHaveToAgree(t *testing.T) {
+	db := openHere(t)
+	created, _ := anchored(t, db)
+
+	for _, tc := range []struct {
+		name       string
+		scope      string
+		start, end int
+		ok         bool
+	}{
+		{name: "a range over lines", scope: "range", start: 4, end: 9, ok: true},
+		{name: "a file over none", scope: "file", ok: true},
+		{name: "a file carrying lines", scope: "file", start: 4, end: 9},
+		{name: "a range carrying none", scope: "range"},
+		{name: "a line carrying none", scope: "line"},
+		{name: "a range ending before it starts", scope: "range", start: 9, end: 4},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := writeComment(t, db, commentRow{
+				id: tc.name, gen: created, created: created,
+				scope: tc.scope, start: tc.start, end: tc.end,
+			})
+			if tc.ok && err != nil {
+				t.Fatalf("%s was refused: %v", tc.name, err)
+			}
+			if !tc.ok && err == nil {
+				t.Fatalf("%s should be refused", tc.name)
+			}
+		})
+	}
+}
+
+// generation_id moves forward on every refresh that translates the anchor.
+// created_generation_id is the column that can still say where the comment
+// started, which is the tree anchor_blob resolves against.
+func TestACommentRemembersTheGenerationItWasWrittenAt(t *testing.T) {
+	db := openHere(t)
+	ctx := t.Context()
+	created, current := anchored(t, db)
+
+	if err := writeComment(t, db, commentRow{
+		id: "c", gen: created, created: created, scope: "line", start: 4, end: 4,
+	}); err != nil {
+		t.Fatalf("writing the comment: %v", err)
+	}
+
+	const move = "UPDATE comments SET generation_id = ?, start_line = 11, end_line = 11 WHERE id = 'c'"
+	if _, err := db.handle.ExecContext(ctx, move, current); err != nil {
+		t.Fatalf("moving the anchor onto the new generation: %v", err)
+	}
+
+	var at, from int64
+	const read = "SELECT generation_id, created_generation_id FROM comments WHERE id = 'c'"
+	if err := db.handle.QueryRowContext(ctx, read).Scan(&at, &from); err != nil {
+		t.Fatalf("reading the comment back: %v", err)
+	}
+	if at != current {
+		t.Errorf("generation_id = %d, want the generation the refresh moved it onto, %d", at, current)
+	}
+	if from != created {
+		t.Errorf("created_generation_id = %d, want the one it was written at, %d", from, created)
+	}
+
+	// Both columns are real references, so a comment cannot claim a generation
+	// that is not there.
+	if err := writeComment(t, db, commentRow{
+		id: "gone", gen: current, created: current + 1000, scope: "file",
+	}); err == nil {
+		t.Error("a comment created at a generation that does not exist should be refused")
+	}
+}
+
+// Dropping a table drops its indexes. A rebuild that forgets to make them again
+// costs nothing that fails, only every listing walking the table.
+func TestTheCommentsIndexesSurviveTheRebuild(t *testing.T) {
+	db := openHere(t)
+
+	rows, err := db.handle.QueryContext(t.Context(),
+		`SELECT name FROM sqlite_master
+		 WHERE type = 'index' AND tbl_name = 'comments' AND name NOT LIKE 'sqlite_%'
+		 ORDER BY name`)
+	if err != nil {
+		t.Fatalf("listing the indexes: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var got []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			t.Fatalf("reading an index name: %v", err)
+		}
+		got = append(got, name)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("listing the indexes: %v", err)
+	}
+
+	want := []string{"comments_by_generation", "comments_by_state"}
+	if !slices.Equal(got, want) {
+		t.Errorf("indexes = %v, want %v", got, want)
 	}
 }
