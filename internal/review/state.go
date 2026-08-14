@@ -124,17 +124,27 @@ func Derive(files []diff.File, rows []store.ReviewedRange, cut map[string]bool) 
 	return c
 }
 
+// File finds a file by the head-side path the changeset lists it under, which is
+// the name a reader has in hand and the one a subcommand takes.
+func (c Changeset) File(path string) (File, bool) {
+	for _, f := range c.Files {
+		if f.Diff.Path == path {
+			return f, true
+		}
+	}
+	return File{}, false
+}
+
 // Hunk finds a hunk by the path, side and line the changeset names it under,
 // which is how a subcommand naming one on the command line resolves it.
 func (c Changeset) Hunk(path string, side store.Side, line int) (Hunk, bool) {
-	for _, f := range c.Files {
-		if f.Diff.Path != path {
-			continue
-		}
-		for _, h := range f.Hunks {
-			if s, l := h.Name(); s == side && l == line {
-				return h, true
-			}
+	f, found := c.File(path)
+	if !found {
+		return Hunk{}, false
+	}
+	for _, h := range f.Hunks {
+		if s, l := h.Name(); s == side && l == line {
+			return h, true
 		}
 	}
 	return Hunk{}, false

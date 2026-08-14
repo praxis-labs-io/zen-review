@@ -134,13 +134,18 @@ func TestAnExplicitRangeIsRefusedRatherThanIgnored(t *testing.T) {
 // Both flags are persistent, so every command takes them. A flag that works on
 // the bare invocation and not on a subcommand is the kind of thing nobody finds
 // until they script it.
+//
+// The one exception is --base on a write, which is refused rather than
+// inherited. That refusal has its own test beside the commands it applies to.
 func TestTheSharedFlagsReachEverySubcommand(t *testing.T) {
 	for _, args := range [][]string{
 		{"--json"},
 		{"status", "--json"},
 		{"refresh", "--json"},
+		{"files", "--json"},
 		{"status", "--base", "main"},
 		{"refresh", "--base", "main"},
+		{"files", "--base", "main"},
 	} {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
 			f := edited(t)

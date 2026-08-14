@@ -53,7 +53,7 @@ func NewRoot() *cobra.Command {
 		"ref to measure the changeset from, kept until another is passed (default origin/HEAD)")
 	cmd.PersistentFlags().BoolVar(&opts.asJSON, "json", false, "write the changeset as JSON")
 
-	cmd.AddCommand(newStatus(&opts), newRefresh(&opts))
+	cmd.AddCommand(newStatus(&opts), newRefresh(&opts), newFiles(&opts), newReview(&opts), newUnreview(&opts))
 	return cmd
 }
 
@@ -66,12 +66,19 @@ func open(ctx context.Context, opts *options) (*review.Session, error) {
 	return review.Open(ctx, cwd, review.Options{BaseRef: opts.baseRef})
 }
 
+// output is a view that knows both ways of writing itself: the summary a status
+// prints, and the changeset with the review derived on it.
+type output interface {
+	render() string
+	encode(io.Writer) error
+}
+
 // emit writes the view the way the flags asked for.
-func emit(out io.Writer, v view, asJSON bool) error {
+func emit(out io.Writer, v output, asJSON bool) error {
 	if asJSON {
-		return encode(out, v)
+		return v.encode(out)
 	}
-	if _, err := io.WriteString(out, render(v)); err != nil {
+	if _, err := io.WriteString(out, v.render()); err != nil {
 		return err
 	}
 	return nil

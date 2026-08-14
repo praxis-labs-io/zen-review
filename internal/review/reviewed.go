@@ -61,6 +61,30 @@ func (s *Session) Unmark(ctx context.Context, g Generation, path string, side st
 	})
 }
 
+// MarkHunk records every anchor a hunk has, which is what reading one means. A
+// hunk that both adds and removes takes a mark on each side: the lines it
+// removes are not lines it has, and a mark on the additions alone would swallow
+// a deletion arriving later.
+func (s *Session) MarkHunk(ctx context.Context, g Generation, path string, h Hunk) error {
+	return s.anchored(ctx, g, path, h.Anchors, s.Mark)
+}
+
+// UnmarkHunk takes back what MarkHunk recorded.
+func (s *Session) UnmarkHunk(ctx context.Context, g Generation, path string, h Hunk) error {
+	return s.anchored(ctx, g, path, h.Anchors, s.Unmark)
+}
+
+// MarkFile records every anchor of every hunk, or the file as a whole when it
+// has none.
+func (s *Session) MarkFile(ctx context.Context, g Generation, f File) error {
+	return s.anchored(ctx, g, f.Diff.Path, fileAnchors(f), s.Mark)
+}
+
+// UnmarkFile takes back what MarkFile recorded.
+func (s *Session) UnmarkFile(ctx context.Context, g Generation, f File) error {
+	return s.anchored(ctx, g, f.Diff.Path, fileAnchors(f), s.Unmark)
+}
+
 // Reviewed is every range recorded against a generation, ordered by path, side
 // and start line.
 //
@@ -68,6 +92,51 @@ func (s *Session) Unmark(ctx context.Context, g Generation, path string, side st
 // by file joins a renamed one back through the changeset's old path.
 func (s *Session) Reviewed(ctx context.Context, g Generation) ([]store.ReviewedRange, error) {
 	return s.db.ReviewedRanges(ctx, g.ID)
+}
+
+// anchored applies one write per side the anchors touch, head first.
+//
+// Two sides are two transactions, because the store keys a write on one file and
+// one side. A failure between them leaves the hunk partial, which is what it is:
+// one side was read and recorded and the other was not.
+func (s *Session) anchored(
+	ctx context.Context,
+	g Generation,
+	path string,
+	anchors []Anchor,
+	apply func(context.Context, Generation, string, store.Side, []Range) error,
+) error {
+	for _, side := range []store.Side{store.SideHead, store.SideBase} {
+		var rs []Range
+		for _, a := range anchors {
+			if a.Side == side {
+				rs = append(rs, a.Range)
+			}
+		}
+		if len(rs) == 0 {
+			continue
+		}
+		if err := apply(ctx, g, path, side, rs); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// fileAnchors is every anchor of every hunk, or the whole file when it has none:
+// a binary file, a mode change, a rename that moved nothing. The zero Range is
+// the whole-file mark, which merge and subtract already keep apart from the line
+// ranges.
+func fileAnchors(f File) []Anchor {
+	if len(f.Hunks) == 0 {
+		return []Anchor{{Side: store.SideHead}}
+	}
+
+	var out []Anchor
+	for _, h := range f.Hunks {
+		out = append(out, h.Anchors...)
+	}
+	return out
 }
 
 // updateReviewed refuses a stale generation and hands the arithmetic to the

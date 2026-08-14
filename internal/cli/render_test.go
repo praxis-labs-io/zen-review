@@ -17,10 +17,10 @@ func hunk() diff.Hunk {
 	return diff.Hunk{Header: "@@ -1 +1 @@", Lines: []diff.Line{{Kind: diff.Added, Text: "x"}}}
 }
 
-// built is a view of a session with one modified file, which the cases below
-// vary from.
-func built() view {
-	return view{
+// opened is a session with a generation on it, which every view below opens
+// with.
+func opened() header {
+	return header{
 		SessionID: "9f3a1c4d5e6f7081",
 		Ref:       "refs/zen-review/sessions/9f3a1c4d5e6f7081",
 		Kind:      "branch",
@@ -34,6 +34,14 @@ func built() view {
 			CreatedAt: time.Date(2026, 8, 11, 12, 4, 33, 0, time.UTC),
 		},
 		Exists: true,
+	}
+}
+
+// built is a view of a session with one modified file, which the cases below
+// vary from.
+func built() view {
+	return view{
+		header: opened(),
 		Files: []diff.File{{
 			Path: "a.txt", Status: diff.FileModified,
 			Hunks: []diff.Hunk{hunk()}, Additions: 5, Deletions: 1,
@@ -148,7 +156,7 @@ func TestTheProseSaysWhatHappened(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got := render(tc.v)
+			got := tc.v.render()
 
 			for _, want := range tc.want {
 				if !strings.Contains(got, want) {
@@ -179,7 +187,7 @@ func TestTheColumnsLineUpWithoutTrailingWhitespace(t *testing.T) {
 		{Path: "a-considerably-longer-name.txt", Status: diff.FileAdded, Omitted: "binary"},
 	}
 
-	got := render(v)
+	got := v.render()
 
 	for _, want := range []string{
 		"M  short.txt                       1 hunk  +1 -0\n",
