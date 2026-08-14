@@ -100,7 +100,7 @@ CREATE INDEX reviewed_ranges_by_file ON reviewed_ranges (generation_id, path);
 
 -- A comment anchors to a generation, a file, a side and a line range.
 --
--- Nothing writes this table yet either.
+-- 0004 rebuilds it. Nothing writes it yet.
 CREATE TABLE comments (
     id            TEXT PRIMARY KEY,
     session_id    TEXT NOT NULL REFERENCES sessions (id) ON DELETE CASCADE,
