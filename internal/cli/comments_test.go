@@ -171,15 +171,42 @@ func TestAStateThatIsNotOneIsRefused(t *testing.T) {
 
 // The listing carries the body under the row naming it, and the count a reader
 // is walking down.
+//
+// Each row opens on path:line, which is what a terminal makes clickable and what
+// an editor takes. Split across two cells it is a location nobody can paste.
 func TestTheListingCarriesTheBodiesAndTheCount(t *testing.T) {
 	f, _ := queue(t)
 
 	out := f.mustRun("comments")
 
-	for _, want := range []string{"still open", "4 comments, 3 unresolved"} {
+	for _, want := range []string{
+		"code.txt:3", "code.txt:30", "still open", "4 comments, 3 unresolved",
+	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output does not carry %q:\n%s", want, out)
 		}
+	}
+}
+
+// Each row opens on a reference in the form every editor and terminal already
+// knows, so a reader can go to the code the comment is about.
+func TestEachRowOpensOnAReferenceAReaderCanPaste(t *testing.T) {
+	f := clean(t)
+	f.comment("code.txt", "--lines", "3", "--body", "one line")
+	f.comment("code.txt", "--lines", "3-30", "--body", "a run of them")
+	f.comment("gone.txt", "--file", "--body", "the whole file")
+
+	out := f.mustRun("comments")
+
+	for _, want := range []string{"code.txt:3 ", "code.txt:3-30", "gone.txt "} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output does not carry %q:\n%s", want, out)
+		}
+	}
+	// A comment on the file itself has no line, and a path with no line is
+	// exactly what that means.
+	if strings.Contains(out, "gone.txt:") {
+		t.Errorf("a file comment printed a line it does not have:\n%s", out)
 	}
 }
 

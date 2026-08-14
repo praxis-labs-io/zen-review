@@ -52,7 +52,7 @@ func (v commentsView) render() string {
 func writeComments(b *strings.Builder, comments []store.Comment) {
 	rows := make([][]string, 0, len(comments))
 	for _, c := range comments {
-		rows = append(rows, []string{c.ID, c.Path, string(c.Side), lines(c), string(c.State)})
+		rows = append(rows, []string{c.ID, at(c), string(c.Side), string(c.State)})
 	}
 
 	widths := columnWidths(rows)
@@ -77,15 +77,21 @@ func writeBody(b *strings.Builder, body string) {
 	}
 }
 
-// lines is where a comment points, spelled the way the comment command takes it.
-func lines(c store.Comment) string {
+// at is where a comment points, in the one form every editor and terminal
+// already knows: path:line, or path:A-B over a run of them.
+//
+// The path and the line are one cell rather than two. Split, they are a place
+// nobody can click and nobody can paste, and a reader looking at a comment wants
+// to be at the code it is about. A comment on the file itself is the path alone,
+// because a path with no line is exactly what that means.
+func at(c store.Comment) string {
 	switch {
 	case c.Scope == store.ScopeFile:
-		return "file"
+		return c.Path
 	case c.Start == c.End:
-		return fmt.Sprint(c.Start)
+		return fmt.Sprintf("%s:%d", c.Path, c.Start)
 	default:
-		return fmt.Sprintf("%d-%d", c.Start, c.End)
+		return fmt.Sprintf("%s:%d-%d", c.Path, c.Start, c.End)
 	}
 }
 
