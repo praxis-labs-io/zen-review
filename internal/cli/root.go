@@ -63,6 +63,7 @@ func NewRoot() *cobra.Command {
 		newStatus(&opts), newRefresh(&opts), newFiles(&opts),
 		newReview(&opts), newUnreview(&opts),
 		newComment(&opts), newComments(&opts), newAddress(&opts), newResolve(&opts),
+		newSummary(&opts), newExport(&opts),
 	)
 	return cmd
 }
@@ -80,6 +81,20 @@ func refuseBase(cmd *cobra.Command) error {
 	return fmt.Errorf("the base is the session's, and %s does not take --base: "+
 		"passing it here moves the base and keeps it moved, which is not what this call was about. "+
 		"Change it with zen-review status --base <ref>", cmd.Name())
+}
+
+// refuseJSON turns away --json on a command that writes markdown.
+//
+// The flag is persistent, so it reaches every command whether or not the command
+// has an answer for it. Honouring it here would mean a second wire shape saying
+// what comments --json already says, and two answers to one question is how they
+// come to disagree.
+func refuseJSON(cmd *cobra.Command) error {
+	if !cmd.Flags().Changed("json") {
+		return nil
+	}
+	return fmt.Errorf("%s writes markdown and does not take --json: "+
+		"the same comments in JSON are zen-review comments --json", cmd.Name())
 }
 
 // open resolves the session for the working directory. The caller closes it.

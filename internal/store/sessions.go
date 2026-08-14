@@ -82,6 +82,11 @@ func (db *DB) Session(ctx context.Context, id string) (Session, bool, error) {
 // CreatedAt is left where it was on an update, because a session resumed three
 // days later is the same session. Both times come off s rather than a clock
 // here: this package holds none, which is what keeps its callers testable.
+//
+// The summary is written on the insert and never on the update, because
+// SetSessionSummary owns it. Every caller here holds the summary it read when
+// it opened, and an instance that opened before the note was written would
+// erase it the next time it moved the base.
 func (db *DB) SaveSession(ctx context.Context, s Session) error {
 	const q = `
 		INSERT INTO sessions (id, repo_path, kind, branch, range_spec, base_ref, summary, created_at, updated_at)
@@ -92,7 +97,6 @@ func (db *DB) SaveSession(ctx context.Context, s Session) error {
 			branch     = excluded.branch,
 			range_spec = excluded.range_spec,
 			base_ref   = excluded.base_ref,
-			summary    = excluded.summary,
 			updated_at = excluded.updated_at`
 
 	_, err := db.handle.ExecContext(ctx, q,
@@ -101,6 +105,30 @@ func (db *DB) SaveSession(ctx context.Context, s Session) error {
 	)
 	if err != nil {
 		return fmt.Errorf("saving the session %s: %w", s.ID, err)
+	}
+	return nil
+}
+
+// SetSessionSummary writes the session-level note and nothing else.
+//
+// A session with no row is a failure rather than a silent no-op. The row is
+// written when the session is opened, so reaching here without one means it was
+// deleted underneath, and answering with the note that was never stored is the
+// one thing worse than saying so.
+func (db *DB) SetSessionSummary(ctx context.Context, id, summary string, at time.Time) error {
+	const q = `UPDATE sessions SET summary = ?, updated_at = ? WHERE id = ?`
+
+	res, err := db.handle.ExecContext(ctx, q, summary, stamp(at), id)
+	if err != nil {
+		return fmt.Errorf("writing the summary of the session %s: %w", id, err)
+	}
+
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("writing the summary of the session %s: %w", id, err)
+	}
+	if rows == 0 {
+		return fmt.Errorf("the session %s is no longer in the database", id)
 	}
 	return nil
 }

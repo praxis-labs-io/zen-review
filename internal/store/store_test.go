@@ -98,15 +98,14 @@ func TestAnUnknownSessionIsAbsenceRatherThanAnError(t *testing.T) {
 	}
 }
 
-// Resuming a session three days later is the same session, so the base and the
-// summary move and the creation time does not.
+// Resuming a session three days later is the same session, so the base moves
+// and the creation time does not.
 func TestSavingASessionTwiceKeepsItsCreatedAt(t *testing.T) {
 	db := open(t)
 	first := session(t, db, "resumed")
 
 	later := first
 	later.BaseRef = "origin/develop"
-	later.Summary = "picked it back up"
 	later.CreatedAt = epoch.Add(72 * time.Hour)
 	later.UpdatedAt = epoch.Add(72 * time.Hour)
 	if err := db.SaveSession(t.Context(), later); err != nil {
@@ -123,8 +122,84 @@ func TestSavingASessionTwiceKeepsItsCreatedAt(t *testing.T) {
 	if !got.UpdatedAt.Equal(later.UpdatedAt) {
 		t.Errorf("updatedAt = %s, want %s", got.UpdatedAt, later.UpdatedAt)
 	}
-	if got.BaseRef != later.BaseRef || got.Summary != later.Summary {
-		t.Errorf("session = %+v, want the base and summary from the second save", got)
+	if got.BaseRef != later.BaseRef {
+		t.Errorf("baseRef = %s, want the one from the second save", got.BaseRef)
+	}
+}
+
+// The note and the base have different writers, so a save that moves the base
+// leaves the note alone.
+//
+// Every SaveSession caller holds the summary it read when it opened. Without
+// this, an instance that opened before the note was written erases it the next
+// time the base moves, which is a whole session's conclusions gone.
+func TestSavingASessionLeavesTheSummaryAlone(t *testing.T) {
+	db := open(t)
+	first := session(t, db, "two-writers")
+
+	if err := db.SetSessionSummary(t.Context(), first.ID, "held the store changes", epoch); err != nil {
+		t.Fatalf("writing the summary: %v", err)
+	}
+
+	// Written from the row as it was read before the note existed, which is
+	// exactly what a second instance holds.
+	stale := first
+	stale.BaseRef = "origin/develop"
+	stale.UpdatedAt = epoch.Add(time.Hour)
+	if err := db.SaveSession(t.Context(), stale); err != nil {
+		t.Fatalf("saving the session again: %v", err)
+	}
+
+	got, _, err := db.Session(t.Context(), first.ID)
+	if err != nil {
+		t.Fatalf("reading the session: %v", err)
+	}
+	if got.Summary != "held the store changes" {
+		t.Errorf("summary = %q, want the one the other writer set", got.Summary)
+	}
+	if got.BaseRef != stale.BaseRef {
+		t.Errorf("baseRef = %s, want the save to have moved it", got.BaseRef)
+	}
+}
+
+// The note moves and the base stays where it was, which is the other half of
+// the same split.
+func TestSettingTheSummaryLeavesTheBaseAlone(t *testing.T) {
+	db := open(t)
+	first := session(t, db, "noted")
+
+	at := epoch.Add(time.Hour)
+	if err := db.SetSessionSummary(t.Context(), first.ID, "picked it back up", at); err != nil {
+		t.Fatalf("writing the summary: %v", err)
+	}
+
+	got, _, err := db.Session(t.Context(), first.ID)
+	if err != nil {
+		t.Fatalf("reading the session: %v", err)
+	}
+	if got.Summary != "picked it back up" {
+		t.Errorf("summary = %q, want the one just written", got.Summary)
+	}
+	if got.BaseRef != first.BaseRef {
+		t.Errorf("baseRef = %s, want it left at %s", got.BaseRef, first.BaseRef)
+	}
+	if !got.UpdatedAt.Equal(at) {
+		t.Errorf("updatedAt = %s, want %s", got.UpdatedAt, at)
+	}
+}
+
+// A row that is not there is a failure. Answering with a note that was never
+// stored is the one thing worse than saying so.
+func TestSettingTheSummaryOfAnUnknownSessionFails(t *testing.T) {
+	db := open(t)
+
+	err := db.SetSessionSummary(t.Context(), "no-such-session", "anything", epoch)
+
+	if err == nil {
+		t.Fatal("writing the summary of a session that is not there should have failed")
+	}
+	if !strings.Contains(err.Error(), "no-such-session") {
+		t.Errorf("err = %v, want it to name the session", err)
 	}
 }
 

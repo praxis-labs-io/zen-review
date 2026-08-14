@@ -1,0 +1,21 @@
+{
+  "session": "<session>",
+  "ref": "refs/zen-review/sessions/<session>",
+  "kind": "branch",
+  "branch": "feature",
+  "base": {
+    "ref": "origin/main",
+    "sha": "<sha>"
+  },
+  "generation": {
+    "seq": 1,
+    "commit": "<sha>",
+    "baseSha": "<sha>",
+    "headSha": "<sha>",
+    "createdAt": "<time>"
+  },
+  "stale": false,
+  "staleReason": "",
+  "skipped": [],
+  "summary": "held the store changes until the migration lands"
+}
