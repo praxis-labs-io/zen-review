@@ -187,6 +187,22 @@ translating cleanly.
 
 Deletion-only hunks have no head-side lines and anchor to base-side ranges.
 
+A comment moves while it is open, and stops the moment it is addressed, resolved
+or orphaned. Its row then stays at the generation it stopped at and records where
+the anchor was, so nothing has to know which generation a frozen comment is
+pinned to in order to say where it lived. Only an open comment orphans: one
+already addressed or resolved that loses its anchor was acted on, and the rewrite
+that destroyed it is the acting.
+
+The anchor translation is deliberately more forgiving than the one reviewed
+ranges take. A comment on ten lines is about a region, and an agent rewriting a
+line in the middle of it is usually the comment being acted on rather than the
+comment being lost, so the anchor clamps to what survived where a range would be
+cut into the pieces either side. A file comment is the exception and takes the
+range rule: it names the file, so it follows a rename and is lost when the bytes
+move. `anchor_blob` is written once, at creation, and is the bytes the comment
+was about at the generation `created_generation_id` names.
+
 ### Storage
 
 `$(git rev-parse --git-common-dir)/zen-review/state.db`, so a worktree and its

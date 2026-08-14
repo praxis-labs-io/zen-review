@@ -37,9 +37,17 @@ func (s *Session) carry(ctx context.Context, latest store.Generation, found bool
 	if err != nil {
 		return store.Carry{}, err
 	}
-	if len(rows) == 0 && len(prior) == 0 {
-		// Every refresh before the first mark, and the reason neither diff runs
-		// on the common path.
+
+	// Only the open ones. Everything else has stopped moving, and a refresh that
+	// moved a resolved comment would be reopening a question somebody closed.
+	open, err := s.db.OpenComments(ctx, latest.ID)
+	if err != nil {
+		return store.Carry{}, err
+	}
+
+	if len(rows) == 0 && len(prior) == 0 && len(open) == 0 {
+		// Every refresh before the first mark and the first comment, and the
+		// reason neither diff runs on the common path.
 		return store.Carry{}, nil
 	}
 
@@ -48,24 +56,71 @@ func (s *Session) carry(ctx context.Context, latest store.Generation, found bool
 		return store.Carry{}, err
 	}
 
-	head, cut, err := s.translate(ctx, rows, store.SideHead, was, tree, prior)
+	headRows, baseRows := onSide(rows, store.SideHead), onSide(rows, store.SideBase)
+	headNotes, baseNotes := commentsOn(open, store.SideHead), commentsOn(open, store.SideBase)
+
+	// One diff per side, shared by the ranges and the comments. They move through
+	// the same change and differ only in how forgiving they are about it.
+	headMoved, err := s.moved(ctx, len(headRows)+len(prior)+len(headNotes) > 0, was, tree)
 	if err != nil {
 		return store.Carry{}, err
 	}
+
+	// Base-side anchors are a deletion-only hunk somebody marked or wrote against,
+	// or the whole-file mark on a deleted file with no lines, so this is nearly
+	// always nothing and the base diff is the expensive one when it does fire.
+	// prior is head-keyed and is carried on the head side alone.
+	baseMoved, err := s.moved(ctx, len(baseRows)+len(baseNotes) > 0, latest.BaseSha, s.base.SHA)
+	if err != nil {
+		return store.Carry{}, err
+	}
+
+	head, cut := translate(headRows, store.SideHead, headMoved, prior)
 	head = readable(head, hunky(files))
 
-	// Base-side rows are a deletion-only hunk somebody marked, or the whole-file
-	// mark on a deleted file with no lines, so this is nearly always nothing and
-	// the base diff is the expensive one when it does fire. prior is head-keyed
-	// and is carried on the head side alone.
-	base, baseCut, err := s.translate(ctx, rows, store.SideBase, latest.BaseSha, s.base.SHA, nil)
-	if err != nil {
-		return store.Carry{}, err
-	}
+	base, baseCut := translate(baseRows, store.SideBase, baseMoved, nil)
 	onHead(cut, baseCut, files)
 
 	carried := append(head, base...)
-	return store.Carry{Ranges: carried, Cut: settled(cut, files, carried)}, nil
+	moved := append(carryAnchors(headNotes, headMoved), carryAnchors(baseNotes, baseMoved)...)
+	return store.Carry{Ranges: carried, Cut: settled(cut, files, carried), Comments: moved}, nil
+}
+
+// carryAnchors moves each comment's anchor through one side's change.
+//
+// A comment that keeps its anchor moves onto the generation being written, and
+// takes the file's new name with it, which is what follows a rename. One that
+// loses it orphans where it stands.
+//
+// Translation.Anchor is deliberately more forgiving than Ranges: a comment on
+// ten lines is about a region, and an agent rewriting a line in the middle of
+// that region is usually the comment being acted on rather than the comment
+// being lost. What it does not forgive is a file comment on a file whose bytes
+// moved, because that anchor names the file and the file is no longer the one
+// named.
+func carryAnchors(comments []store.Comment, moved map[string]diff.File) []store.CommentMove {
+	out := make([]store.CommentMove, 0, len(comments))
+	for _, c := range comments {
+		f, changed := moved[c.Path]
+		if !changed {
+			// Absent from a diff of the two whole trees means byte-identical
+			// between them, so the anchor comes through where it was.
+			out = append(out, store.CommentMove{ID: c.ID, Path: c.Path, LineRange: c.LineRange})
+			continue
+		}
+
+		r, held := Translate(f).Anchor(Range{Start: c.Start, End: c.End})
+		if !held {
+			out = append(out, store.CommentMove{ID: c.ID, Lost: true})
+			continue
+		}
+		out = append(out, store.CommentMove{
+			ID:        c.ID,
+			Path:      f.Path,
+			LineRange: store.LineRange{Start: r.Start, End: r.End},
+		})
+	}
+	return out
 }
 
 // cuts is what the previous generation was left holding, keyed by the path each
@@ -164,38 +219,40 @@ func readable(rows []store.ReviewedRange, hunks map[string]bool) []store.Reviewe
 	return out
 }
 
-// translate carries one side's ranges from one tree-ish to another, and reports
-// which files it took lines off.
+// moved indexes one side's change by the path each file had before it, which is
+// the path an anchor is stored under.
 //
-// prior is the cuts already recorded against these files, keyed by the path they
-// had on the from side. They come back keyed by the path they have on the to
-// side, so a rename carries the record with the ranges.
-//
-// Equal ends need no diff and no translation, which is the rebase that leaves
-// the content byte-identical: every mark comes through and the doc's promise
-// that a review survives one costs a string comparison.
-func (s *Session) translate(
-	ctx context.Context,
-	rows []store.ReviewedRange,
-	side store.Side,
-	from, to string,
-	prior map[string]bool,
-) ([]store.ReviewedRange, map[string]bool, error) {
-	mine := onSide(rows, side)
-	if (len(mine) == 0 && len(prior) == 0) || from == to {
-		// Identical ends move no file, so a prior record keeps the path it had.
-		return mine, copied(prior), nil
+// It is nil where nothing has to move, and nil where the two ends are the same
+// object. That is the rebase leaving the content byte-identical: every file is
+// absent from an empty index, which is the same answer a diff would give, so the
+// doc's promise that a review survives one costs a string comparison.
+func (s *Session) moved(ctx context.Context, wanted bool, from, to string) (map[string]diff.File, error) {
+	if !wanted || from == to {
+		return nil, nil
 	}
 
 	patch, err := s.repo.RemapDiff(ctx, from, to)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	moved := byOldPath(diff.Parse(patch))
+	return byOldPath(diff.Parse(patch)), nil
+}
 
+// translate carries one side's ranges through that side's change, and reports
+// which files it took lines off.
+//
+// prior is the cuts already recorded against these files, keyed by the path they
+// had before. They come back keyed by the path they have after, so a rename
+// carries the record with the ranges.
+func translate(
+	rows []store.ReviewedRange,
+	side store.Side,
+	moved map[string]diff.File,
+	prior map[string]bool,
+) ([]store.ReviewedRange, map[string]bool) {
 	var out []store.ReviewedRange
 	cut := make(map[string]bool)
-	for _, g := range groups(mine) {
+	for _, g := range groups(rows) {
 		f, changed := moved[g.path]
 		if !changed {
 			// Absent from a diff of the two whole trees means byte-identical
@@ -233,15 +290,7 @@ func (s *Session) translate(
 		}
 		cut[p] = true
 	}
-	return out, cut, nil
-}
-
-func copied(m map[string]bool) map[string]bool {
-	out := make(map[string]bool, len(m))
-	for k, v := range m {
-		out[k] = v
-	}
-	return out
+	return out, cut
 }
 
 // shrank reports whether a file came out of a translation holding less than it
@@ -338,6 +387,16 @@ func onSide(rows []store.ReviewedRange, side store.Side) []store.ReviewedRange {
 	for _, r := range rows {
 		if r.Side == side {
 			out = append(out, r)
+		}
+	}
+	return out
+}
+
+func commentsOn(comments []store.Comment, side store.Side) []store.Comment {
+	var out []store.Comment
+	for _, c := range comments {
+		if c.Side == side {
+			out = append(out, c)
 		}
 	}
 	return out

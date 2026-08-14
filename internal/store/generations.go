@@ -61,8 +61,7 @@ type GenFile struct {
 // Carry is the review state moved into a generation as it is written.
 //
 // Its rows arrive without a generation id, because AddGeneration stamps the one
-// it just numbered. It is a struct rather than a slice so the comments that
-// travel the same way have somewhere to go.
+// it just numbered.
 type Carry struct {
 	Ranges []ReviewedRange
 
@@ -70,6 +69,11 @@ type Carry struct {
 	// head-side path they have in the generation being written. A key naming a
 	// path the generation does not hold is ignored.
 	Cut map[string]bool
+
+	// Comments are the open comments' anchors after the translation. They are
+	// updates to rows that already exist, where the ranges above are new rows,
+	// because a comment is one row that moves rather than a copy per generation.
+	Comments []CommentMove
 }
 
 // LatestGeneration is the highest-numbered generation of a session. A session
@@ -103,9 +107,11 @@ func (db *DB) LatestGeneration(ctx context.Context, sessionID string) (Generatio
 // AddGeneration writes a generation, its files and the review state carried
 // into it together, and returns it with ID and Seq filled in.
 //
-// All three go in one transaction. A generation whose files are missing is one a
-// remap would run through and find nothing in, and one whose carried ranges are
-// missing reads as a review nobody did. Seq is assigned here rather than by the
+// All of it goes in one transaction. A generation whose files are missing is one
+// a remap would run through and find nothing in, one whose carried ranges are
+// missing reads as a review nobody did, and one whose comments moved without it
+// leaves every anchor pointing at a generation that is no longer the latest.
+// Seq is assigned here rather than by the
 // caller: _txlock=immediate takes the write lock at BEGIN, so reading the
 // previous number and writing the next cannot interleave with another instance
 // doing the same.
@@ -154,6 +160,12 @@ func (db *DB) AddGeneration(ctx context.Context, g Generation, files []GenFile, 
 
 	for _, r := range carry.Ranges {
 		if err = insertRange(ctx, tx, g.SessionID, g.ID, r); err != nil {
+			return Generation{}, err
+		}
+	}
+
+	for _, m := range carry.Comments {
+		if err = moveComment(ctx, tx, g.ID, g.CreatedAt, m); err != nil {
 			return Generation{}, err
 		}
 	}
