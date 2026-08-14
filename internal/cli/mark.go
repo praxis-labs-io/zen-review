@@ -13,9 +13,23 @@ import (
 	"github.com/zen-review/zen-review/internal/store"
 )
 
+// aim is which of the three ways of naming a target was used. It is settled in
+// check, so apply dispatches on the flag that was passed rather than on the
+// value it carries: --lines= is a flag that was passed, and reading it back as
+// an empty string sends the call down the --hunk branch to be refused for a
+// flag nobody typed.
+type aim string
+
+const (
+	aimHunk  aim = "hunk"
+	aimLines aim = "lines"
+	aimAll   aim = "all"
+)
+
 // target is what a mark applies to. Exactly one of the three ways of naming it
 // is given, and side qualifies the two that name lines.
 type target struct {
+	aim   aim
 	hunk  int
 	lines string
 	all   bool
@@ -102,11 +116,18 @@ func (t *target) check(cmd *cobra.Command) error {
 			"Change it with zen-review status --base <ref>", cmd.Name())
 	}
 
+	// --all is read by its value and the other two by whether they were passed.
+	// A bool flag is set either way it is spelled, so --all=false counts as
+	// passed while saying the opposite, and there is nothing else it could mean.
 	named := 0
-	for _, flag := range []string{"hunk", "lines", "all"} {
-		if cmd.Flags().Changed(flag) {
-			named++
-		}
+	if cmd.Flags().Changed("hunk") {
+		named, t.aim = named+1, aimHunk
+	}
+	if cmd.Flags().Changed("lines") {
+		named, t.aim = named+1, aimLines
+	}
+	if t.all {
+		named, t.aim = named+1, aimAll
 	}
 
 	switch {
@@ -144,7 +165,10 @@ func runMark(
 	if !st.Exists {
 		return errors.New("this session has no generation, so there is nothing to mark against: run zen-review refresh")
 	}
-	if t.generation != 0 && t.generation != st.Generation.Seq {
+	// Read by whether it was passed, not by whether it is zero. Generation 0 is
+	// not a generation, so a sentinel would let the one value that can never be
+	// current through as though the flag had been left off.
+	if cmd.Flags().Changed("generation") && t.generation != st.Generation.Seq {
 		return &review.StaleGenerationError{Seq: t.generation, Current: st.Generation.Seq}
 	}
 
@@ -178,7 +202,7 @@ func (t *target) apply(
 		return fmt.Errorf("no file of this changeset is called %s: run zen-review files for the ones there are", path)
 	}
 
-	if t.all {
+	if t.aim == aimAll {
 		return w.file(ctx, g, f)
 	}
 
@@ -187,12 +211,16 @@ func (t *target) apply(
 		return err
 	}
 
-	if t.lines != "" {
+	if t.aim == aimLines {
 		r, err := parseLines(t.lines)
 		if err != nil {
 			return err
 		}
-		return w.lines(ctx, g, path, side, []review.Range{r})
+		rs, err := clip(f, side, r)
+		if err != nil {
+			return err
+		}
+		return w.lines(ctx, g, path, side, rs)
 	}
 
 	h, found := c.Hunk(path, side, t.hunk)
@@ -201,6 +229,45 @@ func (t *target) apply(
 			path, side, t.hunk)
 	}
 	return w.hunk(ctx, g, path, h)
+}
+
+// clip narrows the lines a reader named to the ones the file's hunks hold on
+// that side.
+//
+// Coverage is only ever read against an anchor, so a range reaching past every
+// one of them records nothing a reader can see. It does not stay harmless. It
+// carries into each new generation and drifts as it goes, and the first hunk to
+// land inside it reads as read with nobody having read it, which is the failure
+// this tool exists to prevent. An unmark cannot answer it either: unreview --all
+// subtracts the anchors, so whatever lay outside them outlives the review.
+func clip(f review.File, side store.Side, r review.Range) ([]review.Range, error) {
+	if len(f.Hunks) == 0 {
+		return nil, fmt.Errorf("nothing in %s is named by a line, so --all is how to mark it", f.Diff.Path)
+	}
+
+	var out []review.Range
+	held := false
+	for _, h := range f.Hunks {
+		for _, a := range h.Anchors {
+			if a.Side != side {
+				continue
+			}
+			held = true
+			if lo, hi := max(r.Start, a.Range.Start), min(r.End, a.Range.End); lo <= hi {
+				out = append(out, review.Range{Start: lo, End: hi})
+			}
+		}
+	}
+
+	switch {
+	case !held:
+		return nil, fmt.Errorf("no hunk of %s holds lines on the %s side: run zen-review files for the side each one is on",
+			f.Diff.Path, side)
+	case len(out) == 0:
+		return nil, fmt.Errorf("no hunk of %s holds %s-side lines between %d and %d: run zen-review files for the ones it does hold",
+			f.Diff.Path, side, r.Start, r.End)
+	}
+	return out, nil
 }
 
 func parseSide(s string) (store.Side, error) {
