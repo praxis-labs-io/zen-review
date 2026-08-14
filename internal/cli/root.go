@@ -37,6 +37,12 @@ func NewRoot() *cobra.Command {
 		Version:      version.Version,
 		SilenceUsage: true,
 
+		// Errors are rendered by the handler cmd/zen-review hands fang, which is
+		// also what keeps the --exit-code sentinel from being printed as a failure.
+		// Left to cobra, it writes "Error: the filter matched" to stderr of a
+		// command that succeeded.
+		SilenceErrors: true,
+
 		// An explicit range gets its own session, so refusing it beats accepting and
 		// ignoring it until those exist. Cobra does not inherit this, so every
 		// command below sets it too or the range walks in through a subcommand.
@@ -63,16 +69,16 @@ func NewRoot() *cobra.Command {
 
 // refuseBase turns away a write that also asked to move the base.
 //
-// The base is the session's and it outlives the call. Moving it here would
-// recompute the changeset and then record the write against the one that move
-// replaced, which is a mark or a comment anchored to lines nobody was looking
-// at. zen-review status --base is where it changes.
+// --base does not apply to one invocation. Open writes it back, so it stays
+// moved, and a write is not where that decision belongs. On a mark or a comment
+// it is worse than a side effect: the move recomputes the changeset the write
+// then anchors into. zen-review status --base is where it changes.
 func refuseBase(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("base") {
 		return nil
 	}
 	return fmt.Errorf("the base is the session's, and %s does not take --base: "+
-		"it would move the base and then write against the changeset that move recomputed. "+
+		"passing it here moves the base and keeps it moved, which is not what this call was about. "+
 		"Change it with zen-review status --base <ref>", cmd.Name())
 }
 

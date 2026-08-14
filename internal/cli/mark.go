@@ -208,7 +208,7 @@ func (t *target) apply(
 	}
 
 	if t.aim == aimLines {
-		r, err := parseLines(t.lines)
+		r, err := parseLines(t.lines, "--all")
 		if err != nil {
 			return err
 		}
@@ -279,9 +279,11 @@ func parseSide(s string) (store.Side, error) {
 // still a selection and nobody types 42-42.
 //
 // Line 0 is the file as a whole rather than a line in it, so it is refused here.
-// --all is how a file with no lines to name gets marked.
-func parseLines(s string) (review.Range, error) {
-	malformed := fmt.Errorf("the lines to mark are A-B or a single A, not %q", s)
+// whole is the flag that reaches a file with no lines to name, which is --all
+// for a mark and --file for a comment: this is shared by both, and a message
+// naming the wrong one points the reader at a flag their command does not have.
+func parseLines(s, whole string) (review.Range, error) {
+	malformed := fmt.Errorf("the lines are A-B or a single A, not %q", s)
 
 	first, last, split := strings.Cut(s, "-")
 	if !split {
@@ -300,7 +302,7 @@ func parseLines(s string) (review.Range, error) {
 	switch {
 	case start < 1:
 		return review.Range{}, fmt.Errorf("line numbers start at 1, so %q names none: "+
-			"--all marks a file that has no lines to name", s)
+			"%s is how to reach a file that has no lines to name", s, whole)
 	case end < start:
 		return review.Range{}, fmt.Errorf("the range %q ends before it starts", s)
 	}

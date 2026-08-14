@@ -165,8 +165,19 @@ func (s *Session) AddComment(ctx context.Context, g Generation, n Note) (store.C
 // A base-side comment carries the file's base-side name, the same way a
 // base-side reviewed range does, so a caller listing them beside a changeset
 // joins a renamed one back through the old path.
+//
+// The files come back in the order a file tree reads, which is the order
+// Session.Files hands the changeset back in. The store orders by path and that
+// is bytewise, so without this a listing and the table beside it disagree about
+// what comes first the moment the changeset has a directory in it. Stable, so
+// the store's ordering within one file survives.
 func (s *Session) Comments(ctx context.Context) ([]store.Comment, error) {
-	return s.db.Comments(ctx, s.row.ID)
+	rows, err := s.db.Comments(ctx, s.row.ID)
+	if err != nil {
+		return nil, err
+	}
+	slices.SortStableFunc(rows, func(a, b store.Comment) int { return byTree(a.Path, b.Path) })
+	return rows, nil
 }
 
 // AddressComment is the agent's verb: a claim that the comment has been handled.

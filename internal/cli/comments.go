@@ -51,41 +51,55 @@ func newComments(opts *options) *cobra.Command {
 	return cmd
 }
 
-func runComments(cmd *cobra.Command, opts *options, f *filter) (err error) {
+func runComments(cmd *cobra.Command, opts *options, f *filter) error {
 	if err := f.check(); err != nil {
 		return err
 	}
 
+	matched, err := listComments(cmd, opts, f)
+	if err != nil {
+		return err
+	}
+
+	// Raised out here, where the session is already closed, so the sentinel is
+	// never joined with a close error. errors.Is finds it inside a join too, and a
+	// failed close riding along with it would exit as a match and be swallowed by
+	// the handler that keeps a match quiet.
+	//
+	// After the listing is written, never instead of it. The status is what a hook
+	// acts on and the comments are what a person reads, and a command withholding
+	// one to report the other would be answering half the question.
+	if f.exitCode && matched {
+		return errMatched
+	}
+	return nil
+}
+
+// listComments writes the listing and reports whether the filter matched.
+func listComments(cmd *cobra.Command, opts *options, f *filter) (_ bool, err error) {
 	ctx := cmd.Context()
 
 	s, err := open(ctx, opts)
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer func() { err = closing(err, s) }()
 
 	st, err := s.Status(ctx)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	all, err := s.Comments(ctx)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	v := commentsView{header: statusHeader(s, st), Comments: f.apply(all), filter: f}
 	if err := emit(cmd.OutOrStdout(), v, opts.asJSON); err != nil {
-		return err
+		return false, err
 	}
-
-	// After the listing is written, never instead of it. The status is what a
-	// hook acts on and the comments are what a person reads, and a command that
-	// withheld one to report the other would be answering half the question.
-	if f.exitCode && len(v.Comments) > 0 {
-		return errMatched
-	}
-	return nil
+	return len(v.Comments) > 0, nil
 }
 
 // check reads the state a listing was asked for against the vocabulary, so a

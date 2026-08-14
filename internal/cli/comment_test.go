@@ -227,6 +227,14 @@ func TestTheCommentFlagsRefuseWhatTheyCannotAnswer(t *testing.T) {
 			want: []string{"blob.bin", "--file"},
 		},
 		{
+			// Line 0 is the file as a whole rather than a line in it. parseLines is
+			// shared with the mark commands, so the refusal has to point at this
+			// command's way of naming a file and not at their --all.
+			name: "a line 0 that means the whole file",
+			args: []string{"comment", "code.txt", "--lines", "0-3", "--body", "here"},
+			want: []string{"start at 1", "--file"},
+		},
+		{
 			// A flag given an empty value is a flag that was passed, so this is the
 			// --lines branch being refused rather than the --hunk one.
 			name: "lines given as nothing",
@@ -278,20 +286,29 @@ func TestLinesNoHunkHoldsAreRefusedAndTheHunksAreNamed(t *testing.T) {
 	}
 }
 
-// A comment does not take --base for the reason a mark does not: the base
-// belongs to the session and outlives the call, so moving it here would
-// recompute the changeset and then anchor the comment against the one it
-// replaced.
-func TestACommentRefusesToMoveTheBase(t *testing.T) {
+// None of the three writes takes --base. Open writes it back, so it stays
+// moved: closing a comment is not where a reader decides what the changeset is
+// measured from, and on the write itself the move recomputes the changeset the
+// comment then anchors into.
+func TestTheCommentWritesRefuseToMoveTheBase(t *testing.T) {
 	f := marking(t)
 	f.mustRun("refresh")
+	id := f.comment("code.txt", "--file", "--body", "here")
 
-	err := f.failure("comment", "code.txt", "--file", "--body", "here", "--base", "main")
+	for _, args := range [][]string{
+		{"comment", "code.txt", "--hunk", "3", "--body", "here", "--base", "main"},
+		{"address", id, "--base", "main"},
+		{"resolve", id, "--base", "main"},
+	} {
+		t.Run(args[0], func(t *testing.T) {
+			err := f.failure(args...)
 
-	for _, want := range []string{"--base", "zen-review status"} {
-		if !strings.Contains(err.Error(), want) {
-			t.Errorf("err = %v, want it to contain %q", err, want)
-		}
+			for _, want := range []string{"--base", "zen-review status"} {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("err = %v, want it to contain %q", err, want)
+				}
+			}
+		})
 	}
 }
 

@@ -97,6 +97,9 @@ func newVerb(opts *options, use, short, long string, verb func(*review.Session) 
 		Args:         cobra.ExactArgs(1),
 
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := refuseBase(cmd); err != nil {
+				return err
+			}
 			return runVerb(cmd, opts, args[0], verb)
 		},
 	}
@@ -236,7 +239,7 @@ func (n *note) resolve(c review.Changeset, path, text string) (review.Note, erro
 	}
 
 	if n.aim == aimLines {
-		r, err := parseLines(n.lines)
+		r, err := parseLines(n.lines, "--file")
 		if err != nil {
 			return review.Note{}, err
 		}

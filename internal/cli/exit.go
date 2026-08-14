@@ -17,6 +17,10 @@ const (
 // errMatched is comments --exit-code reporting that the filter found something.
 // It is not a failure and it says nothing: the command already wrote the
 // comments it is reporting on.
+//
+// It is raised where nothing can be joined onto it. errors.Is finds it inside a
+// join too, so a close failure travelling with it would come back here as a
+// match and be swallowed by the handler that keeps a match quiet.
 var errMatched = errors.New("the filter matched")
 
 // ExitCode is the status the process leaves with, given whatever the root

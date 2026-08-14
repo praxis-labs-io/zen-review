@@ -555,6 +555,47 @@ func TestCommentingOnAHunkAnchorsToWhatItIsNamedBy(t *testing.T) {
 	assertComments(t, f.storedComments(s), []string{"code.txt head 1:20 open"})
 }
 
+// The listing reads in the order the changeset does. The store orders by path
+// and that is bytewise, where a changeset puts a directory above the files
+// beside it, so without a sort here the two disagree about what comes first the
+// moment a changeset has a directory in it.
+func TestCommentsComeBackInTheOrderTheChangesetDoes(t *testing.T) {
+	f := branched(t)
+	f.Write("main.go", numbered(1, 5))
+	f.Write("pkg/deep.go", numbered(1, 5))
+	f.Commit("a file beside a directory")
+
+	s := f.mustOpen("")
+	g := f.refresh(s)
+
+	// One on every file, so the two lists are the same set and comparing them
+	// position by position is comparing the orderings.
+	files := f.changeset(s, g).Files
+	for _, file := range files {
+		f.note(s, g, review.Note{
+			Path: file.Diff.Path, Side: store.SideHead, Scope: store.ScopeFile,
+			Body: "about " + file.Diff.Path,
+		})
+	}
+
+	cs, err := s.Comments(t.Context())
+	if err != nil {
+		t.Fatalf("reading the comments: %v", err)
+	}
+	if len(cs) != len(files) {
+		t.Fatalf("comments = %d, want one per file and there are %d", len(cs), len(files))
+	}
+
+	for i, file := range files {
+		if cs[i].Path != file.Diff.Path {
+			t.Errorf("comment %d is on %s, and the changeset reads %s there", i, cs[i].Path, file.Diff.Path)
+		}
+	}
+	if cs[0].Path != "pkg/deep.go" {
+		t.Errorf("the listing opens on %s, so the two orderings agreeing proves nothing", cs[0].Path)
+	}
+}
+
 // The scope of a comment on lines falls out of the lines rather than out of how
 // a caller spelled them, so one place decides it and no two callers disagree.
 func TestCommentingOnLinesTakesItsScopeFromThem(t *testing.T) {

@@ -88,12 +88,15 @@ func TestThePathFilterNarrowsTheListing(t *testing.T) {
 func TestTheExitCodeSaysWhetherTheFilterMatched(t *testing.T) {
 	f, _ := queue(t)
 
-	out, _, err := f.run("comments", "--state", "unresolved", "--exit-code")
+	out, errs, err := f.run("comments", "--state", "unresolved", "--exit-code")
 	if got := cli.ExitCode(err); got != 1 {
 		t.Errorf("exit = %d with three unresolved, want 1", got)
 	}
 	if !cli.Quiet(err) {
 		t.Error("the matched status would be printed as an error, and it has nothing to say")
+	}
+	if errs != "" {
+		t.Errorf("a command that succeeded wrote to stderr: %q", errs)
 	}
 	if !strings.Contains(out, "3 unresolved") {
 		t.Errorf("the listing was withheld to report the status:\n%s", out)
