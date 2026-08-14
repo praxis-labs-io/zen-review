@@ -58,6 +58,14 @@ type DB struct {
 	handle *sql.DB
 }
 
+// rower is what the pool and a transaction have in common. The listing queries
+// run both ways: on their own for a reader, and inside the transaction that
+// writes a generation, which is where they have to run to be sure of what they
+// read.
+type rower interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+}
+
 // Open opens the database at path, creating it and its directory if they are
 // not there, and brings the schema up to date.
 //

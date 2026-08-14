@@ -2,6 +2,7 @@ package review
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -158,8 +159,9 @@ type sided struct {
 	change func([]store.LineRange) []store.LineRange
 }
 
-// updateReviewed refuses a stale generation, names each side's file, and hands
-// the arithmetic to the store, which runs all of it inside one transaction.
+// updateReviewed names each side's file and hands the arithmetic to the store,
+// which runs all of it inside one transaction and refuses a stale generation
+// from inside it.
 //
 // path is the file's head-side name throughout. answers is that same name when
 // the write settles a recorded cut, because gen_files keys on it whichever side
@@ -170,18 +172,11 @@ func (s *Session) updateReviewed(
 	path, answers string,
 	changes []sided,
 ) error {
-	latest, found, err := s.db.LatestGeneration(ctx, s.row.ID)
-	if err != nil {
-		return err
-	}
-	if !found || latest.ID != g.ID {
-		return &StaleGenerationError{Seq: g.Seq, Current: latest.Seq}
-	}
-
 	out := make([]store.SideChange, 0, len(changes))
 	for _, c := range changes {
 		at := path
 		if c.side == store.SideBase {
+			var err error
 			if at, err = s.basePath(ctx, g, path); err != nil {
 				return err
 			}
@@ -190,7 +185,28 @@ func (s *Session) updateReviewed(
 	}
 
 	now := time.Now().UTC().Truncate(time.Second)
-	return s.db.UpdateReviewedRanges(ctx, s.row.ID, g.ID, now, answers, out)
+	return s.stale(ctx, g, s.db.UpdateReviewedRanges(ctx, s.row.ID, g.ID, now, answers, out))
+}
+
+// stale turns the store's refusal into the sentence a reader gets, naming the
+// generation that is current now.
+//
+// The store refuses from inside the writing transaction, where it knows only
+// that the number did not match. The number it did not match is read back here,
+// for the message alone: the write is already refused, and what the reader does
+// next is refresh to whatever is there by then anyway. A read that fails takes
+// the answer, because a database that cannot be read is the larger of the two
+// facts and the refusal comes back the moment it can be.
+func (s *Session) stale(ctx context.Context, g Generation, err error) error {
+	if !errors.Is(err, store.ErrStaleGeneration) {
+		return err
+	}
+
+	latest, _, lookup := s.db.LatestGeneration(ctx, s.row.ID)
+	if lookup != nil {
+		return lookup
+	}
+	return &StaleGenerationError{Seq: g.Seq, Current: latest.Seq}
 }
 
 // basePath is the name a file had on the base side of a generation.

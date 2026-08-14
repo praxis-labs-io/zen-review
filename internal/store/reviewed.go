@@ -44,13 +44,17 @@ type ReviewedRange struct {
 // side and start line so a listing and a golden file get the same sequence
 // without the caller sorting.
 func (db *DB) ReviewedRanges(ctx context.Context, generationID int64) ([]ReviewedRange, error) {
-	const q = `
+	return reviewedRanges(ctx, db.handle, generationID)
+}
+
+func reviewedRanges(ctx context.Context, q rower, generationID int64) ([]ReviewedRange, error) {
+	const read = `
 		SELECT path, side, start_line, end_line, created_at
 		FROM reviewed_ranges
 		WHERE generation_id = ?
 		ORDER BY path, side, start_line`
 
-	rows, err := db.handle.QueryContext(ctx, q, generationID)
+	rows, err := q.QueryContext(ctx, read, generationID)
 	if err != nil {
 		return nil, fmt.Errorf("reading the reviewed ranges of generation %d: %w", generationID, err)
 	}
@@ -115,6 +119,11 @@ type SideChange struct {
 //
 // It is its own argument rather than a path off changes, because a base-side
 // write stores under the file's base name and gen_files keys on its head one.
+//
+// It returns ErrStaleGeneration when the generation is no longer the session's
+// latest. That is asserted inside the transaction and not before it, or a
+// refresh committing in between would leave these rows on a generation nothing
+// reads again.
 func (db *DB) UpdateReviewedRanges(
 	ctx context.Context,
 	sessionID string,
@@ -132,6 +141,10 @@ func (db *DB) UpdateReviewedRanges(
 			_ = tx.Rollback()
 		}
 	}()
+
+	if err = assertLatest(ctx, tx, sessionID, generationID); err != nil {
+		return err
+	}
 
 	for _, c := range changes {
 		if err = rewriteSide(ctx, tx, sessionID, generationID, now, c); err != nil {

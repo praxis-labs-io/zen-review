@@ -165,11 +165,11 @@ func (s *Session) Changeset(ctx context.Context, g Generation) (Changeset, error
 		return Changeset{}, err
 	}
 
-	cut, err := s.cuts(ctx, g.ID)
+	gen, err := s.db.GenFiles(ctx, g.ID)
 	if err != nil {
 		return Changeset{}, err
 	}
-	return Derive(files, rows, cut), nil
+	return Derive(files, rows, cutsOf(gen)), nil
 }
 
 // deriveFile is one file's hunks and the state that falls out of them.

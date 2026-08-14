@@ -2,6 +2,7 @@ package review
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path"
 	"slices"
@@ -99,8 +100,14 @@ func tooLarge(files []string) *TooLargeError {
 	return &TooLargeError{Count: len(files), Limit: maxFiles, Dir: dir, InDir: n}
 }
 
-// Ref is where this session's generations are chained, one commit per
-// generation. `git log --first-parent` on it walks the review.
+// Ref is where this session's generations are chained. `git log --first-parent`
+// on it walks the review.
+//
+// It can hold one commit the database has no row for. The ref moves before the
+// row, so an instance that loses the session between the two leaves its commit
+// behind, and so does a crash there. Nothing reviewed is lost either way: the
+// next refresh parents on it, and a generation that was never recorded was never
+// reviewed against.
 func (s *Session) Ref() string { return refPrefix + s.row.ID }
 
 // Refresh brings the session up to date, building a generation when the
@@ -137,6 +144,12 @@ func (s *Session) Refresh(ctx context.Context) (Generation, error) {
 		}
 	}
 
+	// From here to the write is the window a concurrent write lands in: what it
+	// is carrying has been named and nothing has been read yet.
+	if s.duringRefresh != nil {
+		s.duringRefresh()
+	}
+
 	// Against the tree rather than a commit, so the ceiling refuses before a
 	// commit, a ref or a row exists. The objects are already written by here,
 	// which is what the check in snapshot is for.
@@ -149,11 +162,15 @@ func (s *Session) Refresh(ctx context.Context) (Generation, error) {
 		return Generation{}, tooLarge(paths(files))
 	}
 
-	// Before the swap rather than after. Every step below this line has to be
-	// cheap, because the ref moves partway through them and a failure after that
-	// leaves it ahead of the database. Two wasted tree diffs on a lost race is
-	// the better trade.
-	carried, err := s.carry(ctx, latest, found, snap.Tree, files)
+	// The git half of the carry, before the swap rather than after. Every step
+	// below this line has to be cheap, because the ref moves partway through them
+	// and a failure after that leaves it ahead of the database. Two wasted tree
+	// diffs on a lost race is the better trade.
+	//
+	// The translation this returns is not cheap in the same sense and does not
+	// need to be: it is pure, and the store runs it inside the transaction that
+	// writes the row.
+	advance, err := s.carry(ctx, latest, found, snap.Tree, files)
 	if err != nil {
 		return Generation{}, err
 	}
@@ -193,11 +210,25 @@ func (s *Session) Refresh(ctx context.Context) (Generation, error) {
 		HeadSha:   head.SHA,
 		CommitSha: commit,
 		CreatedAt: now,
-	}, genFiles(files), carried)
+	}, genFiles(files), advance)
 	if err != nil {
-		return Generation{}, err
+		return Generation{}, lost(err)
 	}
 	return generationOf(row, snap.Skipped), nil
+}
+
+// lost is the generation write refusing because the session advanced under it.
+//
+// It reads its own swap the way the ref swap reads its own: this instance is
+// carrying out of a generation that is no longer the tip, so what it built
+// describes a session two steps back and nothing it says is still true. The
+// answer either way is to run it again, so it arrives as the error callers
+// already have that sentence for.
+func lost(err error) error {
+	if !errors.Is(err, store.ErrStaleGeneration) {
+		return err
+	}
+	return fmt.Errorf("the session advanced while this generation was being built: %w", git.ErrRefMoved)
 }
 
 // Status reports the session without touching it. It snapshots the work tree to
