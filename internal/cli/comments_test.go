@@ -252,6 +252,47 @@ func TestABodyKeepsItsParagraphsAndItsIndents(t *testing.T) {
 	}
 }
 
+// A line that begins something is not folded into the paragraph above it.
+// Joined, a list becomes a sentence, which is the one thing a list is not.
+func TestALineThatBeginsSomethingKeepsItsOwnLine(t *testing.T) {
+	f := clean(t)
+	f.stdin = strings.NewReader(
+		"three of them:\n- the first\n* the second\n1. the third\n> and a quotation\n# and a heading\n")
+	f.comment("code.txt", "--hunk", "3", "--body", "-")
+
+	out := f.mustRun("comments")
+
+	for _, want := range []string{
+		"    three of them:\n", "    - the first\n", "    * the second\n",
+		"    1. the third\n", "    > and a quotation\n", "    # and a heading\n",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output does not carry %q on its own line:\n%s", want, out)
+		}
+	}
+}
+
+// An indented line too wide for the page keeps its indent on every line it folds
+// into. Taken off once, it comes back reading as the prose around it, which is
+// what it was kept separate to avoid.
+func TestAWideIndentedLineKeepsItsIndent(t *testing.T) {
+	f := clean(t)
+	f.stdin = strings.NewReader("look at this:\n    " + strings.Repeat("indented ", 20) + "\nand back to prose\n")
+	f.comment("code.txt", "--hunk", "3", "--body", "-")
+
+	out := f.mustRun("comments")
+
+	deep := 0
+	for _, line := range strings.Split(out, "\n") {
+		if strings.HasPrefix(line, "        indented") {
+			deep++
+		}
+	}
+	if deep < 2 {
+		t.Errorf("the indented line came back on %d indented lines, so the fold dropped the indent:\n%s", deep, out)
+	}
+}
+
 // A paragraph is folded whole. Somebody who hard-wrapped at their own width
 // would otherwise be folded a second time at this one, and every line would shed
 // its last word onto a line of its own.

@@ -310,16 +310,21 @@ func span(r review.Range) string {
 // body is what the comment says: the text passed, or stdin when it is -, so a
 // body with newlines does not have to survive a shell.
 //
-// Surrounding whitespace goes. A heredoc ends in a newline and a comment does
-// not, and an empty body is refused by the engine rather than stored.
+// Trailing whitespace goes, because a heredoc ends in a newline and a comment
+// does not. Leading whitespace stays: the listing reads an indented line as one
+// somebody laid out on purpose, and eating it here would make that promise
+// false for every body that arrives with one. A body left with nothing in it is
+// refused by the engine rather than stored.
 func body(cmd *cobra.Command, flag string) (string, error) {
 	if flag != "-" {
-		return strings.TrimSpace(flag), nil
+		return trailing(flag), nil
 	}
 
 	raw, err := io.ReadAll(cmd.InOrStdin())
 	if err != nil {
 		return "", fmt.Errorf("reading the comment from stdin: %w", err)
 	}
-	return strings.TrimSpace(string(raw)), nil
+	return trailing(string(raw)), nil
 }
+
+func trailing(s string) string { return strings.TrimRight(s, " \t\r\n") }

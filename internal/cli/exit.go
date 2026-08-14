@@ -29,7 +29,7 @@ func ExitCode(err error) int {
 	switch {
 	case err == nil:
 		return exitOK
-	case errors.Is(err, errMatched):
+	case matched(err):
 		return exitMatched
 	default:
 		return exitFailed
@@ -38,4 +38,27 @@ func ExitCode(err error) int {
 
 // Quiet reports an error raised to set an exit status rather than to say
 // anything, which is the one a caller must not print.
-func Quiet(err error) bool { return errors.Is(err, errMatched) }
+func Quiet(err error) bool { return matched(err) }
+
+// matched is the sentinel and nothing travelling with it.
+//
+// errors.Is finds it inside a join, so a plain Is would read a close failure
+// joined onto it as a match: exit 1 in place of 2, and the message dropped by
+// the handler that keeps a match quiet. The whole reason closing joins a close
+// error is that losing one hides a failed write behind a clean exit.
+//
+// Both answers come through here so the status and whether it is printed cannot
+// come apart.
+func matched(err error) bool {
+	joined, ok := err.(interface{ Unwrap() []error })
+	if !ok {
+		return errors.Is(err, errMatched)
+	}
+
+	for _, e := range joined.Unwrap() {
+		if !matched(e) {
+			return false
+		}
+	}
+	return true
+}

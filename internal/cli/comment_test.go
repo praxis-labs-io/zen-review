@@ -149,6 +149,22 @@ func TestABodyCanArriveOnStdin(t *testing.T) {
 	}
 }
 
+// A body is stored with its leading whitespace. The listing reads an indented
+// line as one somebody laid out on purpose, and eating it on the way in would
+// make that promise false for every body that arrives with one.
+func TestABodyKeepsTheIndentItArrivedWith(t *testing.T) {
+	f := marking(t)
+	f.mustRun("refresh")
+
+	f.stdin = strings.NewReader("    a line somebody indented\n\n")
+	w, _ := f.decodeComments("comment", "code.txt", "--hunk", "3", "--body", "-")
+
+	want := "    a line somebody indented"
+	if got := only(t, w); got.Body != want {
+		t.Errorf("body = %q, want %q", got.Body, want)
+	}
+}
+
 // A body of several lines reads as one comment under the row naming it, and no
 // line of the output ends in whitespace.
 func TestAMultiLineBodyIsIndentedUnderItsRow(t *testing.T) {

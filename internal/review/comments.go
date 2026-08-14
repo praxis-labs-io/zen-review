@@ -171,6 +171,12 @@ func (s *Session) AddComment(ctx context.Context, g Generation, n Note) (store.C
 // is bytewise, so without this a listing and the table beside it disagree about
 // what comes first the moment the changeset has a directory in it. Stable, so
 // the store's ordering within one file survives.
+//
+// A base-side row sorts under the name it is recorded by, which on a rename is
+// the name the file has on the base rather than the one the changeset lists it
+// under. So the two comments on a renamed file sit apart. Putting them together
+// would mean resolving each row's path through the generation it belongs to,
+// and these span every generation the session has.
 func (s *Session) Comments(ctx context.Context) ([]store.Comment, error) {
 	rows, err := s.db.Comments(ctx, s.row.ID)
 	if err != nil {

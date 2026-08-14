@@ -114,8 +114,13 @@ func writeBody(b *strings.Builder, body string, width int) {
 			b.WriteString("\n")
 			continue
 		}
-		for _, line := range fold(block, page) {
-			fmt.Fprintf(b, "%s%s\n", indent, line)
+
+		// The block's own indent is put back on every line it folds into. Taken off
+		// once, a long indented line comes back reading as the prose around it,
+		// which is the layout this kept it separate to preserve.
+		lead := block[:len(block)-len(strings.TrimLeft(block, " \t"))]
+		for _, line := range fold(block[len(lead):], max(page-len(lead), 1)) {
+			fmt.Fprintf(b, "%s%s%s\n", indent, lead, line)
 		}
 	}
 }
@@ -127,8 +132,8 @@ func writeBody(b *strings.Builder, body string, width int) {
 // otherwise be folded a second time at this one, and every line would shed its
 // last word onto a line of its own.
 //
-// A blank line separates paragraphs. A line starting with whitespace was laid
-// out on purpose and is never joined to its neighbours.
+// A blank line separates paragraphs, and so does a line that begins something
+// rather than continuing one.
 func blocks(body string) []string {
 	var out []string
 	var para []string
@@ -144,7 +149,7 @@ func blocks(body string) []string {
 		case strings.TrimSpace(line) == "":
 			flush()
 			out = append(out, "")
-		case line != strings.TrimLeft(line, " \t"):
+		case opens(line):
 			flush()
 			out = append(out, line)
 		default:
@@ -154,6 +159,37 @@ func blocks(body string) []string {
 
 	flush()
 	return out
+}
+
+// opens reports a line that begins something: an indent, a bullet, a number, a
+// quote, a heading, a fence.
+//
+// This is not markdown and does not try to be. It is the handful of marks people
+// put at the start of a line when they mean a new line, and folding those into
+// the paragraph above turns a list into a sentence.
+func opens(line string) bool {
+	if line != strings.TrimLeft(line, " \t") {
+		return true
+	}
+	for _, mark := range []string{"- ", "* ", "+ ", "> ", "#", "```"} {
+		if strings.HasPrefix(line, mark) {
+			return true
+		}
+	}
+	return counted(line)
+}
+
+// counted reports an ordered list marker: digits, then a dot or a bracket, then
+// a space.
+func counted(line string) bool {
+	i := 0
+	for i < len(line) && line[i] >= '0' && line[i] <= '9' {
+		i++
+	}
+	if i == 0 || i+1 >= len(line) {
+		return false
+	}
+	return (line[i] == '.' || line[i] == ')') && line[i+1] == ' '
 }
 
 // fold breaks a line into runs no wider than width, on the spaces between words.
