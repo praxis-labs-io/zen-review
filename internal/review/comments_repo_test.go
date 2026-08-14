@@ -436,6 +436,49 @@ func TestACommentOnAPathTheGenerationDoesNotHoldIsRefused(t *testing.T) {
 	}
 }
 
+// An added file has no base blob and a deleted one has no head blob. A note on
+// the side it is missing from anchors to no bytes at all, and it cannot even
+// orphan: that side's diff never lists a file it does not have, so the anchor
+// would come through untouched on every refresh forever.
+func TestACommentOnASideTheFileIsNotOnIsRefused(t *testing.T) {
+	f := newFixture(t)
+	f.Write("gone.txt", numbered(1, 20))
+	f.Commit("first")
+	f.TrackOrigin("main")
+
+	f.Git("checkout", "-q", "-b", "feature")
+	f.Git("rm", "-q", "gone.txt")
+	f.Write("added.txt", numbered(1, 20))
+	f.Commit("drop one and add another")
+
+	s := f.mustOpen("")
+	g := f.refresh(s)
+
+	for _, tc := range []struct {
+		name string
+		path string
+		side store.Side
+	}{
+		{name: "the base side of a file that was added", path: "added.txt", side: store.SideBase},
+		{name: "the head side of a file that was deleted", path: "gone.txt", side: store.SideHead},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := s.AddComment(t.Context(), g, review.Note{
+				Path:  tc.path,
+				Side:  tc.side,
+				Scope: store.ScopeFile,
+				Body:  "about bytes that are not there",
+			})
+			if err == nil {
+				t.Fatal("a comment on a side the file is not on should be refused")
+			}
+			if !strings.Contains(err.Error(), tc.path) {
+				t.Errorf("err = %v, want it to name the file", err)
+			}
+		})
+	}
+}
+
 // A scope is a claim about what the comment is on, and the lines are how it is
 // kept. The two disagreeing gets a sentence here rather than a constraint
 // violation from three layers down.

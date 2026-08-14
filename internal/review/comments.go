@@ -100,6 +100,15 @@ func (s *Session) AddComment(ctx context.Context, g Generation, n Note) (store.C
 		}
 	}
 
+	// An added file has no base blob and a deleted one has no head blob. A note on
+	// the side it is missing from anchors to no bytes at all, and it cannot even
+	// orphan: that side's diff never lists a file it does not have, so the anchor
+	// comes through untouched on every refresh forever.
+	if blob == "" {
+		return store.Comment{}, fmt.Errorf("generation %d holds no %s-side bytes of %s, so there is nothing there to anchor to",
+			g.Seq, n.Side, n.Path)
+	}
+
 	id, err := commentID()
 	if err != nil {
 		return store.Comment{}, err
@@ -159,12 +168,44 @@ func (s *Session) ResolveComment(ctx context.Context, id string) (store.Comment,
 // A comment belonging to another session is not found rather than refused. The
 // database is shared by every session in the repository and one session's ids
 // are not another's business.
+//
+// The write only lands while the comment is still in the state that allowed it,
+// so a transition another instance made first is refused rather than overwritten.
+// Losing that swap re-reads and answers about the state that is actually there,
+// which is the same sentence the reader would have got a moment earlier.
 func (s *Session) freeze(
 	ctx context.Context,
 	id string,
 	to store.CommentState,
 	from ...store.CommentState,
 ) (store.Comment, error) {
+	c, err := s.comment(ctx, id)
+	if err != nil {
+		return store.Comment{}, err
+	}
+	if !slices.Contains(from, c.State) {
+		return store.Comment{}, &CommentStateError{ID: id, Is: c.State, To: to}
+	}
+
+	now := time.Now().UTC().Truncate(time.Second)
+	won, err := s.db.FreezeComment(ctx, id, c.State, to, c.Path, c.Start, now)
+	if err != nil {
+		return store.Comment{}, err
+	}
+	if !won {
+		fresh, err := s.comment(ctx, id)
+		if err != nil {
+			return store.Comment{}, err
+		}
+		return store.Comment{}, &CommentStateError{ID: id, Is: fresh.State, To: to}
+	}
+
+	c.State, c.LastPath, c.LastLine, c.UpdatedAt = to, c.Path, c.Start, now
+	return c, nil
+}
+
+// comment is one of this session's comments, by id.
+func (s *Session) comment(ctx context.Context, id string) (store.Comment, error) {
 	c, found, err := s.db.Comment(ctx, id)
 	if err != nil {
 		return store.Comment{}, err
@@ -172,16 +213,6 @@ func (s *Session) freeze(
 	if !found || c.SessionID != s.row.ID {
 		return store.Comment{}, &NoCommentError{ID: id}
 	}
-	if !slices.Contains(from, c.State) {
-		return store.Comment{}, &CommentStateError{ID: id, Is: c.State, To: to}
-	}
-
-	now := time.Now().UTC().Truncate(time.Second)
-	if err := s.db.FreezeComment(ctx, id, to, c.Path, c.Start, now); err != nil {
-		return store.Comment{}, err
-	}
-
-	c.State, c.LastPath, c.LastLine, c.UpdatedAt = to, c.Path, c.Start, now
 	return c, nil
 }
 

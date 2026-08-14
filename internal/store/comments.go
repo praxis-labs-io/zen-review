@@ -66,6 +66,8 @@ type Comment struct {
 	LastPath string
 	LastLine int
 
+	// UpdatedAt is when the comment last changed, which a refresh translating its
+	// anchor is not: that is the code moving under it.
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -158,23 +160,35 @@ func (db *DB) Comment(ctx context.Context, id string) (Comment, bool, error) {
 //
 // The location goes in the same write as the state. A frozen comment without one
 // is a comment that lost where it was, and there is no later pass to fill it in.
+//
+// was is the state the caller read before deciding this transition was allowed,
+// and the write only lands while the row is still in it. It reports false when it
+// is not, which is another instance having got there first: without the swap the
+// decision and the write are two statements, and a resolve landing between them
+// would be overwritten by an address that was refused the moment it was read.
 func (db *DB) FreezeComment(
 	ctx context.Context,
 	id string,
-	state CommentState,
+	was, state CommentState,
 	lastPath string,
 	lastLine int,
 	now time.Time,
-) error {
+) (bool, error) {
 	const q = `
 		UPDATE comments
 		SET state = ?, last_path = ?, last_line = ?, updated_at = ?
-		WHERE id = ?`
+		WHERE id = ? AND state = ?`
 
-	if _, err := db.handle.ExecContext(ctx, q, string(state), lastPath, lastLine, stamp(now), id); err != nil {
-		return fmt.Errorf("marking the comment %s as %s: %w", id, state, err)
+	res, err := db.handle.ExecContext(ctx, q, string(state), lastPath, lastLine, stamp(now), id, string(was))
+	if err != nil {
+		return false, fmt.Errorf("marking the comment %s as %s: %w", id, state, err)
 	}
-	return nil
+
+	changed, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("marking the comment %s as %s: %w", id, state, err)
+	}
+	return changed == 1, nil
 }
 
 // comments runs one of the listing queries above.
@@ -232,10 +246,14 @@ func scanComment(s scanner) (Comment, error) {
 // the comment where it stands and orphans it: its path and lines are the last
 // place the anchor was, and they are copied into the columns a reader is shown
 // so nothing has to know which generation the row is pinned at.
+//
+// The move leaves updated_at alone. The lines under a comment moving is the code
+// changing and not the comment, and stamping it here would reset every comment in
+// the session on every refresh, which costs the column the only thing it says.
 func moveComment(ctx context.Context, tx *sql.Tx, generationID int64, now time.Time, m CommentMove) error {
 	const move = `
 		UPDATE comments
-		SET generation_id = ?, path = ?, start_line = ?, end_line = ?, updated_at = ?
+		SET generation_id = ?, path = ?, start_line = ?, end_line = ?
 		WHERE id = ?`
 
 	const orphan = `
@@ -247,7 +265,7 @@ func moveComment(ctx context.Context, tx *sql.Tx, generationID int64, now time.T
 	if m.Lost {
 		_, err = tx.ExecContext(ctx, orphan, stamp(now), m.ID)
 	} else {
-		_, err = tx.ExecContext(ctx, move, generationID, m.Path, m.Start, m.End, stamp(now), m.ID)
+		_, err = tx.ExecContext(ctx, move, generationID, m.Path, m.Start, m.End, m.ID)
 	}
 	if err != nil {
 		return fmt.Errorf("carrying the comment %s: %w", m.ID, err)

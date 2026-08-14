@@ -113,7 +113,8 @@ func TestOnlyTheOpenCommentsOfOneGenerationAreCarried(t *testing.T) {
 	comment(t, db, s, second, "open-later", 7)
 
 	closed := comment(t, db, s, first, "resolved-here", 11)
-	if err := db.FreezeComment(t.Context(), closed.ID, store.CommentResolved, "a.go", 11, epoch); err != nil {
+	if _, err := db.FreezeComment(t.Context(), closed.ID,
+		store.CommentOpen, store.CommentResolved, "a.go", 11, epoch); err != nil {
 		t.Fatalf("resolving the comment: %v", err)
 	}
 
@@ -185,8 +186,11 @@ func TestACarriedAnchorMovesOntoTheNewGeneration(t *testing.T) {
 	if got.State != store.CommentOpen {
 		t.Errorf("state = %s, want it still open", got.State)
 	}
-	if !got.UpdatedAt.Equal(epoch.Add(time.Hour)) {
-		t.Errorf("updatedAt = %s, want the generation's time", got.UpdatedAt)
+	// The lines under a comment moving is the code changing and not the comment.
+	// Stamping it here would reset every comment in the session on every refresh,
+	// which costs the column the only thing it says.
+	if !got.UpdatedAt.Equal(epoch) {
+		t.Errorf("updatedAt = %s, want the carry to have left it at %s", got.UpdatedAt, epoch)
 	}
 }
 
@@ -268,8 +272,13 @@ func TestFreezingACommentRecordsWhereItWas(t *testing.T) {
 	c := comment(t, db, s, g, "claimed", 4)
 
 	later := epoch.Add(time.Hour)
-	if err := db.FreezeComment(t.Context(), c.ID, store.CommentAddressed, c.Path, c.Start, later); err != nil {
+	won, err := db.FreezeComment(t.Context(), c.ID,
+		store.CommentOpen, store.CommentAddressed, c.Path, c.Start, later)
+	if err != nil {
 		t.Fatalf("addressing the comment: %v", err)
+	}
+	if !won {
+		t.Fatal("the write did not land against the state it was read in")
 	}
 
 	got, _, err := db.Comment(t.Context(), c.ID)
@@ -290,6 +299,41 @@ func TestFreezingACommentRecordsWhereItWas(t *testing.T) {
 	}
 }
 
+// The state a caller read is what the write lands against. Without the swap the
+// decision and the write are two statements, and a resolve landing between them
+// would be overwritten by an address that was refused the moment it was read.
+func TestFreezingAgainstAStateThatMovedChangesNothing(t *testing.T) {
+	db := open(t)
+	s := session(t, db, "contended")
+	g := holding(t, db, s, "one")
+	c := comment(t, db, s, g, "raced", 4)
+
+	won, err := db.FreezeComment(t.Context(), c.ID, store.CommentOpen, store.CommentResolved, "a.go", 4, epoch)
+	if err != nil || !won {
+		t.Fatalf("resolving the comment: won = %v, err = %v", won, err)
+	}
+
+	later := epoch.Add(time.Hour)
+	won, err = db.FreezeComment(t.Context(), c.ID, store.CommentOpen, store.CommentAddressed, "a.go", 4, later)
+	if err != nil {
+		t.Fatalf("addressing the comment: %v", err)
+	}
+	if won {
+		t.Fatal("a write against a state the comment left should not land")
+	}
+
+	got, _, err := db.Comment(t.Context(), c.ID)
+	if err != nil {
+		t.Fatalf("reading the comment: %v", err)
+	}
+	if got.State != store.CommentResolved {
+		t.Errorf("state = %s, want the resolved it already was", got.State)
+	}
+	if !got.UpdatedAt.Equal(epoch) {
+		t.Errorf("updatedAt = %s, want the losing write to have left it at %s", got.UpdatedAt, epoch)
+	}
+}
+
 // The vocabulary is closed and the column is what every listing filters on, so a
 // state outside it is a bug above this layer rather than a row to keep.
 func TestACommentStateOutsideTheVocabularyIsRefused(t *testing.T) {
@@ -301,13 +345,15 @@ func TestACommentStateOutsideTheVocabularyIsRefused(t *testing.T) {
 		store.CommentOpen, store.CommentAddressed, store.CommentResolved, store.CommentOrphaned,
 	} {
 		c := comment(t, db, s, g, string(state), 4)
-		if err := db.FreezeComment(t.Context(), c.ID, state, "a.go", 4, epoch); err != nil {
+		if _, err := db.FreezeComment(t.Context(), c.ID,
+			store.CommentOpen, state, "a.go", 4, epoch); err != nil {
 			t.Errorf("the state %q was refused: %v", state, err)
 		}
 	}
 
 	c := comment(t, db, s, g, "outside", 4)
-	if err := db.FreezeComment(t.Context(), c.ID, store.CommentState("done"), "a.go", 4, epoch); err == nil {
+	if _, err := db.FreezeComment(t.Context(), c.ID,
+		store.CommentOpen, store.CommentState("done"), "a.go", 4, epoch); err == nil {
 		t.Error("a state outside the vocabulary should be refused")
 	}
 }
