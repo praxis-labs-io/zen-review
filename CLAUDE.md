@@ -271,6 +271,15 @@ The diff pane opens focused on the first unreviewed hunk. zen-octo's
 conversation opens unfocused because the reader came to read; you came here to
 burn a review down.
 
+## Exit codes
+
+`diff` and `grep` split answering from failing, and so does this: **0** answered
+and nothing matched, **1** answered and the filter matched, **2** failed. Only
+`comments --exit-code` reaches 1, which is what makes a Stop hook able to tell an
+open comment from a broken git call. `cmd/zen-review` maps them through
+`cli.ExitCode`, and `cli.Quiet` is what keeps the matched status from being
+printed as an error.
+
 ## Rendering traps
 
 zen-kit's `CLAUDE.md` holds the painter's traps: per-cell backgrounds, clipping

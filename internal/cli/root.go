@@ -53,8 +53,27 @@ func NewRoot() *cobra.Command {
 		"ref to measure the changeset from, kept until another is passed (default origin/HEAD)")
 	cmd.PersistentFlags().BoolVar(&opts.asJSON, "json", false, "write the changeset as JSON")
 
-	cmd.AddCommand(newStatus(&opts), newRefresh(&opts), newFiles(&opts), newReview(&opts), newUnreview(&opts))
+	cmd.AddCommand(
+		newStatus(&opts), newRefresh(&opts), newFiles(&opts),
+		newReview(&opts), newUnreview(&opts),
+		newComment(&opts), newComments(&opts), newAddress(&opts), newResolve(&opts),
+	)
 	return cmd
+}
+
+// refuseBase turns away a write that also asked to move the base.
+//
+// The base is the session's and it outlives the call. Moving it here would
+// recompute the changeset and then record the write against the one that move
+// replaced, which is a mark or a comment anchored to lines nobody was looking
+// at. zen-review status --base is where it changes.
+func refuseBase(cmd *cobra.Command) error {
+	if !cmd.Flags().Changed("base") {
+		return nil
+	}
+	return fmt.Errorf("the base is the session's, and %s does not take --base: "+
+		"it would move the base and then write against the changeset that move recomputed. "+
+		"Change it with zen-review status --base <ref>", cmd.Name())
 }
 
 // open resolves the session for the working directory. The caller closes it.

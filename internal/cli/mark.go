@@ -106,14 +106,10 @@ func newMark(opts *options, use, short, long string, direction func(*review.Sess
 // The three ways of naming a target are refused together rather than ranked,
 // because a call passing two of them meant one and the tool cannot tell which.
 func (t *target) check(cmd *cobra.Command) error {
-	// The base is the session's and it outlives this call. Moving it here would
-	// recompute the changeset and then record a mark against the one it replaced.
-	// Checked first, so a call passing it is told about it rather than about
+	// Checked first, so a call passing --base is told about it rather than about
 	// whichever other flag it also got wrong.
-	if cmd.Flags().Changed("base") {
-		return fmt.Errorf("the base is the session's, and %s does not take --base: "+
-			"it would move the base and then record a mark against the changeset that move recomputed. "+
-			"Change it with zen-review status --base <ref>", cmd.Name())
+	if err := refuseBase(cmd); err != nil {
+		return err
 	}
 
 	// --all is read by its value and the other two by whether they were passed.

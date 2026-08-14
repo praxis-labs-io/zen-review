@@ -554,3 +554,74 @@ func TestCommentingOnAHunkAnchorsToWhatItIsNamedBy(t *testing.T) {
 
 	assertComments(t, f.storedComments(s), []string{"code.txt head 1:20 open"})
 }
+
+// The scope of a comment on lines falls out of the lines rather than out of how
+// a caller spelled them, so one place decides it and no two callers disagree.
+func TestCommentingOnLinesTakesItsScopeFromThem(t *testing.T) {
+	f := branched(t)
+	f.Write("code.txt", numbered(1, 20))
+	f.Commit("add code")
+
+	s := f.mustOpen("")
+	g := f.refresh(s)
+
+	for _, tc := range []struct {
+		name  string
+		lines review.Range
+		scope store.Scope
+	}{
+		{name: "one line", lines: review.Range{Start: 4, End: 4}, scope: store.ScopeLine},
+		{name: "several lines", lines: review.Range{Start: 4, End: 9}, scope: store.ScopeRange},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := f.note(s, g, review.NoteOnLines("code.txt", store.SideHead, tc.lines, "here"))
+
+			got := f.storedComment(c.ID)
+			if got.Scope != tc.scope {
+				t.Errorf("scope = %s, want %s", got.Scope, tc.scope)
+			}
+			if got.Start != tc.lines.Start || got.End != tc.lines.End {
+				t.Errorf("lines = %d:%d, want %d:%d", got.Start, got.End, tc.lines.Start, tc.lines.End)
+			}
+		})
+	}
+}
+
+// A file comment is anchored on the side the file has bytes on. A deleted file
+// has none on the head, and an anchor there would name bytes that are not there
+// and survive every rewrite of the ones it actually removed.
+func TestCommentingOnAFileTakesTheSideItHasBytesOn(t *testing.T) {
+	f := branched(t)
+	f.Write("added.txt", "brand new\n")
+	f.Git("rm", "-q", "a.txt")
+	f.Commit("one of each")
+
+	s := f.mustOpen("")
+	g := f.refresh(s)
+	c := f.changeset(s, g)
+
+	for _, tc := range []struct {
+		path string
+		side store.Side
+	}{
+		{path: "added.txt", side: store.SideHead},
+		{path: "a.txt", side: store.SideBase},
+	} {
+		t.Run(tc.path, func(t *testing.T) {
+			file, found := c.File(tc.path)
+			if !found {
+				t.Fatalf("the changeset has no %s", tc.path)
+			}
+
+			got := f.storedComment(f.note(s, g, review.NoteOnFile(file, "about the whole thing")).ID)
+			switch {
+			case got.Side != tc.side:
+				t.Errorf("side = %s, want %s", got.Side, tc.side)
+			case got.Scope != store.ScopeFile:
+				t.Errorf("scope = %s, want file", got.Scope)
+			case got.Start != 0 || got.End != 0:
+				t.Errorf("lines = %d:%d, want 0:0: a file comment names no line", got.Start, got.End)
+			}
+		})
+	}
+}

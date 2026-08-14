@@ -59,6 +59,29 @@ func NoteOnHunk(path string, h Hunk, body string) Note {
 	return Note{Path: path, Side: a.Side, Scope: store.ScopeRange, Range: a.Range, Body: body}
 }
 
+// NoteOnLines is a comment on lines somebody picked out.
+//
+// The scope falls out of the lines rather than out of how they were spelled. One
+// line is a line comment however it was typed, and a caller that had to say
+// which would be a second place the two could disagree.
+func NoteOnLines(path string, side store.Side, r Range, body string) Note {
+	scope := store.ScopeRange
+	if r.Start == r.End {
+		scope = store.ScopeLine
+	}
+	return Note{Path: path, Side: side, Scope: scope, Range: r, Body: body}
+}
+
+// NoteOnFile is a comment on the file itself rather than on lines in it,
+// anchored on the side the file has bytes on.
+//
+// A deleted file is commented on the base, the same rule a whole-file mark
+// takes: a head-side anchor on one would name bytes that are not there, and it
+// would survive every rewrite of the bytes it actually removed.
+func NoteOnFile(f File, body string) Note {
+	return Note{Path: f.Diff.Path, Side: wholeSide(f.Diff), Scope: store.ScopeFile, Body: body}
+}
+
 // AddComment writes a comment against a generation and returns the row.
 //
 // It refuses a stale generation for the reason a mark does: the carry runs from

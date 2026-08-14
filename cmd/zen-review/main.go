@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"io"
 	"os"
 
 	"github.com/charmbracelet/fang"
@@ -13,7 +14,17 @@ import (
 )
 
 func main() {
-	if err := fang.Execute(context.Background(), cli.NewRoot(), fang.WithVersion(version.Version)); err != nil {
-		os.Exit(1)
+	err := fang.Execute(context.Background(), cli.NewRoot(),
+		fang.WithVersion(version.Version),
+		fang.WithErrorHandler(report))
+	os.Exit(cli.ExitCode(err))
+}
+
+// report prints what fang would, except for an error a command raised to set an
+// exit status rather than to say anything.
+func report(w io.Writer, styles fang.Styles, err error) {
+	if cli.Quiet(err) {
+		return
 	}
+	fang.DefaultErrorHandler(w, styles, err)
 }

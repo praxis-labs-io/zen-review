@@ -3,6 +3,7 @@ package cli_test
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -19,6 +20,11 @@ func TestMain(m *testing.M) { os.Exit(testrepo.Main(m)) }
 type fixture struct {
 	*testrepo.Repo
 	t *testing.T
+
+	// stdin is what the next invocation reads, for the commands that take a body
+	// on it. Nil leaves the command with whatever cobra defaults to, which under
+	// go test is the test binary's own stdin and holds nothing.
+	stdin io.Reader
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -73,6 +79,9 @@ func (f *fixture) runFrom(dir string, args ...string) (stdout, stderr string, er
 	cmd.SetOut(&out)
 	cmd.SetErr(&errs)
 	cmd.SetArgs(append([]string{}, args...))
+	if f.stdin != nil {
+		cmd.SetIn(f.stdin)
+	}
 
 	err = cmd.Execute()
 	return out.String(), errs.String(), err
@@ -193,6 +202,37 @@ type stateFile struct {
 	} `json:"hunks"`
 }
 
+// commentWire is what the four comment commands answer with: the same session,
+// and the comments written against it.
+type commentWire struct {
+	wireHeader
+
+	Comments []commentEntry `json:"comments"`
+
+	Totals struct {
+		Comments   int `json:"comments"`
+		Open       int `json:"open"`
+		Addressed  int `json:"addressed"`
+		Resolved   int `json:"resolved"`
+		Orphaned   int `json:"orphaned"`
+		Unresolved int `json:"unresolved"`
+	} `json:"totals"`
+}
+
+type commentEntry struct {
+	ID    string `json:"id"`
+	Path  string `json:"path"`
+	Side  string `json:"side"`
+	Scope string `json:"scope"`
+	Start int    `json:"start"`
+	End   int    `json:"end"`
+	State string `json:"state"`
+	Body  string `json:"body"`
+
+	CreatedAt string `json:"createdAt"`
+	UpdatedAt string `json:"updatedAt"`
+}
+
 // decode runs a command with --json and parses what it wrote to stdout.
 func (f *fixture) decode(args ...string) (wire, string) {
 	f.t.Helper()
@@ -213,6 +253,15 @@ func (f *fixture) decodeState(args ...string) (stateWire, string) {
 	f.t.Helper()
 
 	var w stateWire
+	raw := f.jsonFrom(f.Dir(), &w, args...)
+	return w, raw
+}
+
+// decodeComments is the same for the payload the comment surface answers with.
+func (f *fixture) decodeComments(args ...string) (commentWire, string) {
+	f.t.Helper()
+
+	var w commentWire
 	raw := f.jsonFrom(f.Dir(), &w, args...)
 	return w, raw
 }

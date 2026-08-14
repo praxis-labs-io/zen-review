@@ -1,0 +1,78 @@
+{
+  "session": "<session>",
+  "ref": "refs/zen-review/sessions/<session>",
+  "kind": "branch",
+  "branch": "feature",
+  "base": {
+    "ref": "origin/main",
+    "sha": "<sha>"
+  },
+  "generation": {
+    "seq": 2,
+    "commit": "<sha>",
+    "baseSha": "<sha>",
+    "headSha": "<sha>",
+    "createdAt": "<time>"
+  },
+  "stale": false,
+  "staleReason": "",
+  "skipped": [],
+  "comments": [
+    {
+      "id": "<id>",
+      "path": "code.txt",
+      "side": "head",
+      "scope": "line",
+      "start": 3,
+      "end": 3,
+      "state": "orphaned",
+      "body": "about the line that goes",
+      "createdAt": "<time>",
+      "updatedAt": "<time>"
+    },
+    {
+      "id": "<id>",
+      "path": "code.txt",
+      "side": "head",
+      "scope": "range",
+      "start": 30,
+      "end": 30,
+      "state": "open",
+      "body": "still open",
+      "createdAt": "<time>",
+      "updatedAt": "<time>"
+    },
+    {
+      "id": "<id>",
+      "path": "gone.txt",
+      "side": "base",
+      "scope": "file",
+      "start": 0,
+      "end": 0,
+      "state": "resolved",
+      "body": "the whole file",
+      "createdAt": "<time>",
+      "updatedAt": "<time>"
+    },
+    {
+      "id": "<id>",
+      "path": "gone.txt",
+      "side": "base",
+      "scope": "range",
+      "start": 1,
+      "end": 1,
+      "state": "addressed",
+      "body": "why did this go",
+      "createdAt": "<time>",
+      "updatedAt": "<time>"
+    }
+  ],
+  "totals": {
+    "comments": 4,
+    "open": 1,
+    "addressed": 1,
+    "resolved": 1,
+    "orphaned": 1,
+    "unresolved": 3
+  }
+}
