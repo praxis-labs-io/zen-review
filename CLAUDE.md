@@ -170,8 +170,13 @@ of them.
 Reviewed state is line ranges, never hunk indices: an agent inserting twenty
 lines above hunk 3 leaves different code wearing the same label. A refresh
 translates them through one diff of the two generation trees, and a range that
-fails to translate disappears, which is what makes `changed after review` fall
-out of the mechanism rather than be tracked.
+fails to translate disappears.
+
+`changed after review` is the refresh writing down what it took, on
+`gen_files.cut`. It cannot be read back off the coverage: a range the
+translation cut and a range somebody unmarked leave the same coverage behind,
+and only the refresh ran the translation. The record stands until the file reads
+reviewed again, and follows a rename through the same diff the ranges do.
 
 Deletion-only hunks have no head-side lines and anchor to base-side ranges.
 

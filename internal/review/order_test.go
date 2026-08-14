@@ -61,7 +61,7 @@ func TestDeriveOrdersTheFilesTheWayATreeReads(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := paths(review.Derive(shuffled(c.want), nil))
+			got := paths(review.Derive(shuffled(c.want), nil, nil))
 			if !slices.Equal(got, c.want) {
 				t.Errorf("the files came back in the wrong order:\ngot  %s\nwant %s",
 					strings.Join(got, " "), strings.Join(c.want, " "))

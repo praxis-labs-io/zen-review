@@ -51,6 +51,11 @@ type GenFile struct {
 	// and a caller resolving these has to allow for one that does not.
 	BaseBlob string
 	HeadBlob string
+
+	// Cut is the refresh that wrote this generation reporting that it took
+	// reviewed lines off the file. It is set from Carry.Cut and ignored on the
+	// way in, the way GenerationID is.
+	Cut bool
 }
 
 // Carry is the review state moved into a generation as it is written.
@@ -60,6 +65,11 @@ type GenFile struct {
 // travel the same way have somewhere to go.
 type Carry struct {
 	Ranges []ReviewedRange
+
+	// Cut names the files the translation took reviewed lines off, keyed by the
+	// head-side path they have in the generation being written. A key naming a
+	// path the generation does not hold is ignored.
+	Cut map[string]bool
 }
 
 // LatestGeneration is the highest-numbered generation of a session. A session
@@ -130,12 +140,12 @@ func (db *DB) AddGeneration(ctx context.Context, g Generation, files []GenFile, 
 	}
 
 	const writeFile = `
-		INSERT INTO gen_files (generation_id, path, old_path, status, base_blob, head_blob)
-		VALUES (?, ?, ?, ?, ?, ?)`
+		INSERT INTO gen_files (generation_id, path, old_path, status, base_blob, head_blob, cut)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`
 
 	for _, f := range files {
 		_, err = tx.ExecContext(ctx, writeFile,
-			g.ID, f.Path, f.OldPath, string(f.Status), f.BaseBlob, f.HeadBlob,
+			g.ID, f.Path, f.OldPath, string(f.Status), f.BaseBlob, f.HeadBlob, carry.Cut[f.Path],
 		)
 		if err != nil {
 			return Generation{}, fmt.Errorf("writing %s into generation %d of %s: %w", f.Path, g.Seq, g.SessionID, err)
@@ -158,13 +168,13 @@ func (db *DB) AddGeneration(ctx context.Context, g Generation, files []GenFile, 
 // does not hold that path.
 func (db *DB) GenFile(ctx context.Context, generationID int64, path string) (GenFile, bool, error) {
 	const q = `
-		SELECT generation_id, path, old_path, status, base_blob, head_blob
+		SELECT generation_id, path, old_path, status, base_blob, head_blob, cut
 		FROM gen_files
 		WHERE generation_id = ? AND path = ?`
 
 	var f GenFile
 	err := db.handle.QueryRowContext(ctx, q, generationID, path).Scan(
-		&f.GenerationID, &f.Path, &f.OldPath, &f.Status, &f.BaseBlob, &f.HeadBlob,
+		&f.GenerationID, &f.Path, &f.OldPath, &f.Status, &f.BaseBlob, &f.HeadBlob, &f.Cut,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return GenFile{}, false, nil
@@ -179,7 +189,7 @@ func (db *DB) GenFile(ctx context.Context, generationID int64, path string) (Gen
 // golden file get the same sequence without the caller sorting.
 func (db *DB) GenFiles(ctx context.Context, generationID int64) ([]GenFile, error) {
 	const q = `
-		SELECT generation_id, path, old_path, status, base_blob, head_blob
+		SELECT generation_id, path, old_path, status, base_blob, head_blob, cut
 		FROM gen_files
 		WHERE generation_id = ?
 		ORDER BY path`
@@ -193,7 +203,7 @@ func (db *DB) GenFiles(ctx context.Context, generationID int64) ([]GenFile, erro
 	var files []GenFile
 	for rows.Next() {
 		var f GenFile
-		if err := rows.Scan(&f.GenerationID, &f.Path, &f.OldPath, &f.Status, &f.BaseBlob, &f.HeadBlob); err != nil {
+		if err := rows.Scan(&f.GenerationID, &f.Path, &f.OldPath, &f.Status, &f.BaseBlob, &f.HeadBlob, &f.Cut); err != nil {
 			return nil, fmt.Errorf("reading the files of generation %d: %w", generationID, err)
 		}
 		files = append(files, f)

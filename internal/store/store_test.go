@@ -268,6 +268,48 @@ func TestGenFilesComeBackOrderedByPath(t *testing.T) {
 	}
 }
 
+// The cut arrives on the Carry rather than on the files, because it is review
+// state moved into the generation and the file list is built off the parsed
+// diff. A key naming a path the generation does not hold is ignored: that is a
+// file whose content moved and then stopped differing from the base.
+func TestACarriedCutLandsOnTheFileItNames(t *testing.T) {
+	db := open(t)
+	s := session(t, db, "cuts")
+
+	files := []store.GenFile{
+		{Path: "a.go", Status: diff.FileModified, BaseBlob: "b1", HeadBlob: "h1"},
+		{Path: "z.go", Status: diff.FileModified, BaseBlob: "b2", HeadBlob: "h2"},
+	}
+	g, err := db.AddGeneration(t.Context(), store.Generation{
+		SessionID: s.ID, BaseSha: "base", HeadSha: "head", CommitSha: "commit", CreatedAt: epoch,
+	}, files, store.Carry{Cut: map[string]bool{"a.go": true, "gone.go": true}})
+	if err != nil {
+		t.Fatalf("adding the generation: %v", err)
+	}
+
+	got, err := db.GenFiles(t.Context(), g.ID)
+	if err != nil {
+		t.Fatalf("reading the files: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d files, want 2", len(got))
+	}
+	if !got[0].Cut {
+		t.Errorf("a.go came back without the cut it was written with")
+	}
+	if got[1].Cut {
+		t.Errorf("z.go came back cut, and nothing said it was")
+	}
+
+	one, found, err := db.GenFile(t.Context(), g.ID, "a.go")
+	if err != nil || !found {
+		t.Fatalf("reading a.go: found = %v, err = %v", found, err)
+	}
+	if !one.Cut {
+		t.Error("a.go read one at a time came back without the cut")
+	}
+}
+
 // The database is a file, and the whole point of it is that a review resumes
 // days later. A second Open has to find the schema already there and leave it
 // alone.
