@@ -177,6 +177,21 @@ func TestMarkingAWholeFileAndTakingItBack(t *testing.T) {
 	}
 }
 
+// A selection of one line is still a selection, and nobody types 3-3.
+func TestASingleLineIsARangeOfItself(t *testing.T) {
+	f := marking(t)
+	f.mustRun("refresh")
+
+	// code.txt has one hunk and it is the one line the branch changed, so marking
+	// that line alone reads the hunk end to end.
+	w, _ := f.decodeState("review", "code.txt", "--lines", "3")
+
+	got := state(w.Files, "code.txt")
+	if got.State != "reviewed" {
+		t.Errorf("code.txt = %s after --lines 3, want reviewed", got.State)
+	}
+}
+
 // A file with no lines to name is marked as itself. Nothing else can reach it,
 // so a --all that only walked hunks would leave it unreviewed for good.
 func TestAFileWithNoHunksIsMarkedWhole(t *testing.T) {
@@ -246,7 +261,11 @@ func marking(t *testing.T) *fixture {
 	f.TrackOrigin("main")
 
 	f.Git("checkout", "-q", "-b", "feature")
-	f.Write("code.txt", "one\ntwo\nTHREE\nfour\nfive\n")
+
+	// An insertion rather than a change, so the hunk has head-side lines and no
+	// base-side ones. A changed line anchors on both sides, and a mark that only
+	// reached one of them would still read as partial.
+	f.Write("code.txt", "one\ntwo\ninserted\nthree\nfour\nfive\n")
 	f.Git("rm", "-q", "gone.txt")
 	f.Write("added.txt", "new\n")
 	return f
