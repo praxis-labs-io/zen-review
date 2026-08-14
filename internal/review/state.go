@@ -214,7 +214,7 @@ func deriveFile(f diff.File, cur map[key]coverage) File {
 	// already has them would report a review the next refresh deletes.
 	if len(out.Hunks) == 0 {
 		out.Items = 1
-		if sides[store.SideHead].whole {
+		if sides[wholeSide(f)].whole {
 			out.Reviewed, out.State = 1, Reviewed
 			return out
 		}
@@ -336,6 +336,23 @@ func coverageOf(rows []store.ReviewedRange) map[key]coverage {
 		out[k] = c
 	}
 	return out
+}
+
+// wholeSide is the side a file with no lines to name is marked on: the one it
+// has a blob on.
+//
+// A deleted file has no head blob, so a head-side mark on it would be keyed to
+// bytes that are not there and would survive every rewrite of the bytes it
+// actually removed. On the base it is keyed to those, and the base-side
+// translation cuts it when they move.
+//
+// This is what a mark is written on and what a read looks for, so both come
+// through here rather than each spelling the rule.
+func wholeSide(f diff.File) store.Side {
+	if f.Status == diff.FileDeleted {
+		return store.SideBase
+	}
+	return store.SideHead
 }
 
 // baseName is the name a file has on the base side, which a rename makes a

@@ -54,9 +54,10 @@ func (s *Session) carry(ctx context.Context, latest store.Generation, found bool
 	}
 	head = readable(head, hunky(files))
 
-	// Base-side rows exist only for deletion-only hunks somebody marked, so this
-	// is nearly always nothing, and the base diff is the expensive one when it
-	// does fire. prior is head-keyed and is carried on the head side alone.
+	// Base-side rows are a deletion-only hunk somebody marked, or the whole-file
+	// mark on a deleted file with no lines, so this is nearly always nothing and
+	// the base diff is the expensive one when it does fire. prior is head-keyed
+	// and is carried on the head side alone.
 	base, baseCut, err := s.translate(ctx, rows, store.SideBase, latest.BaseSha, s.base.SHA, nil)
 	if err != nil {
 		return store.Carry{}, err
@@ -147,8 +148,11 @@ func hunky(files []diff.File) map[string]bool {
 // tree sits still, which is the case no translation can catch, because there is
 // no diff between the two head trees to translate through.
 //
-// It is head-side only. A file with no hunks has no deletion-only hunk, so it
-// has nothing to anchor base-side in the first place.
+// It is head-side only, and not because the base has no whole-file marks: a
+// deleted file has no head blob, so its one sits there. It is because the base
+// side cannot reach here. A deleted file gains hunks only by its base blob
+// becoming diffable, which is the base moving, and the base translation takes
+// the mark on the way past.
 func readable(rows []store.ReviewedRange, hunks map[string]bool) []store.ReviewedRange {
 	out := make([]store.ReviewedRange, 0, len(rows))
 	for _, r := range rows {

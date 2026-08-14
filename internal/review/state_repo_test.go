@@ -190,6 +190,89 @@ func TestMarkingAFileWithNoHunksMarksTheWholeOfIt(t *testing.T) {
 	assertFile(t, f.file(s, g, "blob.bin"), review.Reviewed)
 }
 
+// A deleted file has no head blob, so a whole-file mark on the head would be
+// keyed to bytes that are not there. On the base it is keyed to the bytes the
+// deletion removes, which is what was read.
+func TestAWholeFileMarkOnADeletionSitsOnTheBase(t *testing.T) {
+	f, s, g := deletedBlob(t, "\x00\x02irrelevant here\n")
+
+	assertRanges(t, f.storedRanges(g), []string{"logo.png base 0:0"})
+	assertFile(t, f.file(s, g, "logo.png"), review.Reviewed)
+}
+
+// The mark that a head-side anchor could never lose. Upstream rewrites the very
+// bytes the deletion removes, so what was read is gone and the mark goes with
+// it.
+func TestAWholeFileMarkOnADeletionGoesWhenTheBytesItRemovedMove(t *testing.T) {
+	f, near, first := deletedBlob(t, "\x00\x02completely different\n")
+
+	far, next := onUpstream(t, f, near, first)
+
+	assertRanges(t, f.storedRanges(next), nil)
+	assertFile(t, f.file(far, next, "logo.png"), review.Unreviewed)
+}
+
+// A whole-file mark is a claim about an entry with nothing to read, so it cannot
+// outlive the entry gaining lines. Upstream replacing the binary with text
+// leaves the file just as deleted and gives it a deletion-only hunk nobody has
+// looked at.
+func TestAWholeFileMarkOnADeletionGoesWhenTheFileGainsHunks(t *testing.T) {
+	f, near, first := deletedBlob(t, numbered(1, 5))
+
+	far, next := onUpstream(t, f, near, first)
+
+	assertRanges(t, f.storedRanges(next), nil)
+	assertFile(t, f.file(far, next, "logo.png"), review.Unreviewed, "  base 1:5 unreviewed")
+}
+
+// deletedBlob is a binary file on the base that the branch deletes, with the
+// whole of it marked. It has no lines to name on either side and no head blob at
+// all, which is the one shape a whole-file mark cannot sit on the head for.
+//
+// upstream is what the file holds on origin/main, which the base moves back onto
+// once the mark is made. The branch turns it into a blob first, so the near base
+// has a file with no lines to name and the mark has nowhere but the base to sit.
+func deletedBlob(t *testing.T, upstream string) (*fixture, *review.Session, review.Generation) {
+	t.Helper()
+
+	f := newFixture(t)
+	f.Write("logo.png", upstream)
+	f.Commit("first")
+	f.TrackOrigin("main")
+
+	f.Git("checkout", "-q", "-b", "feature")
+	f.Write("logo.png", "\x00\x01binary\n")
+	f.Commit("make the logo a blob")
+	f.Git("rm", "-q", "logo.png")
+	f.Commit("drop the logo")
+
+	s := f.mustOpen("feature~1")
+	g := f.refresh(s)
+	if err := s.MarkFile(t.Context(), g, f.file(s, g, "logo.png")); err != nil {
+		t.Fatalf("marking the file: %v", err)
+	}
+	return f, s, g
+}
+
+// onUpstream reopens the session against origin/main, which is the base moving
+// off the blob and onto what upstream holds. A merge cannot stand in for it
+// here: the branch deleted the file and upstream has its own version, which git
+// stops on rather than resolves.
+func onUpstream(t *testing.T, f *fixture, near *review.Session, first review.Generation) (*review.Session, review.Generation) {
+	t.Helper()
+
+	if err := near.Close(); err != nil {
+		t.Fatalf("closing: %v", err)
+	}
+
+	far := f.mustOpen("origin/main")
+	next := f.refresh(far)
+	if next.ID == first.ID {
+		t.Fatal("the base move built no new generation")
+	}
+	return far, next
+}
+
 // Unmarking a file settles the change the refresh recorded against it, the same
 // way unmarking lines does. A reader taking the whole file back by hand has made
 // the coverage their own and there is no refresh due to write the record away.

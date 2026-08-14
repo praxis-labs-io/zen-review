@@ -1,6 +1,7 @@
 package store_test
 
 import (
+	"context"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -30,6 +31,24 @@ func keep(rs ...store.LineRange) func([]store.LineRange) []store.LineRange {
 	return func([]store.LineRange) []store.LineRange { return rs }
 }
 
+// writeSide is a write covering one file and one side, which is what these cases
+// make except where covering more than one is the point. It keeps them reading
+// as the arithmetic they are about rather than a slice literal per call.
+func writeSide(
+	ctx context.Context,
+	db *store.DB,
+	sessionID string,
+	generationID int64,
+	path string,
+	side store.Side,
+	now time.Time,
+	answers string,
+	change func([]store.LineRange) []store.LineRange,
+) error {
+	return db.UpdateReviewedRanges(ctx, sessionID, generationID, now, answers,
+		[]store.SideChange{{Path: path, Side: side, Change: change}})
+}
+
 func ranges(t *testing.T, db *store.DB, g store.Generation) []store.ReviewedRange {
 	t.Helper()
 
@@ -54,7 +73,7 @@ func TestReviewedRangesComeBackOrderedByPathSideAndLine(t *testing.T) {
 		{"a.go", store.SideHead, []store.LineRange{{Start: 1, End: 3}}},
 	}
 	for _, w := range writes {
-		if err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, w.path, w.side, epoch, "", keep(w.ranges...)); err != nil {
+		if err := writeSide(t.Context(), db, s.ID, g.ID, w.path, w.side, epoch, "", keep(w.ranges...)); err != nil {
 			t.Fatalf("writing the ranges of %s: %v", w.path, err)
 		}
 	}
@@ -86,13 +105,13 @@ func TestAnUpdateReplacesWhatTheChangeFunctionWasHanded(t *testing.T) {
 	db := open(t)
 	s, g := generation(t, db, "replace")
 
-	if err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "a.go", store.SideHead, epoch, "",
+	if err := writeSide(t.Context(), db, s.ID, g.ID, "a.go", store.SideHead, epoch, "",
 		keep(store.LineRange{Start: 1, End: 5}, store.LineRange{Start: 20, End: 25})); err != nil {
 		t.Fatalf("writing the first set: %v", err)
 	}
 
 	var handed []store.LineRange
-	err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "a.go", store.SideHead, epoch, "",
+	err := writeSide(t.Context(), db, s.ID, g.ID, "a.go", store.SideHead, epoch, "",
 		func(cur []store.LineRange) []store.LineRange {
 			handed = cur
 			return []store.LineRange{{Start: 20, End: 25}}
@@ -117,11 +136,11 @@ func TestAnUpdateReturningNothingClearsTheFile(t *testing.T) {
 	db := open(t)
 	s, g := generation(t, db, "cleared")
 
-	if err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "a.go", store.SideHead, epoch, "",
+	if err := writeSide(t.Context(), db, s.ID, g.ID, "a.go", store.SideHead, epoch, "",
 		keep(store.LineRange{Start: 1, End: 5})); err != nil {
 		t.Fatalf("writing: %v", err)
 	}
-	if err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "a.go", store.SideHead, epoch, "", keep()); err != nil {
+	if err := writeSide(t.Context(), db, s.ID, g.ID, "a.go", store.SideHead, epoch, "", keep()); err != nil {
 		t.Fatalf("clearing: %v", err)
 	}
 
@@ -140,13 +159,13 @@ func TestAnUpdateLeavesTheOtherKeysAlone(t *testing.T) {
 		path string
 		side store.Side
 	}{{"a.go", store.SideHead}, {"a.go", store.SideBase}, {"b.go", store.SideHead}} {
-		if err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, w.path, w.side, epoch, "",
+		if err := writeSide(t.Context(), db, s.ID, g.ID, w.path, w.side, epoch, "",
 			keep(store.LineRange{Start: 1, End: 5})); err != nil {
 			t.Fatalf("writing %s %s: %v", w.path, w.side, err)
 		}
 	}
 
-	if err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "a.go", store.SideHead, epoch, "", keep()); err != nil {
+	if err := writeSide(t.Context(), db, s.ID, g.ID, "a.go", store.SideHead, epoch, "", keep()); err != nil {
 		t.Fatalf("clearing a.go head: %v", err)
 	}
 
@@ -198,7 +217,7 @@ func TestTwoInstancesMarkingOneFileBothSurvive(t *testing.T) {
 			// Each instance marks its own two lines, well clear of every other
 			// so nothing merges and a lost write is a missing row.
 			mine := store.LineRange{Start: i*10 + 1, End: i*10 + 2}
-			errs[i] = db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "a.go", store.SideHead, epoch, "",
+			errs[i] = writeSide(t.Context(), db, s.ID, g.ID, "a.go", store.SideHead, epoch, "",
 				func(cur []store.LineRange) []store.LineRange { return append(cur, mine) })
 		}()
 	}
@@ -267,11 +286,11 @@ func TestAMarkKeepsTheReadTimeOfTheRangesItDoesNotTouch(t *testing.T) {
 	monday := epoch
 	friday := epoch.Add(96 * time.Hour)
 
-	if err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "a.go", store.SideHead, monday, "",
+	if err := writeSide(t.Context(), db, s.ID, g.ID, "a.go", store.SideHead, monday, "",
 		keep(store.LineRange{Start: 5, End: 9})); err != nil {
 		t.Fatalf("marking on monday: %v", err)
 	}
-	if err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "a.go", store.SideHead, friday, "",
+	if err := writeSide(t.Context(), db, s.ID, g.ID, "a.go", store.SideHead, friday, "",
 		keep(store.LineRange{Start: 5, End: 9}, store.LineRange{Start: 40, End: 44})); err != nil {
 		t.Fatalf("marking on friday: %v", err)
 	}
@@ -289,7 +308,7 @@ func TestAMarkKeepsTheReadTimeOfTheRangesItDoesNotTouch(t *testing.T) {
 
 	// A range that swallows an older one inherits its time, because those lines
 	// have been read since then whatever shape the range now has.
-	if err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "a.go", store.SideHead, friday, "",
+	if err := writeSide(t.Context(), db, s.ID, g.ID, "a.go", store.SideHead, friday, "",
 		keep(store.LineRange{Start: 1, End: 50})); err != nil {
 		t.Fatalf("widening: %v", err)
 	}
@@ -345,13 +364,62 @@ func TestAGenerationAndItsCarriedRangesLandTogetherOrNotAtAll(t *testing.T) {
 	}
 }
 
+// Reading a hunk means reading both of the sides it touches, so a write covers
+// them together. A caller told the write failed must not be looking at half of
+// it applied, which is what two calls would leave.
+func TestEverySideOfOneWriteLandsOrNoneDoes(t *testing.T) {
+	db := open(t)
+	s, g := generation(t, db, "sides")
+
+	// The base side is refused by the CHECK on side, and it goes second, so the
+	// head side is already written inside the transaction when it fails.
+	err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, epoch, "", []store.SideChange{
+		{Path: "a.go", Side: store.SideHead, Change: keep(store.LineRange{Start: 1, End: 5})},
+		{Path: "a.go", Side: store.Side("neither"), Change: keep(store.LineRange{Start: 1, End: 5})},
+	})
+	if err == nil {
+		t.Fatal("a side outside the vocabulary should be refused")
+	}
+
+	if got := ranges(t, db, g); len(got) != 0 {
+		t.Errorf("ranges = %+v, want none: the side that failed took the one before it with it", got)
+	}
+}
+
+// Both sides of one hunk, written together, come back as two rows keyed by the
+// side each was measured on.
+func TestAWriteCoveringTwoSidesRecordsBoth(t *testing.T) {
+	db := open(t)
+	s, g := generation(t, db, "both")
+
+	// The base row carries the file's base-side name, which a rename makes a
+	// different one from the head's.
+	if err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, epoch, "", []store.SideChange{
+		{Path: "new.go", Side: store.SideHead, Change: keep(store.LineRange{Start: 10, End: 12})},
+		{Path: "old.go", Side: store.SideBase, Change: keep(store.LineRange{Start: 4, End: 4})},
+	}); err != nil {
+		t.Fatalf("writing both sides: %v", err)
+	}
+
+	got := ranges(t, db, g)
+	if len(got) != 2 {
+		t.Fatalf("ranges = %+v, want one row per side", got)
+	}
+	if got[0].Path != "new.go" || got[0].Side != store.SideHead {
+		t.Errorf("range 0 = %+v, want new.go on the head", got[0])
+	}
+	if got[1].Path != "old.go" || got[1].Side != store.SideBase {
+		t.Errorf("range 1 = %+v, want old.go on the base", got[1])
+	}
+}
+
 // side carries a CHECK, so a value outside the vocabulary is a write that fails
 // rather than a row every read has to allow for.
 func TestASideOutsideTheVocabularyIsRefused(t *testing.T) {
 	db := open(t)
 	s, g := generation(t, db, "side")
 
-	err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, "a.go", store.Side("both"), epoch, "", keep(store.LineRange{Start: 1, End: 1}))
+	err := writeSide(t.Context(), db, s.ID, g.ID, "a.go", store.Side("both"), epoch, "", keep(store.LineRange{Start: 1, End: 1}))
 	if err == nil {
 		t.Fatal("a side outside the vocabulary should be refused")
 	}
