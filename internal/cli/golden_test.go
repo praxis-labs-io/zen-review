@@ -88,20 +88,45 @@ func TestTheChangesetJSONShapeIsTheContract(t *testing.T) {
 	golden.Compare(t, "files", []byte(scrub(raw, w.wireHeader)))
 }
 
+// The comment payload is the third contract, and the one a hook parses. It
+// holds one of everything the surface can say: a line comment, a range, a file
+// comment, both sides, and each of the four states.
+func TestTheCommentsJSONShapeIsTheContract(t *testing.T) {
+	f, _ := queue(t)
+
+	w, raw := f.decodeComments("comments")
+
+	golden.Compare(t, "comments", []byte(scrub(raw, w.wireHeader, commentSubs(w)...)))
+}
+
+// commentSubs is what a comment carries that cannot be the same twice: the id,
+// which is random, and the two timestamps.
+func commentSubs(w commentWire) [][2]string {
+	var subs [][2]string
+	for _, c := range w.Comments {
+		subs = append(subs,
+			[2]string{c.ID, "<id>"},
+			[2]string{c.CreatedAt, "<time>"},
+			[2]string{c.UpdatedAt, "<time>"},
+		)
+	}
+	return subs
+}
+
 // scrub replaces every value that cannot be the same twice: the session id,
 // which hashes a temporary path, the shas, and the timestamp the engine stamps
-// from the clock.
+// from the clock. more is whatever else the payload under test carries.
 //
 // The substitutions are the values the payload actually reported, read back off
 // the parse, rather than patterns. A pattern for a 16-hex session id also
 // matches inside a 40-hex sha and inside any path that happens to look like
 // one, and getting two patterns to agree on which ran first is a bug waiting for
 // a fixture that spells a word in hex.
-func scrub(raw string, w wireHeader) string {
-	subs := [][2]string{
+func scrub(raw string, w wireHeader, more ...[2]string) string {
+	subs := append([][2]string{
 		{w.Session, "<session>"},
 		{w.Base.SHA, "<sha>"},
-	}
+	}, more...)
 	if w.Generation != nil {
 		subs = append(subs,
 			[2]string{w.Generation.Commit, "<sha>"},

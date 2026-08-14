@@ -59,6 +59,29 @@ func NoteOnHunk(path string, h Hunk, body string) Note {
 	return Note{Path: path, Side: a.Side, Scope: store.ScopeRange, Range: a.Range, Body: body}
 }
 
+// NoteOnLines is a comment on lines somebody picked out.
+//
+// The scope falls out of the lines rather than out of how they were spelled. One
+// line is a line comment however it was typed, and a caller that had to say
+// which would be a second place the two could disagree.
+func NoteOnLines(path string, side store.Side, r Range, body string) Note {
+	scope := store.ScopeRange
+	if r.Start == r.End {
+		scope = store.ScopeLine
+	}
+	return Note{Path: path, Side: side, Scope: scope, Range: r, Body: body}
+}
+
+// NoteOnFile is a comment on the file itself rather than on lines in it,
+// anchored on the side the file has bytes on.
+//
+// A deleted file is commented on the base, the same rule a whole-file mark
+// takes: a head-side anchor on one would name bytes that are not there, and it
+// would survive every rewrite of the bytes it actually removed.
+func NoteOnFile(f File, body string) Note {
+	return Note{Path: f.Diff.Path, Side: wholeSide(f.Diff), Scope: store.ScopeFile, Body: body}
+}
+
 // AddComment writes a comment against a generation and returns the row.
 //
 // It refuses a stale generation for the reason a mark does: the carry runs from
@@ -142,8 +165,25 @@ func (s *Session) AddComment(ctx context.Context, g Generation, n Note) (store.C
 // A base-side comment carries the file's base-side name, the same way a
 // base-side reviewed range does, so a caller listing them beside a changeset
 // joins a renamed one back through the old path.
+//
+// The files come back in the order a file tree reads, which is the order
+// Session.Files hands the changeset back in. The store orders by path and that
+// is bytewise, so without this a listing and the table beside it disagree about
+// what comes first the moment the changeset has a directory in it. Stable, so
+// the store's ordering within one file survives.
+//
+// A base-side row sorts under the name it is recorded by, which on a rename is
+// the name the file has on the base rather than the one the changeset lists it
+// under. So the two comments on a renamed file sit apart. Putting them together
+// would mean resolving each row's path through the generation it belongs to,
+// and these span every generation the session has.
 func (s *Session) Comments(ctx context.Context) ([]store.Comment, error) {
-	return s.db.Comments(ctx, s.row.ID)
+	rows, err := s.db.Comments(ctx, s.row.ID)
+	if err != nil {
+		return nil, err
+	}
+	slices.SortStableFunc(rows, func(a, b store.Comment) int { return byTree(a.Path, b.Path) })
+	return rows, nil
 }
 
 // AddressComment is the agent's verb: a claim that the comment has been handled.
