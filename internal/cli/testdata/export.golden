@@ -1,0 +1,24 @@
+# Review of feature
+
+base `origin/main` (<sha>), generation 2
+1 of 3 reviewed, 3 comments unresolved
+
+An addressed or orphaned comment stopped moving when it was settled, so its line is where it was then.
+
+held the store changes until the migration lands
+
+## code.txt
+
+**`code.txt:3`** head, orphaned, `<id>`
+
+about the line that goes
+
+**`code.txt:30`** head, open, `<id>`
+
+still open
+
+## gone.txt
+
+**`gone.txt:1`** base, addressed, `<id>`
+
+why did this go

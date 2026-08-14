@@ -150,7 +150,7 @@ func runComment(cmd *cobra.Command, opts *options, n *note, path string) (err er
 	// Read before the database is opened. A body arriving on stdin is the reader
 	// still typing, and holding the session open across that is holding it open
 	// for as long as they take.
-	text, err := body(cmd, n.body)
+	text, err := body(cmd, n.body, "comment")
 	if err != nil {
 		return err
 	}
@@ -307,22 +307,23 @@ func span(r review.Range) string {
 	return fmt.Sprintf("%d-%d", r.Start, r.End)
 }
 
-// body is what the comment says: the text passed, or stdin when it is -, so a
-// body with newlines does not have to survive a shell.
+// body is what was written: the text passed, or stdin when it is -, so prose
+// with newlines in it does not have to survive a shell. Only the stdin failure
+// uses what, to name the thing it was reading.
 //
 // Trailing whitespace goes, because a heredoc ends in a newline and a comment
 // does not. Leading whitespace stays: the listing reads an indented line as one
 // somebody laid out on purpose, and eating it here would make that promise
-// false for every body that arrives with one. A body left with nothing in it is
-// refused by the engine rather than stored.
-func body(cmd *cobra.Command, flag string) (string, error) {
+// false for every body that arrives with one. A comment left with nothing in it
+// is refused by the engine rather than stored.
+func body(cmd *cobra.Command, flag, what string) (string, error) {
 	if flag != "-" {
 		return trailing(flag), nil
 	}
 
 	raw, err := io.ReadAll(cmd.InOrStdin())
 	if err != nil {
-		return "", fmt.Errorf("reading the comment from stdin: %w", err)
+		return "", fmt.Errorf("reading the %s from stdin: %w", what, err)
 	}
 	return trailing(string(raw)), nil
 }

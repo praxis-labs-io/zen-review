@@ -99,6 +99,17 @@ func TestTheCommentsJSONShapeIsTheContract(t *testing.T) {
 	golden.Compare(t, "comments", []byte(scrub(raw, w.wireHeader, commentSubs(w)...)))
 }
 
+// The summary payload is the fourth contract: the session keys every command
+// promises, and the note. It locks the schema under the same rule.
+func TestTheSummaryJSONShapeIsTheContract(t *testing.T) {
+	f := clean(t)
+	f.mustRun("summary", "--set", "held the store changes until the migration lands")
+
+	w, raw := f.decodeSummary("summary")
+
+	golden.Compare(t, "summary", []byte(scrub(raw, w.wireHeader)))
+}
+
 // commentSubs is what a comment carries that cannot be the same twice: the id,
 // which is random, and the two timestamps.
 func commentSubs(w commentWire) [][2]string {

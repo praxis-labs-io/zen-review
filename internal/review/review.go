@@ -113,6 +113,24 @@ func (s *Session) Repo() string {
 // Base is what the changeset is measured from.
 func (s *Session) Base() Base { return s.base }
 
+// Summary is the session-level note, and empty on a session nobody has written
+// one for.
+func (s *Session) Summary() string { return s.row.Summary }
+
+// SetSummary writes the session-level note, replacing whatever was there. Empty
+// clears it, which is the only way to take one back.
+//
+// The note is written on its own rather than through the whole row, because
+// resolving a base writes the row too and holds the note it read at open time.
+func (s *Session) SetSummary(ctx context.Context, text string) error {
+	now := time.Now().UTC().Truncate(time.Second)
+	if err := s.db.SetSessionSummary(ctx, s.row.ID, text, now); err != nil {
+		return err
+	}
+	s.row.Summary, s.row.UpdatedAt = text, now
+	return nil
+}
+
 // load reads or creates the session row and settles its base.
 func (s *Session) load(ctx context.Context, head git.Head, opts Options) error {
 	kind, branch, spec := identity(head)
