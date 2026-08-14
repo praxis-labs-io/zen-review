@@ -100,11 +100,11 @@ func (f *fixture) failure(args ...string) error {
 	return err
 }
 
-// wire is the payload as something parsing it sees, declared here rather than
-// shared with the code that produces it. A test reading the same struct it is
-// checking cannot catch a renamed key, and the key names are most of what this
-// output promises.
-type wire struct {
+// wireHeader is what every payload opens with, as something parsing it sees.
+// These types are declared here rather than shared with the code that produces
+// them: a test reading the same struct it is checking cannot catch a renamed
+// key, and the key names are most of what this output promises.
+type wireHeader struct {
 	Session string `json:"session"`
 	Ref     string `json:"ref"`
 	Kind    string `json:"kind"`
@@ -126,6 +126,11 @@ type wire struct {
 	Stale       bool     `json:"stale"`
 	StaleReason string   `json:"staleReason"`
 	Skipped     []string `json:"skipped"`
+}
+
+// wire is what status and refresh answer with: the changeset counted, not read.
+type wire struct {
+	wireHeader
 
 	Files []struct {
 		Path      string `json:"path"`
@@ -145,15 +150,77 @@ type wire struct {
 	} `json:"totals"`
 }
 
-// decode runs a command with --json and parses what it wrote to stdout. It also
-// checks stderr stayed empty, because a warning landing in the stream is what
-// breaks the caller rather than the command.
+// stateWire is what files, review and unreview answer with: the same session,
+// and the changeset with the review derived on it.
+type stateWire struct {
+	wireHeader
+
+	Files []stateFile `json:"files"`
+
+	Totals struct {
+		Files     int `json:"files"`
+		Reviewed  int `json:"reviewed"`
+		Items     int `json:"items"`
+		Additions int `json:"additions"`
+		Deletions int `json:"deletions"`
+	} `json:"totals"`
+}
+
+type stateFile struct {
+	Path    string `json:"path"`
+	OldPath string `json:"oldPath"`
+	Status  string `json:"status"`
+	Omitted string `json:"omitted"`
+
+	State    string `json:"state"`
+	Changed  bool   `json:"changed"`
+	Reviewed int    `json:"reviewed"`
+	Items    int    `json:"items"`
+
+	Additions int `json:"additions"`
+	Deletions int `json:"deletions"`
+
+	Hunks []struct {
+		Side  string `json:"side"`
+		Line  int    `json:"line"`
+		State string `json:"state"`
+
+		Anchors []struct {
+			Side  string `json:"side"`
+			Start int    `json:"start"`
+			End   int    `json:"end"`
+		} `json:"anchors"`
+	} `json:"hunks"`
+}
+
+// decode runs a command with --json and parses what it wrote to stdout.
 func (f *fixture) decode(args ...string) (wire, string) {
 	f.t.Helper()
 	return f.decodeFrom(f.Dir(), args...)
 }
 
 func (f *fixture) decodeFrom(dir string, args ...string) (wire, string) {
+	f.t.Helper()
+
+	var w wire
+	raw := f.jsonFrom(dir, &w, args...)
+	return w, raw
+}
+
+// decodeState is the same for the payload files, review and unreview answer
+// with.
+func (f *fixture) decodeState(args ...string) (stateWire, string) {
+	f.t.Helper()
+
+	var w stateWire
+	raw := f.jsonFrom(f.Dir(), &w, args...)
+	return w, raw
+}
+
+// jsonFrom runs the command with --json and parses stdout into into. It also
+// checks stderr stayed empty, because a warning landing in the stream is what
+// breaks the caller rather than the command.
+func (f *fixture) jsonFrom(dir string, into any, args ...string) string {
 	f.t.Helper()
 
 	stdout, stderr, err := f.runFrom(dir, append(args, "--json")...)
@@ -163,12 +230,10 @@ func (f *fixture) decodeFrom(dir string, args ...string) (wire, string) {
 	if stderr != "" {
 		f.t.Errorf("zen-review %v --json wrote to stderr on success: %q", args, stderr)
 	}
-
-	var w wire
-	if err := json.Unmarshal([]byte(stdout), &w); err != nil {
+	if err := json.Unmarshal([]byte(stdout), into); err != nil {
 		f.t.Fatalf("zen-review %v --json did not write JSON: %v\n%s", args, err, stdout)
 	}
-	return w, stdout
+	return stdout
 }
 
 // files keys the rows by path, so an assertion does not depend on the order git

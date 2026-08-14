@@ -124,17 +124,27 @@ func Derive(files []diff.File, rows []store.ReviewedRange, cut map[string]bool) 
 	return c
 }
 
+// File finds a file by the head-side path the changeset lists it under, which is
+// the name a reader has in hand and the one a subcommand takes.
+func (c Changeset) File(path string) (File, bool) {
+	for _, f := range c.Files {
+		if f.Diff.Path == path {
+			return f, true
+		}
+	}
+	return File{}, false
+}
+
 // Hunk finds a hunk by the path, side and line the changeset names it under,
 // which is how a subcommand naming one on the command line resolves it.
 func (c Changeset) Hunk(path string, side store.Side, line int) (Hunk, bool) {
-	for _, f := range c.Files {
-		if f.Diff.Path != path {
-			continue
-		}
-		for _, h := range f.Hunks {
-			if s, l := h.Name(); s == side && l == line {
-				return h, true
-			}
+	f, found := c.File(path)
+	if !found {
+		return Hunk{}, false
+	}
+	for _, h := range f.Hunks {
+		if s, l := h.Name(); s == side && l == line {
+			return h, true
 		}
 	}
 	return Hunk{}, false
@@ -204,7 +214,7 @@ func deriveFile(f diff.File, cur map[key]coverage) File {
 	// already has them would report a review the next refresh deletes.
 	if len(out.Hunks) == 0 {
 		out.Items = 1
-		if sides[store.SideHead].whole {
+		if sides[wholeSide(f)].whole {
 			out.Reviewed, out.State = 1, Reviewed
 			return out
 		}
@@ -326,6 +336,23 @@ func coverageOf(rows []store.ReviewedRange) map[key]coverage {
 		out[k] = c
 	}
 	return out
+}
+
+// wholeSide is the side a file with no lines to name is marked on: the one it
+// has a blob on.
+//
+// A deleted file has no head blob, so a head-side mark on it would be keyed to
+// bytes that are not there and would survive every rewrite of the bytes it
+// actually removed. On the base it is keyed to those, and the base-side
+// translation cuts it when they move.
+//
+// This is what a mark is written on and what a read looks for, so both come
+// through here rather than each spelling the rule.
+func wholeSide(f diff.File) store.Side {
+	if f.Status == diff.FileDeleted {
+		return store.SideBase
+	}
+	return store.SideHead
 }
 
 // baseName is the name a file has on the base side, which a rename makes a

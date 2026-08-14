@@ -1,0 +1,119 @@
+{
+  "session": "<session>",
+  "ref": "refs/zen-review/sessions/<session>",
+  "kind": "branch",
+  "branch": "feature",
+  "base": {
+    "ref": "origin/main",
+    "sha": "<sha>"
+  },
+  "generation": {
+    "seq": 1,
+    "commit": "<sha>",
+    "baseSha": "<sha>",
+    "headSha": "<sha>",
+    "createdAt": "<time>"
+  },
+  "stale": false,
+  "staleReason": "",
+  "skipped": [],
+  "files": [
+    {
+      "path": "added.txt",
+      "status": "added",
+      "state": "unreviewed",
+      "changed": false,
+      "reviewed": 0,
+      "items": 1,
+      "additions": 1,
+      "deletions": 0,
+      "hunks": [
+        {
+          "side": "head",
+          "line": 1,
+          "state": "unreviewed",
+          "anchors": [
+            {
+              "side": "head",
+              "start": 1,
+              "end": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "deleted.txt",
+      "status": "deleted",
+      "state": "reviewed",
+      "changed": false,
+      "reviewed": 1,
+      "items": 1,
+      "additions": 0,
+      "deletions": 1,
+      "hunks": [
+        {
+          "side": "base",
+          "line": 1,
+          "state": "reviewed",
+          "anchors": [
+            {
+              "side": "base",
+              "start": 1,
+              "end": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "modified.txt",
+      "status": "modified",
+      "state": "reviewed",
+      "changed": false,
+      "reviewed": 1,
+      "items": 1,
+      "additions": 1,
+      "deletions": 1,
+      "hunks": [
+        {
+          "side": "head",
+          "line": 1,
+          "state": "reviewed",
+          "anchors": [
+            {
+              "side": "head",
+              "start": 1,
+              "end": 1
+            },
+            {
+              "side": "base",
+              "start": 1,
+              "end": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "renamed-to.txt",
+      "oldPath": "renamed-from.txt",
+      "status": "renamed",
+      "omitted": "renamed, contents unchanged",
+      "state": "unreviewed",
+      "changed": false,
+      "reviewed": 0,
+      "items": 1,
+      "additions": 0,
+      "deletions": 0,
+      "hunks": []
+    }
+  ],
+  "totals": {
+    "files": 4,
+    "reviewed": 2,
+    "items": 4,
+    "additions": 2,
+    "deletions": 2
+  }
+}

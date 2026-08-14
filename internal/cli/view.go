@@ -6,10 +6,10 @@ import (
 	"github.com/zen-review/zen-review/internal/store"
 )
 
-// view is what every command answers with, whichever way it got there. A
-// refresh builds the generation and a status reads the one already recorded,
-// and past this point there is one thing to print.
-type view struct {
+// header is what every command says about the session before it says anything
+// about the changeset. A refresh builds the generation and a status reads the
+// one already recorded, and past this point there is one thing to print.
+type header struct {
 	SessionID string
 	Ref       string
 	Kind      store.Kind
@@ -31,8 +31,25 @@ type view struct {
 	// it sits here and not under one: a session with nothing built yet still has
 	// to be able to say a file is missing from what is about to be reviewed.
 	Skipped []string
+}
+
+// view is the changeset as a summary: what moved, and how much of it. status and
+// refresh answer with this.
+type view struct {
+	header
 
 	Files []diff.File
+}
+
+// changesetView is the same session with the review derived on it, which is what
+// files, review and unreview answer with.
+//
+// It holds the engine's Changeset rather than a second []diff.File. Two lists of
+// the same files in one struct is how the two of them come to disagree.
+type changesetView struct {
+	header
+
+	Changeset review.Changeset
 }
 
 // staleness is why a view no longer describes what is on disk.
@@ -48,7 +65,7 @@ const (
 // means. holds compares the base and the tree together, so a true covers both a
 // rebase and an edit, and the reader wants to be told which one happened. Both
 // bases are already in hand, so telling them apart costs nothing.
-func (v view) reason() staleness {
+func (v header) reason() staleness {
 	// A session with no generation is stale because nothing has been reviewed
 	// against yet, and no base and no tree moved to make it so. The absent
 	// generation is the whole story and a reason would be a second, worse one.
@@ -61,9 +78,9 @@ func (v view) reason() staleness {
 	return staleTree
 }
 
-// statusView is the read path.
-func statusView(s *review.Session, st review.Status) view {
-	return view{
+// statusHeader is the read path.
+func statusHeader(s *review.Session, st review.Status) header {
+	return header{
 		SessionID:  st.SessionID,
 		Ref:        s.Ref(),
 		Kind:       st.Kind,
@@ -73,7 +90,6 @@ func statusView(s *review.Session, st review.Status) view {
 		Exists:     st.Exists,
 		Stale:      st.Stale,
 		Skipped:    st.Skipped,
-		Files:      st.Files,
 	}
 }
 
@@ -82,14 +98,16 @@ func statusView(s *review.Session, st review.Status) view {
 // nothing about it is stale.
 func generationView(s *review.Session, g review.Generation, files []diff.File) view {
 	return view{
-		SessionID:  s.ID(),
-		Ref:        s.Ref(),
-		Kind:       s.Kind(),
-		Branch:     s.Branch(),
-		Base:       s.Base(),
-		Generation: g,
-		Exists:     true,
-		Skipped:    g.Skipped,
-		Files:      files,
+		header: header{
+			SessionID:  s.ID(),
+			Ref:        s.Ref(),
+			Kind:       s.Kind(),
+			Branch:     s.Branch(),
+			Base:       s.Base(),
+			Generation: g,
+			Exists:     true,
+			Skipped:    g.Skipped,
+		},
+		Files: files,
 	}
 }

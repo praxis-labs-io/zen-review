@@ -42,9 +42,7 @@ func (e *StaleGenerationError) Error() string {
 // Lines are explicit here. Naming a hunk is a question about the parsed diff and
 // is answered a layer up.
 func (s *Session) Mark(ctx context.Context, g Generation, path string, side store.Side, rs []Range) error {
-	return s.updateReviewed(ctx, g, path, side, "", func(cur []store.LineRange) []store.LineRange {
-		return lineRanges(merge(append(ranges(cur), rs...)))
-	})
+	return s.updateReviewed(ctx, g, path, "", []sided{{side: side, change: adding(rs)}})
 }
 
 // Unmark takes lines back out of what was reviewed, cutting a stored range where
@@ -56,9 +54,31 @@ func (s *Session) Mark(ctx context.Context, g Generation, path string, side stor
 // have the file read as changed after review for a cut the reader may already
 // have answered, with no refresh due to write it away.
 func (s *Session) Unmark(ctx context.Context, g Generation, path string, side store.Side, rs []Range) error {
-	return s.updateReviewed(ctx, g, path, side, path, func(cur []store.LineRange) []store.LineRange {
-		return lineRanges(subtract(ranges(cur), rs))
-	})
+	return s.updateReviewed(ctx, g, path, path, []sided{{side: side, change: removing(rs)}})
+}
+
+// MarkHunk records every anchor a hunk has, which is what reading one means. A
+// hunk that both adds and removes takes a mark on each side: the lines it
+// removes are not lines it has, and a mark on the additions alone would swallow
+// a deletion arriving later.
+func (s *Session) MarkHunk(ctx context.Context, g Generation, path string, h Hunk) error {
+	return s.anchored(ctx, g, path, "", h.Anchors, adding)
+}
+
+// UnmarkHunk takes back what MarkHunk recorded.
+func (s *Session) UnmarkHunk(ctx context.Context, g Generation, path string, h Hunk) error {
+	return s.anchored(ctx, g, path, path, h.Anchors, removing)
+}
+
+// MarkFile records every anchor of every hunk, or the file as a whole when it
+// has none.
+func (s *Session) MarkFile(ctx context.Context, g Generation, f File) error {
+	return s.anchored(ctx, g, f.Diff.Path, "", fileAnchors(f), adding)
+}
+
+// UnmarkFile takes back what MarkFile recorded.
+func (s *Session) UnmarkFile(ctx context.Context, g Generation, f File) error {
+	return s.anchored(ctx, g, f.Diff.Path, f.Diff.Path, fileAnchors(f), removing)
 }
 
 // Reviewed is every range recorded against a generation, ordered by path, side
@@ -70,15 +90,85 @@ func (s *Session) Reviewed(ctx context.Context, g Generation) ([]store.ReviewedR
 	return s.db.ReviewedRanges(ctx, g.ID)
 }
 
-// updateReviewed refuses a stale generation and hands the arithmetic to the
-// store, which runs it inside the write transaction.
+// anchored gathers the anchors by side, head first, and writes every side at
+// once.
+//
+// One write and not one per side. Reading a hunk means reading both of the sides
+// it touches, so a half of it that landed is not a smaller version of the same
+// fact, and a caller told the write failed would be looking at that half.
+func (s *Session) anchored(
+	ctx context.Context,
+	g Generation,
+	path, answers string,
+	anchors []Anchor,
+	arithmetic func([]Range) func([]store.LineRange) []store.LineRange,
+) error {
+	var changes []sided
+	for _, side := range []store.Side{store.SideHead, store.SideBase} {
+		var rs []Range
+		for _, a := range anchors {
+			if a.Side == side {
+				rs = append(rs, a.Range)
+			}
+		}
+		if len(rs) == 0 {
+			continue
+		}
+		changes = append(changes, sided{side: side, change: arithmetic(rs)})
+	}
+	return s.updateReviewed(ctx, g, path, answers, changes)
+}
+
+// adding and removing are the two directions a write goes: union with what is
+// already recorded, or cut out of it where the two overlap.
+func adding(rs []Range) func([]store.LineRange) []store.LineRange {
+	return func(cur []store.LineRange) []store.LineRange {
+		return lineRanges(merge(append(ranges(cur), rs...)))
+	}
+}
+
+func removing(rs []Range) func([]store.LineRange) []store.LineRange {
+	return func(cur []store.LineRange) []store.LineRange {
+		return lineRanges(subtract(ranges(cur), rs))
+	}
+}
+
+// fileAnchors is every anchor of every hunk, or the whole file when it has none:
+// a binary file, a mode change, a rename that moved nothing. The zero Range is
+// the whole-file mark, which merge and subtract already keep apart from the line
+// ranges.
+//
+// The side comes from wholeSide, the same function the read uses, so a mark
+// always lands where Derive looks for it.
+func fileAnchors(f File) []Anchor {
+	if len(f.Hunks) == 0 {
+		return []Anchor{{Side: wholeSide(f.Diff)}}
+	}
+
+	var out []Anchor
+	for _, h := range f.Hunks {
+		out = append(out, h.Anchors...)
+	}
+	return out
+}
+
+// sided is one side's arithmetic, before the base-side path is settled.
+type sided struct {
+	side   store.Side
+	change func([]store.LineRange) []store.LineRange
+}
+
+// updateReviewed refuses a stale generation, names each side's file, and hands
+// the arithmetic to the store, which runs all of it inside one transaction.
+//
+// path is the file's head-side name throughout. answers is that same name when
+// the write settles a recorded cut, because gen_files keys on it whichever side
+// the ranges land on.
 func (s *Session) updateReviewed(
 	ctx context.Context,
 	g Generation,
-	path string,
-	side store.Side,
-	answers string,
-	change func([]store.LineRange) []store.LineRange,
+	path, answers string,
+	changes []sided,
 ) error {
 	latest, found, err := s.db.LatestGeneration(ctx, s.row.ID)
 	if err != nil {
@@ -88,14 +178,19 @@ func (s *Session) updateReviewed(
 		return &StaleGenerationError{Seq: g.Seq, Current: latest.Seq}
 	}
 
-	if side == store.SideBase {
-		if path, err = s.basePath(ctx, g, path); err != nil {
-			return err
+	out := make([]store.SideChange, 0, len(changes))
+	for _, c := range changes {
+		at := path
+		if c.side == store.SideBase {
+			if at, err = s.basePath(ctx, g, path); err != nil {
+				return err
+			}
 		}
+		out = append(out, store.SideChange{Path: at, Side: c.side, Change: c.change})
 	}
 
 	now := time.Now().UTC().Truncate(time.Second)
-	return s.db.UpdateReviewedRanges(ctx, s.row.ID, g.ID, path, side, now, answers, change)
+	return s.db.UpdateReviewedRanges(ctx, s.row.ID, g.ID, now, answers, out)
 }
 
 // basePath is the name a file had on the base side of a generation.

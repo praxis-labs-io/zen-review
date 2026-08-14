@@ -69,9 +69,23 @@ func TestTheJSONShapeIsTheContract(t *testing.T) {
 
 			w, raw := f.decode(args...)
 
-			golden.Compare(t, tc.name, []byte(scrub(raw, w)))
+			golden.Compare(t, tc.name, []byte(scrub(raw, w.wireHeader)))
 		})
 	}
+}
+
+// The changeset payload is the other contract, and the one a script marking
+// hunks reads: it names each hunk by the side and line the write commands take.
+// It locks the schema for the same reason and under the same rule.
+func TestTheChangesetJSONShapeIsTheContract(t *testing.T) {
+	f := mixed(t)
+	f.mustRun("refresh")
+	f.mustRun("review", "modified.txt", "--all")
+	f.mustRun("review", "deleted.txt", "--hunk", "1", "--side", "base")
+
+	w, raw := f.decodeState("files")
+
+	golden.Compare(t, "files", []byte(scrub(raw, w.wireHeader)))
 }
 
 // scrub replaces every value that cannot be the same twice: the session id,
@@ -83,7 +97,7 @@ func TestTheJSONShapeIsTheContract(t *testing.T) {
 // matches inside a 40-hex sha and inside any path that happens to look like
 // one, and getting two patterns to agree on which ran first is a bug waiting for
 // a fixture that spells a word in hex.
-func scrub(raw string, w wire) string {
+func scrub(raw string, w wireHeader) string {
 	subs := [][2]string{
 		{w.Session, "<session>"},
 		{w.Base.SHA, "<sha>"},
