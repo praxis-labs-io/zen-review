@@ -95,7 +95,12 @@ func listComments(cmd *cobra.Command, opts *options, f *filter) (_ bool, err err
 		return false, err
 	}
 
-	v := commentsView{header: statusHeader(s, st), Comments: f.apply(all), filter: f}
+	v := commentsView{
+		header:   statusHeader(s, st),
+		Comments: f.apply(all),
+		filter:   f,
+		Width:    screen(cmd.OutOrStdout()),
+	}
 	if err := emit(cmd.OutOrStdout(), v, opts.asJSON); err != nil {
 		return false, err
 	}

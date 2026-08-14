@@ -189,7 +189,7 @@ func runComment(cmd *cobra.Command, opts *options, n *note, path string) (err er
 	if err != nil {
 		return err
 	}
-	return emit(cmd.OutOrStdout(), one(s, st, written), opts.asJSON)
+	return emit(cmd.OutOrStdout(), one(cmd, s, st, written), opts.asJSON)
 }
 
 func runVerb(cmd *cobra.Command, opts *options, id string, verb func(*review.Session) mover) (err error) {
@@ -212,13 +212,17 @@ func runVerb(cmd *cobra.Command, opts *options, id string, verb func(*review.Ses
 	if err != nil {
 		return err
 	}
-	return emit(cmd.OutOrStdout(), one(s, st, c), opts.asJSON)
+	return emit(cmd.OutOrStdout(), one(cmd, s, st, c), opts.asJSON)
 }
 
 // one is the answer a write gives: the comment it wrote, in the shape the
 // listing prints, so --json hands back the id the next command takes.
-func one(s *review.Session, st review.Status, c store.Comment) commentsView {
-	return commentsView{header: statusHeader(s, st), Comments: []store.Comment{c}}
+func one(cmd *cobra.Command, s *review.Session, st review.Status, c store.Comment) commentsView {
+	return commentsView{
+		header:   statusHeader(s, st),
+		Comments: []store.Comment{c},
+		Width:    screen(cmd.OutOrStdout()),
+	}
 }
 
 // resolve turns the flags into the note the engine takes.

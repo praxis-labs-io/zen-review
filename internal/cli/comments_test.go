@@ -188,6 +188,96 @@ func TestTheListingCarriesTheBodiesAndTheCount(t *testing.T) {
 	}
 }
 
+// A body wider than the page is folded under its own indent. Left alone it runs
+// off the edge and comes back at column zero, which reads as a new comment.
+//
+// Nothing here is going to a terminal, so the width is the fallback and the
+// assertion is worth making.
+func TestALongBodyIsFoldedUnderItsIndent(t *testing.T) {
+	f := clean(t)
+	f.comment("code.txt", "--hunk", "3", "--body", strings.Repeat("wordy ", 40))
+
+	out := f.mustRun("comments")
+
+	folded := 0
+	for _, line := range strings.Split(out, "\n") {
+		if !strings.HasPrefix(line, "    ") {
+			continue
+		}
+		folded++
+		if len(line) > 80 {
+			t.Errorf("a body line is %d wide:\n%s", len(line), line)
+		}
+	}
+	if folded < 3 {
+		t.Errorf("the body came back on %d lines, so nothing was folded:\n%s", folded, out)
+	}
+}
+
+// A word wider than the space gets a line to itself rather than being broken.
+// The long ones here are paths and flags, and half of one is worth nothing.
+func TestAWordTooWideToFoldIsLeftWhole(t *testing.T) {
+	long := strings.Repeat("verylongsegment/", 8) + "file.go"
+
+	f := clean(t)
+	f.comment("code.txt", "--hunk", "3", "--body", "look at "+long+" for the rest")
+
+	out := f.mustRun("comments")
+
+	if !strings.Contains(out, long) {
+		t.Errorf("the long word was broken up:\n%s", out)
+	}
+}
+
+// A blank line separates paragraphs, and a line laid out by hand is left where
+// it was put rather than joined to what is around it.
+//
+// The indented line has prose either side of it with no blank between. A blank
+// line would separate the blocks on its own, and the indent rule would go
+// untested.
+func TestABodyKeepsItsParagraphsAndItsIndents(t *testing.T) {
+	f := clean(t)
+	f.stdin = strings.NewReader("first paragraph\n\nlook at this:\n    an indented line\nand back to prose\n")
+	f.comment("code.txt", "--hunk", "3", "--body", "-")
+
+	out := f.mustRun("comments")
+
+	for _, want := range []string{
+		"    first paragraph\n", "    look at this:\n",
+		"        an indented line\n", "    and back to prose\n",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output does not carry %q:\n%s", want, out)
+		}
+	}
+}
+
+// A paragraph is folded whole. Somebody who hard-wrapped at their own width
+// would otherwise be folded a second time at this one, and every line would shed
+// its last word onto a line of its own.
+func TestAHardWrappedParagraphIsLaidOutAgainAndNotFoldedTwice(t *testing.T) {
+	f := clean(t)
+	f.stdin = strings.NewReader(
+		"the anchor translation is deliberately more forgiving than the one a\n" +
+			"reviewed range takes, because a comment on ten lines is about a region\n" +
+			"and an agent rewriting one line in the middle is the comment being\n" +
+			"acted on.\n")
+	f.comment("code.txt", "--hunk", "3", "--body", "-")
+
+	out := f.mustRun("comments")
+
+	for _, line := range strings.Split(out, "\n") {
+		if !strings.HasPrefix(line, "    ") {
+			continue
+		}
+		// Every line but the last is filled, so nothing comes back as one orphan
+		// word left over from somebody else's width.
+		if len(strings.Fields(line)) < 3 {
+			t.Errorf("a body line came back with %d words:\n%s", len(strings.Fields(line)), out)
+		}
+	}
+}
+
 // Each row opens on a reference in the form every editor and terminal already
 // knows, so a reader can go to the code the comment is about.
 func TestEachRowOpensOnAReferenceAReaderCanPaste(t *testing.T) {

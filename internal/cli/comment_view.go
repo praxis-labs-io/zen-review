@@ -4,8 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"time"
+	"unicode/utf8"
+
+	"github.com/charmbracelet/x/term"
 
 	"github.com/zen-review/zen-review/internal/store"
 )
@@ -22,6 +26,37 @@ type commentsView struct {
 	// that write one comment. A listing counts what it found and says so when it
 	// found nothing; a write has its one row and neither question applies.
 	filter *filter
+
+	// Width is what a body wraps into, measured by the caller so this stays a
+	// pure function of the view and every formatting test is a literal.
+	Width int
+}
+
+// indent is what a body hangs under the row naming it.
+const indent = "    "
+
+// bodyWidth is as wide as prose is allowed to get.
+//
+// A terminal goes much wider than a line reads at, and a body running the full
+// width of a modern one is a line the eye loses its place in on the way back.
+const bodyWidth = 80
+
+// screen is the width to lay a body out in: the terminal's, capped, and the cap
+// itself when there is nothing to measure.
+//
+// A pipe and a test both take the fallback, so output that is not going to a
+// terminal is the same every time, which is what makes it worth asserting on.
+func screen(out io.Writer) int {
+	f, ok := out.(*os.File)
+	if !ok {
+		return bodyWidth
+	}
+
+	w, _, err := term.GetSize(f.Fd())
+	if err != nil || w <= 0 {
+		return bodyWidth
+	}
+	return min(w, bodyWidth)
 }
 
 // render writes a row per comment with its body indented under it.
@@ -35,7 +70,7 @@ func (v commentsView) render() string {
 	}
 
 	b.WriteString("\n")
-	writeComments(&b, v.Comments)
+	writeComments(&b, v.Comments, v.Width)
 
 	if v.filter != nil {
 		fmt.Fprintf(&b, "\n%s, %d unresolved\n",
@@ -49,7 +84,7 @@ func (v commentsView) render() string {
 // The rows are written one at a time rather than through writeColumns, because
 // the bodies go between them. A blank line separates each comment from the next,
 // which is what makes a body of several lines read as one.
-func writeComments(b *strings.Builder, comments []store.Comment) {
+func writeComments(b *strings.Builder, comments []store.Comment, width int) {
 	rows := make([][]string, 0, len(comments))
 	for _, c := range comments {
 		rows = append(rows, []string{c.ID, at(c), string(c.Side), string(c.State)})
@@ -61,20 +96,95 @@ func writeComments(b *strings.Builder, comments []store.Comment) {
 			b.WriteString("\n")
 		}
 		writeRow(b, "", widths, rows[i])
-		writeBody(b, c.Body)
+		writeBody(b, c.Body, width)
 	}
 }
 
-// writeBody indents a comment under the row naming it. A blank line in the body
-// stays blank rather than carrying an indent, so no line ends in whitespace.
-func writeBody(b *strings.Builder, body string) {
-	for _, line := range strings.Split(body, "\n") {
-		if strings.TrimSpace(line) == "" {
+// writeBody indents a comment under the row naming it and lays it out to the
+// page, so a long line does not run off the edge and come back at column zero
+// where it reads as the start of something else.
+//
+// A blank line stays blank rather than carrying an indent, so no line ends in
+// whitespace.
+func writeBody(b *strings.Builder, body string, width int) {
+	page := max(width-len(indent), 1)
+
+	for _, block := range blocks(body) {
+		if block == "" {
 			b.WriteString("\n")
 			continue
 		}
-		fmt.Fprintf(b, "    %s\n", line)
+		for _, line := range fold(block, page) {
+			fmt.Fprintf(b, "%s%s\n", indent, line)
+		}
 	}
+}
+
+// blocks splits a body into the runs the layout treats as one thing.
+//
+// Consecutive lines are one paragraph and are joined before folding, the way
+// markdown reads them. A body somebody hard-wrapped at their own width would
+// otherwise be folded a second time at this one, and every line would shed its
+// last word onto a line of its own.
+//
+// A blank line separates paragraphs. A line starting with whitespace was laid
+// out on purpose and is never joined to its neighbours.
+func blocks(body string) []string {
+	var out []string
+	var para []string
+
+	flush := func() {
+		if len(para) > 0 {
+			out, para = append(out, strings.Join(para, " ")), nil
+		}
+	}
+
+	for _, line := range strings.Split(body, "\n") {
+		switch {
+		case strings.TrimSpace(line) == "":
+			flush()
+			out = append(out, "")
+		case line != strings.TrimLeft(line, " \t"):
+			flush()
+			out = append(out, line)
+		default:
+			para = append(para, line)
+		}
+	}
+
+	flush()
+	return out
+}
+
+// fold breaks a line into runs no wider than width, on the spaces between words.
+//
+// A line already narrow enough comes back untouched, so a body somebody laid out
+// by hand keeps the layout: only a line that has to move loses its own spacing.
+// A word wider than the space is given a line to itself and allowed to overhang
+// rather than broken, because the long ones here are paths and flags and half of
+// one is worth nothing.
+func fold(line string, width int) []string {
+	if utf8.RuneCountInString(line) <= width {
+		return []string{line}
+	}
+
+	var out []string
+	var run string
+
+	for _, word := range strings.Fields(line) {
+		switch {
+		case run == "":
+			run = word
+		case utf8.RuneCountInString(run)+1+utf8.RuneCountInString(word) <= width:
+			run += " " + word
+		default:
+			out, run = append(out, run), word
+		}
+	}
+	if run != "" {
+		out = append(out, run)
+	}
+	return out
 }
 
 // at is where a comment points, in the one form every editor and terminal
