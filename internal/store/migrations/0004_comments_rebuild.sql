@@ -51,14 +51,21 @@ CREATE TABLE comments_rebuilt (
     updated_at            TEXT NOT NULL,
 
     -- A scope is a claim about what the comment is on, and the lines are how it
-    -- is kept. A file comment carrying lines and a range comment carrying none
-    -- are both a scope saying one thing while the row says another.
+    -- is kept. A file comment carrying lines, a range comment carrying none and
+    -- a line comment spanning nine are all a scope saying one thing while the
+    -- row says another.
     --
-    -- Neither names a scope the column above has not already listed. One that
-    -- did would be the vocabulary written twice, and the CHECK on scope would
-    -- stop catching anything of its own.
+    -- A range over one line is not. A selection of one is still a selection, and
+    -- the scope is what the reader meant rather than a count. It survives a
+    -- remap either way: Translation.Anchor clamps to what is left of the lines
+    -- it went in with, so a one-line anchor comes out one line or not at all.
+    --
+    -- None of the three lists the vocabulary. One that did would be the CHECK on
+    -- scope written a second time, and that CHECK would stop catching anything of
+    -- its own.
     CHECK (scope = 'file' OR (start_line > 0 AND end_line >= start_line)),
-    CHECK (scope <> 'file' OR (start_line = 0 AND end_line = 0))
+    CHECK (scope <> 'file' OR (start_line = 0 AND end_line = 0)),
+    CHECK (scope <> 'line' OR start_line = end_line)
 );
 
 DROP TABLE comments;

@@ -380,9 +380,15 @@ func TestACommentsScopeAndItsLinesHaveToAgree(t *testing.T) {
 	}{
 		{name: "a range over lines", scope: "range", start: 4, end: 9, ok: true},
 		{name: "a file over none", scope: "file", ok: true},
+
+		// A selection of one is still a selection, so a range keeps its scope
+		// where a line comment would have been written the same way.
+		{name: "a range over one line", scope: "range", start: 4, end: 4, ok: true},
+
 		{name: "a file carrying lines", scope: "file", start: 4, end: 9},
 		{name: "a range carrying none", scope: "range"},
 		{name: "a line carrying none", scope: "line"},
+		{name: "a line over a span", scope: "line", start: 4, end: 9},
 		{name: "a range ending before it starts", scope: "range", start: 9, end: 4},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
