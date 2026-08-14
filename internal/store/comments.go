@@ -93,17 +93,41 @@ const commentColumns = `
 //
 // The id and both timestamps come from the caller. This package holds no clock
 // and no randomness, which is what keeps everything above it testable.
-func (db *DB) AddComment(ctx context.Context, c Comment) error {
+//
+// It returns ErrStaleGeneration when GenerationID is no longer the session's
+// latest. One insert needs a transaction for that alone: the assertion and the
+// write have to land together, or a comment lands anchored to a generation a
+// refresh has already read past and shows a live anchor on code nobody wrote it
+// about.
+func (db *DB) AddComment(ctx context.Context, c Comment) (err error) {
+	tx, err := db.handle.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("writing the comment on %s: %w", c.Path, err)
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	if err = assertLatest(ctx, tx, c.SessionID, c.GenerationID); err != nil {
+		return err
+	}
+
 	const q = `
 		INSERT INTO comments (` + commentColumns + `)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
-	_, err := db.handle.ExecContext(ctx, q,
+	_, err = tx.ExecContext(ctx, q,
 		c.ID, c.SessionID, c.GenerationID, c.CreatedGenerationID,
 		c.Path, string(c.Side), c.Start, c.End, string(c.Scope), c.Body, string(c.State),
 		c.AnchorBlob, c.LastPath, c.LastLine, stamp(c.CreatedAt), stamp(c.UpdatedAt),
 	)
 	if err != nil {
+		return fmt.Errorf("writing the comment on %s: %w", c.Path, err)
+	}
+
+	if err = tx.Commit(); err != nil {
 		return fmt.Errorf("writing the comment on %s: %w", c.Path, err)
 	}
 	return nil
@@ -121,19 +145,23 @@ func (db *DB) Comments(ctx context.Context, sessionID string) ([]Comment, error)
 		WHERE session_id = ?
 		ORDER BY path, start_line, created_at, id`
 
-	return db.comments(ctx, q, fmt.Sprintf("reading the comments of %s", sessionID), sessionID)
+	return comments(ctx, db.handle, q, fmt.Sprintf("reading the comments of %s", sessionID), sessionID)
 }
 
 // OpenComments is what a refresh translates: the open comments anchored to one
 // generation. Everything else has stopped moving and has nothing to carry.
 func (db *DB) OpenComments(ctx context.Context, generationID int64) ([]Comment, error) {
-	const q = `
+	return openComments(ctx, db.handle, generationID)
+}
+
+func openComments(ctx context.Context, q rower, generationID int64) ([]Comment, error) {
+	const read = `
 		SELECT ` + commentColumns + `
 		FROM comments
 		WHERE generation_id = ? AND state = 'open'
 		ORDER BY path, start_line, created_at, id`
 
-	return db.comments(ctx, q,
+	return comments(ctx, q, read,
 		fmt.Sprintf("reading the open comments of generation %d", generationID), generationID)
 }
 
@@ -192,8 +220,8 @@ func (db *DB) FreezeComment(
 }
 
 // comments runs one of the listing queries above.
-func (db *DB) comments(ctx context.Context, query, describe string, arg any) ([]Comment, error) {
-	rows, err := db.handle.QueryContext(ctx, query, arg)
+func comments(ctx context.Context, q rower, query, describe string, arg any) ([]Comment, error) {
+	rows, err := q.QueryContext(ctx, query, arg)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", describe, err)
 	}

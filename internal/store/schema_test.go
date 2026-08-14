@@ -223,7 +223,7 @@ func TestGenFileStatusIsConstrainedToTheVocabulary(t *testing.T) {
 	add := func(status diff.Status) error {
 		_, err := db.AddGeneration(ctx,
 			Generation{SessionID: "s", BaseSha: "b", HeadSha: "h", CommitSha: "c", CreatedAt: now},
-			[]GenFile{{Path: "a.txt", Status: status}}, Carry{})
+			[]GenFile{{Path: "a.txt", Status: status}}, Advance{})
 		return err
 	}
 
@@ -251,7 +251,7 @@ func TestGenFileCutIsConstrainedToABoolean(t *testing.T) {
 
 	g, err := db.AddGeneration(ctx,
 		Generation{SessionID: "s", BaseSha: "b", HeadSha: "h", CommitSha: "c", CreatedAt: now},
-		[]GenFile{{Path: "a.txt", Status: diff.FileModified}}, Carry{})
+		[]GenFile{{Path: "a.txt", Status: diff.FileModified}}, Advance{})
 	if err != nil {
 		t.Fatalf("adding the generation: %v", err)
 	}
@@ -287,7 +287,7 @@ func anchored(t *testing.T, db *DB) (created, current int64) {
 	for i := range ids {
 		g, err := db.AddGeneration(t.Context(),
 			Generation{SessionID: "s", BaseSha: "b", HeadSha: "h", CommitSha: "c", CreatedAt: now},
-			[]GenFile{{Path: "a.txt", Status: diff.FileModified}}, Carry{})
+			[]GenFile{{Path: "a.txt", Status: diff.FileModified}}, Advance{})
 		if err != nil {
 			t.Fatalf("adding a generation: %v", err)
 		}

@@ -84,9 +84,10 @@ func NoteOnFile(f File, body string) Note {
 
 // AddComment writes a comment against a generation and returns the row.
 //
-// It refuses a stale generation for the reason a mark does: the carry runs from
-// the latest generation, so a comment anchored to an older one is never picked
-// up and never moves again.
+// It refuses a stale generation for the reason a mark does, from inside the same
+// transaction as the insert: the carry runs from the latest generation, so a
+// comment anchored to an older one is never picked up and never moves again,
+// while still showing a live anchor on code nobody wrote it about.
 //
 // A path the generation does not hold is refused rather than stored. There is
 // nothing there to anchor to, no blob to record, and nothing that would ever
@@ -94,14 +95,6 @@ func NoteOnFile(f File, body string) Note {
 func (s *Session) AddComment(ctx context.Context, g Generation, n Note) (store.Comment, error) {
 	if err := n.check(); err != nil {
 		return store.Comment{}, err
-	}
-
-	latest, found, err := s.db.LatestGeneration(ctx, s.row.ID)
-	if err != nil {
-		return store.Comment{}, err
-	}
-	if !found || latest.ID != g.ID {
-		return store.Comment{}, &StaleGenerationError{Seq: g.Seq, Current: latest.Seq}
 	}
 
 	f, found, err := s.db.GenFile(ctx, g.ID, n.Path)
@@ -154,7 +147,7 @@ func (s *Session) AddComment(ctx context.Context, g Generation, n Note) (store.C
 		UpdatedAt:           now,
 	}
 	if err := s.db.AddComment(ctx, c); err != nil {
-		return store.Comment{}, err
+		return store.Comment{}, s.stale(ctx, g, err)
 	}
 	return c, nil
 }
@@ -203,6 +196,11 @@ func (s *Session) ResolveComment(ctx context.Context, id string) (store.Comment,
 		store.CommentOpen, store.CommentAddressed, store.CommentOrphaned)
 }
 
+// freezeAttempts is how many goes at the swap below. A comment moves at most
+// twice, open to addressed or orphaned and then to resolved, so this is the
+// length of its life rather than a guess at how unlucky one call can get.
+const freezeAttempts = 3
+
 // freeze stops a comment moving, recording where its anchor was when it did.
 //
 // A comment belonging to another session is not found rather than refused. The
@@ -211,37 +209,40 @@ func (s *Session) ResolveComment(ctx context.Context, id string) (store.Comment,
 //
 // The write only lands while the comment is still in the state that allowed it,
 // so a transition another instance made first is refused rather than overwritten.
-// Losing that swap re-reads and answers about the state that is actually there,
-// which is the same sentence the reader would have got a moment earlier.
+// Losing that swap goes again against the state that is there now, and refuses
+// only once that state is one this transition does not accept. Answering the
+// first loss with a refusal would turn a refresh orphaning a comment into a
+// refused resolve, and resolving an orphan is the reader's call either way.
 func (s *Session) freeze(
 	ctx context.Context,
 	id string,
 	to store.CommentState,
 	from ...store.CommentState,
 ) (store.Comment, error) {
-	c, err := s.comment(ctx, id)
-	if err != nil {
-		return store.Comment{}, err
-	}
-	if !slices.Contains(from, c.State) {
-		return store.Comment{}, &CommentStateError{ID: id, Is: c.State, To: to}
-	}
-
-	now := time.Now().UTC().Truncate(time.Second)
-	won, err := s.db.FreezeComment(ctx, id, c.State, to, c.Path, c.Start, now)
-	if err != nil {
-		return store.Comment{}, err
-	}
-	if !won {
-		fresh, err := s.comment(ctx, id)
+	for range freezeAttempts {
+		c, err := s.comment(ctx, id)
 		if err != nil {
 			return store.Comment{}, err
 		}
-		return store.Comment{}, &CommentStateError{ID: id, Is: fresh.State, To: to}
-	}
+		if !slices.Contains(from, c.State) {
+			return store.Comment{}, &CommentStateError{ID: id, Is: c.State, To: to}
+		}
 
-	c.State, c.LastPath, c.LastLine, c.UpdatedAt = to, c.Path, c.Start, now
-	return c, nil
+		if s.beforeFreeze != nil {
+			s.beforeFreeze()
+		}
+
+		now := time.Now().UTC().Truncate(time.Second)
+		won, err := s.db.FreezeComment(ctx, id, c.State, to, c.Path, c.Start, now)
+		if err != nil {
+			return store.Comment{}, err
+		}
+		if won {
+			c.State, c.LastPath, c.LastLine, c.UpdatedAt = to, c.Path, c.Start, now
+			return c, nil
+		}
+	}
+	return store.Comment{}, fmt.Errorf("the comment %s is being changed from somewhere else faster than this can read it", id)
 }
 
 // comment is one of this session's comments, by id.

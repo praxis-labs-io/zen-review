@@ -42,6 +42,14 @@ type Session struct {
 	db   *store.DB
 	row  store.Session
 	base Base
+
+	// duringRefresh runs between the refresh naming what it is carrying and the
+	// transaction that writes the generation, and beforeFreeze between a comment's
+	// state being read and the swap that changes it. Both are windows a concurrent
+	// write lands in, and both are seams the concurrency tests drive them through.
+	// Nothing outside those tests sets either.
+	duringRefresh func()
+	beforeFreeze  func()
 }
 
 // Open resolves the session for the repository containing path, creating it on

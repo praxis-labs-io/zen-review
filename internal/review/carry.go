@@ -8,72 +8,78 @@ import (
 	"github.com/zen-review/zen-review/internal/store"
 )
 
-// carry is the previous generation's reviewed state, translated onto the
-// generation being written. files is that generation's changeset, already
-// parsed by the caller.
+// carry is how the previous generation's review state reaches the one being
+// written: the git work, and a translation the store runs inside the transaction
+// that writes the row. files is the new generation's changeset, already parsed
+// by the caller.
 //
-// It runs before the compare-and-swap rather than after. Everything between the
-// ref moving and the row landing is a window where a failure leaves the ref
-// ahead of the database, and two whole-tree diffs is too much to put in it. The
-// price is that a lost race throws the work away, which is a path the CLI
-// already documents as an ordinary outcome.
+// The two halves are split because only the git half can be done early. It runs
+// before the compare-and-swap, since everything between the ref moving and the
+// row landing is a window where a failure leaves the ref ahead of the database,
+// and two whole-tree diffs is too much to put in it. The price is that a lost
+// race throws the work away, which is a path the CLI already documents as an
+// ordinary outcome.
+//
+// The rows go the other way. Nothing the diffs depend on is a row, so reading
+// them is left to the transaction, where a mark, a comment or a state change
+// committed a moment earlier is picked up and one arriving a moment later is
+// refused. Read out here they would be read past, and the write would be
+// accepted and lost.
 //
 // The holds early return builds no generation at all, so there is nothing there
 // to stamp and nothing to carry.
-func (s *Session) carry(ctx context.Context, latest store.Generation, found bool, tree string, files []diff.File) (store.Carry, error) {
+func (s *Session) carry(ctx context.Context, latest store.Generation, found bool, tree string, files []diff.File) (store.Advance, error) {
 	if !found {
-		return store.Carry{}, nil
-	}
-
-	rows, err := s.db.ReviewedRanges(ctx, latest.ID)
-	if err != nil {
-		return store.Carry{}, err
-	}
-
-	// One indexed read, against two whole-tree diffs already in this window. It
-	// runs before the early return because a file cut to nothing has no ranges
-	// left, and that is the case the record exists for.
-	prior, err := s.cuts(ctx, latest.ID)
-	if err != nil {
-		return store.Carry{}, err
-	}
-
-	// Only the open ones. Everything else has stopped moving, and a refresh that
-	// moved a resolved comment would be reopening a question somebody closed.
-	open, err := s.db.OpenComments(ctx, latest.ID)
-	if err != nil {
-		return store.Carry{}, err
-	}
-
-	if len(rows) == 0 && len(prior) == 0 && len(open) == 0 {
-		// Every refresh before the first mark and the first comment, and the
-		// reason neither diff runs on the common path.
-		return store.Carry{}, nil
+		return store.Advance{}, nil
 	}
 
 	was, err := s.repo.Tree(ctx, latest.CommitSha)
 	if err != nil {
-		return store.Carry{}, err
+		return store.Advance{}, err
 	}
-
-	headRows, baseRows := onSide(rows, store.SideHead), onSide(rows, store.SideBase)
-	headNotes, baseNotes := commentsOn(open, store.SideHead), commentsOn(open, store.SideBase)
 
 	// One diff per side, shared by the ranges and the comments. They move through
 	// the same change and differ only in how forgiving they are about it.
-	headMoved, err := s.moved(ctx, len(headRows)+len(prior)+len(headNotes) > 0, was, tree)
+	//
+	// Both run whether or not there is anything to carry, because what there is to
+	// carry is not known until the transaction. A refresh before the first mark
+	// pays for one tree-to-tree diff between adjacent generations, which is less
+	// than the base-to-tree diff Refresh already runs to build the changeset.
+	headMoved, err := s.moved(ctx, was, tree)
 	if err != nil {
-		return store.Carry{}, err
+		return store.Advance{}, err
 	}
 
 	// Base-side anchors are a deletion-only hunk somebody marked or wrote against,
-	// or the whole-file mark on a deleted file with no lines, so this is nearly
-	// always nothing and the base diff is the expensive one when it does fire.
-	// prior is head-keyed and is carried on the head side alone.
-	baseMoved, err := s.moved(ctx, len(baseRows)+len(baseNotes) > 0, latest.BaseSha, s.base.SHA)
+	// or the whole-file mark on a deleted file with no lines. A base that has not
+	// moved costs a string comparison, which is the common case.
+	baseMoved, err := s.moved(ctx, latest.BaseSha, s.base.SHA)
 	if err != nil {
-		return store.Carry{}, err
+		return store.Advance{}, err
 	}
+
+	return store.Advance{
+		From: latest.ID,
+		Carry: func(p store.Prior) store.Carry {
+			return translated(p, headMoved, baseMoved, files)
+		},
+	}, nil
+}
+
+// translated moves one generation's review state onto the next. It is pure: it
+// runs inside the store's transaction, holding the only connection, so it reads
+// nothing and writes nothing itself.
+func translated(p store.Prior, headMoved, baseMoved map[string]diff.File, files []diff.File) store.Carry {
+	// A file cut to nothing has no ranges left, so the record is gathered before
+	// the empty check rather than after. That case is what it exists for.
+	prior := cutsOf(p.Files)
+	if len(p.Ranges) == 0 && len(prior) == 0 && len(p.Comments) == 0 {
+		// Every refresh before the first mark and the first comment.
+		return store.Carry{}
+	}
+
+	headRows, baseRows := onSide(p.Ranges, store.SideHead), onSide(p.Ranges, store.SideBase)
+	headNotes, baseNotes := commentsOn(p.Comments, store.SideHead), commentsOn(p.Comments, store.SideBase)
 
 	head, cut := translate(headRows, store.SideHead, headMoved, prior)
 	head = readable(head, hunky(files))
@@ -83,7 +89,7 @@ func (s *Session) carry(ctx context.Context, latest store.Generation, found bool
 
 	carried := append(head, base...)
 	moved := append(carryAnchors(headNotes, headMoved), carryAnchors(baseNotes, baseMoved)...)
-	return store.Carry{Ranges: carried, Cut: settled(cut, files, carried), Comments: moved}, nil
+	return store.Carry{Ranges: carried, Cut: settled(cut, files, carried), Comments: moved}
 }
 
 // carryAnchors moves each comment's anchor through one side's change.
@@ -123,22 +129,17 @@ func carryAnchors(comments []store.Comment, moved map[string]diff.File) []store.
 	return out
 }
 
-// cuts is what the previous generation was left holding, keyed by the path each
-// file had there. translate moves the key onto the new path, so a file renamed
-// between two generations keeps its record without a second diff.
-func (s *Session) cuts(ctx context.Context, generationID int64) (map[string]bool, error) {
-	files, err := s.db.GenFiles(ctx, generationID)
-	if err != nil {
-		return nil, err
-	}
-
+// cutsOf is what the previous generation was left holding, keyed by the path
+// each file had there. translate moves the key onto the new path, so a file
+// renamed between two generations keeps its record without a second diff.
+func cutsOf(files []store.GenFile) map[string]bool {
 	out := make(map[string]bool)
 	for _, f := range files {
 		if f.Cut {
 			out[f.Path] = true
 		}
 	}
-	return out, nil
+	return out
 }
 
 // onHead folds the base side's cuts into the head side's, under the name the
@@ -222,12 +223,12 @@ func readable(rows []store.ReviewedRange, hunks map[string]bool) []store.Reviewe
 // moved indexes one side's change by the path each file had before it, which is
 // the path an anchor is stored under.
 //
-// It is nil where nothing has to move, and nil where the two ends are the same
-// object. That is the rebase leaving the content byte-identical: every file is
-// absent from an empty index, which is the same answer a diff would give, so the
-// doc's promise that a review survives one costs a string comparison.
-func (s *Session) moved(ctx context.Context, wanted bool, from, to string) (map[string]diff.File, error) {
-	if !wanted || from == to {
+// It is nil where the two ends are the same object. That is the rebase leaving
+// the content byte-identical: every file is absent from an empty index, which is
+// the same answer a diff would give, so the doc's promise that a review survives
+// one costs a string comparison.
+func (s *Session) moved(ctx context.Context, from, to string) (map[string]diff.File, error) {
+	if from == to {
 		return nil, nil
 	}
 

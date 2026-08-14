@@ -36,6 +36,12 @@ func open(t *testing.T) *store.DB {
 	return db
 }
 
+// carrying hands AddGeneration a carry the test built by hand, which is what
+// stands in for the translation the engine passes down.
+func carrying(c store.Carry) store.Advance {
+	return store.Advance{Carry: func(store.Prior) store.Carry { return c }}
+}
+
 // session is a saved session the generation tests can hang rows off.
 func session(t *testing.T, db *store.DB, id string) store.Session {
 	t.Helper()
@@ -214,7 +220,7 @@ func TestGenerationsAreNumberedAsTheyArrive(t *testing.T) {
 			HeadSha:   "head",
 			CommitSha: "commit",
 			CreatedAt: epoch,
-		}, nil, store.Carry{})
+		}, nil, store.Advance{})
 		if err != nil {
 			t.Fatalf("adding generation %d: %v", want, err)
 		}
@@ -261,7 +267,7 @@ func TestAGenerationAndItsFilesLandTogetherOrNotAtAll(t *testing.T) {
 
 	if _, err := db.AddGeneration(t.Context(), store.Generation{
 		SessionID: s.ID, BaseSha: "base", HeadSha: "head", CommitSha: "one", CreatedAt: epoch,
-	}, []store.GenFile{{Path: "a.go", Status: diff.FileModified}}, store.Carry{}); err != nil {
+	}, []store.GenFile{{Path: "a.go", Status: diff.FileModified}}, store.Advance{}); err != nil {
 		t.Fatalf("adding the first generation: %v", err)
 	}
 
@@ -270,7 +276,7 @@ func TestAGenerationAndItsFilesLandTogetherOrNotAtAll(t *testing.T) {
 	}, []store.GenFile{
 		{Path: "a.go", Status: diff.FileModified},
 		{Path: "a.go", Status: diff.FileAdded},
-	}, store.Carry{})
+	}, store.Advance{})
 	if err == nil {
 		t.Fatal("two files at one path should not write")
 	}
@@ -290,7 +296,7 @@ func TestAGenerationAndItsFilesLandTogetherOrNotAtAll(t *testing.T) {
 	// rather than leaving a gap the ref chain does not have.
 	next, err := db.AddGeneration(t.Context(), store.Generation{
 		SessionID: s.ID, BaseSha: "base", HeadSha: "head", CommitSha: "three", CreatedAt: epoch,
-	}, nil, store.Carry{})
+	}, nil, store.Advance{})
 	if err != nil {
 		t.Fatalf("adding a generation after the failed one: %v", err)
 	}
@@ -306,7 +312,7 @@ func TestAGenerationWithoutItsSessionIsRefused(t *testing.T) {
 
 	_, err := db.AddGeneration(t.Context(), store.Generation{
 		SessionID: "never-saved", BaseSha: "base", HeadSha: "head", CommitSha: "commit", CreatedAt: epoch,
-	}, nil, store.Carry{})
+	}, nil, store.Advance{})
 	if err == nil {
 		t.Fatal("a generation for a session that does not exist should not write")
 	}
@@ -323,7 +329,7 @@ func TestGenFilesComeBackOrderedByPath(t *testing.T) {
 	}
 	g, err := db.AddGeneration(t.Context(), store.Generation{
 		SessionID: s.ID, BaseSha: "base", HeadSha: "head", CommitSha: "commit", CreatedAt: epoch,
-	}, []store.GenFile{want[2], want[0], want[1]}, store.Carry{})
+	}, []store.GenFile{want[2], want[0], want[1]}, store.Advance{})
 	if err != nil {
 		t.Fatalf("adding the generation: %v", err)
 	}
@@ -357,7 +363,7 @@ func TestACarriedCutLandsOnTheFileItNames(t *testing.T) {
 	}
 	g, err := db.AddGeneration(t.Context(), store.Generation{
 		SessionID: s.ID, BaseSha: "base", HeadSha: "head", CommitSha: "commit", CreatedAt: epoch,
-	}, files, store.Carry{Cut: map[string]bool{"a.go": true, "gone.go": true}})
+	}, files, carrying(store.Carry{Cut: map[string]bool{"a.go": true, "gone.go": true}}))
 	if err != nil {
 		t.Fatalf("adding the generation: %v", err)
 	}
@@ -398,7 +404,7 @@ func TestAWriteSettlesOnlyTheCutItNames(t *testing.T) {
 	}
 	g, err := db.AddGeneration(t.Context(), store.Generation{
 		SessionID: s.ID, BaseSha: "base", HeadSha: "head", CommitSha: "commit", CreatedAt: epoch,
-	}, files, store.Carry{Cut: map[string]bool{"new.go": true, "z.go": true}})
+	}, files, carrying(store.Carry{Cut: map[string]bool{"new.go": true, "z.go": true}}))
 	if err != nil {
 		t.Fatalf("adding the generation: %v", err)
 	}
@@ -575,7 +581,7 @@ func TestTwoInstancesNumberGenerationsWithoutColliding(t *testing.T) {
 			start.Wait()
 			g, err := db.AddGeneration(t.Context(), store.Generation{
 				SessionID: s.ID, BaseSha: "base", HeadSha: "head", CommitSha: "commit", CreatedAt: epoch,
-			}, nil, store.Carry{})
+			}, nil, store.Advance{})
 			seqs[i], errs[i] = g.Seq, err
 		}()
 	}

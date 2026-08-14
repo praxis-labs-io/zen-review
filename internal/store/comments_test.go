@@ -16,7 +16,7 @@ func holding(t *testing.T, db *store.DB, s store.Session, commit string) store.G
 
 	g, err := db.AddGeneration(t.Context(), store.Generation{
 		SessionID: s.ID, BaseSha: "base", HeadSha: "head", CommitSha: commit, CreatedAt: epoch,
-	}, []store.GenFile{{Path: "a.go", Status: diff.FileModified, BaseBlob: "b1", HeadBlob: "h1"}}, store.Carry{})
+	}, []store.GenFile{{Path: "a.go", Status: diff.FileModified, BaseBlob: "b1", HeadBlob: "h1"}}, store.Advance{})
 	if err != nil {
 		t.Fatalf("adding the generation %s: %v", commit, err)
 	}
@@ -106,17 +106,20 @@ func TestAnUnknownCommentIsAbsenceRatherThanAnError(t *testing.T) {
 func TestOnlyTheOpenCommentsOfOneGenerationAreCarried(t *testing.T) {
 	db := open(t)
 	s := session(t, db, "queue")
-	first := holding(t, db, s, "one")
-	second := holding(t, db, s, "two")
 
+	// Each comment is written while its own generation is the latest, because
+	// that is the only time a comment can be written at all.
+	first := holding(t, db, s, "one")
 	comment(t, db, s, first, "open-here", 4)
-	comment(t, db, s, second, "open-later", 7)
 
 	closed := comment(t, db, s, first, "resolved-here", 11)
 	if _, err := db.FreezeComment(t.Context(), closed.ID,
 		store.CommentOpen, store.CommentResolved, "a.go", 11, epoch); err != nil {
 		t.Fatalf("resolving the comment: %v", err)
 	}
+
+	second := holding(t, db, s, "two")
+	comment(t, db, s, second, "open-later", 7)
 
 	got, err := db.OpenComments(t.Context(), first.ID)
 	if err != nil {
@@ -163,9 +166,9 @@ func TestACarriedAnchorMovesOntoTheNewGeneration(t *testing.T) {
 
 	second, err := db.AddGeneration(t.Context(), store.Generation{
 		SessionID: s.ID, BaseSha: "base", HeadSha: "head", CommitSha: "two", CreatedAt: epoch.Add(time.Hour),
-	}, []store.GenFile{{Path: "b.go", Status: diff.FileRenamed, OldPath: "a.go"}}, store.Carry{
+	}, []store.GenFile{{Path: "b.go", Status: diff.FileRenamed, OldPath: "a.go"}}, carrying(store.Carry{
 		Comments: []store.CommentMove{{ID: c.ID, Path: "b.go", LineRange: store.LineRange{Start: 11, End: 11}}},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("adding the generation: %v", err)
 	}
@@ -205,7 +208,7 @@ func TestALostAnchorOrphansTheCommentWhereItStands(t *testing.T) {
 
 	if _, err := db.AddGeneration(t.Context(), store.Generation{
 		SessionID: s.ID, BaseSha: "base", HeadSha: "head", CommitSha: "two", CreatedAt: epoch.Add(time.Hour),
-	}, nil, store.Carry{Comments: []store.CommentMove{{ID: c.ID, Lost: true}}}); err != nil {
+	}, nil, carrying(store.Carry{Comments: []store.CommentMove{{ID: c.ID, Lost: true}}})); err != nil {
 		t.Fatalf("adding the generation: %v", err)
 	}
 
@@ -236,9 +239,9 @@ func TestAGenerationAndItsCommentMovesLandTogetherOrNotAtAll(t *testing.T) {
 
 	_, err := db.AddGeneration(t.Context(), store.Generation{
 		SessionID: s.ID, BaseSha: "base", HeadSha: "head", CommitSha: "two", CreatedAt: epoch,
-	}, nil, store.Carry{
+	}, nil, carrying(store.Carry{
 		Comments: []store.CommentMove{{ID: c.ID, Path: "a.go", LineRange: store.LineRange{Start: 4, End: 9}}},
-	})
+	}))
 	if err == nil {
 		t.Fatal("a line comment stretched over a span should not write")
 	}

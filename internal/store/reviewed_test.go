@@ -19,7 +19,7 @@ func generation(t *testing.T, db *store.DB, id string) (store.Session, store.Gen
 	s := session(t, db, id)
 	g, err := db.AddGeneration(t.Context(), store.Generation{
 		SessionID: s.ID, BaseSha: "base", HeadSha: "head", CommitSha: "commit", CreatedAt: epoch,
-	}, nil, store.Carry{})
+	}, nil, store.Advance{})
 	if err != nil {
 		t.Fatalf("adding the generation: %v", err)
 	}
@@ -253,7 +253,7 @@ func TestGenFileFindsOnePathAndSaysWhenItIsNotThere(t *testing.T) {
 	}, []store.GenFile{
 		{Path: "a.go", Status: diff.FileModified},
 		{Path: "new.go", OldPath: "old.go", Status: diff.FileRenamed},
-	}, store.Carry{})
+	}, store.Advance{})
 	if err != nil {
 		t.Fatalf("adding the generation: %v", err)
 	}
@@ -324,9 +324,9 @@ func TestAGenerationAndItsCarriedRangesLandTogetherOrNotAtAll(t *testing.T) {
 	db := open(t)
 	s := session(t, db, "carried")
 
-	carry := store.Carry{Ranges: []store.ReviewedRange{
+	carry := carrying(store.Carry{Ranges: []store.ReviewedRange{
 		{Path: "a.go", Side: store.SideHead, LineRange: store.LineRange{Start: 1, End: 5}, CreatedAt: epoch},
-	}}
+	}})
 
 	first, err := db.AddGeneration(t.Context(), store.Generation{
 		SessionID: s.ID, BaseSha: "base", HeadSha: "head", CommitSha: "one", CreatedAt: epoch,

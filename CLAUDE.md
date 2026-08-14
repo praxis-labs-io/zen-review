@@ -167,6 +167,18 @@ refreshing one session both build, one wins the swap, and the loser writes
 nothing. The other order lets both write rows and leaves the ref pointing at one
 of them.
 
+The row is written in a transaction that reads what it carries from inside
+itself, and every write naming a generation asserts from inside its own that the
+generation is still the latest. A mark, a comment or a state change committed
+while a refresh is in flight therefore moves forward with it or is refused,
+never accepted and lost. All the git work is done before that transaction opens,
+which it can be because nothing the translation needs is a row.
+
+The refresh takes the same assertion. A swap can succeed on a ref read after
+somebody else moved it, and a refresh carrying out of a generation that is no
+longer the tip would drop every write made against the one in between. So it
+refuses, and reports the lost race the swap would have.
+
 Reviewed state is line ranges, never hunk indices: an agent inserting twenty
 lines above hunk 3 leaves different code wearing the same label. A refresh
 translates them through one diff of the two generation trees, and a range that
