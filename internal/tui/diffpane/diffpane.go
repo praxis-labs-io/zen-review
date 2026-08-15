@@ -776,7 +776,7 @@ func (m Model) mine() []store.Comment {
 // live is whether a comment's anchor is measured in the generation on screen. A
 // frozen one keeps the anchor it stopped at, naming whatever is there now.
 func (m Model) live(c store.Comment) bool {
-	return m.gen == 0 || c.GenerationID == m.gen
+	return c.GenerationID == m.gen
 }
 
 // on is whether a diff line is the file's line n on the side a comment was
