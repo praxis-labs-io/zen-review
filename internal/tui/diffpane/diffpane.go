@@ -40,6 +40,11 @@ type KeyMap struct {
 	Centre   key.Binding
 	ToTop    key.Binding
 	ToBottom key.Binding
+
+	// Fold and Jump act on the comment card the cursor is on, and do nothing
+	// anywhere else. They are the tree's two keys doing the tree's two jobs.
+	Fold key.Binding
+	Jump key.Binding
 }
 
 // NewKeyMap is the bindings and the help text they carry.
@@ -55,7 +60,16 @@ func NewKeyMap() KeyMap {
 		Centre:   key.NewBinding(key.WithKeys("z")),
 		ToTop:    key.NewBinding(key.WithKeys("t")),
 		ToBottom: key.NewBinding(key.WithKeys("b")),
+
+		Fold: key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "fold comment")),
+		Jump: key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "go to its line")),
 	}
+}
+
+// Cards is the keys a comment card answers to, for the column of the help the
+// pane holding one owns.
+func (k KeyMap) Cards() []key.Binding {
+	return []key.Binding{k.Fold, k.Jump}
 }
 
 // Scrolling is the keys that page the diff, which answer from either pane.
@@ -101,8 +115,14 @@ type Model struct {
 	painter paint.Painter
 	syntax  syntax.Syntax
 
-	file *review.File
-	rows []row
+	file     *review.File
+	comments []store.Comment
+	rows     []row
+
+	// cards are the comments on this file, in the order they were laid out.
+	// folded is the ones the reader has toggled away from their default.
+	cards  []card
+	folded map[string]bool
 
 	// cursor is the row the reader is on, -1 until the root names a hunk. headAt
 	// is where each hunk starts, gutter the width its line numbers took.
@@ -128,6 +148,7 @@ const (
 	codeRow rowKind = iota
 	headRow
 	noteRow
+	cardRow
 )
 
 // row is one line of the pane: what it says, and what it takes to say it again.
@@ -142,6 +163,14 @@ type row struct {
 	// hunk is the one this row belongs to, and -1 for a row outside every one.
 	// The blank between two hunks goes to the one above it, so this never falls.
 	hunk int
+
+	// card is the comment this row is part of, indexing m.cards, and -1 on every
+	// other row.
+	card int
+
+	// seq is the row's place among the ones a width change cannot move, which is
+	// all of them but a card's. It is what carries the cursor over a relayout.
+	seq int
 }
 
 // New is an empty pane. A changeset with no files leaves it that way.
@@ -166,10 +195,9 @@ func New(t theme.Theme) Model {
 // A nil file empties the pane, which is what a changeset with nothing in it
 // looks like. The cursor comes with the file, from Select: the root decides
 // which hunk it lands on and this pane never guesses.
-func (m *Model) SetFile(f *review.File) {
-	m.file, m.offset = f, 0
+func (m *Model) SetFile(f *review.File, comments []store.Comment) {
+	m.file, m.comments, m.offset = f, comments, 0
 	m.layout()
-	m.repaintAll()
 }
 
 // Cursor is the row the reader is on, and -1 when the pane has none. It is what
@@ -216,6 +244,45 @@ func (m *Model) Select(side store.Side, line int) {
 	}
 }
 
+// SelectComment lands the cursor on a comment's card, with the code it answers
+// still above it. Nothing happens for a comment this file does not hold.
+func (m *Model) SelectComment(id string) {
+	for i := range m.cards {
+		if m.cards[i].id == id {
+			m.point(m.cards[i].at)
+			m.showCard(i)
+			return
+		}
+	}
+}
+
+// Comment is the card the cursor is on, and false when it is not on one.
+func (m Model) Comment() (string, bool) {
+	if c := m.cardOf(m.cursor); c != nil {
+		return c.id, true
+	}
+	return "", false
+}
+
+// showCard brings a card's last row on screen without scrolling past the line it
+// answers. Topping the card would scroll that line away.
+func (m *Model) showCard(i int) {
+	if m.height <= 0 {
+		return
+	}
+	c := m.cards[i]
+
+	top := c.at
+	if c.anchor >= 0 {
+		top = c.anchor
+	}
+
+	// A card and its anchor taller than the window cannot both be shown, and the
+	// line it answers is the half to keep.
+	m.offset = max(min(m.offset, top), min(c.end()-m.height, top))
+	m.clampOffset()
+}
+
 // point puts the cursor on a row and repaints what moved: the two rows, and the
 // heading of the hunk each is in. -1 takes the cursor off the pane.
 func (m *Model) point(i int) {
@@ -226,6 +293,23 @@ func (m *Model) point(i int) {
 	was := m.cursor
 	m.cursor, m.waiting = i, false
 	m.repaint(was, i, m.headOf(was), m.headOf(i))
+
+	// A card's whole border changes with the cursor, so both cards it moved
+	// between are redrawn rather than the one row it left and the one it took.
+	m.repaintCard(was)
+	m.repaintCard(i)
+}
+
+// repaintCard redraws every row of the card a row belongs to, and nothing for a
+// row outside every one.
+func (m *Model) repaintCard(i int) {
+	c := m.cardOf(i)
+	if c == nil {
+		return
+	}
+	for at := c.at; at < c.end(); at++ {
+		m.repaint(at)
+	}
 }
 
 // moveTo is point with the row clamped to the file and the window brought back
@@ -244,6 +328,19 @@ func (m *Model) moveTo(i int) {
 			by = -1
 		}
 		i = max(0, min(i+by, len(m.rows)-1))
+	}
+
+	// A card is one block and one stop. Walking its border and its prose a row
+	// at a time would be six presses to clear one comment.
+	if c := m.cardOf(i); c != nil && i != c.at {
+		switch {
+		case i < m.cursor:
+			i = c.at
+		case c.end() < len(m.rows):
+			i = c.end()
+		default:
+			i = c.at
+		}
 	}
 
 	m.point(i)
@@ -318,6 +415,14 @@ func (m Model) render(i int) (string, lipgloss.Style) {
 		l := r.line
 		l.Fill = fill
 		return m.painter.Line(l, m.gutter, m.width), lipgloss.NewStyle()
+	case cardRow:
+		// A card is one block, so a cursor anywhere in it lights the whole thing.
+		// Both drawings are already the pane's width and take no padding.
+		c := m.cards[r.card]
+		if on := m.cardOf(m.cursor); on != nil && on.id == c.id {
+			return c.lit[i-c.at], lipgloss.NewStyle()
+		}
+		return c.plain[i-c.at], lipgloss.NewStyle()
 	}
 
 	// A note is the pane's own line about the file rather than a line of it, so
@@ -431,9 +536,10 @@ func (m Model) fits(at int) bool {
 // first sizing scrolls to the cursor; a later one only keeps it on screen.
 func (m *Model) SetSize(width, height int) {
 	first := m.width == 0 && m.height == 0
+	was := m.placeOf(m.cursor)
 
 	m.width, m.height = width, height
-	m.repaintAll()
+	m.relayout(was)
 	m.reveal()
 
 	if first {
@@ -480,6 +586,10 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	}
 
 	switch {
+	case key.Matches(press, m.Keys.Fold):
+		m.fold()
+	case key.Matches(press, m.Keys.Jump):
+		m.jump()
 	case key.Matches(press, m.Keys.Down):
 		m.moveTo(m.cursor + 1)
 	case key.Matches(press, m.Keys.Up):
@@ -494,6 +604,31 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.moveTo(len(m.rows) - 1)
 	}
 	return m, nil
+}
+
+// fold takes a card down to its one row, or opens it back up. It changes the
+// card's height, so the rows are rebuilt and the cursor put back on it.
+func (m *Model) fold() {
+	c := m.cardOf(m.cursor)
+	if c == nil {
+		return
+	}
+
+	if m.folded == nil {
+		m.folded = make(map[string]bool)
+	}
+	m.folded[c.id] = !m.folded[c.id]
+
+	m.relayout(place{comment: c.id, seq: -1})
+	m.reveal()
+}
+
+// jump takes the cursor from a card to the first line it is about. A card the
+// diff has no line for has nowhere to go, and the key says nothing on it.
+func (m *Model) jump() {
+	if c := m.cardOf(m.cursor); c != nil && c.anchor >= 0 {
+		m.moveTo(c.anchor)
+	}
 }
 
 // View pins the top row's own hunk heading there once that heading has scrolled
@@ -515,10 +650,10 @@ func (m Model) View() string {
 	return strings.Join(out, "\n")
 }
 
-// layout rebuilds the rows from the file. It takes no width, so the root can put
-// the cursor on a hunk before the terminal has said how big the pane is.
+// layout rebuilds the rows from the file and the comments written against it. A
+// card's height moves with the width, so relayout is what carries a cursor over.
 func (m *Model) layout() {
-	m.rows, m.headAt, m.cursor = nil, nil, -1
+	m.rows, m.headAt, m.cards, m.cursor = nil, nil, nil, -1
 	if m.file == nil {
 		return
 	}
@@ -526,38 +661,118 @@ func (m *Model) layout() {
 	tokens := m.tokens(*m.file)
 	m.gutter = paint.Gutter(widest(*m.file))
 
-	seen := 0
+	mine := m.mine()
+	placed := make([]bool, len(mine))
+
+	// A file comment names the whole file rather than a line in it, so it heads
+	// the file the way a whole-file reviewed range covers one.
+	for i, c := range mine {
+		if c.Scope == store.ScopeFile {
+			placed[i] = true
+			m.addCard(c, -1, -1)
+		}
+	}
+
+	// first is the row a comment's own first line landed on, which is where enter
+	// goes and how far up the ring scrolls. The card hangs under its last.
+	first := make(map[string]int, len(mine))
+
+	seen, seq := 0, 0
+	add := func(r row) {
+		r.card, r.seq = -1, seq
+		seq++
+		m.rows = append(m.rows, r)
+	}
+
 	for i, h := range m.file.Hunks {
 		if i > 0 {
-			m.rows = append(m.rows, row{kind: noteRow, hunk: i - 1})
+			add(row{kind: noteRow, hunk: i - 1})
 		}
 
 		m.headAt = append(m.headAt, len(m.rows))
-		m.rows = append(m.rows, row{kind: headRow, hunk: i})
+		add(row{kind: headRow, hunk: i})
 
 		for _, l := range h.Diff.Lines {
-			m.rows = append(m.rows, row{kind: codeRow, hunk: i, line: paint.Line{
+			add(row{kind: codeRow, hunk: i, line: paint.Line{
 				Kind:   kindOf(l.Kind),
 				Old:    l.Old,
 				New:    l.New,
 				Tokens: tokens[seen],
 			}})
+			at := len(m.rows) - 1
 			seen++
 
 			// It hangs under the line it was written about. Without it a file that
 			// lost its trailing newline shows two rows of the same text.
 			if l.NoEOL {
-				m.rows = append(m.rows, row{kind: noteRow, hunk: i, note: `\ No newline at end of file`})
+				add(row{kind: noteRow, hunk: i, note: `\ No newline at end of file`})
+			}
+
+			// A card hangs under the last line of what it answers, so that code is
+			// above it and stays on screen when the ring lands on the card.
+			for j, c := range mine {
+				if _, seen := first[c.ID]; !seen && on(c, l, c.Start) {
+					first[c.ID] = at
+				}
+				if !placed[j] && on(c, l, c.End) {
+					placed[j] = true
+
+					// A range whose first line the diff does not show anchors to its
+					// last, which is the row the card is already hanging under.
+					anchor, ok := first[c.ID]
+					if !ok {
+						anchor = at
+					}
+					m.addCard(c, i, anchor)
+				}
 			}
 		}
 	}
 
 	if len(m.file.Hunks) == 0 {
-		m.rows = append(m.rows, row{kind: noteRow, hunk: -1, note: emptyReason(*m.file)})
+		add(row{kind: noteRow, hunk: -1, note: emptyReason(*m.file)})
 	}
+
+	// What the diff had no line for still draws. An open comment can anchor at a
+	// line the changeset has moved past, and dropping it loses what was asked.
+	for i, c := range mine {
+		if !placed[i] {
+			m.addCard(c, -1, -1)
+		}
+	}
+
+	m.repaintAll()
 }
 
-// repaintAll draws every row at the pane's width, which is all a resize needs.
+// mine is the comments written against the file in the pane, in the order they
+// came, which is the order review sorted them in.
+func (m Model) mine() []store.Comment {
+	if m.file == nil {
+		return nil
+	}
+
+	out := make([]store.Comment, 0, len(m.comments))
+	for _, c := range m.comments {
+		if m.file.Owns(c) {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// on is whether a diff line is the file's line n on the side a comment was
+// written against. A context line sits on both sides and answers to each.
+func on(c store.Comment, l diff.Line, n int) bool {
+	if n == 0 {
+		return false
+	}
+	if c.Side == store.SideBase {
+		return l.Old == n
+	}
+	return l.New == n
+}
+
+// repaintAll draws every row at the pane's width, which is all a relayout needs.
 // It is not in View, because tokenising writes a cache and View has to be pure.
 func (m *Model) repaintAll() {
 	if m.width <= 0 {
@@ -566,6 +781,58 @@ func (m *Model) repaintAll() {
 	for i := range m.rows {
 		m.rows[i].text = m.draw(i)
 	}
+}
+
+// place is what the cursor is on rather than which row it is, so it survives a
+// relayout: a card's height moves with the width, and every row after it.
+type place struct {
+	comment string
+	seq     int
+}
+
+// placeOf is what the row at i is, and a place naming nothing for no cursor.
+func (m Model) placeOf(i int) place {
+	if i < 0 || i >= len(m.rows) {
+		return place{seq: -1}
+	}
+	if c := m.cardOf(i); c != nil {
+		return place{comment: c.id, seq: -1}
+	}
+	return place{seq: m.rows[i].seq}
+}
+
+// rowAt is where a place landed this time round, and -1 when it is gone.
+func (m Model) rowAt(p place) int {
+	if p.comment != "" {
+		for i := range m.cards {
+			if m.cards[i].id == p.comment {
+				return m.cards[i].at
+			}
+		}
+		return -1
+	}
+	if p.seq < 0 {
+		return -1
+	}
+	for i := range m.rows {
+		if m.rows[i].card < 0 && m.rows[i].seq == p.seq {
+			return i
+		}
+	}
+	return -1
+}
+
+// relayout rebuilds the rows and puts the cursor back on what it was on. One
+// whose row went keeps a cursor rather than none: it fell off a resize.
+func (m *Model) relayout(p place) {
+	had := m.cursor >= 0
+	m.layout()
+
+	at := m.rowAt(p)
+	if at < 0 && had && len(m.rows) > 0 {
+		at = 0
+	}
+	m.point(at)
 }
 
 // tokens colours the file one side at a time, and hands back one entry per diff

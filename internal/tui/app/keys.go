@@ -20,6 +20,9 @@ type KeyMap struct {
 	NextFile key.Binding
 	PrevFile key.Binding
 
+	NextComment key.Binding
+	PrevComment key.Binding
+
 	Mark       key.Binding
 	MarkFile   key.Binding
 	Unmark     key.Binding
@@ -49,6 +52,11 @@ func NewKeyMap() KeyMap {
 		PrevRead: key.NewBinding(key.WithKeys("N"), key.WithHelp("N", "previous unread")),
 		NextFile: key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "next file")),
 		PrevFile: key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "previous file")),
+
+		// They walk what is unresolved, the way n walks what is unread. A ring
+		// stepping through settled work is a ring nobody holds down.
+		NextComment: key.NewBinding(key.WithKeys("]"), key.WithHelp("]", "next comment")),
+		PrevComment: key.NewBinding(key.WithKeys("["), key.WithHelp("[", "previous comment")),
 
 		// r advances after marking, so r r r r walks the whole thing. It does not
 		// toggle: advancing off a hunk just unmarked is a key with two jobs.
@@ -109,6 +117,7 @@ func (m Model) paneKeys() []key.Binding {
 		m.diff.Keys.Paging(),
 		comp.Pair(m.keys.Mark, m.keys.MarkFile, "r/R", "read"),
 		m.keys.Reload,
+		comp.Pair(m.keys.NextComment, m.keys.PrevComment, "]/[", "comment"),
 		comp.Pair(m.keys.NextFile, m.keys.PrevFile, "tab", "file"),
 	)
 }
@@ -157,10 +166,15 @@ func (m Model) FullHelp() [][]key.Binding {
 	// they answer from both.
 	movement = append(movement, m.diff.Keys.Scrolling()...)
 
-	// The z keys move the window under the cursor, so they reach only the pane
-	// holding one and are listed only where they work.
+	// The comment ring only moves, where the ring column's keys all act on what
+	// they land on. It also keeps that column inside eighty cells.
+	movement = append(movement, m.keys.NextComment, m.keys.PrevComment)
+
+	// The z keys move the window under the cursor and the card keys act on the
+	// card it is on, so both reach one pane and are listed only where they work.
 	if m.focus == focusDiff {
 		movement = append(movement, m.diff.Keys.Place)
+		movement = append(movement, m.diff.Keys.Cards()...)
 	}
 
 	// The reload is here and not in the ring's column: the ring moves the cursor

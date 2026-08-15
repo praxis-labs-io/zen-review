@@ -116,13 +116,19 @@ func (r *reloader) wrote(g review.Generation, do func() error) (app.Reload, erro
 	return rel, nil
 }
 
-// at is the changeset as it now stands at one generation.
+// at is the changeset at one generation and the comments written against it.
+// Both off the one generation, or a card hangs under a line the other has moved.
 func (r *reloader) at(g review.Generation) (app.Reload, error) {
 	c, err := r.s.Changeset(r.ctx, g)
 	if err != nil {
 		return app.Reload{}, err
 	}
-	return app.Reload{Base: r.s.Base(), Generation: g, Changeset: c}, nil
+
+	comments, err := r.s.Comments(r.ctx)
+	if err != nil {
+		return app.Reload{}, err
+	}
+	return app.Reload{Base: r.s.Base(), Generation: g, Changeset: c, Comments: comments}, nil
 }
 
 // close releases the session, waiting on a reload still running and refusing

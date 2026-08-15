@@ -7,11 +7,11 @@ import (
 	"os"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/charmbracelet/x/term"
 
 	"github.com/zen-review/zen-review/internal/store"
+	"github.com/zen-review/zen-review/internal/tui/comp"
 )
 
 // commentsView is the session with comments on it, which is what all four
@@ -35,28 +35,19 @@ type commentsView struct {
 // indent is what a body hangs under the row naming it.
 const indent = "    "
 
-// bodyWidth is as wide as prose is allowed to get.
-//
-// A terminal goes much wider than a line reads at, and a body running the full
-// width of a modern one is a line the eye loses its place in on the way back.
-const bodyWidth = 80
-
-// screen is the width to lay a body out in: the terminal's, capped, and the cap
-// itself when there is nothing to measure.
-//
-// A pipe and a test both take the fallback, so output that is not going to a
-// terminal is the same every time, which is what makes it worth asserting on.
+// screen is the terminal's width capped at comp.BodyWidth, and the cap itself
+// when there is nothing to measure. A pipe and a test both take the fallback.
 func screen(out io.Writer) int {
 	f, ok := out.(*os.File)
 	if !ok {
-		return bodyWidth
+		return comp.BodyWidth
 	}
 
 	w, _, err := term.GetSize(f.Fd())
 	if err != nil || w <= 0 {
-		return bodyWidth
+		return comp.BodyWidth
 	}
-	return min(w, bodyWidth)
+	return min(w, comp.BodyWidth)
 }
 
 // render writes a row per comment with its body indented under it.
@@ -100,127 +91,17 @@ func writeComments(b *strings.Builder, comments []store.Comment, width int) {
 	}
 }
 
-// writeBody indents a comment under the row naming it and lays it out to the
-// page, so a long line does not run off the edge and come back at column zero
-// where it reads as the start of something else.
-//
-// A blank line stays blank rather than carrying an indent, so no line ends in
-// whitespace.
+// writeBody indents a comment under the row naming it, so a long line does not
+// come back at column zero reading as the start of something else.
 func writeBody(b *strings.Builder, body string, width int) {
-	page := max(width-len(indent), 1)
-
-	for _, block := range blocks(body) {
-		if block == "" {
+	// A blank line carries no indent, so no line ends in whitespace.
+	for _, line := range comp.Wrap(body, max(width-len(indent), 1)) {
+		if line == "" {
 			b.WriteString("\n")
 			continue
 		}
-
-		// The block's own indent is put back on every line it folds into. Taken off
-		// once, a long indented line comes back reading as the prose around it,
-		// which is the layout this kept it separate to preserve.
-		lead := block[:len(block)-len(strings.TrimLeft(block, " \t"))]
-		for _, line := range fold(block[len(lead):], max(page-len(lead), 1)) {
-			fmt.Fprintf(b, "%s%s%s\n", indent, lead, line)
-		}
+		b.WriteString(indent + line + "\n")
 	}
-}
-
-// blocks splits a body into the runs the layout treats as one thing.
-//
-// Consecutive lines are one paragraph and are joined before folding, the way
-// markdown reads them. A body somebody hard-wrapped at their own width would
-// otherwise be folded a second time at this one, and every line would shed its
-// last word onto a line of its own.
-//
-// A blank line separates paragraphs, and so does a line that begins something
-// rather than continuing one.
-func blocks(body string) []string {
-	var out []string
-	var para []string
-
-	flush := func() {
-		if len(para) > 0 {
-			out, para = append(out, strings.Join(para, " ")), nil
-		}
-	}
-
-	for _, line := range strings.Split(body, "\n") {
-		switch {
-		case strings.TrimSpace(line) == "":
-			flush()
-			out = append(out, "")
-		case opens(line):
-			flush()
-			out = append(out, line)
-		default:
-			para = append(para, line)
-		}
-	}
-
-	flush()
-	return out
-}
-
-// opens reports a line that begins something: an indent, a bullet, a number, a
-// quote, a heading, a fence.
-//
-// This is not markdown and does not try to be. It is the handful of marks people
-// put at the start of a line when they mean a new line, and folding those into
-// the paragraph above turns a list into a sentence.
-func opens(line string) bool {
-	if line != strings.TrimLeft(line, " \t") {
-		return true
-	}
-	for _, mark := range []string{"- ", "* ", "+ ", "> ", "#", "```"} {
-		if strings.HasPrefix(line, mark) {
-			return true
-		}
-	}
-	return counted(line)
-}
-
-// counted reports an ordered list marker: digits, then a dot or a bracket, then
-// a space.
-func counted(line string) bool {
-	i := 0
-	for i < len(line) && line[i] >= '0' && line[i] <= '9' {
-		i++
-	}
-	if i == 0 || i+1 >= len(line) {
-		return false
-	}
-	return (line[i] == '.' || line[i] == ')') && line[i+1] == ' '
-}
-
-// fold breaks a line into runs no wider than width, on the spaces between words.
-//
-// A line already narrow enough comes back untouched, so a body somebody laid out
-// by hand keeps the layout: only a line that has to move loses its own spacing.
-// A word wider than the space is given a line to itself and allowed to overhang
-// rather than broken, because the long ones here are paths and flags and half of
-// one is worth nothing.
-func fold(line string, width int) []string {
-	if utf8.RuneCountInString(line) <= width {
-		return []string{line}
-	}
-
-	var out []string
-	var run string
-
-	for _, word := range strings.Fields(line) {
-		switch {
-		case run == "":
-			run = word
-		case utf8.RuneCountInString(run)+1+utf8.RuneCountInString(word) <= width:
-			run += " " + word
-		default:
-			out, run = append(out, run), word
-		}
-	}
-	if run != "" {
-		out = append(out, run)
-	}
-	return out
 }
 
 // at is where a comment points, in the one form every editor and terminal

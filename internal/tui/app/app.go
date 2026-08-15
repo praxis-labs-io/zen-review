@@ -17,6 +17,7 @@ import (
 	"github.com/zen-kit/zen-kit/theme"
 
 	"github.com/zen-review/zen-review/internal/review"
+	"github.com/zen-review/zen-review/internal/store"
 	"github.com/zen-review/zen-review/internal/tui/comp"
 	"github.com/zen-review/zen-review/internal/tui/diffpane"
 	"github.com/zen-review/zen-review/internal/tui/tree"
@@ -44,6 +45,10 @@ type Model struct {
 	base      review.Base
 	gen       review.Generation
 	changeset review.Changeset
+
+	// comments are every comment of the session, read at the generation the
+	// changeset was derived at. The diff pane draws the ones on the file it holds.
+	comments []store.Comment
 
 	// note is what the last reload found, until the next key clears it.
 	note notice
@@ -86,6 +91,7 @@ func New(t theme.Theme, src Source, repo string, r Reload) Model {
 		base:      r.Base,
 		gen:       r.Generation,
 		changeset: r.Changeset,
+		comments:  r.Comments,
 		tree:      tree.New(t, r.Changeset),
 		diff:      diffpane.New(t),
 		help:      comp.Help(t),
@@ -227,6 +233,15 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
+	// The comment ring crosses files the way the hunk ring does, so it is routed
+	// here rather than in the pane that holds the cards.
+	if by, mine := m.stepping(msg); mine {
+		if c, ok := m.commentRing(by); ok {
+			m.landComment(c)
+		}
+		return m, nil
+	}
+
 	// The ring answers from either pane and moves both, so it is routed before
 	// the focus is. A key that found nowhere to go leaves everything alone: n on
 	// a changeset with nothing left unread is a press that has done its job.
@@ -277,6 +292,18 @@ func (m *Model) syncCursor() {
 	}
 }
 
+// stepping is the direction a comment key asks for, and whether the press was
+// one at all.
+func (m Model) stepping(msg tea.KeyPressMsg) (by int, mine bool) {
+	switch {
+	case key.Matches(msg, m.keys.NextComment):
+		return 1, true
+	case key.Matches(msg, m.keys.PrevComment):
+		return -1, true
+	}
+	return 0, false
+}
+
 // walk is the stop a ring key asks for. The third value says whether the press
 // was a ring key at all, which is what tells "nowhere to go" from "not mine".
 func (m Model) walk(msg tea.KeyPressMsg) (s stop, ok, mine bool) {
@@ -321,7 +348,7 @@ func (m *Model) syncDiff() {
 		return
 	}
 
-	m.diff.SetFile(m.fileAt(path))
+	m.diff.SetFile(m.fileAt(path), m.comments)
 	if s, ok := m.firstOf(path); ok {
 		m.cursor = s
 		m.diff.Select(s.side, s.line)

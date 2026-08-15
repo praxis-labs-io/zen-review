@@ -66,6 +66,15 @@ type File struct {
 	Items    int
 }
 
+// Owns is whether a comment was written against this file. A base-side one is
+// recorded under the base's name, so a rename joins back through the old path.
+func (f File) Owns(c store.Comment) bool {
+	if c.Side == store.SideBase {
+		return c.Path == f.Diff.BasePath()
+	}
+	return c.Path == f.Diff.Path
+}
+
 // Changeset is a generation's diff with the review on it.
 type Changeset struct {
 	Files []File

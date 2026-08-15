@@ -129,9 +129,76 @@ func (m *Model) land(s stop) {
 	m.tree.Select(s.path)
 
 	if s.path != m.diff.Path() {
-		m.diff.SetFile(m.fileAt(s.path))
+		m.diff.SetFile(m.fileAt(s.path), m.comments)
 	}
 	m.diff.Select(s.side, s.line)
+}
+
+// unresolved is every comment somebody still has to answer, in review's order.
+// This ring is the comments' half of the burn-down, the way n is the hunks'.
+func (m Model) unresolved() []store.Comment {
+	out := make([]store.Comment, 0, len(m.comments))
+	for _, c := range m.comments {
+		if c.State != store.CommentResolved {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// commentRing steps from the comment the cursor is on to the next, wrapping. It
+// is false when there is nothing to step to.
+func (m Model) commentRing(by int) (store.Comment, bool) {
+	all := m.unresolved()
+	if len(all) == 0 {
+		return store.Comment{}, false
+	}
+
+	// A cursor on no card at all is most presses of these two keys, and there is
+	// no place to step from. Forward takes the first and back takes the last.
+	from, on := 0, false
+	if id, ok := m.diff.Comment(); ok {
+		for i, c := range all {
+			if c.ID == id {
+				from, on = i, true
+				break
+			}
+		}
+	}
+	if !on {
+		if by > 0 {
+			return all[0], true
+		}
+		return all[len(all)-1], true
+	}
+	return all[wrap(from+by, len(all))], true
+}
+
+// landComment puts the file holding a comment in the pane and the cursor on its
+// card. The ring follows the row, the same way it follows j.
+func (m *Model) landComment(c store.Comment) {
+	f := m.fileOwning(c)
+	if f == nil {
+		return
+	}
+
+	if f.Diff.Path != m.diff.Path() {
+		m.diff.SetFile(f, m.comments)
+	}
+	m.tree.Select(f.Diff.Path)
+	m.diff.SelectComment(c.ID)
+	m.syncCursor()
+}
+
+// fileOwning is the changeset file a comment was written against, and nil when
+// the changeset no longer holds it.
+func (m *Model) fileOwning(c store.Comment) *review.File {
+	for i := range m.changeset.Files {
+		if m.changeset.Files[i].Owns(c) {
+			return &m.changeset.Files[i]
+		}
+	}
+	return nil
 }
 
 // opening is where the reader starts: the first stop that has not been read, or

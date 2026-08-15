@@ -6,11 +6,11 @@
 │   ● desig│ g      top                    }         next hunk          space fold      │          │
 │  interna│ G      bottom                 {         previous hunk      enter open      │          │
 │    cli  │ ctrl+d diff half page down    tab       next file          s     reload    │          │
-│     ○ ren│ ctrl+u diff half page up      shift+tab previous file      ?     help      │          │
-├──────────│                               r         mark read          q     quit      │          │
-│ origin/ma│                               R         mark file                          │          │
-│ Generatio│                               u         unmark                             │          │
-│ Reviewed │                               U         unmark file                        │          │
+├──────────│ ctrl+u diff half page up      shift+tab previous file      ?     help      │          │
+│ origin/ma│ ]      next comment           r         mark read          q     quit      │          │
+│ Generatio│ [      previous comment       R         mark file                          │          │
+│ Reviewed │                               u         unmark                             │          │
+│ Comments │                               U         unmark file                        │          │
 │ Changes  ╰────────────────────────────────────────────────────────────────────────────╯          │
 ╰──────────────────────────────────────╯╰──────────────────────────────────────────────────────────╯
 j/k move · enter open · space fold · n/N unread · }/{ hunk · ctrl+d/u page · ? help · q quit        
