@@ -337,7 +337,7 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 	// The hunk's last line is 99, so two columns hold it. paint.HunkHeader
 	// indents to gutter*2+5, which is 9 at a gutter of 2 and 11 at 3.
 	got := rows(t, m)[0]
-	if indent := len(got) - len(strings.TrimLeft(got, " ")); indent != 9 {
+	if indent := lipgloss.Width(got[:strings.Index(got, "@@")]); indent != 9 {
 		t.Errorf("the header indents %d columns, want 9: %q", indent, got)
 	}
 }

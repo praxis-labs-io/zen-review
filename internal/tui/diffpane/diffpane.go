@@ -69,9 +69,12 @@ func (k KeyMap) Paging() key.Binding {
 // code under it.
 const cursorGlyph = ""
 
-// readGlyph says the hunk under the heading has been read. It is the tree's
-// filled ring, so one glyph means the same thing in both panes.
-const readGlyph = "●"
+// readGlyph and unreadGlyph say whether the hunk under the heading has been
+// read. They are the tree's own rings, so one glyph reads the same in both panes.
+const (
+	readGlyph   = "●"
+	unreadGlyph = "○"
+)
 
 // Model is the diff pane. It renders the file it was given and holds no review
 // state of its own.
@@ -189,8 +192,9 @@ func (m *Model) repaint(name hunkName) {
 // is on.
 func (m Model) heading(h review.Hunk) string {
 	head := paint.Header{Text: comp.Safe(h.Diff.Header)}
+	head.Badge, head.BadgeColor = unreadGlyph, m.theme.Subtle
 	if h.State == review.Reviewed {
-		head.Badge = readGlyph
+		head.Badge, head.BadgeColor = readGlyph, m.theme.Accent
 	}
 	if nameOf(h) == m.cur {
 		head.Marker, head.Fill = cursorGlyph, m.theme.SelectedBackground

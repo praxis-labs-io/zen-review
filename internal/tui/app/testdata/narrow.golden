@@ -1,5 +1,5 @@
 ╭─[1]─Zen Review─────────────────╮╭─[2]─internal/revie…╮
-│    cli                        ││          @@ -10,5…│
+│    cli                        ││       ○  @@ -10,5…│
 │     ○ render.go          +1 -1 ││  10  10   // State…│
 │    review                     ││  11  11   type Sta…│
 │     ⊙ state.go           +3 -1 ││  12  12   const (  │
