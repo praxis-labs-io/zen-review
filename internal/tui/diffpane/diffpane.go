@@ -296,9 +296,14 @@ func (m Model) header(i int, fill color.Color) paint.Header {
 
 	head := paint.Header{Text: comp.Safe(h.Diff.Header), Fill: fill}
 	head.Badge, head.BadgeColor = m.badge(h.State)
-	if i == m.hunkAt(m.cursor) {
-		head.Marker = cursorGlyph
+
+	// Every other heading dims. A caret is one cell against a column of them,
+	// and the reader deep in a hunk has to see which one they are in.
+	if i != m.hunkAt(m.cursor) {
+		head.TextColor = m.theme.Subtle
+		return head
 	}
+	head.Marker = cursorGlyph
 	return head
 }
 

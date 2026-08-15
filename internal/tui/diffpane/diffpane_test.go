@@ -449,14 +449,10 @@ func TestTheFirstSizingScrollsToTheCursor(t *testing.T) {
 func filled(t *testing.T, m diffpane.Model) string {
 	t.Helper()
 
-	probe := lipgloss.NewStyle().Background(theme.RosePineMoon.SelectedBackground).Render("x")
-	a, b := strings.Index(probe, "["), strings.Index(probe, "m")
-	if a < 0 || b < a {
-		t.Fatalf("lipgloss rendered the fill without an escape: %q", probe)
-	}
+	fill := params(t, lipgloss.NewStyle().Background(theme.RosePineMoon.SelectedBackground))
 
 	for _, line := range strings.Split(m.View(), "\n") {
-		if strings.Contains(line, probe[a+1:b]) {
+		if strings.Contains(line, fill) {
 			return strings.TrimRight(ansi.Strip(line), " ")
 		}
 	}
@@ -563,6 +559,62 @@ func TestTheHalfPageKeyTakesTheCursorWithIt(t *testing.T) {
 	if filled(t, m) == "" {
 		t.Errorf("ctrl+u paged the cursor off the pane:\n%s", joined(t, m))
 	}
+}
+
+// TestOnlyTheHunkTheCursorIsInReadsAtFullWeight. A caret is one cell against a
+// column of identical headings, and it cannot say which hunk a mark would take.
+func TestOnlyTheHunkTheCursorIsInReadsAtFullWeight(t *testing.T) {
+	m := pane(t, twoHunks, 60, 20)
+	m.Select(store.SideHead, 13)
+
+	lit := params(t, lipgloss.NewStyle().Foreground(theme.RosePineMoon.Accent))
+	dim := params(t, lipgloss.NewStyle().Foreground(theme.RosePineMoon.Subtle))
+	raw := strings.Split(m.View(), "\n")
+
+	if !strings.Contains(headText(t, raw[0]), lit) {
+		t.Errorf("the heading the cursor is in is not accent: %q", raw[0])
+	}
+	if got := headText(t, raw[8]); !strings.Contains(got, dim) || strings.Contains(got, lit) {
+		t.Errorf("the heading the cursor is not in reads at full weight: %q", raw[8])
+	}
+
+	// Into the second hunk, and the two swap rather than both lighting up.
+	for range 8 {
+		m = press(t, m, down)
+	}
+	raw = strings.Split(m.View(), "\n")
+	if strings.Contains(headText(t, raw[0]), lit) {
+		t.Errorf("the heading the cursor left stayed accent: %q", raw[0])
+	}
+	if !strings.Contains(headText(t, raw[8]), lit) {
+		t.Errorf("the heading the cursor entered did not light: %q", raw[8])
+	}
+}
+
+// params is the escape parameters a style renders with, stripped of the escape
+// around them: lipgloss packs foreground and background into one run.
+func params(t *testing.T, s lipgloss.Style) string {
+	t.Helper()
+
+	probe := s.Render("x")
+	a, b := strings.Index(probe, "["), strings.Index(probe, "m")
+	if a < 0 || b < a {
+		t.Fatalf("lipgloss rendered no escape for the style: %q", probe)
+	}
+	return probe[a+1 : b]
+}
+
+// headText is the parameters the row's @@ text is painted with. The badge keeps
+// its own state colour, so the whole row cannot answer for the heading.
+func headText(t *testing.T, row string) string {
+	t.Helper()
+
+	at := strings.Index(row, "@@")
+	if at < 0 {
+		t.Fatalf("no heading text in %q", row)
+	}
+	a := strings.LastIndex(row[:at], "\x1b[")
+	return row[a+2 : a+strings.Index(row[a:], "m")]
 }
 
 // TestAShorterTerminalKeepsTheCursorOnScreen. A window that only clamps leaves
