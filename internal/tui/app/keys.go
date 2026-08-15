@@ -157,6 +157,12 @@ func (m Model) FullHelp() [][]key.Binding {
 	// they answer from both.
 	movement = append(movement, m.diff.Keys.Scrolling()...)
 
+	// The z keys move the window under the cursor, so they reach only the pane
+	// holding one and are listed only where they work.
+	if m.focus == focusDiff {
+		movement = append(movement, m.diff.Keys.Place)
+	}
+
 	// The reload is here and not in the ring's column: the ring moves the cursor
 	// and this moves the changeset under it. It is also the one key the bar
 	// cannot always carry, so this is where a reader on a narrow frame meets it.

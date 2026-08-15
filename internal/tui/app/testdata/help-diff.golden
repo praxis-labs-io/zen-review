@@ -7,10 +7,10 @@
 │  internal│ G      bottom                 {         previous hunk      ?   help      │           │
 │    cli   │ ctrl+d diff half page down    tab       next file          q   quit      │           │
 │     ○ rend│ ctrl+u diff half page up      shift+tab previous file                    │           │
-├───────────│                               r         mark read                        │           │
+├───────────│ z      place cursor: z/t/b    r         mark read                        │           │
 │ origin/mai│                               R         mark file                        │           │
 │ Generation│                               u         unmark                           │           │
 │ Reviewed  │                               U         unmark file                      │           │
 │ Changes   ╰──────────────────────────────────────────────────────────────────────────╯           │
 ╰──────────────────────────────────────╯╰──────────────────────────────────────────────────────────╯
-j/k scroll · n/N unread · }/{ hunk · ctrl+d/u page · r/R read · s reload · ? help · q quit          
+j/k move · n/N unread · }/{ hunk · ctrl+d/u page · r/R read · s reload · tab file · ? help · q quit 

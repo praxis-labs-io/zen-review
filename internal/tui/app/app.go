@@ -245,6 +245,7 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// worth paging.
 	if key.Matches(msg, m.diff.Keys.Scrolling()...) {
 		m.diff, cmd = m.diff.Update(msg)
+		m.syncCursor()
 		return m, cmd
 	}
 
@@ -254,8 +255,26 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.syncDiff()
 	case focusDiff:
 		m.diff, cmd = m.diff.Update(msg)
+		m.syncCursor()
 	}
 	return m, cmd
+}
+
+// syncCursor puts the ring on the hunk the diff pane's cursor is in, so a mark
+// takes the hunk the reader is looking at. It reads the pane, as syncDiff does.
+func (m *Model) syncCursor() {
+	side, line, ok := m.diff.Hunk()
+	if !ok {
+		return
+	}
+
+	want := stop{path: m.diff.Path(), side: side, line: line}
+	for _, s := range m.stops() {
+		if s.same(want) {
+			m.cursor = s
+			return
+		}
+	}
 }
 
 // walk is the stop a ring key asks for. The third value says whether the press

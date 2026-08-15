@@ -1,5 +1,5 @@
 ╭─[1]─Zen Review───────────────────────╮╭─[2]─internal/review/state.go─────────────────────────────╮
-│   ○ logo.png                  binary ││  12  12   const (                                        │
+│   ○ logo.png                  binary ││       ○   @@ -10,5 +10,5 @@ package review               │
 │  docs/superpowers/specs             ││  13     −     Unreviewed State = "unread"                │
 │   ● design.md                  +3 -0 ││      13 +     Unreviewed State = "unreviewed"            │
 │  internal                           ││  14  14       Partial    State = "partial"               │
@@ -13,4 +13,4 @@
 │ Reviewed                         2/7 ││     125 +     // Never off the working tree.             │
 │ Changes                   6  +10 -3 ││ 124 126       return Derive(files, rows), nil            │
 ╰──────────────────────────────────────╯╰────────────────────────────────────────────────────16/16─╯
-j/k scroll · n/N unread · }/{ hunk · ctrl+d/u page · r/R read · s reload · ? help · q quit          
+j/k move · n/N unread · }/{ hunk · ctrl+d/u page · r/R read · s reload · tab file · ? help · q quit 

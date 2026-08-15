@@ -236,6 +236,7 @@ without either being hostage to the other's release cycle. zen-kit holds no keys
 
 ```
 j k g G                  movement
+zz zt zb                 put the cursor mid, top or bottom of the pane
 ctrl+u ctrl+d            page the diff, from either pane
 h l                      tree pane / diff pane
 1 2                      the same two, by the badge in the pane's border
@@ -284,6 +285,12 @@ The diff pane opens focused on the first unreviewed hunk. zen-octo's
 conversation opens unfocused because the reader came to read; you came here to
 burn a review down.
 
+`j` and `k` move a row cursor rather than the window, and a hunk heading pins to
+the top row once it scrolls off, so the lines up there are never unlabelled. The
+pin follows the window and not the cursor, because a heading names the lines
+under it, and the next hunk's own heading pushes it out. It steps aside when the
+cursor is on that row: the heading costs less to lose than the cursor does.
+
 ## Exit codes
 
 `diff` and `grep` split answering from failing, and so does this: **0** answered
@@ -300,7 +307,7 @@ before wrapping, tokenising a side whole. These are this repo's own.
 
 - **A viewport offset is a line, and a row is not.** Once rows are two lines, scroll arithmetic that lands on the row it wants opens the window on that row's second line with its title cut off above. Round the offset up to the next item boundary, and size the viewport to a whole number of rows or the end-of-list clamp lands back between two lines.
 - **`viewport.EnsureVisible` is not a scroll-to-cursor.** It acts only once the line is already outside the window, then puts it on the top row. Move the offset by hand.
-- **The shortest scroll onto the screen is the wrong one.** A key that lands on a block is taking the reader somewhere, so put the block at the top row, and leave it alone when it already fits on screen whole.
+- **The shortest scroll onto the screen is the wrong one.** A key that lands on a block is taking the reader somewhere, so put the block at the top row, and leave it alone when it already fits on screen whole. A cursor moving a row at a time is the exception: the reader is already looking at the row, and the window is what fell behind.
 - **A key cannot aim at a block through the scroll offset.** A pane that fits its content has no offset to move, so a key reading its target off the top row acts on the first block whatever the reader does. Give the pane a cursor or do not give it the key.
 - **A block that answers the line above it cannot go to the top row.** A comment hangs under the code it was written against, so topping the card scrolls that code away. Open a few lines above it, never above the file's heading.
 - **A pane clips overflow silently.** A row wider than the pane loses its trailing columns mid-cell with no ellipsis, and a width test still passes. The row has to fit before the pane sees it.
