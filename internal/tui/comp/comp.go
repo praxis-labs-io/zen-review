@@ -31,6 +31,16 @@ func Safe(text string) string { return sanitize(text, ' ') }
 // would collapse the file's indentation on the way past.
 func Code(text string) string { return sanitize(text, '\t') }
 
+// Prose is Safe for a block that draws as more than one row, so its newlines
+// survive. Safe reads a newline as the control character it is and eats it.
+func Prose(text string) string {
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		lines[i] = Safe(line)
+	}
+	return strings.Join(lines, "\n")
+}
+
 // sanitize strips what a terminal would run, and puts tab in place of a tab.
 func sanitize(text string, tab rune) string {
 	return strings.Map(func(r rune) rune {

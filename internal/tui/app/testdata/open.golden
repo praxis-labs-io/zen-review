@@ -6,11 +6,11 @@
 │   ● design.md                  +3 -0 ││                                                          │
 │  internal                           ││                                                          │
 │    cli                              ││                                                          │
-│     ○ render.go                +1 -1 ││                                                          │
 ├──────────────────────────────────────┤│                                                          │
 │ origin/main                  a1b2c3d ││                                                          │
 │ Generation                         2 ││                                                          │
 │ Reviewed                         2/7 ││                                                          │
+│ Comments                         0/0 ││                                                          │
 │ Changes                   6  +10 -3 ││                                                          │
 ╰──────────────────────────────────────╯╰──────────────────────────────────────────────────────────╯
-j/k move · n/N unread · }/{ hunk · ctrl+d/u page · r/R read · s reload · tab file · ? help · q quit 
+j/k move · n/N unread · }/{ hunk · ctrl+d/u page · r/R read · s reload · ? help · q quit            

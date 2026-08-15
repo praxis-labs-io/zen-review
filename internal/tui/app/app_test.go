@@ -439,10 +439,9 @@ func TestTheFactsSitAtTheFootOfTheTree(t *testing.T) {
 // a reader partway down a long list gets rows against both edges and does not
 // pay two lines for a margin they cannot see the point of.
 func TestThePadsBelongToTheEndsOfTheList(t *testing.T) {
-	// At fifteen high the tree's window is seven rows over a list of twelve, so
-	// there is a top, a middle and a bottom to be in. first and last are the
-	// screen lines that window starts and ends on.
-	const height, first, last = 15, 1, 7
+	// At fifteen high the tree's window is six rows over a list of twelve, so
+	// first and last are the screen lines that window starts and ends on.
+	const height, first, last = 15, 1, 6
 
 	tests := []struct {
 		name           string
@@ -1052,10 +1051,10 @@ func TestTheFactsMoveWithTheGeneration(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
 	s.reloading(testchangeset.Derive(t, gonePatch)).press("s")
 
-	if got := s.treeRow(11); !strings.Contains(got, "3") {
+	if got := s.treeRow(10); !strings.Contains(got, "3") {
 		t.Errorf("the generation reads %q after a reload that built one", got)
 	}
-	if got := s.treeRow(12); !strings.Contains(got, "0/2") {
+	if got := s.treeRow(11); !strings.Contains(got, "0/2") {
 		t.Errorf("the burn-down reads %q over a changeset of two hunks", got)
 	}
 }

@@ -1,7 +1,6 @@
 ╭─[1]─Zen Review─────────────────╮╭─[2]─assets/logo.png────────────────────────╮
 │                                ││binary                                      │
 │  assets                       ││                                            │
-│   ○ logo.png            binary ││                                            │
 │ ╭─Keys─────────────────────────────────────────────────────────────────────╮ │
 │ │ j      down                   n         next unread        h/1 tree pane │ │
 │ │ k      up                     N         previous unread    l/2 diff pane │ │
@@ -9,12 +8,13 @@
 │ │ G      bottom                 {         previous hunk      ?   help      │ │
 │ │ ctrl+d diff half page down    tab       next file          q   quit      │ │
 │ │ ctrl+u diff half page up      shift+tab previous file                    │ │
-│ │ z      place cursor: z/t/b    r         mark read                        │ │
-│ │                               R         mark file                        │ │
-├─│                               u         unmark                           │ │
-│ │                               U         unmark file                      │ │
+│ │ ]      next comment           r         mark read                        │ │
+│ │ [      previous comment       R         mark file                        │ │
+├─│ z      place cursor: z/t/b    u         unmark                           │ │
+│ │ space  fold comment           U         unmark file                      │ │
+│ │ enter  go to its line                                                    │ │
 │ ╰──────────────────────────────────────────────────────────────────────────╯ │
-│ Reviewed                   2/7 ││                                            │
+│ Comments                   0/0 ││                                            │
 │ Changes             6  +10 -3 ││                                            │
 ╰────────────────────────────────╯╰────────────────────────────────────────────╯
 j/k move · n/N unread · }/{ hunk · ctrl+d/u page · r/R read · ? help · q quit   

@@ -87,3 +87,12 @@ type File struct {
 	Additions int `json:"additions"`
 	Deletions int `json:"deletions"`
 }
+
+// BasePath is the name the file has on the base side, which a rename or a copy
+// makes a different one from its own. It is the name that does not move.
+func (f File) BasePath() string {
+	if f.OldPath != "" {
+		return f.OldPath
+	}
+	return f.Path
+}

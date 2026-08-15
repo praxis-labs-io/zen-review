@@ -36,7 +36,7 @@ const (
 	// They sit inside the tree's pane, ruled off at its foot, so the rows
 	// scrolling above them never move them. metaIndent is the tree's own gutter,
 	// so a fact lines up under a filename.
-	metaLines  = 4
+	metaLines  = 5
 	metaIndent = 1
 
 	// fileGlyph heads the changed-file count. It is the folders' family, so the
@@ -169,8 +169,28 @@ func (m Model) facts() []fact {
 		{m.base.Ref, subtle.Render(short(m.base.SHA))},
 		{"Generation", subtle.Render(strconv.Itoa(m.gen.Seq))},
 		{"Reviewed", m.burndown()},
+		{"Comments", m.settled()},
 		{"Changes", m.size()},
 	}
+}
+
+// settled is the comments answered over all of them, and the only thing on
+// screen saying one exists before the reader scrolls into a card.
+func (m Model) settled() string {
+	total := len(m.comments)
+	done := total - len(m.unresolved())
+
+	// Anything outstanding is gold. Nothing to answer is not nothing answered.
+	c := m.theme.Subtle
+	switch {
+	case total == 0:
+	case done == total:
+		c = m.theme.Accent
+	default:
+		c = m.theme.Warning
+	}
+
+	return lipgloss.NewStyle().Foreground(c).Render(fmt.Sprintf("%d/%d", done, total))
 }
 
 // burndown reads at the state a file at the same fraction would: nothing read
@@ -236,9 +256,13 @@ func (m Model) overlay(frame string) string {
 func (m Model) status() string {
 	subtle := lipgloss.NewStyle().Foreground(m.theme.Subtle)
 
+	// The room the right side gets, measured against the way out so the bar
+	// shrinks around it rather than clipping it.
+	room := max(m.width-lipgloss.Width(m.help.ShortHelpView(m.wayOut()))-2, 0)
+
 	right := m.said()
 	if right == "" && !m.metaShown() {
-		right = m.factLine()
+		right = m.factLine(room)
 	}
 	if right == "" {
 		return m.pad(m.bar(m.width), m.width)
@@ -250,10 +274,9 @@ func (m Model) status() string {
 		return m.pad(right, m.width)
 	}
 
-	// The right side is measured against the way out and the keys against what
-	// is left, so the bar shrinks around it rather than clipping it. A total or
-	// an answer to the key just pressed misstates itself when it is cut.
-	right = comp.Clip(right, max(m.width-lipgloss.Width(m.help.ShortHelpView(m.wayOut()))-2, 0), subtle)
+	// A total or an answer to the key just pressed misstates itself when it is
+	// cut, so the keys are measured against what the right side left.
+	right = comp.Clip(right, room, subtle)
 	left := m.bar(max(m.width-lipgloss.Width(right)-2, 0))
 
 	gap := m.width - lipgloss.Width(left) - lipgloss.Width(right)
@@ -277,8 +300,9 @@ func (m Model) said() string {
 	return lipgloss.NewStyle().Foreground(c).Render(comp.Safe(m.note.text))
 }
 
-// factLine is the four facts on one line, for the bar that has to carry them.
-func (m Model) factLine() string {
+// factLine is the facts on one line, for the bar that has to carry them. It
+// drops from the tail the way the keys do: a cut label states nothing.
+func (m Model) factLine(width int) string {
 	muted := lipgloss.NewStyle().Foreground(m.theme.Muted)
 	subtle := lipgloss.NewStyle().Foreground(m.theme.Subtle)
 
@@ -286,7 +310,13 @@ func (m Model) factLine() string {
 	for _, f := range m.facts() {
 		joined = append(joined, muted.Render(f.label)+" "+f.value)
 	}
-	return strings.Join(joined, subtle.Render(dot))
+
+	for n := len(joined); n > 0; n-- {
+		if line := strings.Join(joined[:n], subtle.Render(dot)); lipgloss.Width(line) <= width {
+			return line
+		}
+	}
+	return ""
 }
 
 // bar is the status line, with the pane's own keys dropped off the tail until

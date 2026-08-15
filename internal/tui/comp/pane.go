@@ -19,6 +19,7 @@ import (
 type Pane struct {
 	theme       theme.Theme
 	title       string
+	label       string
 	note        string
 	index       int
 	footerLeft  string
@@ -37,6 +38,13 @@ func NewPane(t theme.Theme) Pane {
 // Title sets the name in the top border.
 func (p Pane) Title(s string) Pane {
 	p.title = s
+	return p
+}
+
+// Label is the top border's text in place of the title, taken as-is so a caller
+// can colour it in pieces. The title is styled by focus and this is not.
+func (p Pane) Label(s string) Pane {
+	p.label = s
 	return p
 }
 
@@ -167,7 +175,10 @@ func (p Pane) topBorder() string {
 		label.WriteString(p.indexStyle().Render("[" + strconv.Itoa(p.index) + "]"))
 		label.WriteString(style.Render("─"))
 	}
-	if p.title != "" {
+	switch {
+	case p.label != "":
+		label.WriteString(p.label)
+	case p.title != "":
 		label.WriteString(p.titleStyle().Render(p.title))
 	}
 

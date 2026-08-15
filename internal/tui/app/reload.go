@@ -6,6 +6,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/zen-review/zen-review/internal/review"
+	"github.com/zen-review/zen-review/internal/store"
 	"github.com/zen-review/zen-review/internal/tui/comp"
 )
 
@@ -19,6 +20,10 @@ type Reload struct {
 	Base       review.Base
 	Generation review.Generation
 	Changeset  review.Changeset
+
+	// Comments come with the changeset rather than from a second call. The two
+	// have to be one generation, or a card hangs under a line that has moved.
+	Comments []store.Comment
 }
 
 // Source rebuilds the changeset from what is on disk.
@@ -146,9 +151,9 @@ func (m *Model) apply(r Reload) (stop, drift, bool) {
 	at, was := m.diff.Cursor(), m.diff.Scroll().Offset
 	moved := r.Generation.ID != m.gen.ID
 
-	m.base, m.gen, m.changeset = r.Base, r.Generation, r.Changeset
+	m.base, m.gen, m.changeset, m.comments = r.Base, r.Generation, r.Changeset, r.Comments
 	m.tree.SetChangeset(m.changeset)
-	m.diff.SetFile(nil)
+	m.diff.SetFile(nil, nil, 0)
 
 	m.cursor = stop{}
 	s, d, ok := m.landing(k)

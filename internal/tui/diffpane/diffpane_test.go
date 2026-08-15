@@ -27,11 +27,18 @@ const twoHunks = "internal/review/state.go"
 
 func pane(t *testing.T, path string, width, height int) diffpane.Model {
 	t.Helper()
+	return commented(t, path, width, height)
+}
+
+// commented is a pane over the fixture with comments on it, which is what every
+// card assertion drives. No comments is the same pane with none of them matching.
+func commented(t *testing.T, path string, width, height int, comments ...store.Comment) diffpane.Model {
+	t.Helper()
 
 	c := testchangeset.Nested(t)
 	m := diffpane.New(theme.RosePineMoon)
 	m.SetSize(width, height)
-	m.SetFile(fileAt(t, c, path))
+	m.SetFile(fileAt(t, c, path), comments, 2)
 	return m
 }
 
@@ -67,8 +74,10 @@ func press(t *testing.T, m diffpane.Model, keys ...tea.KeyPressMsg) diffpane.Mod
 }
 
 var (
-	down = tea.KeyPressMsg{Code: 'j', Text: "j"}
-	up   = tea.KeyPressMsg{Code: 'k', Text: "k"}
+	down  = tea.KeyPressMsg{Code: 'j', Text: "j"}
+	up    = tea.KeyPressMsg{Code: 'k', Text: "k"}
+	space = tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}
+	enter = tea.KeyPressMsg{Code: tea.KeyEnter}
 )
 
 // TestAFileIsItsLines: the numbers on both sides, the marker between them, and
@@ -156,7 +165,7 @@ func TestSourceCannotWriteToTheTerminal(t *testing.T) {
 	c := testchangeset.Derive(t, patch)
 	m := diffpane.New(theme.RosePineMoon)
 	m.SetSize(60, 4)
-	m.SetFile(&c.Files[0])
+	m.SetFile(&c.Files[0], nil, 2)
 
 	got := joined(t, m)
 	if !strings.Contains(got, `const shout = "red?"`) {
@@ -182,7 +191,7 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 	c := testchangeset.Derive(t, patch)
 	m := diffpane.New(theme.RosePineMoon)
 	m.SetSize(60, 6)
-	m.SetFile(&c.Files[0])
+	m.SetFile(&c.Files[0], nil, 2)
 
 	got := rows(t, m)
 	if !strings.Contains(got[1], "− package eof") {
@@ -230,7 +239,7 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 	c := testchangeset.Derive(t, patch)
 	m := diffpane.New(theme.RosePineMoon)
 	m.SetSize(60, 4)
-	m.SetFile(&c.Files[0])
+	m.SetFile(&c.Files[0], nil, 2)
 
 	want := lipgloss.NewStyle().
 		Background(theme.RosePineMoon.RemovedBackground).
@@ -310,7 +319,7 @@ func TestChangingFileTakesTheReaderToTheTop(t *testing.T) {
 	m := pane(t, twoHunks, 60, 4)
 	m = press(t, m, down, down)
 
-	m.SetFile(fileAt(t, c, "README.md"))
+	m.SetFile(fileAt(t, c, "README.md"), nil, 2)
 	if got := rows(t, m)[0]; !strings.Contains(got, "@@ -1,3 +1,3 @@") {
 		t.Errorf("the new file opened part-way down: %q", got)
 	}
@@ -332,7 +341,7 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 	c := testchangeset.Derive(t, patch)
 	m := diffpane.New(theme.RosePineMoon)
 	m.SetSize(60, 4)
-	m.SetFile(&c.Files[0])
+	m.SetFile(&c.Files[0], nil, 2)
 
 	// The hunk's last line is 99, so two columns hold it. paint.HunkHeader
 	// indents to gutter*2+5, which is 9 at a gutter of 2 and 11 at 3.
@@ -435,7 +444,7 @@ func TestTheFirstSizingScrollsToTheCursor(t *testing.T) {
 	// Sized after the cursor is set, the way the root builds it: New, then the
 	// terminal says how big it is.
 	m := diffpane.New(theme.RosePineMoon)
-	m.SetFile(fileAt(t, c, twoHunks))
+	m.SetFile(fileAt(t, c, twoHunks), nil, 2)
 	m.Select(store.SideHead, 124)
 	m.SetSize(60, 8)
 
@@ -754,7 +763,7 @@ func TestRestorePutsTheCursorBackWithTheWindow(t *testing.T) {
 
 	// What a reload of the same bytes does: the file back in the pane, the
 	// cursor on the heading, then the reader's own place handed back.
-	m.SetFile(fileAt(t, c, twoHunks))
+	m.SetFile(fileAt(t, c, twoHunks), nil, 2)
 	m.Select(store.SideHead, 13)
 	m.Restore(at, off)
 
@@ -763,5 +772,341 @@ func TestRestorePutsTheCursorBackWithTheWindow(t *testing.T) {
 	}
 	if got := m.Scroll().Offset; got != off {
 		t.Errorf("the window came back at %d, want %d", got, off)
+	}
+}
+
+// cards is the fixture's comments, which every card assertion drives.
+func cards(t *testing.T, path string, width, height int) diffpane.Model {
+	t.Helper()
+	return commented(t, path, width, height, testchangeset.NestedComments()...)
+}
+
+// under is the row after the one containing want, which is where a card hangs.
+func under(t *testing.T, m diffpane.Model, want string) string {
+	t.Helper()
+
+	got := rows(t, m)
+	for i, row := range got {
+		if strings.Contains(row, want) && i+1 < len(got) {
+			return got[i+1]
+		}
+	}
+	t.Fatalf("no row reads %q:\n%s", want, strings.Join(got, "\n"))
+	return ""
+}
+
+// TestACardHangsUnderTheLineItAnswers. A comment about a line the reader cannot
+// see beside it is an assertion about nothing.
+func TestACardHangsUnderTheLineItAnswers(t *testing.T) {
+	m := cards(t, twoHunks, 76, 30)
+
+	if got := under(t, m, `Unreviewed State = "unreviewed"`); !strings.Contains(got, "○ open") {
+		t.Errorf("the row under the line it answers is %q, want the card", got)
+	}
+	if got := joined(t, m); !strings.Contains(got, "unreviewed is the longer word") {
+		t.Errorf("the card drew no body:\n%s", got)
+	}
+}
+
+// TestARangeCardSaysWhereItStarted. It hangs under the last line of the run, and
+// nothing on that row can say the run began two lines above.
+func TestARangeCardSaysWhereItStarted(t *testing.T) {
+	m := cards(t, twoHunks, 76, 30)
+
+	got := under(t, m, "// Never off the working tree.")
+	if !strings.Contains(got, "lines 124-125") {
+		t.Errorf("the range card reads %q, want the run it covers", got)
+	}
+}
+
+// TestACardUnderItsOwnLineSaysNoNumber. The gutter beside it already has one,
+// and a card repeating it is a label saying what the reader can see.
+func TestACardUnderItsOwnLineSaysNoNumber(t *testing.T) {
+	m := cards(t, twoHunks, 76, 30)
+
+	got := under(t, m, `Unreviewed State = "unreviewed"`)
+	if strings.Contains(got, "13") {
+		t.Errorf("the card names its own line: %q", got)
+	}
+}
+
+// TestAFileCommentHeadsTheFile. It names the whole file rather than a line in
+// it, the way a whole-file reviewed range covers one.
+func TestAFileCommentHeadsTheFile(t *testing.T) {
+	got := rows(t, cards(t, "README.md", 76, 20))
+
+	if !strings.Contains(got[0], "○ open · file") {
+		t.Errorf("the first row is %q, want the file's own comment", got[0])
+	}
+	if !strings.Contains(got[1], "Does this still read right?") {
+		t.Errorf("the card drew no body: %q", got[1])
+	}
+}
+
+// TestACommentTheDiffHasNoLineForStillDraws, and says so rather than hanging
+// under a line it was never about. Dropping it loses what was asked.
+func TestACommentTheDiffHasNoLineForStillDraws(t *testing.T) {
+	got := joined(t, cards(t, twoHunks, 76, 30))
+
+	if !strings.Contains(got, "⊘ orphaned · was line 900") {
+		t.Errorf("the stray did not draw, or drew as though it were placed:\n%s", got)
+	}
+}
+
+// TestAResolvedCommentIsOneRowUntilSpaceOpensIt. Settled work burying live work
+// is what folding is for, and a fold with no way back loses a mistaken resolve.
+func TestAResolvedCommentIsOneRowUntilSpaceOpensIt(t *testing.T) {
+	m := cards(t, "README.md", 76, 20)
+
+	got := joined(t, m)
+	if !strings.Contains(got, "● resolved · The old line said it better.") {
+		t.Errorf("the resolved comment is not folded to its one row:\n%s", got)
+	}
+	if strings.Contains(got, "╰──") && strings.Count(got, "╭─") != 1 {
+		t.Errorf("the resolved comment kept a border:\n%s", got)
+	}
+
+	// Onto its row, then open it. The file card is the first stop, the heading
+	// and the five lines the next six, and the resolved card the one after.
+	m = press(t, m, down)
+	for range 7 {
+		m = press(t, m, down)
+	}
+	m = press(t, m, space)
+
+	if got := joined(t, m); !strings.Contains(got, "╭─ ● resolved") {
+		t.Errorf("space did not open the folded card:\n%s", got)
+	}
+}
+
+// TestEveryCardRowIsExactlyThePane, at widths where a card loses its border. A
+// pane clips silently and a width test on the unclipped row still passes.
+func TestEveryCardRowIsExactlyThePane(t *testing.T) {
+	for _, width := range []int{80, 40, 24, 12, 8} {
+		m := cards(t, twoHunks, width, 30)
+		for i, row := range rows(t, m) {
+			if got := lipgloss.Width(row); got != width {
+				t.Errorf("at width %d, row %d is %d columns: %q", width, i, got, row)
+			}
+		}
+	}
+}
+
+// TestTheScrollCounterCountsCardRows. add appends one entry per call and every
+// offset assumes row equals line, so one multi-line push and the counter lies.
+func TestTheScrollCounterCountsCardRows(t *testing.T) {
+	plain := commented(t, twoHunks, 76, 30).Scroll().Total
+	withCards := cards(t, twoHunks, 76, 30).Scroll().Total
+
+	if withCards <= plain {
+		t.Fatalf("the counter reads %d with cards and %d without", withCards, plain)
+	}
+	if want := len(rows(t, cards(t, twoHunks, 76, 30))); withCards > want {
+		t.Errorf("the counter reads %d over a pane of %d rows", withCards, want)
+	}
+}
+
+// TestJStepsOverACardInOnePress. A card is one block and one stop; walking its
+// border and its prose a row at a time is a tax on the burn-down.
+func TestJStepsOverACardInOnePress(t *testing.T) {
+	m := cards(t, "README.md", 76, 20)
+
+	m = press(t, m, down)
+	if got := m.Cursor(); got != 0 {
+		t.Fatalf("the first j landed on row %d, want the card's own row", got)
+	}
+
+	// Three rows of card, and the next press clears all of them.
+	m = press(t, m, down)
+	if got := m.Cursor(); got != 3 {
+		t.Errorf("the next j landed on row %d, want the row after the card", got)
+	}
+
+	m = press(t, m, up)
+	if got := m.Cursor(); got != 0 {
+		t.Errorf("k landed on row %d, want the card's own row again", got)
+	}
+}
+
+// TestACardTakesTheAccentBorderUnderTheCursor. A stripped golden cannot see a
+// colour, and the border is the only thing saying where the keys are.
+func TestACardTakesTheAccentBorderUnderTheCursor(t *testing.T) {
+	m := cards(t, "README.md", 76, 20)
+	accent := params(t, lipgloss.NewStyle().Foreground(theme.RosePineMoon.Accent))
+
+	// The bottom border, because the top one carries the badge and an open
+	// comment's badge is the accent whether the cursor is on it or not.
+	if lit(m.View(), accent, "╰─") {
+		t.Errorf("the card is lit with the cursor off it:\n%s", joined(t, m))
+	}
+	if m = press(t, m, down); !lit(m.View(), accent, "╰─") {
+		t.Errorf("the card took no accent with the cursor on it:\n%s", joined(t, m))
+	}
+}
+
+// lit is whether a row holding want carries the escape parameters.
+func lit(view, params, want string) bool {
+	for _, line := range strings.Split(view, "\n") {
+		if strings.Contains(ansi.Strip(line), want) && strings.Contains(line, params) {
+			return true
+		}
+	}
+	return false
+}
+
+// TestSelectCommentLeavesTheAnchorOnScreen. A block that answers the line above
+// it cannot go to the top row, or the code it answers scrolls away.
+func TestSelectCommentLeavesTheAnchorOnScreen(t *testing.T) {
+	m := cards(t, twoHunks, 76, 6)
+	m.SelectComment("cccccccccccc")
+
+	got := joined(t, m)
+	if !strings.Contains(got, "lines 124-125") {
+		t.Fatalf("the card is not on screen:\n%s", got)
+	}
+	if !strings.Contains(got, "// Ranges are read off the generation.") {
+		t.Errorf("the first line the card answers scrolled away:\n%s", got)
+	}
+}
+
+// TestEnterGoesToTheLineACardAnswers, which on a range is where the run starts
+// rather than the line the card happens to hang under.
+func TestEnterGoesToTheLineACardAnswers(t *testing.T) {
+	m := cards(t, twoHunks, 76, 30)
+	m.SelectComment("cccccccccccc")
+	m = press(t, m, enter)
+
+	if got := filled(t, m); !strings.Contains(got, "// Ranges are read off the generation.") {
+		t.Errorf("enter left the cursor on %q, want the run's first line", got)
+	}
+}
+
+// TestAResizeKeepsTheCursorOnTheSameCard. A card's height moves with the width,
+// so every row index after one moves with it and a stored row is the wrong card.
+func TestAResizeKeepsTheCursorOnTheSameCard(t *testing.T) {
+	m := cards(t, twoHunks, 76, 30)
+	m.SelectComment("cccccccccccc")
+	was := m.Cursor()
+
+	m.SetSize(34, 30)
+	if got, ok := m.Comment(); !ok || got != "cccccccccccc" {
+		t.Errorf("the resize left the cursor on %q, want the card it was on", got)
+	}
+
+	// Without this the test passes on a row that never moved, which proves
+	// nothing about carrying the cursor over a relayout.
+	if m.Cursor() == was {
+		t.Fatalf("the card is on row %d at both widths, so the narrower one wrapped nothing", was)
+	}
+}
+
+// TestABaseSideCommentMatchesThroughTheOldPath. A rename gives the file a name
+// the base side never had, and matching on the new one loses the comment.
+func TestABaseSideCommentMatchesThroughTheOldPath(t *testing.T) {
+	const patch = `diff --git a/run.py b/run.go
+similarity index 40%
+rename from run.py
+rename to run.go
+index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1b039aafb 100644
+--- a/run.py
++++ b/run.go
+@@ -1,1 +1,1 @@
+-print("hello")
++package run
+`
+
+	c := testchangeset.Derive(t, patch)
+	old := testchangeset.OnBase(testchangeset.Comment("111111111111", "run.py", 1, 1, "python is gone"))
+
+	m := diffpane.New(theme.RosePineMoon)
+	m.SetSize(76, 10)
+	m.SetFile(&c.Files[0], []store.Comment{old}, 2)
+
+	got := joined(t, m)
+	if !strings.Contains(got, "python is gone") {
+		t.Fatalf("the base-side comment did not draw:\n%s", got)
+	}
+	if strings.Contains(got, "was line") {
+		t.Errorf("it drew as a stray rather than under the line it removed:\n%s", got)
+	}
+}
+
+// TestEveryBadgeIsOneCell. A two-cell glyph puts every row after it out of step
+// where a font missing a one-cell one only draws a box, so this is measured
+// rather than assumed.
+func TestEveryBadgeIsOneCell(t *testing.T) {
+	for _, glyph := range []string{"○", "⊙", "●", "⊘", mark} {
+		if got := lipgloss.Width(glyph); got != 1 {
+			t.Errorf("%q measures %d cells", glyph, got)
+		}
+	}
+}
+
+// TestACommentFrozenAtAnOlderGenerationDrawsWhereItPointed. It stopped moving
+// and kept the anchor it stopped at, so those line numbers now name whatever is
+// there rather than the code it was about.
+func TestACommentFrozenAtAnOlderGenerationDrawsWhereItPointed(t *testing.T) {
+	stale := testchangeset.In(
+		testchangeset.Comment("aaaaaaaaaaaa", twoHunks, 13, 13, "this was about the old line"),
+		store.CommentResolved)
+	stale.GenerationID = 1
+
+	c := testchangeset.Nested(t)
+	m := diffpane.New(theme.RosePineMoon)
+	m.SetSize(76, 30)
+	m.SetFile(fileAt(t, c, twoHunks), []store.Comment{stale}, 2)
+
+	if got := joined(t, m); !strings.Contains(got, "was line 13") {
+		t.Errorf("the frozen comment drew as though it still pointed at line 13:\n%s", got)
+	}
+}
+
+// TestACommentFrozenAtThisGenerationStaysWhereItIs, so resolving one does not
+// make its card jump to the foot of the file under the reader.
+func TestACommentFrozenAtThisGenerationStaysWhereItIs(t *testing.T) {
+	settled := testchangeset.In(
+		testchangeset.Comment("aaaaaaaaaaaa", twoHunks, 13, 13, "just settled"),
+		store.CommentResolved)
+
+	c := testchangeset.Nested(t)
+	m := diffpane.New(theme.RosePineMoon)
+	m.SetSize(76, 30)
+	m.SetFile(fileAt(t, c, twoHunks), []store.Comment{settled}, 2)
+
+	if got := joined(t, m); strings.Contains(got, "was line") {
+		t.Errorf("a comment frozen at the generation on screen drew as a stray:\n%s", got)
+	}
+}
+
+// TestACardKeepsTheParagraphsOfItsBody. comp.Safe reads a newline as the control
+// character it is, so sanitizing a whole body first collapses it into one run.
+func TestACardKeepsTheParagraphsOfItsBody(t *testing.T) {
+	body := "the first paragraph\n\n- a bullet\n- another"
+	on := testchangeset.Comment("aaaaaaaaaaaa", "README.md", 2, 2, body)
+
+	got := rows(t, commented(t, "README.md", 76, 20, on))
+	for _, want := range []string{"the first paragraph", "- a bullet", "- another"} {
+		found := false
+		for _, row := range got {
+			if strings.Contains(row, want) && !strings.Contains(row, "?") {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("no row reads %q on its own:\n%s", want, strings.Join(got, "\n"))
+		}
+	}
+}
+
+// TestSelectCommentLeavesRoomForThePin. The heading pins to the top row, so an
+// anchor put there is covered by the thing meant to keep it in context.
+func TestSelectCommentLeavesRoomForThePin(t *testing.T) {
+	// Four rows: a taller window is clamped off the anchor by the card's own
+	// last row and never lands the offset on it.
+	m := cards(t, twoHunks, 76, 4)
+	m.SelectComment("bbbbbbbbbbbb")
+
+	if got := joined(t, m); !strings.Contains(got, `Unreviewed State = "unreviewed"`) {
+		t.Errorf("the pinned heading covered the line the card answers:\n%s", got)
 	}
 }

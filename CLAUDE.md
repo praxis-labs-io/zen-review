@@ -241,10 +241,10 @@ ctrl+u ctrl+d            page the diff, from either pane
 h l                      tree pane / diff pane
 1 2                      the same two, by the badge in the pane's border
 } {                      the ring: next / prev hunk
-space                    fold / unfold
+space                    fold / unfold: a tree directory, a comment card
 tab shift+tab            next / prev file
 n N                      next / prev unreviewed hunk
-] [                      next / prev comment
+] [                      next / prev unresolved comment
 
 r                        mark hunk reviewed, advance to next unreviewed
 R                        mark whole file reviewed
@@ -271,6 +271,25 @@ A hunk is the block a paragraph motion moves by, so `}` and `{` step it. Vim's
 own diff mode says `]c` and `[c`, and the bracket pair is spoken for. Nothing in
 vim moves a whole file in one key, so `tab` is the TUI answer rather than the
 editor one; the tree does the same job by hand.
+
+`]` and `[` walk what is unresolved, the way `n` walks what is unread. A ring
+that stepped through settled work is a ring nobody holds down. A resolved card
+still draws, folded to a row, and `j` still reaches it.
+
+A comment draws as a bordered card indented to the code column, hanging under
+the last line it is about. It is one stop for the cursor rather than one per
+row: `j` steps onto it and the next `j` clears the whole thing.
+
+State is a badge in its top border and focus is the border's colour, because
+four states and one focus cannot share a channel. `○` open, `⊙` addressed, `●`
+resolved, `⊘` orphaned, each beside its own word: the glyph is the glance and
+the word is what scans down a column.
+
+The label says only what the card's own position cannot. A card under its line
+needs no line number, because the gutter beside it has one. A range says the run
+it covers, a file comment says so, and a comment the diff has no line for says
+where it used to point and goes to the foot of the file. Dropping that last one
+would lose the only record of what was asked.
 
 Six divergences from zen-octo, all deliberate:
 
@@ -309,7 +328,8 @@ before wrapping, tokenising a side whole. These are this repo's own.
 - **`viewport.EnsureVisible` is not a scroll-to-cursor.** It acts only once the line is already outside the window, then puts it on the top row. Move the offset by hand.
 - **The shortest scroll onto the screen is the wrong one.** A key that lands on a block is taking the reader somewhere, so put the block at the top row, and leave it alone when it already fits on screen whole. A cursor moving a row at a time is the exception: the reader is already looking at the row, and the window is what fell behind.
 - **A key cannot aim at a block through the scroll offset.** A pane that fits its content has no offset to move, so a key reading its target off the top row acts on the first block whatever the reader does. Give the pane a cursor or do not give it the key.
-- **A block that answers the line above it cannot go to the top row.** A comment hangs under the code it was written against, so topping the card scrolls that code away. Open a few lines above it, never above the file's heading.
+- **A block that answers the line above it cannot go to the top row.** A comment hangs under the code it was written against, so topping the card scrolls that code away. Bring its last row on screen and scroll no further up than the line it answers. That is two clamps and no magic number, and it degrades honestly: a card taller than the window keeps the line rather than the card.
+- **A block whose height moves with the width breaks a row index.** A card's body wraps, so a resize renumbers every row after it and a stored cursor lands on something else. The pane remembers what the cursor was on, not which row: a comment id, or a sequence over the rows a width cannot move.
 - **A pane clips overflow silently.** A row wider than the pane loses its trailing columns mid-cell with no ellipsis, and a width test still passes. The row has to fit before the pane sees it.
 - **A glyph is only one cell if lipgloss and the terminal agree it is.** The tree's folders and its file marker are Nerd Font, which is the one thing on screen that asks anything of the terminal's font. Measure a new one with `lipgloss.Width` before using it: a two-cell glyph puts every row after it out of step, where a font missing a one-cell glyph only draws a box.
 - **A stripped golden cannot see a colour.** The tree's cursor is a filled background and nothing else, so the frame is identical whether `j` moved or not. Anything said only in colour needs an assertion against the theme value beside the golden.

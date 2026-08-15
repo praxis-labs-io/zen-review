@@ -10,6 +10,7 @@ import (
 	"github.com/zen-kit/zen-kit/theme"
 
 	"github.com/zen-review/zen-review/internal/review"
+	"github.com/zen-review/zen-review/internal/store"
 	"github.com/zen-review/zen-review/internal/testchangeset"
 	"github.com/zen-review/zen-review/internal/tui/app"
 )
@@ -101,13 +102,26 @@ func over(t *testing.T, c review.Changeset, width, height int) *screen {
 	return build(t, "zen-review", c, width, height)
 }
 
+// commented opens the reader over the fixture with comments on it, which is
+// what the card and comment-ring assertions drive.
+func commented(t *testing.T, width, height int, comments ...store.Comment) *screen {
+	t.Helper()
+	return with(t, "zen-review", testchangeset.Nested(t), comments, width, height)
+}
+
 func build(t *testing.T, repo string, c review.Changeset, width, height int) *screen {
+	t.Helper()
+	return with(t, repo, c, nil, width, height)
+}
+
+func with(t *testing.T, repo string, c review.Changeset, comments []store.Comment, width, height int) *screen {
 	t.Helper()
 
 	r := app.Reload{
 		Base:       review.Base{Ref: "origin/main", SHA: "a1b2c3d4e5f67890"},
 		Generation: review.Generation{ID: 2, Seq: 2},
 		Changeset:  c,
+		Comments:   comments,
 	}
 
 	src := &source{at: r}
@@ -197,6 +211,12 @@ func (s *screen) treeRow(i int) string {
 func (s *screen) lines() []string {
 	s.t.Helper()
 	return strings.Split(s.frame(), "\n")
+}
+
+// title is the diff pane's own border, which names the file it holds.
+func (s *screen) title() string {
+	s.t.Helper()
+	return s.lines()[0]
 }
 
 // bar is the status line, which is the last one whatever the frame is.

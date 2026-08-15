@@ -37,6 +37,63 @@ func Head(path string, start, end int) store.ReviewedRange {
 	}
 }
 
+// Comment is one open head-side comment. The scope follows the lines: 0:0 names
+// the file, a run of them is a range, and anything else is one line.
+func Comment(id, path string, start, end int, body string) store.Comment {
+	scope := store.ScopeLine
+	switch {
+	case start == 0 && end == 0:
+		scope = store.ScopeFile
+	case start != end:
+		scope = store.ScopeRange
+	}
+
+	return store.Comment{
+		ID:                  id,
+		SessionID:           "session",
+		GenerationID:        2,
+		CreatedGenerationID: 2,
+		Path:                path,
+		Side:                store.SideHead,
+		LineRange:           store.LineRange{Start: start, End: end},
+		Scope:               scope,
+		Body:                body,
+		State:               store.CommentOpen,
+	}
+}
+
+// In is a comment in a state other than open, for the ladder the card draws.
+func In(c store.Comment, s store.CommentState) store.Comment {
+	c.State = s
+	return c
+}
+
+// OnBase moves a comment to the base side, where it is recorded under the name
+// the file has on the base rather than the one the changeset lists it under.
+func OnBase(c store.Comment) store.Comment {
+	c.Side = store.SideBase
+	return c
+}
+
+// NestedComments is one of every shape a card takes, against NestedPatch: a
+// line, a range, the file itself, a stray, and one of each settled state.
+func NestedComments() []store.Comment {
+	const state = "internal/review/state.go"
+
+	return []store.Comment{
+		Comment("aaaaaaaaaaaa", "README.md", 0, 0, "Does this still read right?"),
+		Comment("bbbbbbbbbbbb", state, 13, 13, "unreviewed is the longer word and the clearer one."),
+		Comment("cccccccccccc", state, 124, 125,
+			"These two say the same thing twice. Cut the second."),
+		In(Comment("dddddddddddd", state, 126, 126, "Derive takes the rows now."),
+			store.CommentAddressed),
+		In(Comment("eeeeeeeeeeee", state, 900, 900, "This line left the changeset."),
+			store.CommentOrphaned),
+		In(Comment("ffffffffffff", "README.md", 3, 3, "The old line said it better."),
+			store.CommentResolved),
+	}
+}
+
 // Nested is the fixture the tree and the panes are drawn from. It holds every
 // shape a row can take:
 //
