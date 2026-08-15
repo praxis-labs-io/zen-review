@@ -10,12 +10,12 @@ import (
 	"github.com/zen-review/zen-review/internal/review"
 )
 
-// wroteMsg is a write that landed, carrying the changeset review derived after
-// it. advance is the r key asking for the next unread hunk, and at is the stop
-// it was pressed on, because the reader can move while the write is out.
+// wroteMsg is a write that landed, with the changeset re-derived after it. at
+// and row are where r was pressed, because the reader moves while it is out.
 type wroteMsg struct {
 	r       Reload
 	at      stop
+	row     int
 	advance bool
 }
 
@@ -80,14 +80,12 @@ func (m Model) marked(msg tea.KeyPressMsg) (intent, bool) {
 	return intent{}, false
 }
 
-// applyWrite puts a write on screen, then moves on if the key asked to.
-//
-// It advances only from the stop the key was pressed on. The ring stays live
-// while a write is out, so a reader who walked on already chose where they are.
+// applyWrite puts a write on screen, then moves on if the key asked to. It
+// advances only from the row r was pressed on: a reader who moved has spoken.
 func (m *Model) applyWrite(msg wroteMsg) {
 	m.apply(msg.r)
 
-	if msg.advance && m.cursor.same(msg.at) {
+	if msg.advance && m.cursor.same(msg.at) && m.diff.Cursor() == msg.row {
 		if s, ok := m.onward(unreadStop); ok {
 			m.land(s)
 		}
@@ -113,12 +111,12 @@ func (m Model) hunkAt(f review.File) (review.Hunk, bool) {
 
 // write runs a write off the update loop, the same way a reload runs. The
 // source is lifted out first, because Update goes on writing the model.
-func (m Model) write(do func(Source) (Reload, error), at stop, advance bool) tea.Cmd {
+func (m Model) write(do func(Source) (Reload, error), at stop, row int, advance bool) tea.Cmd {
 	src := m.src
 	return func() tea.Msg {
 		r, err := do(src)
 		if err == nil {
-			return wroteMsg{r: r, at: at, advance: advance}
+			return wroteMsg{r: r, at: at, row: row, advance: advance}
 		}
 
 		// A refresh landing mid-press is not a failure. It is answered with the
@@ -139,5 +137,5 @@ func (m *Model) start(i intent) (tea.Cmd, bool) {
 		return nil, false
 	}
 	m.busy = true
-	return m.write(do, m.cursor, i.advances()), true
+	return m.write(do, m.cursor, m.diff.Cursor(), i.advances()), true
 }

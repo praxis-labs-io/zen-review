@@ -565,6 +565,35 @@ func TestTheHalfPageKeyTakesTheCursorWithIt(t *testing.T) {
 	}
 }
 
+// TestAShorterTerminalKeepsTheCursorOnScreen. A window that only clamps leaves
+// the cursor below it, and a mark then takes a hunk nothing on screen names.
+func TestAShorterTerminalKeepsTheCursorOnScreen(t *testing.T) {
+	m := pane(t, twoHunks, 60, 16)
+	m.Select(store.SideHead, 13)
+	for range 12 {
+		m = press(t, m, down)
+	}
+
+	m.SetSize(60, 4)
+	if filled(t, m) == "" {
+		t.Errorf("the resize left the cursor off the pane:\n%s", joined(t, m))
+	}
+}
+
+// TestAFileWithNoHunksLandsUnderTheCursor. It is one stop on the ring like any
+// other, and a pane with no fill on it reads as a pane the ring skipped.
+func TestAFileWithNoHunksLandsUnderTheCursor(t *testing.T) {
+	m := pane(t, "assets/logo.png", 60, 10)
+	m.Select("", 0)
+
+	if got := filled(t, m); !strings.Contains(got, "binary") {
+		t.Errorf("the cursor is on %q, want the file's only row", got)
+	}
+	if _, _, ok := m.Hunk(); ok {
+		t.Error("a file with no hunks named one anyway")
+	}
+}
+
 // TestRestorePutsTheCursorBackWithTheWindow. Landing takes the reader to the
 // heading, and a reload that changed nothing owes them their own row back.
 func TestRestorePutsTheCursorBackWithTheWindow(t *testing.T) {

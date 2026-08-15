@@ -181,6 +181,14 @@ func (m *Model) Select(side store.Side, line int) {
 	if m.file == nil || len(m.headAt) != len(m.file.Hunks) {
 		return
 	}
+
+	// A file with no hunks is one stop and one row, and the ring lands on it the
+	// same as any other. Its row carries no hunk, so Hunk still answers false.
+	if len(m.file.Hunks) == 0 {
+		m.point(0)
+		return
+	}
+
 	for i, h := range m.file.Hunks {
 		if s, l := h.Name(); s == side && l == line {
 			m.point(m.headAt[i])
@@ -212,8 +220,8 @@ func (m *Model) moveTo(i int) {
 	m.reveal()
 }
 
-// page moves the window half a screen and takes the cursor with it. One left
-// behind is paged off the pane, and the next j hauls the window back to it.
+// page moves the window half a screen and takes the cursor with it. Leaving the
+// cursor behind would page it off the pane, and the next j would haul it back.
 func (m *Model) page(by int) {
 	m.offset += by
 	m.clampOffset()
@@ -223,12 +231,10 @@ func (m *Model) page(by int) {
 // reveal brings the window back onto the cursor by as little as it takes. The
 // reader is already looking at the row; the window is what fell behind.
 func (m *Model) reveal() {
-	if m.height <= 0 || m.cursor < 0 {
-		return
+	if m.cursor >= 0 && m.height > 0 {
+		m.offset = min(m.offset, m.cursor)
+		m.offset = max(m.offset, m.cursor-m.height+1)
 	}
-
-	m.offset = min(m.offset, m.cursor)
-	m.offset = max(m.offset, m.cursor-m.height+1)
 	m.clampOffset()
 }
 
@@ -350,19 +356,14 @@ func (m Model) fits(at int) bool {
 	return at >= m.offset && end <= m.offset+m.height
 }
 
-// SetSize gives the pane the room it draws into, which is the inside of the
-// frame and not the frame.
-// The first sizing scrolls to the cursor, and every one after it only keeps the
-// window in range. The size arrives after the model is built, so the reader
-// opening on a hunk part way down a file is put there by that first resize; a
-// later one is the terminal changing shape under someone who has scrolled
-// somewhere, and yanking them back to the cursor throws that away.
+// SetSize gives the pane the room it draws into, the inside of the frame. The
+// first sizing scrolls to the cursor; a later one only keeps it on screen.
 func (m *Model) SetSize(width, height int) {
 	first := m.width == 0 && m.height == 0
 
 	m.width, m.height = width, height
 	m.repaintAll()
-	m.clampOffset()
+	m.reveal()
 
 	if first {
 		m.scrollToCursor()

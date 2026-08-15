@@ -238,6 +238,21 @@ func TestJTakesTheRingIntoTheHunkTheCursorReaches(t *testing.T) {
 	}
 }
 
+// TestAMoveDuringAWriteCancelsTheAdvance, even inside the hunk that was marked.
+// The reader moved after pressing r, and that is the newer of the two asks.
+func TestAMoveDuringAWriteCancelsTheAdvance(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
+
+	// r held, then j down onto the hunk's own added line before it lands.
+	cmd := s.hold(keystroke("r"))
+	s.press("j")
+	s.drain(cmd)
+
+	if got := heading(t, s); !strings.Contains(got, "@@ -1,0 +1,1 @@") {
+		t.Errorf("the write advanced to %q, want the hunk the reader stayed in", got)
+	}
+}
+
 func equal(got, want []string) bool {
 	if len(got) != len(want) {
 		return false
