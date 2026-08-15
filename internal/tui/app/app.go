@@ -9,6 +9,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
@@ -35,10 +36,10 @@ type Model struct {
 	keys  KeyMap
 	theme theme.Theme
 
-	// src is what the reload key reaches. It is called off the update loop, and
-	// reloading is what keeps two calls from being in flight at once.
-	src       Source
-	reloading bool
+	// src is what the reload and mark keys reach. It is called off the update
+	// loop, and busy is what keeps two calls from being in flight at once.
+	src  Source
+	busy bool
 
 	repo      string
 	base      review.Base
@@ -125,15 +126,32 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case reloadedMsg:
-		m.reloading = false
-		m.apply(msg.r)
+		m.busy = false
+		was, d, moved := m.apply(msg.r)
+		m.note = said(was, d, m.gen.Seq, moved)
+		return m, nil
+
+	case wroteMsg:
+		m.busy = false
+		m.applyWrite(msg)
+		return m, nil
+
+	case staleMsg:
+		m.busy = false
+		m.note = notice{text: "the changeset moved to generation " +
+			strconv.Itoa(msg.seq) + ", so nothing was written: press s", bad: true}
+		return m, nil
+
+	case writeFailedMsg:
+		m.busy = false
+		m.note = notice{text: msg.err.Error(), bad: true}
 		return m, nil
 
 	case reloadFailedMsg:
 		// The changeset on screen is left alone. These writes are a local
 		// transaction that committed or did not, and there is no half-applied
 		// state to paint over.
-		m.reloading = false
+		m.busy = false
 		m.note = notice{text: msg.err.Error(), bad: true}
 		return m, nil
 
@@ -147,7 +165,7 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// One press long, so it goes before the press that ends it is read. A reload
 	// still in git is the exception: the press did not end that, and the bar is
 	// the only thing saying it is happening.
-	if !m.reloading {
+	if !m.busy {
 		m.note = notice{}
 	}
 
@@ -186,11 +204,21 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// while the first is still in git.
 	if key.Matches(msg, m.keys.Reload) {
 		m.note = notice{text: "reloading"}
-		if m.reloading {
+		if m.busy {
 			return m, nil
 		}
-		m.reloading = true
+		m.busy = true
 		return m, m.reload()
+	}
+
+	// The mark keys go through the same one-at-a-time gate. A write is a local
+	// transaction, but the source it goes through may be held by a refresh.
+	if do, advance, mine := m.marked(msg); mine {
+		if m.busy || do == nil {
+			return m, nil
+		}
+		m.busy = true
+		return m, m.write(do, advance)
 	}
 
 	// The ring answers from either pane and moves both, so it is routed before

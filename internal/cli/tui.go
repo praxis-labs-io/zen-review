@@ -75,7 +75,42 @@ func (r *reloader) Reload() (app.Reload, error) {
 	if err != nil {
 		return app.Reload{}, err
 	}
+	return r.at(g)
+}
 
+func (r *reloader) MarkHunk(g review.Generation, path string, h review.Hunk) (app.Reload, error) {
+	return r.wrote(g, func() error { return r.s.MarkHunk(r.ctx, g, path, h) })
+}
+
+func (r *reloader) UnmarkHunk(g review.Generation, path string, h review.Hunk) (app.Reload, error) {
+	return r.wrote(g, func() error { return r.s.UnmarkHunk(r.ctx, g, path, h) })
+}
+
+func (r *reloader) MarkFile(g review.Generation, f review.File) (app.Reload, error) {
+	return r.wrote(g, func() error { return r.s.MarkFile(r.ctx, g, f) })
+}
+
+func (r *reloader) UnmarkFile(g review.Generation, f review.File) (app.Reload, error) {
+	return r.wrote(g, func() error { return r.s.UnmarkFile(r.ctx, g, f) })
+}
+
+// wrote runs one write and hands back the changeset it left, re-derived at the
+// generation the write named rather than refreshed. It moved no git.
+func (r *reloader) wrote(g review.Generation, do func() error) (app.Reload, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.shut {
+		return app.Reload{}, errors.New("the reader closed the session before this write started")
+	}
+	if err := do(); err != nil {
+		return app.Reload{}, err
+	}
+	return r.at(g)
+}
+
+// at is the changeset as it now stands at one generation.
+func (r *reloader) at(g review.Generation) (app.Reload, error) {
 	c, err := r.s.Changeset(r.ctx, g)
 	if err != nil {
 		return app.Reload{}, err

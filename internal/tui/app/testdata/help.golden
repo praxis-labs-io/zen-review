@@ -1,15 +1,15 @@
 ╭─[1]─Zen Review───────────────────────╮╭─[2]─assets/logo.png──────────────────────────────────────╮
 │                                      ││binary                                                    │
 │  assets                             ││                                                          │
-│   ○ logo.╭─Keys───────────────────────────────────────────────────────────────────────╮          │
-│  docs/su│ j      down                   n         next unread        h/1   tree pane │          │
-│   ● desig│ k      up                     N         previous unread    l/2   diff pane │          │
-│  interna│ g      top                    }         next hunk          space fold      │          │
-│    cli  │ G      bottom                 {         previous hunk      enter open      │          │
-│     ○ ren│ ctrl+d diff half page down    tab       next file          s     reload    │          │
-├──────────│ ctrl+u diff half page up      shift+tab previous file      ?     help      │          │
-│ origin/ma│                                                            q     quit      │          │
-│ Generatio╰────────────────────────────────────────────────────────────────────────────╯          │
+│ ╭─Keys────────────────────────────────────────────────────────────────────────────────────────╮  │
+│ │ j      down                   n         next unread        r mark read      h/1   tree pane │  │
+│ │ k      up                     N         previous unread    R mark file      l/2   diff pane │  │
+│ │ g      top                    }         next hunk          u unmark         space fold      │  │
+│ │ G      bottom                 {         previous hunk      U unmark file    enter open      │  │
+│ │ ctrl+d diff half page down    tab       next file                           s     reload    │  │
+├─│ ctrl+u diff half page up      shift+tab previous file                       ?     help      │  │
+│ │                                                                             q     quit      │  │
+│ ╰─────────────────────────────────────────────────────────────────────────────────────────────╯  │
 │ Reviewed                         2/7 ││                                                          │
 │ Changes                   6  +10 -3 ││                                                          │
 ╰──────────────────────────────────────╯╰──────────────────────────────────────────────────────────╯

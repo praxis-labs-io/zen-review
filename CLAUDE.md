@@ -247,6 +247,7 @@ n N                      next / prev unreviewed hunk
 
 r                        mark hunk reviewed, advance to next unreviewed
 R                        mark whole file reviewed
+u U                      take either back
 c                        comment on the selection
 v                        range selection, j/k extend
 C                        session summary note
@@ -276,7 +277,7 @@ Six divergences from zen-octo, all deliberate:
 - `tab` / `shift+tab` are the tab strip in zen-octo and next / previous file here. Same reason as `]` and `[`: zen-review will never have tabs.
 - `ctrl+u` / `ctrl+d` page the diff from either pane. zen-octo pages whichever pane has focus, its rail included. Walking the tree here is how a reader gets to a file, and reading it is what they came for.
 - `]` / `[` are tabs in zen-octo and comments here. zen-octo has tabs and zen-review never will.
-- `r` is reply in zen-octo and mark-reviewed here. Neither tool has the other's concept.
+- `r` is reply in zen-octo and mark-reviewed here, and `u` / `U` take a mark back. Neither tool has the other's concept.
 - `v` is jump-to-diff in zen-octo, scoped to the conversation, and range selection here. They do not collide.
 
 The diff pane opens focused on the first unreviewed hunk. zen-octo's
