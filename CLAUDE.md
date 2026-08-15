@@ -236,6 +236,7 @@ without either being hostage to the other's release cycle. zen-kit holds no keys
 
 ```
 j k g G                  movement
+zz zt zb                 put the cursor mid, top or bottom of the pane
 ctrl+u ctrl+d            page the diff, from either pane
 h l                      tree pane / diff pane
 1 2                      the same two, by the badge in the pane's border
@@ -283,6 +284,11 @@ Six divergences from zen-octo, all deliberate:
 The diff pane opens focused on the first unreviewed hunk. zen-octo's
 conversation opens unfocused because the reader came to read; you came here to
 burn a review down.
+
+`j` and `k` move a row cursor rather than the window, and the hunk heading pins
+to the top row once it scrolls off, so a reader deep in a long hunk can always
+see which hunk a mark would take. It steps aside when the cursor is on that row:
+the heading costs less to lose than the cursor does.
 
 ## Exit codes
 

@@ -9,7 +9,7 @@
 │ │ G      bottom                 {         previous hunk      ?   help      │ │
 │ │ ctrl+d diff half page down    tab       next file          q   quit      │ │
 │ │ ctrl+u diff half page up      shift+tab previous file                    │ │
-│ │                               r         mark read                        │ │
+│ │ z      place cursor: z/t/b    r         mark read                        │ │
 │ │                               R         mark file                        │ │
 ├─│                               u         unmark                           │ │
 │ │                               U         unmark file                      │ │

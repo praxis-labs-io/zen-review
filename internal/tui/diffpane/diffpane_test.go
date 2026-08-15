@@ -481,11 +481,15 @@ func TestJMovesTheCursorAndNotTheWindow(t *testing.T) {
 func TestTheWindowFollowsTheCursorOffTheEdge(t *testing.T) {
 	m := pane(t, twoHunks, 60, 4)
 	m.Select(store.SideHead, 13)
+
+	// The row under the heading, which scrolling has to carry off the top. The
+	// heading itself pins there, so it cannot say whether the window moved.
+	first := rows(t, m)[1]
 	m = press(t, m, down, down, down, down)
 
 	got := rows(t, m)
-	if strings.Contains(got[0], "@@ -10,5") {
-		t.Fatalf("the cursor walked off the pane and the window stayed: %q", got[0])
+	if strings.Contains(joined(t, m), strings.TrimRight(first, " ")) {
+		t.Fatalf("the cursor walked off the pane and the window stayed:\n%s", joined(t, m))
 	}
 	if want := strings.TrimRight(got[3], " "); filled(t, m) != want {
 		t.Errorf("the cursor is on %q, want the bottom row, %q", filled(t, m), want)
@@ -561,36 +565,6 @@ func TestTheHalfPageKeyTakesTheCursorWithIt(t *testing.T) {
 	}
 }
 
-// TestOnlyTheHunkTheCursorIsInReadsAtFullWeight. A caret is one cell against a
-// column of identical headings, and it cannot say which hunk a mark would take.
-func TestOnlyTheHunkTheCursorIsInReadsAtFullWeight(t *testing.T) {
-	m := pane(t, twoHunks, 60, 20)
-	m.Select(store.SideHead, 13)
-
-	lit := params(t, lipgloss.NewStyle().Foreground(theme.RosePineMoon.Accent))
-	dim := params(t, lipgloss.NewStyle().Foreground(theme.RosePineMoon.Subtle))
-	raw := strings.Split(m.View(), "\n")
-
-	if !strings.Contains(headText(t, raw[0]), lit) {
-		t.Errorf("the heading the cursor is in is not accent: %q", raw[0])
-	}
-	if got := headText(t, raw[8]); !strings.Contains(got, dim) || strings.Contains(got, lit) {
-		t.Errorf("the heading the cursor is not in reads at full weight: %q", raw[8])
-	}
-
-	// Into the second hunk, and the two swap rather than both lighting up.
-	for range 8 {
-		m = press(t, m, down)
-	}
-	raw = strings.Split(m.View(), "\n")
-	if strings.Contains(headText(t, raw[0]), lit) {
-		t.Errorf("the heading the cursor left stayed accent: %q", raw[0])
-	}
-	if !strings.Contains(headText(t, raw[8]), lit) {
-		t.Errorf("the heading the cursor entered did not light: %q", raw[8])
-	}
-}
-
 // params is the escape parameters a style renders with, stripped of the escape
 // around them: lipgloss packs foreground and background into one run.
 func params(t *testing.T, s lipgloss.Style) string {
@@ -604,17 +578,91 @@ func params(t *testing.T, s lipgloss.Style) string {
 	return probe[a+1 : b]
 }
 
-// headText is the parameters the row's @@ text is painted with. The badge keeps
-// its own state colour, so the whole row cannot answer for the heading.
-func headText(t *testing.T, row string) string {
-	t.Helper()
+// TestTheHeadingPinsToTheTopOnceItScrollsOff. Deep in a long hunk there is
+// otherwise nothing on screen saying which hunk a mark would take.
+func TestTheHeadingPinsToTheTopOnceItScrollsOff(t *testing.T) {
+	m := pane(t, twoHunks, 60, 4)
+	m.Select(store.SideHead, 13)
+	m = press(t, m, down, down, down, down)
 
-	at := strings.Index(row, "@@")
-	if at < 0 {
-		t.Fatalf("no heading text in %q", row)
+	got := rows(t, m)
+	if !strings.Contains(got[0], "@@ -10,5") {
+		t.Errorf("the top row is %q, want the cursor's hunk heading", got[0])
 	}
-	a := strings.LastIndex(row[:at], "\x1b[")
-	return row[a+2 : a+strings.Index(row[a:], "m")]
+	// The pin covers a row rather than adding one. A pane taller than its window
+	// is a frame that overruns the one below it.
+	if len(got) != 4 {
+		t.Errorf("the pane drew %d rows, want 4", len(got))
+	}
+}
+
+// TestTheHeadingIsNotDrawnTwiceWhileItIsOnScreen, which is what a pin reading
+// the cursor without reading the window would do.
+func TestTheHeadingIsNotDrawnTwiceWhileItIsOnScreen(t *testing.T) {
+	m := pane(t, twoHunks, 60, 8)
+	m.Select(store.SideHead, 13)
+	m = press(t, m, down, down)
+
+	seen := 0
+	for _, r := range rows(t, m) {
+		if strings.Contains(r, "@@ -10,5") {
+			seen++
+		}
+	}
+	if seen != 1 {
+		t.Errorf("the heading is on %d rows, want 1:\n%s", seen, joined(t, m))
+	}
+}
+
+// TestZPlacesTheCursorInTheWindow. These move the window under the cursor
+// rather than the cursor through the file, which is why they are not ring keys.
+func TestZPlacesTheCursorInTheWindow(t *testing.T) {
+	z := tea.KeyPressMsg{Code: 'z', Text: "z"}
+
+	// The second heading, row eight of sixteen over an eight-row window: the one
+	// place all three have somewhere to go, since the window clamps at both ends.
+	at := func() diffpane.Model {
+		m := pane(t, twoHunks, 60, 8)
+		m.Select(store.SideHead, 124)
+		return m
+	}
+
+	for _, tt := range []struct {
+		name string
+		keys []tea.KeyPressMsg
+		row  int
+	}{
+		{"zt puts the cursor on the top row", []tea.KeyPressMsg{z, {Code: 't', Text: "t"}}, 0},
+		{"zz centres the cursor", []tea.KeyPressMsg{z, z}, 3},
+		{"zb puts the cursor on the bottom row", []tea.KeyPressMsg{z, {Code: 'b', Text: "b"}}, 7},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			m := press(t, at(), tt.keys...)
+			want := strings.TrimRight(rows(t, m)[tt.row], " ")
+			if got := filled(t, m); got != want {
+				t.Errorf("the cursor is on %q, want row %d, %q", got, tt.row, want)
+			}
+		})
+	}
+}
+
+// TestZOnItsOwnDoesNothing, and spends the key after it rather than leaving the
+// pane armed for a press the reader has forgotten about.
+func TestZOnItsOwnDoesNothing(t *testing.T) {
+	m := pane(t, twoHunks, 60, 8)
+	m.Select(store.SideHead, 124)
+	m = press(t, m, down, down)
+
+	before := joined(t, m)
+	m = press(t, m, tea.KeyPressMsg{Code: 'z', Text: "z"})
+	if after := joined(t, m); after != before {
+		t.Errorf("z alone moved the pane:\n%s", after)
+	}
+
+	m = press(t, m, down)
+	if after := joined(t, m); after != before {
+		t.Errorf("the key after z was acted on as well:\n%s", after)
+	}
 }
 
 // TestAShorterTerminalKeepsTheCursorOnScreen. A window that only clamps leaves

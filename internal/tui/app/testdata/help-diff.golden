@@ -7,7 +7,7 @@
 │  internal│ G      bottom                 {         previous hunk      ?   help      │           │
 │    cli   │ ctrl+d diff half page down    tab       next file          q   quit      │           │
 │     ○ rend│ ctrl+u diff half page up      shift+tab previous file                    │           │
-├───────────│                               r         mark read                        │           │
+├───────────│ z      place cursor: z/t/b    r         mark read                        │           │
 │ origin/mai│                               R         mark file                        │           │
 │ Generation│                               u         unmark                           │           │
 │ Reviewed  │                               U         unmark file                      │           │

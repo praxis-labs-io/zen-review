@@ -33,6 +33,13 @@ type KeyMap struct {
 
 	HalfUp   key.Binding
 	HalfDown key.Binding
+
+	// Place is the z that waits, and the three that answer it. Vim spells them
+	// zz, zt and zb, and z on its own does nothing.
+	Place    key.Binding
+	Centre   key.Binding
+	ToTop    key.Binding
+	ToBottom key.Binding
 }
 
 // NewKeyMap is the bindings and the help text they carry.
@@ -41,6 +48,13 @@ func NewKeyMap() KeyMap {
 		Movement: comp.NewMovement(),
 		HalfUp:   key.NewBinding(key.WithKeys("ctrl+u"), key.WithHelp("ctrl+u", "diff half page up")),
 		HalfDown: key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+d", "diff half page down")),
+
+		// One entry, and labelled by the key it is actually bound to. Spelling
+		// out zz/zt/zb widens the overlay past the frame it has to fit at eighty.
+		Place:    key.NewBinding(key.WithKeys("z"), key.WithHelp("z", "place cursor: z/t/b")),
+		Centre:   key.NewBinding(key.WithKeys("z")),
+		ToTop:    key.NewBinding(key.WithKeys("t")),
+		ToBottom: key.NewBinding(key.WithKeys("b")),
 	}
 }
 
@@ -95,6 +109,10 @@ type Model struct {
 	cursor int
 	headAt []int
 	gutter int
+
+	// waiting is a z held for the key that says where to put the cursor. Any
+	// landing clears it, so a ring key between the two does not arm the next.
+	waiting bool
 
 	offset int
 
@@ -206,7 +224,7 @@ func (m *Model) point(i int) {
 	}
 
 	was := m.cursor
-	m.cursor = i
+	m.cursor, m.waiting = i, false
 	m.repaint(was, i, m.headOf(was), m.headOf(i))
 }
 
@@ -296,14 +314,9 @@ func (m Model) header(i int, fill color.Color) paint.Header {
 
 	head := paint.Header{Text: comp.Safe(h.Diff.Header), Fill: fill}
 	head.Badge, head.BadgeColor = m.badge(h.State)
-
-	// Every other heading dims. A caret is one cell against a column of them,
-	// and the reader deep in a hunk has to see which one they are in.
-	if i != m.hunkAt(m.cursor) {
-		head.TextColor = m.theme.Subtle
-		return head
+	if i == m.hunkAt(m.cursor) {
+		head.Marker = cursorGlyph
 	}
-	head.Marker = cursorGlyph
 	return head
 }
 
@@ -345,6 +358,26 @@ func (m *Model) scrollToCursor() {
 		return
 	}
 	m.offset = min(at, m.maxOffset())
+}
+
+// pinned is the heading to hold on the top line, or -1 for none. A cursor
+// sitting on that line keeps it: the heading costs less to lose than the cursor.
+func (m Model) pinned() int {
+	at := m.headOf(m.cursor)
+	if at < 0 || at >= m.offset || m.cursor == m.offset {
+		return -1
+	}
+	return at
+}
+
+// place puts the cursor's row at a position in the window, 0 being the top row.
+// It stops at the ends of the file the way vim does, rather than scrolling past.
+func (m *Model) place(row int) {
+	if m.cursor < 0 || m.height <= 0 {
+		return
+	}
+	m.offset = m.cursor - row
+	m.clampOffset()
 }
 
 // fits is whether the hunk starting at a row is on screen whole already, its
@@ -394,6 +427,25 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// A z is one press of a two-press key, and anything else after it is
+	// swallowed rather than acted on, the way vim swallows it.
+	if m.waiting {
+		m.waiting = false
+		switch {
+		case key.Matches(press, m.Keys.Centre):
+			m.place((m.height - 1) / 2)
+		case key.Matches(press, m.Keys.ToTop):
+			m.place(0)
+		case key.Matches(press, m.Keys.ToBottom):
+			m.place(m.height - 1)
+		}
+		return m, nil
+	}
+	if key.Matches(press, m.Keys.Place) {
+		m.waiting = true
+		return m, nil
+	}
+
 	switch {
 	case key.Matches(press, m.Keys.Down):
 		m.moveTo(m.cursor + 1)
@@ -411,10 +463,16 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	return m, nil
 }
 
+// View pins the cursor's hunk heading to the top row once the heading has
+// scrolled above it, covering the line there. Nothing else says which hunk.
 func (m Model) View() string {
 	out := make([]string, 0, m.height)
 	for i := m.offset; i < len(m.rows) && len(out) < m.height; i++ {
 		out = append(out, m.rows[i].text)
+	}
+
+	if at := m.pinned(); at >= 0 && len(out) > 0 {
+		out[0] = m.rows[at].text
 	}
 
 	blank := strings.Repeat(" ", max(0, m.width))
