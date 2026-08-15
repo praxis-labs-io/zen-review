@@ -162,59 +162,49 @@ func TestAFailedWriteLeavesTheChangesetAlone(t *testing.T) {
 	}
 }
 
-// One write in flight at a time, and the press that arrived while it was out
-// runs after it rather than being dropped. r r r r is the flow the tool is for,
-// and a write is a git read, so a repeat outruns it.
-func TestAPressDuringAWriteRunsAfterIt(t *testing.T) {
+// One write in flight at a time. A press refused while the last is still in git
+// loses nothing: nothing was written and the cursor did not move, so the next
+// press acts on the same hunk. What it must not do is go quiet.
+func TestAPressDuringAWriteIsRefusedAndSaysSo(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
-	s.wrote(testchangeset.Derive(t, ringPatch, testchangeset.Head("a.go", 1, 1)))
 
 	// hold applies the press without running the command it returned, which is
 	// the frame the reader sees while the first write is still going.
 	cmd := s.hold(keystroke("r"))
-	s.press("r")
-
-	if got := s.calls(); len(got) != 0 {
-		t.Fatalf("a write landed before the first was drained: %v", got)
+	if bar := s.bar(); !strings.Contains(bar, "marking") {
+		t.Errorf("the bar says %q while a write is out, want it to say what is happening", bar)
 	}
 
+	s.press("r")
 	s.drain(cmd)
 
-	want := []string{"MarkHunk a.go head:1 gen=2", "MarkHunk a.go head:11 gen=2"}
+	want := []string{"MarkHunk a.go head:1 gen=2"}
 	if got := s.calls(); !equal(got, want) {
-		t.Errorf("the reader wrote %v, want %v", got, want)
+		t.Errorf("the reader wrote %v, want the press in flight alone", got)
 	}
 }
 
-// Only one waits. A key held through a slow write should not queue a press per
-// repeat and then walk the whole changeset once it drains.
-func TestOnlyOnePressWaitsBehindAWrite(t *testing.T) {
-	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
+// The advance does not wrap. The ring wraps because hunting is what n is for;
+// coming back to the top would let one key claim the whole changeset was read.
+func TestTheAdvanceStopsAtTheEndRatherThanWrapping(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, ringPatch,
+		testchangeset.Head("a.go", 11, 11), testchangeset.Head("b.go", 1, 1),
+	), 100, 16)
 
-	cmd := s.hold(keystroke("r"))
-	s.press("r", "r", "r")
-	s.drain(cmd)
-
-	if got := s.calls(); len(got) != 2 {
-		t.Errorf("the reader wrote %v, want the press in flight and one behind it", got)
+	// n walks to the last unread hunk, leaving one unread above the cursor.
+	s.press("n")
+	if got := heading(t, s); !strings.Contains(got, "@@ -10,0 +11,1 @@") {
+		t.Fatalf("n landed on %q, want b.go's second hunk", got)
 	}
-}
 
-// A write that failed drops what was waiting. The next press is the reader
-// deciding to try again, not a queue draining into an error.
-func TestAFailedWriteDropsThePressBehindIt(t *testing.T) {
-	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
-	s.src.wroteErr = errors.New("the database is locked")
-
-	cmd := s.hold(keystroke("r"))
+	s.wrote(testchangeset.Derive(t, ringPatch,
+		testchangeset.Head("a.go", 11, 11), testchangeset.Head("b.go", 1, 1),
+		testchangeset.Head("b.go", 11, 11),
+	))
 	s.press("r")
-	s.drain(cmd)
 
-	if got := s.calls(); len(got) != 0 {
-		t.Errorf("the reader wrote %v, want nothing", got)
-	}
-	if bar := s.bar(); !strings.Contains(bar, "the database is locked") {
-		t.Errorf("the bar says %q, want the error", bar)
+	if got := heading(t, s); !strings.Contains(got, "@@ -10,0 +11,1 @@") {
+		t.Errorf("the cursor wrapped to %q, want it to stay at the end", got)
 	}
 }
 

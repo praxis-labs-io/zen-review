@@ -88,7 +88,7 @@ func (m *Model) applyWrite(msg wroteMsg) {
 	m.apply(msg.r)
 
 	if msg.advance && m.cursor.same(msg.at) {
-		if s, ok := m.ring(1, unreadStop); ok {
+		if s, ok := m.onward(unreadStop); ok {
 			m.land(s)
 		}
 	}

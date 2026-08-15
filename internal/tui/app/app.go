@@ -40,10 +40,6 @@ type Model struct {
 	src  Source
 	busy bool
 
-	// queued is the one mark press waiting on the write in flight. A write is a
-	// git read and a repeat is faster, so dropping it loses a press from r r r r.
-	queued *intent
-
 	repo      string
 	base      review.Base
 	gen       review.Generation
@@ -137,15 +133,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case wroteMsg:
 		m.busy = false
 		m.applyWrite(msg)
-		return m, m.next()
+		return m, nil
 
 	case staleMsg:
-		m.busy, m.queued = false, nil
+		m.busy = false
 		m.note = notice{text: msg.err.Error() + ": press s", bad: true}
 		return m, nil
 
 	case writeFailedMsg:
-		m.busy, m.queued = false, nil
+		m.busy = false
 		m.note = notice{text: msg.err.Error(), bad: true}
 		return m, nil
 
@@ -216,8 +212,12 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// The mark keys go through the same one-at-a-time gate. A write is a local
 	// transaction, but the source it goes through may be held by a refresh.
 	if i, mine := m.marked(msg); mine {
+		// The note goes up either way, so a press refused while the last one is
+		// still in git leaves the bar saying what is happening rather than blank.
+		// A refused press loses nothing: nothing was written and the cursor did
+		// not move, so the next press acts on the same hunk.
+		m.note = notice{text: "marking"}
 		if m.busy {
-			m.queued = &i
 			return m, nil
 		}
 		cmd, ok := m.start(i)
@@ -256,22 +256,6 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.diff, cmd = m.diff.Update(msg)
 	}
 	return m, cmd
-}
-
-// next runs the press that waited behind the write that just landed, against
-// the cursor that write left rather than the one it was typed on.
-func (m *Model) next() tea.Cmd {
-	if m.queued == nil {
-		return nil
-	}
-	i := *m.queued
-	m.queued = nil
-
-	cmd, ok := m.start(i)
-	if !ok {
-		return nil
-	}
-	return cmd
 }
 
 // walk is the stop a ring key asks for. The third value says whether the press

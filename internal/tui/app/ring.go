@@ -81,6 +81,25 @@ func (m Model) ring(by int, want func(stop) bool) (stop, bool) {
 	return stop{}, false
 }
 
+// onward is the next stop matching want after the cursor, and does not wrap.
+//
+// It is what a mark advances by. The ring wraps because hunting for something
+// unread is what n is for; a walk that came back to the top would let one held
+// key claim the whole changeset had been read.
+func (m Model) onward(want func(stop) bool) (stop, bool) {
+	stops := m.stops()
+	if len(stops) == 0 {
+		return stop{}, false
+	}
+
+	for i := at(stops, m.cursor) + 1; i < len(stops); i++ {
+		if want(stops[i]) {
+			return stops[i], true
+		}
+	}
+	return stop{}, false
+}
+
 // wrap is i modulo n, brought back into range from either end. Go's % keeps the
 // sign of its left operand, so a step back off the front lands negative.
 func wrap(i, n int) int { return ((i % n) + n) % n }
