@@ -234,8 +234,30 @@ func (m *Model) moveTo(i int) {
 	if len(m.rows) == 0 {
 		return
 	}
-	m.point(max(0, min(i, len(m.rows)-1)))
+	i = max(0, min(i, len(m.rows)-1))
+
+	// The blank between two hunks is the pane's own spacing rather than a line
+	// of the file, so the cursor steps over it the way it was already going.
+	if m.blank(i) {
+		by := 1
+		if i < m.cursor {
+			by = -1
+		}
+		i = max(0, min(i+by, len(m.rows)-1))
+	}
+
+	m.point(i)
 	m.reveal()
+}
+
+// blank is whether a row is the spacing between two hunks, which is the one row
+// the pane draws that says nothing.
+func (m Model) blank(i int) bool {
+	if i < 0 || i >= len(m.rows) {
+		return false
+	}
+	r := m.rows[i]
+	return r.kind == noteRow && r.note == ""
 }
 
 // page moves the window half a screen and takes the cursor with it. Leaving the
@@ -368,9 +390,9 @@ func (m Model) pinned() int {
 		return -1
 	}
 
-	// The blank between two hunks belongs to the one above it, and pinning there
-	// would stack a heading on top of the next one arriving right below.
-	if r := m.rows[m.offset]; r.kind == noteRow && r.note == "" {
+	// Pinning above the blank between two hunks would stack a heading directly
+	// on top of the next one arriving right below it.
+	if m.blank(m.offset) {
 		return -1
 	}
 

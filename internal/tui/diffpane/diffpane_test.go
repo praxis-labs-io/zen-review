@@ -596,6 +596,34 @@ func TestTheHeadingPinsToTheTopOnceItScrollsOff(t *testing.T) {
 	}
 }
 
+// TestTheCursorStepsOverTheBlankBetweenHunks, going either way. The blank is
+// the pane's own spacing and there is nothing on it to put a cursor on.
+func TestTheCursorStepsOverTheBlankBetweenHunks(t *testing.T) {
+	m := pane(t, twoHunks, 60, 20)
+	m.Select(store.SideHead, 13)
+
+	// Row six is the first hunk's last line, seven the blank, eight the heading.
+	// Read live: the row gains a caret as the cursor arrives on it.
+	last := func(m diffpane.Model) string { return strings.TrimRight(rows(t, m)[6], " ") }
+
+	for range 6 {
+		m = press(t, m, down)
+	}
+	if got := filled(t, m); got != last(m) {
+		t.Fatalf("six presses landed on %q, want the first hunk's last line, %q", got, last(m))
+	}
+
+	m = press(t, m, down)
+	if got := filled(t, m); !strings.Contains(got, "@@ -120,5") {
+		t.Errorf("j landed on %q, want the next hunk's heading", got)
+	}
+
+	m = press(t, m, up)
+	if got := filled(t, m); got != last(m) {
+		t.Errorf("k landed on %q, want the line above the blank, %q", got, last(m))
+	}
+}
+
 // TestThePinFollowsTheWindowAndNotTheCursor. A heading names the lines under
 // it, so pinning the cursor's would label them with a hunk they are not in.
 func TestThePinFollowsTheWindowAndNotTheCursor(t *testing.T) {
