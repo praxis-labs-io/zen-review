@@ -108,3 +108,19 @@ func TestTheFactsCountTheComments(t *testing.T) {
 		t.Errorf("the facts read %q, want one of six answered", got)
 	}
 }
+
+// TestTheRingLeavesTheFileWithACardOutsideEveryHunk. A file comment and a stray
+// sit outside every hunk, and a ring left where it was would mark a hunk in the
+// file the reader just left.
+func TestTheRingLeavesTheFileWithACardOutsideEveryHunk(t *testing.T) {
+	whole := testchangeset.Comment("aaaaaaaaaaaa", "README.md", 0, 0, "the file itself")
+
+	// Off in state.go, so a ring left alone would still be pointed there.
+	s := commented(t, 100, 24, whole)
+	s.press("tab", "]", "r")
+
+	want := "MarkHunk README.md head:3 gen=2"
+	if got := s.calls(); len(got) != 1 || got[0] != want {
+		t.Errorf("the marks were %v, want %q", got, want)
+	}
+}

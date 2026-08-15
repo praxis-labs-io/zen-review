@@ -187,7 +187,19 @@ func (m *Model) landComment(c store.Comment) {
 	}
 	m.tree.Select(f.Diff.Path)
 	m.diff.SelectComment(c.ID)
-	m.syncCursor()
+
+	// A file comment and a stray sit outside every hunk, so there is none under
+	// the cursor to follow and the ring takes the file's first instead.
+	if _, _, ok := m.diff.Hunk(); ok {
+		m.syncCursor()
+		return
+	}
+
+	// Left alone the ring stays in the file just left, where r marks something
+	// nothing on screen names.
+	if s, ok := m.firstOf(f.Diff.Path); ok {
+		m.cursor = s
+	}
 }
 
 // fileOwning is the changeset file a comment was written against, and nil when

@@ -68,7 +68,10 @@ func (m Model) folds(c store.Comment) bool {
 // code starts in, and gives that up rather than shrink past what a border needs.
 func (m Model) cardBox() (int, int) {
 	at := min(paint.CodeColumn(m.gutter), max(m.width-cardMin, 0))
-	return at, m.width - at
+
+	// It stops at what prose reads at, where the code beside it runs the whole
+	// pane. A wide box around one column of words reads as a fault, not a card.
+	return at, min(m.width-at, comp.BodyWidth+2+2*cardGutter)
 }
 
 // addCard renders one comment into rows and records where they landed. The rows
@@ -93,10 +96,8 @@ func (m Model) drawCard(c store.Comment, placed bool) ([]string, []string) {
 
 	at, width := m.cardBox()
 	if width < cardMin || m.folds(c) {
-		plain := lipgloss.NewStyle()
-		lit := lipgloss.NewStyle().Background(m.theme.SelectedBackground)
-		return []string{m.pad(indent(m.bareCard(c, placed, plain), at), plain)},
-			[]string{m.pad(indent(m.bareCard(c, placed, lit), at), lit)}
+		return m.bareRow(c, placed, at, lipgloss.NewStyle()),
+			m.bareRow(c, placed, at, lipgloss.NewStyle().Background(m.theme.SelectedBackground))
 	}
 
 	body := m.cardBody(c, width)
@@ -129,6 +130,13 @@ func (m Model) cardBody(c store.Comment, width int) []string {
 		out = append(out, gutter+m.subtle().Render("no words"))
 	}
 	return out
+}
+
+// bareRow is the one-row form finished to the pane, its indent painted in the
+// row's own style so a lit one fills from the edge the way a code row does.
+func (m Model) bareRow(c store.Comment, placed bool, at int, base lipgloss.Style) []string {
+	lead := base.Render(strings.Repeat(" ", max(at, 0)))
+	return []string{m.pad(lead+m.bareCard(c, placed, base), base)}
 }
 
 // bareCard is the one-row form: the badge, the state, and enough of the body to

@@ -1030,3 +1030,14 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 		t.Errorf("it drew as a stray rather than under the line it removed:\n%s", got)
 	}
 }
+
+// TestEveryBadgeIsOneCell. A two-cell glyph puts every row after it out of step
+// where a font missing a one-cell one only draws a box, so this is measured
+// rather than assumed.
+func TestEveryBadgeIsOneCell(t *testing.T) {
+	for _, glyph := range []string{"○", "⊙", "●", "⊘", mark} {
+		if got := lipgloss.Width(glyph); got != 1 {
+			t.Errorf("%q measures %d cells", glyph, got)
+		}
+	}
+}
