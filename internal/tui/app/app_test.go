@@ -521,7 +521,7 @@ func TestTheBarSaysWhatThePaneHoldingTheKeysCanDo(t *testing.T) {
 	}
 
 	diff := open(t, 100, 16).lines()[15]
-	if !strings.Contains(diff, "j/k scroll") {
+	if !strings.Contains(diff, "j/k move") {
 		t.Errorf("the diff holds the keys and the bar reads %q", diff)
 	}
 	if strings.Contains(diff, "space fold") {

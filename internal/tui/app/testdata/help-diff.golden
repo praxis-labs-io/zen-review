@@ -13,4 +13,4 @@
 │ Reviewed  │                               U         unmark file                      │           │
 │ Changes   ╰──────────────────────────────────────────────────────────────────────────╯           │
 ╰──────────────────────────────────────╯╰──────────────────────────────────────────────────────────╯
-j/k scroll · n/N unread · }/{ hunk · ctrl+d/u page · r/R read · s reload · ? help · q quit          
+j/k move · n/N unread · }/{ hunk · ctrl+d/u page · r/R read · s reload · tab file · ? help · q quit 

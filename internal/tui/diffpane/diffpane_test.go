@@ -443,3 +443,149 @@ func TestTheFirstSizingScrollsToTheCursor(t *testing.T) {
 		t.Errorf("the top row is %q, want the hunk the cursor was on", got)
 	}
 }
+
+// filled is the row wearing the cursor's fill, stripped and unpadded, and empty
+// when none does. Its parameters match bare: lipgloss puts the foreground first.
+func filled(t *testing.T, m diffpane.Model) string {
+	t.Helper()
+
+	probe := lipgloss.NewStyle().Background(theme.RosePineMoon.SelectedBackground).Render("x")
+	a, b := strings.Index(probe, "["), strings.Index(probe, "m")
+	if a < 0 || b < a {
+		t.Fatalf("lipgloss rendered the fill without an escape: %q", probe)
+	}
+
+	for _, line := range strings.Split(m.View(), "\n") {
+		if strings.Contains(line, probe[a+1:b]) {
+			return strings.TrimRight(ansi.Strip(line), " ")
+		}
+	}
+	return ""
+}
+
+// TestJMovesTheCursorAndNotTheWindow, while the row it lands on is on screen. A
+// pane that scrolls on every j takes the reader off the line they are reading.
+func TestJMovesTheCursorAndNotTheWindow(t *testing.T) {
+	m := pane(t, twoHunks, 60, 8)
+	m.Select(store.SideHead, 13)
+
+	before := rows(t, m)[0]
+	m = press(t, m, down, down)
+
+	if after := rows(t, m)[0]; after != before {
+		t.Errorf("j scrolled the window from %q to %q", before, after)
+	}
+	if want := strings.TrimRight(rows(t, m)[2], " "); filled(t, m) != want {
+		t.Errorf("the cursor is on %q, want two rows down, %q", filled(t, m), want)
+	}
+}
+
+// TestTheWindowFollowsTheCursorOffTheEdge, by as little as it takes. The reader
+// is already looking at the row; the window is what has fallen behind.
+func TestTheWindowFollowsTheCursorOffTheEdge(t *testing.T) {
+	m := pane(t, twoHunks, 60, 4)
+	m.Select(store.SideHead, 13)
+	m = press(t, m, down, down, down, down)
+
+	got := rows(t, m)
+	if strings.Contains(got[0], "@@ -10,5") {
+		t.Fatalf("the cursor walked off the pane and the window stayed: %q", got[0])
+	}
+	if want := strings.TrimRight(got[3], " "); filled(t, m) != want {
+		t.Errorf("the cursor is on %q, want the bottom row, %q", filled(t, m), want)
+	}
+}
+
+// TestTheCursorStopsAtBothEndsOfTheFile, so a key held down cannot walk it off.
+func TestTheCursorStopsAtBothEndsOfTheFile(t *testing.T) {
+	m := pane(t, twoHunks, 60, 20)
+	m.Select(store.SideHead, 13)
+
+	m = press(t, m, tea.KeyPressMsg{Code: 'G', Text: "G"}, down, down)
+	if want := strings.TrimRight(rows(t, m)[15], " "); filled(t, m) != want {
+		t.Errorf("the cursor is on %q, want the last row, %q", filled(t, m), want)
+	}
+
+	m = press(t, m, tea.KeyPressMsg{Code: 'g', Text: "g"}, up, up)
+	if want := strings.TrimRight(rows(t, m)[0], " "); filled(t, m) != want {
+		t.Errorf("the cursor is on %q, want the first row, %q", filled(t, m), want)
+	}
+}
+
+// TestTheHeadingKeepsTheCaretWhileTheCursorIsInsideTheHunk. Once j walks off the
+// heading, the caret and the fill are on different rows and both are wanted.
+func TestTheHeadingKeepsTheCaretWhileTheCursorIsInsideTheHunk(t *testing.T) {
+	m := pane(t, twoHunks, 60, 20)
+	m.Select(store.SideHead, 13)
+	m = press(t, m, down, down)
+
+	got := rows(t, m)
+	if !strings.Contains(got[0], mark) {
+		t.Errorf("the heading lost the caret to the row below it: %q", got[0])
+	}
+	if want := strings.TrimRight(got[2], " "); filled(t, m) != want {
+		t.Errorf("the fill is on %q, want the cursor's row, %q", filled(t, m), want)
+	}
+}
+
+// TestTheCursorNamesTheHunkItWalkedInto, which is how the root keeps the ring on
+// what the reader is looking at.
+func TestTheCursorNamesTheHunkItWalkedInto(t *testing.T) {
+	m := pane(t, twoHunks, 60, 20)
+	m.Select(store.SideHead, 13)
+
+	side, line, ok := m.Hunk()
+	if !ok || side != store.SideHead || line != 13 {
+		t.Fatalf("the cursor names %s:%d (%v), want head:13", side, line, ok)
+	}
+
+	// The heading, its six lines, and the blank between the two hunks.
+	for range 8 {
+		m = press(t, m, down)
+	}
+	if side, line, ok = m.Hunk(); !ok || side != store.SideHead || line != 124 {
+		t.Errorf("the cursor names %s:%d (%v), want head:124", side, line, ok)
+	}
+}
+
+// TestTheHalfPageKeyTakesTheCursorWithIt. One left behind is paged off the pane,
+// and the next j hauls the window back to it.
+func TestTheHalfPageKeyTakesTheCursorWithIt(t *testing.T) {
+	m := pane(t, twoHunks, 60, 4)
+	m.Select(store.SideHead, 13)
+
+	m = press(t, m, tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl})
+	if filled(t, m) == "" {
+		t.Errorf("ctrl+d paged the cursor off the pane:\n%s", joined(t, m))
+	}
+
+	m = press(t, m, tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
+	if filled(t, m) == "" {
+		t.Errorf("ctrl+u paged the cursor off the pane:\n%s", joined(t, m))
+	}
+}
+
+// TestRestorePutsTheCursorBackWithTheWindow. Landing takes the reader to the
+// heading, and a reload that changed nothing owes them their own row back.
+func TestRestorePutsTheCursorBackWithTheWindow(t *testing.T) {
+	c := testchangeset.Nested(t)
+
+	m := pane(t, twoHunks, 60, 8)
+	m.Select(store.SideHead, 13)
+	m = press(t, m, down, down, down)
+
+	at, off := m.Cursor(), m.Scroll().Offset
+
+	// What a reload of the same bytes does: the file back in the pane, the
+	// cursor on the heading, then the reader's own place handed back.
+	m.SetFile(fileAt(t, c, twoHunks))
+	m.Select(store.SideHead, 13)
+	m.Restore(at, off)
+
+	if want := strings.TrimRight(rows(t, m)[at-off], " "); filled(t, m) != want {
+		t.Errorf("the cursor came back on %q, want %q", filled(t, m), want)
+	}
+	if got := m.Scroll().Offset; got != off {
+		t.Errorf("the window came back at %d, want %d", got, off)
+	}
+}

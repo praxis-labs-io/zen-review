@@ -219,6 +219,25 @@ func TestTheBarSaysHowFarDownTheReviewIs(t *testing.T) {
 	}
 }
 
+// TestJTakesTheRingIntoTheHunkTheCursorReaches. The mark keys act on the hunk
+// the reader is looking at, and after j that is not the one they opened on.
+func TestJTakesTheRingIntoTheHunkTheCursorReaches(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
+
+	// a.go's first hunk is a heading, one added line and the blank after it, so
+	// the third row down is the second hunk's heading.
+	s.press("j", "j", "j")
+	if got := heading(t, s); !strings.Contains(got, "@@ -10,0 +11,1 @@") {
+		t.Fatalf("the caret is on %q, want a.go's second hunk", got)
+	}
+
+	s.press("r")
+	want := []string{"MarkHunk a.go head:11 gen=2"}
+	if got := s.calls(); !equal(got, want) {
+		t.Errorf("r wrote %v, want %v", got, want)
+	}
+}
+
 func equal(got, want []string) bool {
 	if len(got) != len(want) {
 		return false

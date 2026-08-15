@@ -142,7 +142,8 @@ func (m Model) mark() mark {
 // pointing into the old changeset once the tree has rebuilt, and land re-points
 // it only when the path changed, which after a reload it usually has not.
 func (m *Model) apply(r Reload) (stop, drift, bool) {
-	k, was := m.mark(), m.diff.Scroll().Offset
+	k := m.mark()
+	at, was := m.diff.Cursor(), m.diff.Scroll().Offset
 	moved := r.Generation.ID != m.gen.ID
 
 	m.base, m.gen, m.changeset = r.Base, r.Generation, r.Changeset
@@ -155,10 +156,10 @@ func (m *Model) apply(r Reload) (stop, drift, bool) {
 		m.land(s)
 
 		// A generation the refresh did not build is the same bytes on screen, so
-		// the reader keeps the place they had scrolled to. One it did build is
-		// different bytes, and the heading is where to start reading them.
+		// the reader keeps the row they had walked to.
 		if !moved {
-			m.diff.Restore(was)
+			m.diff.Restore(at, was)
+			m.syncCursor()
 		}
 	}
 	return k.at, d, moved
