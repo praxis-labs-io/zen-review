@@ -124,8 +124,14 @@ func TestAStaleWriteWritesNothingAndSaysWhichKeyAnswersIt(t *testing.T) {
 	if got := s.calls(); len(got) != 0 {
 		t.Errorf("the reader wrote %v, want nothing", got)
 	}
-	if bar := s.bar(); !strings.Contains(bar, "generation 3") || !strings.Contains(bar, "press s") {
-		t.Errorf("the bar says %q, want the generation it moved to and the key to press", bar)
+	// The engine's own sentence, not a second copy of it. It names both
+	// generations and says what to do; the bar adds only the key that does it.
+	bar := s.bar()
+	if !strings.Contains(bar, "generation 2 is not the current one, 3 is") {
+		t.Errorf("the bar says %q, want the error's own sentence", bar)
+	}
+	if !strings.Contains(bar, "press s") {
+		t.Errorf("the bar says %q, want the key that answers it", bar)
 	}
 	if strings.Contains(s.frame(), read) {
 		t.Error("a refused write left a hunk reading as read")
@@ -156,10 +162,12 @@ func TestAFailedWriteLeavesTheChangesetAlone(t *testing.T) {
 	}
 }
 
-// One write in flight at a time. The write itself is a local transaction, but
-// the source it goes through can be held by a refresh already running.
-func TestASecondWriteIsRefusedWhileOneIsInFlight(t *testing.T) {
+// One write in flight at a time, and the press that arrived while it was out
+// runs after it rather than being dropped. r r r r is the flow the tool is for,
+// and a write is a git read, so a repeat outruns it.
+func TestAPressDuringAWriteRunsAfterIt(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
+	s.wrote(testchangeset.Derive(t, ringPatch, testchangeset.Head("a.go", 1, 1)))
 
 	// hold applies the press without running the command it returned, which is
 	// the frame the reader sees while the first write is still going.
@@ -171,8 +179,42 @@ func TestASecondWriteIsRefusedWhileOneIsInFlight(t *testing.T) {
 	}
 
 	s.drain(cmd)
-	if got := s.calls(); len(got) != 1 {
-		t.Errorf("the reader wrote %v, want the first press alone", got)
+
+	want := []string{"MarkHunk a.go head:1 gen=2", "MarkHunk a.go head:11 gen=2"}
+	if got := s.calls(); !equal(got, want) {
+		t.Errorf("the reader wrote %v, want %v", got, want)
+	}
+}
+
+// Only one waits. A key held through a slow write should not queue a press per
+// repeat and then walk the whole changeset once it drains.
+func TestOnlyOnePressWaitsBehindAWrite(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
+
+	cmd := s.hold(keystroke("r"))
+	s.press("r", "r", "r")
+	s.drain(cmd)
+
+	if got := s.calls(); len(got) != 2 {
+		t.Errorf("the reader wrote %v, want the press in flight and one behind it", got)
+	}
+}
+
+// A write that failed drops what was waiting. The next press is the reader
+// deciding to try again, not a queue draining into an error.
+func TestAFailedWriteDropsThePressBehindIt(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
+	s.src.wroteErr = errors.New("the database is locked")
+
+	cmd := s.hold(keystroke("r"))
+	s.press("r")
+	s.drain(cmd)
+
+	if got := s.calls(); len(got) != 0 {
+		t.Errorf("the reader wrote %v, want nothing", got)
+	}
+	if bar := s.bar(); !strings.Contains(bar, "the database is locked") {
+		t.Errorf("the bar says %q, want the error", bar)
 	}
 }
 

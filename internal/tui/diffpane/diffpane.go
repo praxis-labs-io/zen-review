@@ -5,6 +5,7 @@
 package diffpane
 
 import (
+	"image/color"
 	"strings"
 
 	"charm.land/bubbles/v2/key"
@@ -69,11 +70,12 @@ func (k KeyMap) Paging() key.Binding {
 // code under it.
 const cursorGlyph = ""
 
-// readGlyph and unreadGlyph say whether the hunk under the heading has been
-// read. They are the tree's own rings, so one glyph reads the same in both panes.
+// The rings say how much of the hunk under the heading has been read. They are
+// the tree's own, so one glyph reads the same in both panes.
 const (
-	readGlyph   = "●"
-	unreadGlyph = "○"
+	readGlyph    = "●"
+	partialGlyph = "⊙"
+	unreadGlyph  = "○"
 )
 
 // Model is the diff pane. It renders the file it was given and holds no review
@@ -192,14 +194,24 @@ func (m *Model) repaint(name hunkName) {
 // is on.
 func (m Model) heading(h review.Hunk) string {
 	head := paint.Header{Text: comp.Safe(h.Diff.Header)}
-	head.Badge, head.BadgeColor = unreadGlyph, m.theme.Subtle
-	if h.State == review.Reviewed {
-		head.Badge, head.BadgeColor = readGlyph, m.theme.Accent
-	}
+	head.Badge, head.BadgeColor = m.badge(h.State)
 	if nameOf(h) == m.cur {
 		head.Marker, head.Fill = cursorGlyph, m.theme.SelectedBackground
 	}
 	return m.fill(m.painter.HunkHeader(head, m.gutter, m.width))
+}
+
+// badge is the hunk's state as a glyph and the weight it reads at. A hunk a
+// refresh cut half of is partial, and collapsing that into unread loses it.
+func (m Model) badge(s review.State) (string, color.Color) {
+	switch s {
+	case review.Reviewed:
+		return readGlyph, m.theme.Accent
+	case review.Partial:
+		return partialGlyph, m.theme.Warning
+	default:
+		return unreadGlyph, m.theme.Subtle
+	}
 }
 
 // scrollToCursor opens the window on the cursor's heading, and does nothing

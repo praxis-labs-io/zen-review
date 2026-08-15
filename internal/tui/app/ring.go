@@ -24,6 +24,12 @@ type stop struct {
 // unread is whether this is a stop the n key is looking for.
 func (s stop) unread() bool { return s.state != review.Reviewed }
 
+// same is whether two stops name the same hunk. State is not identity: a mark
+// changes it, and the hunk the reader was on is still the hunk they were on.
+func (s stop) same(o stop) bool {
+	return s.path == o.path && s.side == o.side && s.line == o.line
+}
+
 // stops is every landing place in the changeset, in the order the tree draws
 // them, which is the order review.Derive hands the files back in.
 func (m Model) stops() []stop {
@@ -46,7 +52,7 @@ func (m Model) stops() []stop {
 // holds, so a ring key still moves rather than doing nothing.
 func at(stops []stop, cur stop) int {
 	for i, s := range stops {
-		if s.path == cur.path && s.side == cur.side && s.line == cur.line {
+		if s.same(cur) {
 			return i
 		}
 	}

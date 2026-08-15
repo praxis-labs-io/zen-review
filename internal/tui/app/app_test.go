@@ -54,6 +54,11 @@ func TestGoldenFrames(t *testing.T) {
 		{"help", 100, 16, []string{"h", "?"}},
 		{"help-diff", 100, 16, []string{"?"}},
 
+		// Eighty columns, where the overlay is widest against the frame that has
+		// to hold it. A column past that edge is clipped with no ellipsis, and
+		// the column carrying the way out is the last one.
+		{"help-eighty", 80, 20, []string{"?"}},
+
 		{"folded", 100, 16, []string{"h", "j", "space"}},
 		{"deep", 100, 16, []string{"h", "G"}},
 

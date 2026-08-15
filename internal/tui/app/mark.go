@@ -11,22 +11,36 @@ import (
 )
 
 // wroteMsg is a write that landed, carrying the changeset review derived after
-// it. advance is the r key asking for the next unread hunk.
+// it. advance is the r key asking for the next unread hunk, and at is the stop
+// it was pressed on, because the reader can move while the write is out.
 type wroteMsg struct {
 	r       Reload
+	at      stop
 	advance bool
 }
 
 // staleMsg is a write refused because a refresh landed first. Nothing was
 // written and nothing was lost.
-type staleMsg struct{ seq int }
+type staleMsg struct{ err error }
+
+// intent is a mark key's ask, kept rather than the closure it builds. A press
+// held while a write is out is run against the cursor the write left behind.
+type intent struct {
+	whole bool
+	undo  bool
+}
+
+// advances is whether this ask moves on afterwards, which only r does.
+func (i intent) advances() bool { return !i.whole && !i.undo }
 
 // writeFailedMsg is a write that did not happen. The changeset is left alone.
 type writeFailedMsg struct{ err error }
 
 // marking is the write a mark key asks for, or false when the cursor has
 // nothing under it. A file with no hunks is one stop and is marked whole.
-func (m Model) marking(whole, undo bool) (func(Source) (Reload, error), bool) {
+func (m Model) marking(i intent) (func(Source) (Reload, error), bool) {
+	whole, undo := i.whole, i.undo
+
 	f := m.fileAt(m.cursor.path)
 	if f == nil {
 		return nil, false
@@ -52,34 +66,28 @@ func (m Model) marking(whole, undo bool) (func(Source) (Reload, error), bool) {
 
 // marked is the write a press asks for. The third value says whether the press
 // was a mark key at all, which tells "nothing to write" from "not mine".
-func (m Model) marked(msg tea.KeyPressMsg) (do func(Source) (Reload, error), advance, mine bool) {
-	var whole, undo bool
+func (m Model) marked(msg tea.KeyPressMsg) (intent, bool) {
 	switch {
 	case key.Matches(msg, m.keys.Mark):
-		advance = true
+		return intent{}, true
 	case key.Matches(msg, m.keys.MarkFile):
-		whole = true
+		return intent{whole: true}, true
 	case key.Matches(msg, m.keys.Unmark):
-		undo = true
+		return intent{undo: true}, true
 	case key.Matches(msg, m.keys.UnmarkFile):
-		whole, undo = true, true
-	default:
-		return nil, false, false
+		return intent{whole: true, undo: true}, true
 	}
-
-	do, ok := m.marking(whole, undo)
-	if !ok {
-		return nil, false, true
-	}
-	return do, advance, true
+	return intent{}, false
 }
 
-// applyWrite puts a write on screen, then moves on if the key asked to. The
-// advance runs after, so it sees what the mark did rather than what was there.
+// applyWrite puts a write on screen, then moves on if the key asked to.
+//
+// It advances only from the stop the key was pressed on. The ring stays live
+// while a write is out, so a reader who walked on already chose where they are.
 func (m *Model) applyWrite(msg wroteMsg) {
 	m.apply(msg.r)
 
-	if msg.advance {
+	if msg.advance && m.cursor.same(msg.at) {
 		if s, ok := m.ring(1, unreadStop); ok {
 			m.land(s)
 		}
@@ -105,20 +113,31 @@ func (m Model) hunkAt(f review.File) (review.Hunk, bool) {
 
 // write runs a write off the update loop, the same way a reload runs. The
 // source is lifted out first, because Update goes on writing the model.
-func (m Model) write(do func(Source) (Reload, error), advance bool) tea.Cmd {
+func (m Model) write(do func(Source) (Reload, error), at stop, advance bool) tea.Cmd {
 	src := m.src
 	return func() tea.Msg {
 		r, err := do(src)
 		if err == nil {
-			return wroteMsg{r: r, advance: advance}
+			return wroteMsg{r: r, at: at, advance: advance}
 		}
 
 		// A refresh landing mid-press is not a failure. It is answered with the
 		// reload key rather than by pressing the same one again.
 		var stale *review.StaleGenerationError
 		if errors.As(err, &stale) {
-			return staleMsg{seq: stale.Current}
+			return staleMsg{err: err}
 		}
 		return writeFailedMsg{err: err}
 	}
+}
+
+// start is the command a mark asks for, and false when the cursor names
+// nothing to write against.
+func (m *Model) start(i intent) (tea.Cmd, bool) {
+	do, ok := m.marking(i)
+	if !ok {
+		return nil, false
+	}
+	m.busy = true
+	return m.write(do, m.cursor, i.advances()), true
 }

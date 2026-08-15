@@ -115,6 +115,9 @@ func (m Model) paneKeys() []key.Binding {
 
 // markKeys is the four that change what has been read, in the order the overlay
 // lists them: mark then unmark, hunk then file.
+//
+// They share the ring's column. A fourth column takes the modal past eighty
+// cells, where the pane clips it without an ellipsis and the way out is gone.
 func (m Model) markKeys() []key.Binding {
 	return []key.Binding{m.keys.Mark, m.keys.MarkFile, m.keys.Unmark, m.keys.UnmarkFile}
 }
@@ -159,8 +162,7 @@ func (m Model) FullHelp() [][]key.Binding {
 	// cannot always carry, so this is where a reader on a narrow frame meets it.
 	return [][]key.Binding{
 		movement,
-		m.ringKeys(),
-		m.markKeys(),
+		append(m.ringKeys(), m.markKeys()...),
 		append(panes, m.keys.Reload, m.keys.Help, m.keys.Quit),
 	}
 }

@@ -9,7 +9,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"strconv"
 
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
@@ -40,6 +39,10 @@ type Model struct {
 	// loop, and busy is what keeps two calls from being in flight at once.
 	src  Source
 	busy bool
+
+	// queued is the one mark press waiting on the write in flight. A write is a
+	// git read and a repeat is faster, so dropping it loses a press from r r r r.
+	queued *intent
 
 	repo      string
 	base      review.Base
@@ -134,16 +137,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case wroteMsg:
 		m.busy = false
 		m.applyWrite(msg)
-		return m, nil
+		return m, m.next()
 
 	case staleMsg:
-		m.busy = false
-		m.note = notice{text: "the changeset moved to generation " +
-			strconv.Itoa(msg.seq) + ", so nothing was written: press s", bad: true}
+		m.busy, m.queued = false, nil
+		m.note = notice{text: msg.err.Error() + ": press s", bad: true}
 		return m, nil
 
 	case writeFailedMsg:
-		m.busy = false
+		m.busy, m.queued = false, nil
 		m.note = notice{text: msg.err.Error(), bad: true}
 		return m, nil
 
@@ -203,22 +205,26 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// The notice is set either way, so the second press does not blank the bar
 	// while the first is still in git.
 	if key.Matches(msg, m.keys.Reload) {
-		m.note = notice{text: "reloading"}
 		if m.busy {
 			return m, nil
 		}
+		m.note = notice{text: "reloading"}
 		m.busy = true
 		return m, m.reload()
 	}
 
 	// The mark keys go through the same one-at-a-time gate. A write is a local
 	// transaction, but the source it goes through may be held by a refresh.
-	if do, advance, mine := m.marked(msg); mine {
-		if m.busy || do == nil {
+	if i, mine := m.marked(msg); mine {
+		if m.busy {
+			m.queued = &i
 			return m, nil
 		}
-		m.busy = true
-		return m, m.write(do, advance)
+		cmd, ok := m.start(i)
+		if !ok {
+			return m, nil
+		}
+		return m, cmd
 	}
 
 	// The ring answers from either pane and moves both, so it is routed before
@@ -250,6 +256,22 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.diff, cmd = m.diff.Update(msg)
 	}
 	return m, cmd
+}
+
+// next runs the press that waited behind the write that just landed, against
+// the cursor that write left rather than the one it was typed on.
+func (m *Model) next() tea.Cmd {
+	if m.queued == nil {
+		return nil
+	}
+	i := *m.queued
+	m.queued = nil
+
+	cmd, ok := m.start(i)
+	if !ok {
+		return nil
+	}
+	return cmd
 }
 
 // walk is the stop a ring key asks for. The third value says whether the press

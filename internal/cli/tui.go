@@ -106,7 +106,14 @@ func (r *reloader) wrote(g review.Generation, do func() error) (app.Reload, erro
 	if err := do(); err != nil {
 		return app.Reload{}, err
 	}
-	return r.at(g)
+
+	// The write committed. A read-back that fails past this point leaves the
+	// screen behind the review rather than the review unwritten, so it says so.
+	rel, err := r.at(g)
+	if err != nil {
+		return app.Reload{}, fmt.Errorf("the mark was saved and the screen is behind it: %w", err)
+	}
+	return rel, nil
 }
 
 // at is the changeset as it now stands at one generation.

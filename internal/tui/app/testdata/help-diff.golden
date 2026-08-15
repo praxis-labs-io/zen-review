@@ -1,16 +1,16 @@
 ╭─[1]─Zen Review───────────────────────╮╭─[2]─assets/logo.png──────────────────────────────────────╮
 │                                      ││binary                                                    │
-│  assets                             ││                                                          │
-│   ○ logo.png                  binary ││                                                          │
-│ ╭─Keys──────────────────────────────────────────────────────────────────────────────────────╮   │
-│  │ j      down                   n         next unread        r mark read      h/1 tree pane │   │
-│ │ k      up                     N         previous unread    R mark file      l/2 diff pane │   │
-│  │ g      top                    }         next hunk          u unmark         s   reload    │   │
-│  │ G      bottom                 {         previous hunk      U unmark file    ?   help      │   │
-├──│ ctrl+d diff half page down    tab       next file                           q   quit      │   │
-│ o│ ctrl+u diff half page up      shift+tab previous file                                     │   │
-│ G╰───────────────────────────────────────────────────────────────────────────────────────────╯   │
-│ Reviewed                         2/7 ││                                                          │
-│ Changes                   6  +10 -3 ││                                                          │
+│  assets  ╭─Keys─────────────────────────────────────────────────────────────────────╮           │
+│   ○ logo.p│ j      down                   n         next unread        h/1 tree pane │           │
+│  docs/sup│ k      up                     N         previous unread    l/2 diff pane │           │
+│   ● design│ g      top                    }         next hunk          s   reload    │           │
+│  internal│ G      bottom                 {         previous hunk      ?   help      │           │
+│    cli   │ ctrl+d diff half page down    tab       next file          q   quit      │           │
+│     ○ rend│ ctrl+u diff half page up      shift+tab previous file                    │           │
+├───────────│                               r         mark read                        │           │
+│ origin/mai│                               R         mark file                        │           │
+│ Generation│                               u         unmark                           │           │
+│ Reviewed  │                               U         unmark file                      │           │
+│ Changes   ╰──────────────────────────────────────────────────────────────────────────╯           │
 ╰──────────────────────────────────────╯╰──────────────────────────────────────────────────────────╯
 j/k scroll · n/N unread · }/{ hunk · ctrl+d/u page · r/R read · s reload · ? help · q quit          
