@@ -1,6 +1,7 @@
 package app_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -31,6 +32,14 @@ type source struct {
 	at    app.Reload
 	err   error
 	calls int
+
+	// wrote is what the write methods were asked to do, in order. A golden
+	// cannot show that r named the right hunk, and that is the whole invariant.
+	wrote []string
+
+	// wroteErr is what the next write comes back with, where err is the
+	// reload's. The two keys fail for different reasons and are asserted apart.
+	wroteErr error
 }
 
 func (s *source) Reload() (app.Reload, error) {
@@ -39,6 +48,38 @@ func (s *source) Reload() (app.Reload, error) {
 		return app.Reload{}, s.err
 	}
 	return s.at, nil
+}
+
+func (s *source) MarkHunk(g review.Generation, path string, h review.Hunk) (app.Reload, error) {
+	return s.write(fmt.Sprintf("MarkHunk %s %s gen=%d", path, name(h), g.Seq))
+}
+
+func (s *source) UnmarkHunk(g review.Generation, path string, h review.Hunk) (app.Reload, error) {
+	return s.write(fmt.Sprintf("UnmarkHunk %s %s gen=%d", path, name(h), g.Seq))
+}
+
+func (s *source) MarkFile(g review.Generation, f review.File) (app.Reload, error) {
+	return s.write(fmt.Sprintf("MarkFile %s gen=%d", f.Diff.Path, g.Seq))
+}
+
+func (s *source) UnmarkFile(g review.Generation, f review.File) (app.Reload, error) {
+	return s.write(fmt.Sprintf("UnmarkFile %s gen=%d", f.Diff.Path, g.Seq))
+}
+
+// write records the call and answers with whatever the test pointed it at. A
+// write that failed records nothing: the transaction did not happen.
+func (s *source) write(call string) (app.Reload, error) {
+	if s.wroteErr != nil {
+		return app.Reload{}, s.wroteErr
+	}
+	s.wrote = append(s.wrote, call)
+	return s.at, nil
+}
+
+// name is a hunk the way review names one, which is how a test says which.
+func name(h review.Hunk) string {
+	side, line := h.Name()
+	return fmt.Sprintf("%s:%d", side, line)
 }
 
 func open(t *testing.T, width, height int) *screen {
@@ -179,6 +220,25 @@ func (s *screen) reloading(c review.Changeset) *screen {
 		Changeset:  c,
 	}
 	return s
+}
+
+// wrote points the source at what a write leaves behind, at the generation
+// already on screen. A mark moves no git and builds no generation.
+func (s *screen) wrote(c review.Changeset) *screen {
+	s.t.Helper()
+
+	s.src.at = app.Reload{
+		Base:       s.src.at.Base,
+		Generation: s.src.at.Generation,
+		Changeset:  c,
+	}
+	return s
+}
+
+// calls is what the source was asked to write, in order.
+func (s *screen) calls() []string {
+	s.t.Helper()
+	return s.src.wrote
 }
 
 func keystroke(k string) tea.KeyPressMsg {

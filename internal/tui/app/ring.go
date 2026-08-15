@@ -24,6 +24,12 @@ type stop struct {
 // unread is whether this is a stop the n key is looking for.
 func (s stop) unread() bool { return s.state != review.Reviewed }
 
+// same is whether two stops name the same hunk. State is not identity: a mark
+// changes it, and the hunk the reader was on is still the hunk they were on.
+func (s stop) same(o stop) bool {
+	return s.path == o.path && s.side == o.side && s.line == o.line
+}
+
 // stops is every landing place in the changeset, in the order the tree draws
 // them, which is the order review.Derive hands the files back in.
 func (m Model) stops() []stop {
@@ -46,7 +52,7 @@ func (m Model) stops() []stop {
 // holds, so a ring key still moves rather than doing nothing.
 func at(stops []stop, cur stop) int {
 	for i, s := range stops {
-		if s.path == cur.path && s.side == cur.side && s.line == cur.line {
+		if s.same(cur) {
 			return i
 		}
 	}
@@ -70,6 +76,25 @@ func (m Model) ring(by int, want func(stop) bool) (stop, bool) {
 		s := stops[wrap(from+by*n, len(stops))]
 		if want(s) {
 			return s, true
+		}
+	}
+	return stop{}, false
+}
+
+// onward is the next stop matching want after the cursor, and does not wrap.
+//
+// It is what a mark advances by. The ring wraps because hunting for something
+// unread is what n is for; a walk that came back to the top would let one held
+// key claim the whole changeset had been read.
+func (m Model) onward(want func(stop) bool) (stop, bool) {
+	stops := m.stops()
+	if len(stops) == 0 {
+		return stop{}, false
+	}
+
+	for i := at(stops, m.cursor) + 1; i < len(stops); i++ {
+		if want(stops[i]) {
+			return stops[i], true
 		}
 	}
 	return stop{}, false

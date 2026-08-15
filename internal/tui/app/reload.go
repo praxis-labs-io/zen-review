@@ -35,6 +35,13 @@ type Reload struct {
 // implementation over a session is what that flag protects.
 type Source interface {
 	Reload() (Reload, error)
+
+	// The writes name the generation on screen, which is what everything
+	// written anchors to, and re-derive at it rather than refreshing.
+	MarkHunk(g review.Generation, path string, h review.Hunk) (Reload, error)
+	UnmarkHunk(g review.Generation, path string, h review.Hunk) (Reload, error)
+	MarkFile(g review.Generation, f review.File) (Reload, error)
+	UnmarkFile(g review.Generation, f review.File) (Reload, error)
 }
 
 // reloadedMsg is a reload that came back.
@@ -134,7 +141,7 @@ func (m Model) mark() mark {
 // The diff pane is blanked first. It is the only holder of a *review.File
 // pointing into the old changeset once the tree has rebuilt, and land re-points
 // it only when the path changed, which after a reload it usually has not.
-func (m *Model) apply(r Reload) {
+func (m *Model) apply(r Reload) (stop, drift, bool) {
 	k, was := m.mark(), m.diff.Scroll().Offset
 	moved := r.Generation.ID != m.gen.ID
 
@@ -154,7 +161,7 @@ func (m *Model) apply(r Reload) {
 			m.diff.Restore(was)
 		}
 	}
-	m.note = said(k.at, d, m.gen.Seq, moved)
+	return k.at, d, moved
 }
 
 // landing is where the cursor goes after the changeset moved under it, and what

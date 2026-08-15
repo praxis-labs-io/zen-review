@@ -20,6 +20,11 @@ type KeyMap struct {
 	NextFile key.Binding
 	PrevFile key.Binding
 
+	Mark       key.Binding
+	MarkFile   key.Binding
+	Unmark     key.Binding
+	UnmarkFile key.Binding
+
 	Reload key.Binding
 
 	Left  key.Binding
@@ -44,6 +49,13 @@ func NewKeyMap() KeyMap {
 		PrevRead: key.NewBinding(key.WithKeys("N"), key.WithHelp("N", "previous unread")),
 		NextFile: key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "next file")),
 		PrevFile: key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "previous file")),
+
+		// r advances after marking, so r r r r walks the whole thing. It does not
+		// toggle: advancing off a hunk just unmarked is a key with two jobs.
+		Mark:       key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "mark read")),
+		MarkFile:   key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "mark file")),
+		Unmark:     key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "unmark")),
+		UnmarkFile: key.NewBinding(key.WithKeys("U"), key.WithHelp("U", "unmark file")),
 
 		// A session action, so it sits with the ring rather than in a pane. It is
 		// the one key here that reaches past the screen to the work tree.
@@ -95,9 +107,19 @@ func (m Model) paneKeys() []key.Binding {
 		comp.Pair(m.keys.NextRead, m.keys.PrevRead, "n/N", "unread"),
 		comp.Pair(m.keys.NextHunk, m.keys.PrevHunk, "}/{", "hunk"),
 		m.diff.Keys.Paging(),
+		comp.Pair(m.keys.Mark, m.keys.MarkFile, "r/R", "read"),
 		m.keys.Reload,
 		comp.Pair(m.keys.NextFile, m.keys.PrevFile, "tab", "file"),
 	)
+}
+
+// markKeys is the four that change what has been read, in the order the overlay
+// lists them: mark then unmark, hunk then file.
+//
+// They share the ring's column. A fourth column takes the modal past eighty
+// cells, where the pane clips it without an ellipsis and the way out is gone.
+func (m Model) markKeys() []key.Binding {
+	return []key.Binding{m.keys.Mark, m.keys.MarkFile, m.keys.Unmark, m.keys.UnmarkFile}
 }
 
 // ringKeys is the six the ring answers to, in the order the overlay lists them.
@@ -140,7 +162,7 @@ func (m Model) FullHelp() [][]key.Binding {
 	// cannot always carry, so this is where a reader on a narrow frame meets it.
 	return [][]key.Binding{
 		movement,
-		m.ringKeys(),
+		append(m.ringKeys(), m.markKeys()...),
 		append(panes, m.keys.Reload, m.keys.Help, m.keys.Quit),
 	}
 }
