@@ -129,7 +129,7 @@ func (m *Model) land(s stop) {
 	m.tree.Select(s.path)
 
 	if s.path != m.diff.Path() {
-		m.diff.SetFile(m.fileAt(s.path), m.comments)
+		m.diff.SetFile(m.fileAt(s.path), m.comments, m.gen.ID)
 	}
 	m.diff.Select(s.side, s.line)
 }
@@ -146,10 +146,22 @@ func (m Model) unresolved() []store.Comment {
 	return out
 }
 
+// reachable is the unresolved comments the changeset still holds a file for. One
+// whose file was reverted out is a stop that lands nowhere and never moves past.
+func (m Model) reachable() []store.Comment {
+	out := make([]store.Comment, 0, len(m.comments))
+	for _, c := range m.unresolved() {
+		if m.fileOwning(c) != nil {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
 // commentRing steps from the comment the cursor is on to the next, wrapping. It
 // is false when there is nothing to step to.
 func (m Model) commentRing(by int) (store.Comment, bool) {
-	all := m.unresolved()
+	all := m.reachable()
 	if len(all) == 0 {
 		return store.Comment{}, false
 	}
@@ -183,7 +195,7 @@ func (m *Model) landComment(c store.Comment) {
 	}
 
 	if f.Diff.Path != m.diff.Path() {
-		m.diff.SetFile(f, m.comments)
+		m.diff.SetFile(f, m.comments, m.gen.ID)
 	}
 	m.tree.Select(f.Diff.Path)
 	m.diff.SelectComment(c.ID)

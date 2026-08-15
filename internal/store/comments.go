@@ -148,6 +148,28 @@ func (db *DB) Comments(ctx context.Context, sessionID string) ([]Comment, error)
 	return comments(ctx, db.handle, q, fmt.Sprintf("reading the comments of %s", sessionID), sessionID)
 }
 
+// CommentsAt is Comments, refused when generationID is no longer the latest. A
+// refresh landing mid-read leaves a caller holding new anchors against an old diff.
+func (db *DB) CommentsAt(ctx context.Context, sessionID string, generationID int64) (_ []Comment, err error) {
+	tx, err := db.handle.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, fmt.Errorf("reading the comments of %s: %w", sessionID, err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if err = assertLatest(ctx, tx, sessionID, generationID); err != nil {
+		return nil, err
+	}
+
+	const q = `
+		SELECT ` + commentColumns + `
+		FROM comments
+		WHERE session_id = ?
+		ORDER BY path, start_line, created_at, id`
+
+	return comments(ctx, tx, q, fmt.Sprintf("reading the comments of %s", sessionID), sessionID)
+}
+
 // OpenComments is what a refresh translates: the open comments anchored to one
 // generation. Everything else has stopped moving and has nothing to carry.
 func (db *DB) OpenComments(ctx context.Context, generationID int64) ([]Comment, error) {

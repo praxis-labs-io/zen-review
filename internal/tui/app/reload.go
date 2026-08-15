@@ -153,7 +153,7 @@ func (m *Model) apply(r Reload) (stop, drift, bool) {
 
 	m.base, m.gen, m.changeset, m.comments = r.Base, r.Generation, r.Changeset, r.Comments
 	m.tree.SetChangeset(m.changeset)
-	m.diff.SetFile(nil, nil)
+	m.diff.SetFile(nil, nil, 0)
 
 	m.cursor = stop{}
 	s, d, ok := m.landing(k)

@@ -2,7 +2,8 @@ package comp
 
 import (
 	"strings"
-	"unicode/utf8"
+
+	"charm.land/lipgloss/v2"
 )
 
 // BodyWidth is as wide as prose is allowed to get. A body running the full width
@@ -22,7 +23,7 @@ func Wrap(body string, width int) []string {
 		// Taken off once, a long indented line comes back reading as the prose
 		// around it, which is the layout blocks kept it separate to preserve.
 		lead := block[:len(block)-len(strings.TrimLeft(block, " \t"))]
-		for _, line := range fold(block[len(lead):], max(width-len(lead), 1)) {
+		for _, line := range fold(block[len(lead):], max(width-lipgloss.Width(lead), 1)) {
 			out = append(out, lead+line)
 		}
 	}
@@ -61,7 +62,9 @@ func blocks(body string) []string {
 // fold breaks a line into runs no wider than width, on the spaces between words.
 // A word too wide overhangs rather than breaking: half a path is worth nothing.
 func fold(line string, width int) []string {
-	if utf8.RuneCountInString(line) <= width {
+	// Cells and not runes. A rune can take two, and counting runes calls a line
+	// that renders past the pane a line that fits.
+	if lipgloss.Width(line) <= width {
 		return []string{line}
 	}
 
@@ -72,7 +75,7 @@ func fold(line string, width int) []string {
 		switch {
 		case run == "":
 			run = word
-		case utf8.RuneCountInString(run)+1+utf8.RuneCountInString(word) <= width:
+		case lipgloss.Width(run)+1+lipgloss.Width(word) <= width:
 			run += " " + word
 		default:
 			out, run = append(out, run), word

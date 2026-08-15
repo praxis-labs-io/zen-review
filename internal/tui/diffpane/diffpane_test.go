@@ -38,7 +38,7 @@ func commented(t *testing.T, path string, width, height int, comments ...store.C
 	c := testchangeset.Nested(t)
 	m := diffpane.New(theme.RosePineMoon)
 	m.SetSize(width, height)
-	m.SetFile(fileAt(t, c, path), comments)
+	m.SetFile(fileAt(t, c, path), comments, 2)
 	return m
 }
 
@@ -165,7 +165,7 @@ func TestSourceCannotWriteToTheTerminal(t *testing.T) {
 	c := testchangeset.Derive(t, patch)
 	m := diffpane.New(theme.RosePineMoon)
 	m.SetSize(60, 4)
-	m.SetFile(&c.Files[0], nil)
+	m.SetFile(&c.Files[0], nil, 2)
 
 	got := joined(t, m)
 	if !strings.Contains(got, `const shout = "red?"`) {
@@ -191,7 +191,7 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 	c := testchangeset.Derive(t, patch)
 	m := diffpane.New(theme.RosePineMoon)
 	m.SetSize(60, 6)
-	m.SetFile(&c.Files[0], nil)
+	m.SetFile(&c.Files[0], nil, 2)
 
 	got := rows(t, m)
 	if !strings.Contains(got[1], "− package eof") {
@@ -239,7 +239,7 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 	c := testchangeset.Derive(t, patch)
 	m := diffpane.New(theme.RosePineMoon)
 	m.SetSize(60, 4)
-	m.SetFile(&c.Files[0], nil)
+	m.SetFile(&c.Files[0], nil, 2)
 
 	want := lipgloss.NewStyle().
 		Background(theme.RosePineMoon.RemovedBackground).
@@ -319,7 +319,7 @@ func TestChangingFileTakesTheReaderToTheTop(t *testing.T) {
 	m := pane(t, twoHunks, 60, 4)
 	m = press(t, m, down, down)
 
-	m.SetFile(fileAt(t, c, "README.md"), nil)
+	m.SetFile(fileAt(t, c, "README.md"), nil, 2)
 	if got := rows(t, m)[0]; !strings.Contains(got, "@@ -1,3 +1,3 @@") {
 		t.Errorf("the new file opened part-way down: %q", got)
 	}
@@ -341,7 +341,7 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 	c := testchangeset.Derive(t, patch)
 	m := diffpane.New(theme.RosePineMoon)
 	m.SetSize(60, 4)
-	m.SetFile(&c.Files[0], nil)
+	m.SetFile(&c.Files[0], nil, 2)
 
 	// The hunk's last line is 99, so two columns hold it. paint.HunkHeader
 	// indents to gutter*2+5, which is 9 at a gutter of 2 and 11 at 3.
@@ -444,7 +444,7 @@ func TestTheFirstSizingScrollsToTheCursor(t *testing.T) {
 	// Sized after the cursor is set, the way the root builds it: New, then the
 	// terminal says how big it is.
 	m := diffpane.New(theme.RosePineMoon)
-	m.SetFile(fileAt(t, c, twoHunks), nil)
+	m.SetFile(fileAt(t, c, twoHunks), nil, 2)
 	m.Select(store.SideHead, 124)
 	m.SetSize(60, 8)
 
@@ -763,7 +763,7 @@ func TestRestorePutsTheCursorBackWithTheWindow(t *testing.T) {
 
 	// What a reload of the same bytes does: the file back in the pane, the
 	// cursor on the heading, then the reader's own place handed back.
-	m.SetFile(fileAt(t, c, twoHunks), nil)
+	m.SetFile(fileAt(t, c, twoHunks), nil, 2)
 	m.Select(store.SideHead, 13)
 	m.Restore(at, off)
 
@@ -1020,7 +1020,7 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 
 	m := diffpane.New(theme.RosePineMoon)
 	m.SetSize(76, 10)
-	m.SetFile(&c.Files[0], []store.Comment{old})
+	m.SetFile(&c.Files[0], []store.Comment{old}, 2)
 
 	got := joined(t, m)
 	if !strings.Contains(got, "python is gone") {
@@ -1039,5 +1039,74 @@ func TestEveryBadgeIsOneCell(t *testing.T) {
 		if got := lipgloss.Width(glyph); got != 1 {
 			t.Errorf("%q measures %d cells", glyph, got)
 		}
+	}
+}
+
+// TestACommentFrozenAtAnOlderGenerationDrawsWhereItPointed. It stopped moving
+// and kept the anchor it stopped at, so those line numbers now name whatever is
+// there rather than the code it was about.
+func TestACommentFrozenAtAnOlderGenerationDrawsWhereItPointed(t *testing.T) {
+	stale := testchangeset.In(
+		testchangeset.Comment("aaaaaaaaaaaa", twoHunks, 13, 13, "this was about the old line"),
+		store.CommentResolved)
+	stale.GenerationID = 1
+
+	c := testchangeset.Nested(t)
+	m := diffpane.New(theme.RosePineMoon)
+	m.SetSize(76, 30)
+	m.SetFile(fileAt(t, c, twoHunks), []store.Comment{stale}, 2)
+
+	if got := joined(t, m); !strings.Contains(got, "was line 13") {
+		t.Errorf("the frozen comment drew as though it still pointed at line 13:\n%s", got)
+	}
+}
+
+// TestACommentFrozenAtThisGenerationStaysWhereItIs, so resolving one does not
+// make its card jump to the foot of the file under the reader.
+func TestACommentFrozenAtThisGenerationStaysWhereItIs(t *testing.T) {
+	settled := testchangeset.In(
+		testchangeset.Comment("aaaaaaaaaaaa", twoHunks, 13, 13, "just settled"),
+		store.CommentResolved)
+
+	c := testchangeset.Nested(t)
+	m := diffpane.New(theme.RosePineMoon)
+	m.SetSize(76, 30)
+	m.SetFile(fileAt(t, c, twoHunks), []store.Comment{settled}, 2)
+
+	if got := joined(t, m); strings.Contains(got, "was line") {
+		t.Errorf("a comment frozen at the generation on screen drew as a stray:\n%s", got)
+	}
+}
+
+// TestACardKeepsTheParagraphsOfItsBody. comp.Safe reads a newline as the control
+// character it is, so sanitizing a whole body first collapses it into one run.
+func TestACardKeepsTheParagraphsOfItsBody(t *testing.T) {
+	body := "the first paragraph\n\n- a bullet\n- another"
+	on := testchangeset.Comment("aaaaaaaaaaaa", "README.md", 2, 2, body)
+
+	got := rows(t, commented(t, "README.md", 76, 20, on))
+	for _, want := range []string{"the first paragraph", "- a bullet", "- another"} {
+		found := false
+		for _, row := range got {
+			if strings.Contains(row, want) && !strings.Contains(row, "?") {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("no row reads %q on its own:\n%s", want, strings.Join(got, "\n"))
+		}
+	}
+}
+
+// TestSelectCommentLeavesRoomForThePin. The heading pins to the top row, so an
+// anchor put there is covered by the thing meant to keep it in context.
+func TestSelectCommentLeavesRoomForThePin(t *testing.T) {
+	// Four rows: a taller window is clamped off the anchor by the card's own
+	// last row and never lands the offset on it.
+	m := cards(t, twoHunks, 76, 4)
+	m.SelectComment("bbbbbbbbbbbb")
+
+	if got := joined(t, m); !strings.Contains(got, `Unreviewed State = "unreviewed"`) {
+		t.Errorf("the pinned heading covered the line the card answers:\n%s", got)
 	}
 }

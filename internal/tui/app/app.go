@@ -348,7 +348,7 @@ func (m *Model) syncDiff() {
 		return
 	}
 
-	m.diff.SetFile(m.fileAt(path), m.comments)
+	m.diff.SetFile(m.fileAt(path), m.comments, m.gen.ID)
 	if s, ok := m.firstOf(path); ok {
 		m.cursor = s
 		m.diff.Select(s.side, s.line)

@@ -1,6 +1,7 @@
 package store_test
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -394,5 +395,26 @@ func TestACommentStateOutsideTheVocabularyIsRefused(t *testing.T) {
 	if _, _, err := db.FreezeComment(t.Context(), c.ID,
 		store.CommentOpen, store.CommentState("done"), epoch); err == nil {
 		t.Error("a state outside the vocabulary should be refused")
+	}
+}
+
+// TestCommentsAtRefusesAGenerationThatHasMoved. A caller pairing comments with a
+// changeset needs both off one generation; a refresh landing between the two
+// reads translates every open anchor, and the pair is then live line numbers
+// against a diff that has moved.
+func TestCommentsAtRefusesAGenerationThatHasMoved(t *testing.T) {
+	db := open(t)
+	s := session(t, db, "paired")
+
+	first := holding(t, db, s, "one")
+	comment(t, db, s, first, "4f1c8a2b3d9e", 12)
+
+	if _, err := db.CommentsAt(t.Context(), s.ID, first.ID); err != nil {
+		t.Fatalf("reading at the latest generation: %v", err)
+	}
+
+	holding(t, db, s, "two")
+	if _, err := db.CommentsAt(t.Context(), s.ID, first.ID); !errors.Is(err, store.ErrStaleGeneration) {
+		t.Errorf("err = %v, want store.ErrStaleGeneration", err)
 	}
 }

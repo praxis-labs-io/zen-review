@@ -124,7 +124,7 @@ func (r *reloader) at(g review.Generation) (app.Reload, error) {
 		return app.Reload{}, err
 	}
 
-	comments, err := r.s.Comments(r.ctx)
+	comments, err := r.s.CommentsAt(r.ctx, g)
 	if err != nil {
 		return app.Reload{}, err
 	}

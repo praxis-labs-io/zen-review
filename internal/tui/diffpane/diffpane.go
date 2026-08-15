@@ -124,6 +124,10 @@ type Model struct {
 	cards  []card
 	folded map[string]bool
 
+	// gen is the generation the file is measured in. A comment anchored to an
+	// older one froze there and its line numbers name code that has since moved.
+	gen int64
+
 	// cursor is the row the reader is on, -1 until the root names a hunk. headAt
 	// is where each hunk starts, gutter the width its line numbers took.
 	cursor int
@@ -195,8 +199,8 @@ func New(t theme.Theme) Model {
 // A nil file empties the pane, which is what a changeset with nothing in it
 // looks like. The cursor comes with the file, from Select: the root decides
 // which hunk it lands on and this pane never guesses.
-func (m *Model) SetFile(f *review.File, comments []store.Comment) {
-	m.file, m.comments, m.offset = f, comments, 0
+func (m *Model) SetFile(f *review.File, comments []store.Comment, at int64) {
+	m.file, m.comments, m.gen, m.offset = f, comments, at, 0
 	m.layout()
 }
 
@@ -275,6 +279,12 @@ func (m *Model) showCard(i int) {
 	top := c.at
 	if c.anchor >= 0 {
 		top = c.anchor
+	}
+
+	// The pin covers the top row, so the anchor cannot be it. One row higher puts
+	// the heading above the line rather than over it.
+	if h := m.headOf(top); h >= 0 && h < top {
+		top--
 	}
 
 	// A card and its anchor taller than the window cannot both be shown, and the
@@ -711,6 +721,9 @@ func (m *Model) layout() {
 			// A card hangs under the last line of what it answers, so that code is
 			// above it and stays on screen when the ring lands on the card.
 			for j, c := range mine {
+				if !m.live(c) {
+					continue
+				}
 				if _, seen := first[c.ID]; !seen && on(c, l, c.Start) {
 					first[c.ID] = at
 				}
@@ -758,6 +771,12 @@ func (m Model) mine() []store.Comment {
 		}
 	}
 	return out
+}
+
+// live is whether a comment's anchor is measured in the generation on screen. A
+// frozen one keeps the anchor it stopped at, naming whatever is there now.
+func (m Model) live(c store.Comment) bool {
+	return m.gen == 0 || c.GenerationID == m.gen
 }
 
 // on is whether a diff line is the file's line n on the side a comment was

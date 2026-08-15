@@ -22,9 +22,9 @@ const (
 	orphanedGlyph  = "⊘"
 )
 
-// cardMin is the narrowest a bordered card gets: two borders, a gutter each
-// side, and a column of text. Under it the card is drawn as a bare row.
-const cardMin = 6
+// cardMin is the narrowest a bordered card gets, which is room for a few words.
+// Under it a card is a box round an ellipsis, so the indent goes then the border.
+const cardMin = 20
 
 // cardGutter is the space between a card's border and what it holds. Text
 // against the border reads as a rendering fault rather than as a box.
@@ -123,7 +123,7 @@ func (m Model) cardBody(c store.Comment, width int) []string {
 	gutter := strings.Repeat(" ", cardGutter)
 
 	var out []string
-	for _, line := range comp.Wrap(comp.Safe(c.Body), min(room, comp.BodyWidth)) {
+	for _, line := range comp.Wrap(comp.Prose(c.Body), min(room, comp.BodyWidth)) {
 		out = append(out, gutter+text.Render(line))
 	}
 	if len(out) == 0 {
@@ -247,7 +247,7 @@ func lines(block string) []string { return strings.Split(block, "\n") }
 
 // firstLine is enough of a body to recall which comment it is, on one row.
 func firstLine(body string) string {
-	for _, line := range strings.Split(comp.Safe(body), "\n") {
+	for _, line := range strings.Split(comp.Prose(body), "\n") {
 		if s := strings.TrimSpace(line); s != "" {
 			return s
 		}

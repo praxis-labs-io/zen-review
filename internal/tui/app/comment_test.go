@@ -124,3 +124,18 @@ func TestTheRingLeavesTheFileWithACardOutsideEveryHunk(t *testing.T) {
 		t.Errorf("the marks were %v, want %q", got, want)
 	}
 }
+
+// TestTheCommentRingSkipsAFileTheChangesetLost. A comment whose file was
+// reverted out has nowhere to draw, and in the ring it is a stop that lands on
+// nothing and never lets the key move past it.
+func TestTheCommentRingSkipsAFileTheChangesetLost(t *testing.T) {
+	gone := testchangeset.Comment("aaaaaaaaaaaa", "reverted.go", 4, 4, "its file went away")
+	live := testchangeset.Comment("bbbbbbbbbbbb", "README.md", 2, 2, "this one is still here")
+
+	s := commented(t, 100, 24, gone, live)
+	s.press("]")
+
+	if got := s.frame(); !strings.Contains(got, "this one is still here") {
+		t.Errorf("] never reached the comment it could show:\n%s", got)
+	}
+}

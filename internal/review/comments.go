@@ -175,8 +175,22 @@ func (s *Session) Comments(ctx context.Context) ([]store.Comment, error) {
 	if err != nil {
 		return nil, err
 	}
+	return byTreeOrder(rows), nil
+}
+
+// CommentsAt is Comments for a caller pairing them with a changeset, refused
+// when g is no longer the latest. Two unversioned reads can straddle a refresh.
+func (s *Session) CommentsAt(ctx context.Context, g Generation) ([]store.Comment, error) {
+	rows, err := s.db.CommentsAt(ctx, s.row.ID, g.ID)
+	if err != nil {
+		return nil, s.stale(ctx, g, err)
+	}
+	return byTreeOrder(rows), nil
+}
+
+func byTreeOrder(rows []store.Comment) []store.Comment {
 	slices.SortStableFunc(rows, func(a, b store.Comment) int { return byTree(a.Path, b.Path) })
-	return rows, nil
+	return rows
 }
 
 // AddressComment is the agent's verb: a claim that the comment has been handled.

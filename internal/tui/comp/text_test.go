@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"charm.land/lipgloss/v2"
+
 	"github.com/zen-review/zen-review/internal/tui/comp"
 )
 
@@ -66,5 +68,15 @@ func TestWrapKeepsABlankLine(t *testing.T) {
 	got := comp.Wrap("first\n\nsecond", 80)
 	if !slices.Equal(got, []string{"first", "", "second"}) {
 		t.Errorf("Wrap gave %q, want the blank between them", got)
+	}
+}
+
+// TestWrapMeasuresCellsAndNotRunes. A rune can take two columns, and counting
+// runes calls a line that renders past the pane a line that fits.
+func TestWrapMeasuresCellsAndNotRunes(t *testing.T) {
+	for i, line := range comp.Wrap("界 界 界", 4) {
+		if got := lipgloss.Width(line); got > 4 {
+			t.Errorf("line %d is %d cells wide: %q", i, got, line)
+		}
 	}
 }
