@@ -1,5 +1,5 @@
 ╭─[1]─Zen Review───────────────────────╮╭─[2]─internal/review/state.go─────────────────────────────╮
-│   ○ logo.png                  binary ││  12  12   const (                                        │
+│   ○ logo.png                  binary ││       ○   @@ -10,5 +10,5 @@ package review               │
 │  docs/superpowers/specs             ││  13     −     Unreviewed State = "unread"                │
 │   ● design.md                  +3 -0 ││      13 +     Unreviewed State = "unreviewed"            │
 │  internal                           ││  14  14       Partial    State = "partial"               │

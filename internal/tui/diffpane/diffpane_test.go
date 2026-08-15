@@ -596,6 +596,25 @@ func TestTheHeadingPinsToTheTopOnceItScrollsOff(t *testing.T) {
 	}
 }
 
+// TestThePinFollowsTheWindowAndNotTheCursor. A heading names the lines under
+// it, so pinning the cursor's would label them with a hunk they are not in.
+func TestThePinFollowsTheWindowAndNotTheCursor(t *testing.T) {
+	m := pane(t, twoHunks, 60, 8)
+	m.Select(store.SideHead, 124)
+
+	// zb drops the second hunk's heading to the bottom row, so the window shows
+	// the tail of the first hunk with the cursor still in the second.
+	m = press(t, m, tea.KeyPressMsg{Code: 'z', Text: "z"}, tea.KeyPressMsg{Code: 'b', Text: "b"})
+
+	got := rows(t, m)
+	if !strings.Contains(got[0], "@@ -10,5") {
+		t.Errorf("the top row is %q, want the heading the rows under it belong to", got[0])
+	}
+	if !strings.Contains(got[7], "@@ -120,5") || !strings.Contains(got[7], mark) {
+		t.Errorf("the cursor's own heading is not on screen with its caret: %q", got[7])
+	}
+}
+
 // TestTheHeadingIsNotDrawnTwiceWhileItIsOnScreen, which is what a pin reading
 // the cursor without reading the window would do.
 func TestTheHeadingIsNotDrawnTwiceWhileItIsOnScreen(t *testing.T) {

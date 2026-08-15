@@ -285,10 +285,11 @@ The diff pane opens focused on the first unreviewed hunk. zen-octo's
 conversation opens unfocused because the reader came to read; you came here to
 burn a review down.
 
-`j` and `k` move a row cursor rather than the window, and the hunk heading pins
-to the top row once it scrolls off, so a reader deep in a long hunk can always
-see which hunk a mark would take. It steps aside when the cursor is on that row:
-the heading costs less to lose than the cursor does.
+`j` and `k` move a row cursor rather than the window, and a hunk heading pins to
+the top row once it scrolls off, so the lines up there are never unlabelled. The
+pin follows the window and not the cursor, because a heading names the lines
+under it, and the next hunk's own heading pushes it out. It steps aside when the
+cursor is on that row: the heading costs less to lose than the cursor does.
 
 ## Exit codes
 

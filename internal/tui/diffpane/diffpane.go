@@ -360,11 +360,22 @@ func (m *Model) scrollToCursor() {
 	m.offset = min(at, m.maxOffset())
 }
 
-// pinned is the heading to hold on the top line, or -1 for none. A cursor
-// sitting on that line keeps it: the heading costs less to lose than the cursor.
+// pinned is the heading to hold on the top line, or -1 for none. It follows the
+// window and not the cursor: a heading names the lines under it.
 func (m Model) pinned() int {
-	at := m.headOf(m.cursor)
-	if at < 0 || at >= m.offset || m.cursor == m.offset {
+	// A cursor on that line keeps it. The heading costs less to lose.
+	if m.offset >= len(m.rows) || m.cursor == m.offset {
+		return -1
+	}
+
+	// The blank between two hunks belongs to the one above it, and pinning there
+	// would stack a heading on top of the next one arriving right below.
+	if r := m.rows[m.offset]; r.kind == noteRow && r.note == "" {
+		return -1
+	}
+
+	at := m.headOf(m.offset)
+	if at < 0 || at >= m.offset {
 		return -1
 	}
 	return at
@@ -463,8 +474,8 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// View pins the cursor's hunk heading to the top row once the heading has
-// scrolled above it, covering the line there. Nothing else says which hunk.
+// View pins the top row's own hunk heading there once that heading has scrolled
+// above the window, covering the line it sits on.
 func (m Model) View() string {
 	out := make([]string, 0, m.height)
 	for i := m.offset; i < len(m.rows) && len(out) < m.height; i++ {
