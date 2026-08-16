@@ -111,9 +111,12 @@ func (m Model) drawCard(c store.Comment, placed bool) ([]string, []string) {
 	// A folded card keeps its box. Without one it is a line of grey text in a
 	// column of diff, which is what the diff's own notes look like.
 	folded := m.folds(c)
-	body := m.cardBody(c, width)
-	if folded {
-		body = m.foldedBody(c, width)
+
+	// Built one way or the other, never both: wrapping a long body and throwing
+	// it away is work every relayout pays for a card nobody has open.
+	body := m.foldedBody(c, width)
+	if !folded {
+		body = m.cardBody(c, width)
 	}
 
 	box := comp.NewPane(m.theme).Label(m.cardLabel(c, placed)).Size(width, len(body)+2)

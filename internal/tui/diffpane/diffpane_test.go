@@ -869,8 +869,8 @@ func TestAResolvedCommentIsOneRowUntilSpaceOpensIt(t *testing.T) {
 	if !strings.Contains(got, "▸ The old line said it better.") {
 		t.Errorf("the folded row does not say which comment it stands for:\n%s", got)
 	}
-	if strings.Contains(got, "The old line said it better.\n") {
-		t.Errorf("the whole body drew under a folded card:\n%s", got)
+	if h := boxHeight(t, m, "◆ resolved"); h != 3 {
+		t.Errorf("the folded card is %d rows, want a border, one row and a border", h)
 	}
 
 	// Onto its row, then open it. The file card is the first stop, the heading
@@ -888,6 +888,25 @@ func TestAResolvedCommentIsOneRowUntilSpaceOpensIt(t *testing.T) {
 	if !strings.Contains(got, "│ The old line said it better.") {
 		t.Errorf("the opened card does not hold the body:\n%s", got)
 	}
+}
+
+// boxHeight is how many rows a card spans, found from the border its label is
+// in down to the one that closes it, and 0 when the label is not on screen.
+func boxHeight(t *testing.T, m diffpane.Model, label string) int {
+	t.Helper()
+
+	got := rows(t, m)
+	for i, row := range got {
+		if !strings.Contains(row, label) {
+			continue
+		}
+		for j := i + 1; j < len(got); j++ {
+			if strings.Contains(got[j], "\u2570\u2500") {
+				return j - i + 1
+			}
+		}
+	}
+	return 0
 }
 
 // TestEveryCardRowIsExactlyThePane, at widths where a card loses its border. A
