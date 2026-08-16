@@ -347,10 +347,22 @@ its bottom border.
 
 The box comes down when the write lands, not when the key is pressed. A save
 that failed leaves it up holding the words, and so does one the reader typed
-past: the only thing a local transaction can cost is what was typed into it. It
-draws over the too-small frame as well, a box owning the keys off screen being a
-reader with nowhere to go. A paste arrives as its own message rather than as
-keys, so the root routes what is not a key press into it too.
+past: the only thing a local transaction can cost is what was typed into it. A
+paste arrives as its own message rather than as keys, so the root routes what is
+not a key press into it too.
+
+`c` types in place and `C` types over the frame, because a comment has a line
+and a session note has none. The box `c` opens is the card it is about to
+become: same border, same indent, hanging under the same line, so the code it is
+about is still on screen above it and the file flows below. It carries the two
+keys in its own footer the way a card carries `x`, and the status bar names them
+and nothing else, `?` and `q` being letters while a body is being typed.
+
+`c` is refused where that box cannot be drawn: a pane too narrow for a card, a
+frame too short for one, or a reload still in git, which would land under the
+box and move the lines it was scoped to. A box nobody can see still holds every
+key, which is a reader typing into nothing. The modal `C` opens has no such
+limit and draws over the too-small frame.
 
 The label says only what the card's own position cannot. A card under its line
 needs no line number, because the gutter beside it has one. A range says the run

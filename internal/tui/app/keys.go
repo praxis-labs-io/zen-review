@@ -104,7 +104,16 @@ func NewKeyMap() KeyMap {
 // It changes with focus, because the point of the line is what the next press
 // would do. The rest is one keypress away.
 func (m Model) ShortHelp() []key.Binding {
+	if m.diff.Composing() {
+		return m.composeKeys()
+	}
 	return append(m.paneKeys(), m.wayOut()...)
+}
+
+// composeKeys is what the bar carries while the box in the pane is up: its two,
+// and no way out, because q and ? are keystrokes in a body being typed.
+func (m Model) composeKeys() []key.Binding {
+	return []key.Binding{m.compose.Keys.Save, m.compose.Keys.Discard}
 }
 
 // paneKeys is what the pane holding the keys can do, then what the ring can do

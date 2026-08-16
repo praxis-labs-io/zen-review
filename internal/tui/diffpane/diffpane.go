@@ -151,6 +151,10 @@ type Model struct {
 	// height moves with the width, and every row after it renumbers.
 	anchor place
 
+	// draft is the comment being typed, laid out as the card it will become. It
+	// holds every key while it is up, and nil is nobody typing.
+	draft *draft
+
 	offset int
 
 	width  int
@@ -612,6 +616,9 @@ func (m *Model) SetSize(width, height int) {
 	was := m.placeOf(m.cursor)
 
 	m.width, m.height = width, height
+	if m.draft != nil {
+		m.draft.area.SetWidth(m.draftWidth())
+	}
 	m.relayout(was)
 	m.reveal()
 
@@ -634,6 +641,12 @@ func (m Model) Path() string {
 }
 
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
+	// The box takes every message while it is up, a paste included. The root
+	// answers the two keys it owns and never gets here with one.
+	if m.draft != nil {
+		return m, m.typing(msg)
+	}
+
 	press, ok := msg.(tea.KeyPressMsg)
 	if !ok {
 		return m, nil
@@ -739,6 +752,15 @@ func (m *Model) layout() {
 	m.gutter = paint.Gutter(widest(*m.file))
 
 	mine := m.mine()
+
+	// The box lands where the card it will become lands, which is what the same
+	// pass over the lines gives it.
+	if m.draft != nil && m.draft.path == m.file.Diff.Path {
+		at := m.draft.at
+		at.GenerationID = m.gen
+		mine = append(mine, at)
+	}
+
 	placed := make([]bool, len(mine))
 
 	// A file comment names the whole file rather than a line in it, so it heads

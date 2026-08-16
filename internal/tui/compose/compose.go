@@ -58,12 +58,7 @@ type Model struct {
 
 // New builds a composer, closed, painted from the theme.
 func New(t theme.Theme) Model {
-	area := textarea.New()
-	area.Prompt = ""
-	area.ShowLineNumbers = false
-	area.SetStyles(styles(t))
-
-	return Model{Keys: NewKeyMap(), theme: t, area: area}
+	return Model{Keys: NewKeyMap(), theme: t, area: comp.Textarea(t)}
 }
 
 // Open puts the box up over body, titled and holding the keys. The cursor lands
@@ -126,24 +121,3 @@ func (m Model) hints() string {
 }
 
 func hint(b key.Binding) string { return b.Help().Key + " " + b.Help().Desc }
-
-// styles paints the textarea from the theme. bubbles picks its own colours,
-// which would be the one thing on screen that is not the theme's.
-func styles(t theme.Theme) textarea.Styles {
-	text := lipgloss.NewStyle().Foreground(t.Text)
-	muted := lipgloss.NewStyle().Foreground(t.Muted)
-
-	state := textarea.StyleState{
-		Base:        lipgloss.NewStyle(),
-		Text:        text,
-		CursorLine:  text,
-		EndOfBuffer: muted,
-		Placeholder: muted,
-		Prompt:      muted,
-	}
-	return textarea.Styles{
-		Focused: state,
-		Blurred: state,
-		Cursor:  textarea.CursorStyle{Color: t.Accent},
-	}
-}

@@ -176,7 +176,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.apply(msg.r)
 		m.note = notice{text: "comment saved"}
 
-		if m.compose.Value() == msg.body {
+		if m.diff.Draft() == msg.body {
 			m.shut()
 		}
 		return m, nil
@@ -205,6 +205,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// A paste arrives as a message of its own rather than as keys, so a box
 	// routed by press alone would silently drop one.
+	if m.diff.Composing() {
+		return m.drafting(msg)
+	}
 	if m.compose.Active() {
 		var cmd tea.Cmd
 		m.compose, cmd = m.compose.Update(msg)
@@ -214,8 +217,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	// The box takes every key, quit and help included. A q mid-sentence is a q,
-	// and one key let out is one more thing to keep in mind while typing.
+	// Either box takes every key, quit and help included. A q mid-sentence is a
+	// q, and one key let out is one more thing to keep in mind while typing.
+	if m.diff.Composing() {
+		return m.drafting(msg)
+	}
 	if m.compose.Active() {
 		return m.typing(msg)
 	}
@@ -411,10 +417,10 @@ func (m Model) typing(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-// shut takes the box down and drops what it was scoped to, which is the same
-// two things whichever key put it up.
+// shut takes down whichever box is up and drops what it was scoped to.
 func (m *Model) shut() {
 	m.compose.Close()
+	m.diff.CloseDraft()
 	m.pending = review.Note{}
 }
 

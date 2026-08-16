@@ -1,14 +1,13 @@
 package app
 
 import (
-	"strconv"
 	"strings"
 
+	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/zen-review/zen-review/internal/review"
 	"github.com/zen-review/zen-review/internal/store"
-	"github.com/zen-review/zen-review/internal/tui/comp"
 )
 
 // commentedMsg is a comment that landed, with the changeset re-derived after it.
@@ -76,32 +75,54 @@ func head(as []review.Anchor) review.Anchor {
 	return as[0]
 }
 
-// commentOn opens the box over what c scoped. The note is held rather than
-// derived again at the save key, so the title and the write name one thing.
+// commentOn opens the box where the card will hang. The note is held rather
+// than derived again at the save key, so the box and the write name one thing.
 func (m *Model) commentOn() (tea.Cmd, bool) {
 	n, ok := m.commenting()
 	if !ok {
 		return nil, false
 	}
 
+	cmd, up := m.diff.Compose(store.Comment{
+		Side:      n.Side,
+		Scope:     n.Scope,
+		LineRange: store.LineRange{Start: n.Range.Start, End: n.Range.End},
+	})
+	if !up {
+		return nil, false
+	}
+
 	m.pending = n
-	return m.compose.Open(commentTitle(n), ""), true
+	return cmd, true
 }
 
-// commentTitle says what the words are for, in the form the CLI prints a
-// location in. Only the base is named: a head anchor's numbers are the gutter's.
-func commentTitle(n review.Note) string {
-	at := comp.Safe(n.Path)
-	if n.Scope != store.ScopeFile {
-		at += ":" + strconv.Itoa(n.Range.Start)
-		if n.Range.End != n.Range.Start {
-			at += "-" + strconv.Itoa(n.Range.End)
+// drafting routes a key into the box, answering the two it owns first. Those
+// are the composer's: two boxes with one way out of them.
+func (m Model) drafting(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if press, ok := msg.(tea.KeyPressMsg); ok {
+		switch {
+		// The way out of anywhere. Raw mode sends no interrupt, so without this
+		// the box is the one place where ctrl+c does nothing at all.
+		case key.Matches(press, m.keys.Interrupt):
+			return m, tea.Quit
+
+		case key.Matches(press, m.compose.Keys.Discard):
+			m.shut()
+			return m, nil
+
+		case key.Matches(press, m.compose.Keys.Save):
+			// Neutral, because busy covers a mark and a resolve as well as a reload.
+			if m.busy {
+				m.note = notice{text: "still writing"}
+				return m, nil
+			}
+			return m, m.saveComment(m.diff.Draft())
 		}
 	}
-	if n.Side == store.SideBase {
-		at += " (base)"
-	}
-	return "Comment on " + at
+
+	var cmd tea.Cmd
+	m.diff, cmd = m.diff.Update(msg)
+	return m, cmd
 }
 
 // saveComment writes what was typed. An empty body takes the box down rather

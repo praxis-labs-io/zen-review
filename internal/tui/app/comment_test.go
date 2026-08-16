@@ -240,27 +240,65 @@ func TestCOnADirectoryRowDoesNothing(t *testing.T) {
 	}
 }
 
-// TestTheBoxNamesTheLinesItIsScopedTo. It is the only thing on screen saying
-// what the words are for, and the base is named because its numbers differ.
-func TestTheBoxNamesTheLinesItIsScopedTo(t *testing.T) {
+// TestTheBoxHangsWhereTheCardWill, which is what says where the comment lands.
+// A box under one line needs no number: the gutter beside it has one.
+func TestTheBoxHangsWhereTheCardWill(t *testing.T) {
 	for _, tt := range []struct {
-		name string
-		keys []string
-		want string
+		name  string
+		keys  []string
+		label string
+		under string
 	}{
-		{"one line", []string{"j"}, "Comment on a.go:1"},
-		{"a range", []string{"j", "v", "j", "j"}, "Comment on a.go:1-2"},
-		{"a removal", []string{"j", "j"}, "Comment on a.go:2 (base)"},
-		{"the file", []string{"h"}, "Comment on a.go"},
+		{"one line", []string{"j"}, "◇ new", "one"},
+
+		// The label says the run, because a box covering four lines cannot be
+		// read off the one row it hangs under.
+		{"a range", []string{"j", "v", "j", "j"}, "◇ new · lines 1-2", "dos"},
+
+		// Under the removal it is about, which is what says it is on the base.
+		{"a removal", []string{"j", "j"}, "◇ new", "two"},
+		{"the file", []string{"h"}, "◇ new · file", ""},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24).press(tt.keys...)
 			s.press("c")
 
-			if got := s.frame(); !strings.Contains(got, tt.want) {
-				t.Errorf("the box is not titled %q:\n%s", tt.want, got)
+			lines := s.lines()
+			at := -1
+			for i, line := range lines {
+				if strings.Contains(line, tt.label) {
+					at = i
+					break
+				}
+			}
+			if at < 0 {
+				t.Fatalf("no row carries the box labelled %q:\n%s", tt.label, s.frame())
+			}
+			if !strings.Contains(lines[at], "╭─") {
+				t.Errorf("the label is not a box's top border: %q", lines[at])
+			}
+			if tt.under != "" && !strings.Contains(lines[at-1], tt.under) {
+				t.Errorf("the box hangs under %q, want the line holding %q", lines[at-1], tt.under)
 			}
 		})
+	}
+}
+
+// TestTheBarNamesTheBoxsKeysAndNothingElse. It takes q and ? too, so a bar
+// still offering the way out would be naming two keystrokes.
+func TestTheBarNamesTheBoxsKeysAndNothingElse(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24).press("j", "c")
+
+	got := s.bar()
+	for _, want := range []string{"ctrl+s save", "esc discard"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the bar reads %q, want it to name %q", got, want)
+		}
+	}
+	for _, gone := range []string{"q quit", "? help", "j/k move"} {
+		if strings.Contains(got, gone) {
+			t.Errorf("the bar still offers %q while the box has the keys: %q", gone, got)
+		}
 	}
 }
 
@@ -273,7 +311,7 @@ func TestAnEmptyCommentWritesNothing(t *testing.T) {
 	if got := s.calls(); len(got) != 0 {
 		t.Fatalf("an empty comment wrote %v", got)
 	}
-	if got := s.frame(); strings.Contains(got, "Comment on") {
+	if got := s.frame(); strings.Contains(got, "◇ new") {
 		t.Errorf("the box stayed up over nothing to save:\n%s", got)
 	}
 }
@@ -294,15 +332,15 @@ func TestDiscardingACommentWritesNothing(t *testing.T) {
 	}
 }
 
-// TestAFailedCommentKeepsTheWordsAndTheSelection. The only thing a local
-// transaction can cost is what was typed into it, and what it was aimed at.
-func TestAFailedCommentKeepsTheWordsAndTheSelection(t *testing.T) {
+// TestAFailedCommentKeepsTheWordsAndTheAim. The only thing a local transaction
+// can cost is what was typed into it, and the lines it was pointed at.
+func TestAFailedCommentKeepsTheWordsAndTheAim(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24).press("j", "v", "j", "j")
 	s.src.wroteErr = errors.New("the database is locked")
 	s.press("c", "h", "i", "ctrl+s")
 
 	got := s.frame()
-	if !strings.Contains(got, "Comment on a.go:1-2") {
+	if !strings.Contains(got, "◇ new · lines 1-2") {
 		t.Fatalf("the box came down on a write that did not land:\n%s", got)
 	}
 	if !strings.Contains(got, "hi") {
@@ -327,7 +365,7 @@ func TestASavedCommentReportsItselfAndComesBackAsACard(t *testing.T) {
 	s.press("c", "x", "ctrl+s")
 
 	got := s.frame()
-	if strings.Contains(got, "Comment on") {
+	if strings.Contains(got, "◇ new") {
 		t.Fatalf("the box stayed up after the write:\n%s", got)
 	}
 	if !strings.Contains(got, "why one") {
@@ -346,7 +384,7 @@ func TestCIsRefusedWhileAReloadIsOut(t *testing.T) {
 	running := s.hold(keystroke("s"))
 	s.press("c")
 
-	if got := s.frame(); strings.Contains(got, "Comment on") {
+	if got := s.frame(); strings.Contains(got, "◇ new") {
 		t.Errorf("the box came up over a reload still in git:\n%s", got)
 	}
 	if got := s.bar(); !strings.Contains(got, "reloading") {
@@ -357,7 +395,23 @@ func TestCIsRefusedWhileAReloadIsOut(t *testing.T) {
 	s.drain(running)
 	s.press("c")
 
-	if got := s.frame(); !strings.Contains(got, "Comment on") {
+	if got := s.frame(); !strings.Contains(got, "◇ new") {
 		t.Errorf("c did nothing after the reload landed:\n%s", got)
+	}
+}
+
+// TestCIsRefusedOnAFrameWithNoRoomForTheBox. It takes every key while it is up,
+// so one nobody can see is a reader typing into nothing.
+func TestCIsRefusedOnAFrameWithNoRoomForTheBox(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, mixedPatch), 50, 10)
+
+	before := s.frame()
+	s.press("c", "h", "i", "ctrl+s")
+
+	if got := s.calls(); len(got) != 0 {
+		t.Errorf("a box nobody could see wrote %v", got)
+	}
+	if got := s.frame(); got != before {
+		t.Errorf("c opened something on a frame with no room:\n%s", got)
 	}
 }

@@ -63,9 +63,9 @@ func TestGoldenFrames(t *testing.T) {
 		// a stripped golden cannot see it; this is the bar it takes over.
 		{"selecting", 100, 16, []string{"n", "n", "j", "v", "j", "j"}},
 
-		// The box c puts up, titled with the lines it was scoped to. The j is what
-		// takes the cursor off the heading and onto a line of code.
-		{"commenting", 100, 16, []string{"n", "n", "j", "c"}},
+		// The box c puts up, where the card will hang, with two keys typed into
+		// it. The j is what takes the cursor off the heading and onto code.
+		{"commenting", 100, 16, []string{"n", "n", "j", "c", "n", "o"}},
 
 		{"folded", 100, 16, []string{"h", "j", "space"}},
 		{"deep", 100, 16, []string{"h", "G"}},
