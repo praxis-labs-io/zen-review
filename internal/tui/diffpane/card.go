@@ -13,22 +13,34 @@ import (
 	"github.com/zen-review/zen-review/internal/tui/comp"
 )
 
-// The comment states as glyphs. They are the hunk badges' family, so one ladder
-// reads the same wherever the pane draws one.
+// The comment states as glyphs: a diamond, where a hunk's badge is a circle.
+// The two ladders mean different things and cannot share a shape.
 const (
-	openGlyph      = "○"
-	addressedGlyph = "⊙"
-	resolvedGlyph  = "●"
-	orphanedGlyph  = "⊘"
+	// Hollow, centred and filled is the progression the circles make too, so a
+	// column of either still reads at a glance.
+	openGlyph      = "◇"
+	addressedGlyph = "◈"
+	resolvedGlyph  = "◆"
+
+	// Orphaned leaves the family. It is a loss rather than a stage.
+	orphanedGlyph = "✕"
 )
 
 // cardMin is the narrowest a bordered card gets, which is room for a few words.
 // Under it a card is a box round an ellipsis, so the indent goes then the border.
 const cardMin = 20
 
+// foldGlyph opens a folded card's one row. It is zen-octo's, which marks a
+// folded block the same way.
+const foldGlyph = "▸"
+
 // cardGutter is the space between a card's border and what it holds. Text
 // against the border reads as a rendering fault rather than as a box.
 const cardGutter = 1
+
+// noWords stands in for a body that has none. The engine refuses an empty one,
+// so this is the card saying the row is not a rendering fault.
+const noWords = "no words"
 
 // card is one comment on screen, and both the ways it draws. The cursor moving
 // in or out changes its whole border, and layout is where that is paid for.
@@ -95,16 +107,28 @@ func (m Model) drawCard(c store.Comment, placed bool) ([]string, []string) {
 	}
 
 	at, width := m.cardBox()
-	if width < cardMin || m.folds(c) {
+	if width < cardMin {
 		return m.bareRow(c, placed, at, lipgloss.NewStyle()),
 			m.bareRow(c, placed, at, lipgloss.NewStyle().Background(m.theme.SelectedBackground))
 	}
 
-	body := m.cardBody(c, width)
+	// A folded card keeps its box. Without one it is a line of grey text in a
+	// column of diff, which is what the diff's own notes look like.
+	folded := m.folds(c)
+
+	// Built one way or the other, never both: either sanitises the whole body,
+	// and the loser's pass is work every relayout pays for nothing.
+	var body []string
+	if folded {
+		body = m.foldedBody(c, width)
+	} else {
+		body = m.cardBody(c, width)
+	}
+
 	box := comp.NewPane(m.theme).Label(m.cardLabel(c, placed)).Size(width, len(body)+2)
 
 	plain := lines(box.Focus(false).Render(strings.Join(body, "\n")))
-	lit := lines(box.Focus(true).Footer("", m.cardHints(width, placed)).
+	lit := lines(box.Focus(true).Footer("", m.cardHints(width, placed, folded)).
 		Render(strings.Join(body, "\n")))
 
 	for i := range plain {
@@ -127,9 +151,22 @@ func (m Model) cardBody(c store.Comment, width int) []string {
 		out = append(out, gutter+text.Render(line))
 	}
 	if len(out) == 0 {
-		out = append(out, gutter+m.subtle().Render("no words"))
+		out = append(out, gutter+m.subtle().Render(noWords))
 	}
 	return out
+}
+
+// foldedBody is a settled card's one row: the mark saying it is folded, and
+// enough of the body to know which comment the box is standing for.
+func (m Model) foldedBody(c store.Comment, width int) []string {
+	room := max(width-2-2*cardGutter, 1)
+
+	line := foldGlyph + " " + noWords
+	if first := firstLine(c.Body); first != "" {
+		line = foldGlyph + " " + first
+	}
+	return []string{strings.Repeat(" ", cardGutter) +
+		comp.Clip(m.subtle().Render(line), room, m.subtle())}
 }
 
 // bareRow is the one-row form finished to the pane, its indent painted in the
@@ -139,8 +176,8 @@ func (m Model) bareRow(c store.Comment, placed bool, at int, base lipgloss.Style
 	return []string{m.pad(lead+m.bareCard(c, placed, base), base)}
 }
 
-// bareCard is the one-row form: the badge, the state, and enough of the body to
-// recall it. A folded card and a pane too narrow for a border both take it.
+// bareCard is the borderless form: the badge, the state, and enough of the body
+// to recall it. Only a pane too narrow for a box takes it.
 func (m Model) bareCard(c store.Comment, placed bool, base lipgloss.Style) string {
 	row := m.cardHead(c, placed, base)
 	if first := firstLine(c.Body); first != "" {
@@ -204,8 +241,15 @@ func span(c store.Comment) string {
 
 // cardHints is what the lit card answers to, dropped from the tail until the
 // line fits its border. enter is absent on a card with no line to go to.
-func (m Model) cardHints(width int, placed bool) string {
-	parts := []string{"space fold"}
+func (m Model) cardHints(width int, placed, folded bool) string {
+	// The word is the direction the key goes, not the state it is in. A folded
+	// card naming the fold says the press would do what has been done.
+	word := "space fold"
+	if folded {
+		word = "space open"
+	}
+
+	parts := []string{word}
 	if placed {
 		parts = append([]string{"⏎ line"}, parts...)
 	}

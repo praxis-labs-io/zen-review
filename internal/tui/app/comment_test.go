@@ -41,11 +41,16 @@ func TestTheCommentRingSkipsAResolvedOne(t *testing.T) {
 		s.press("]")
 	}
 
-	if got := s.frame(); !strings.Contains(got, "○ open") {
+	// The hints, not the body: both cards draw their body whether lit or not, so
+	// only what a lit card names says which one the ring landed on.
+	if got := s.frame(); !strings.Contains(got, "space fold") {
 		t.Fatalf("the ring never landed on the open comment:\n%s", got)
 	}
-	if strings.Contains(s.frame(), "╭─ ● resolved") {
-		t.Errorf("the ring opened the resolved card:\n%s", s.frame())
+
+	// Only a lit card names its keys, and the folded one names the way out of
+	// its fold. So the resolved card was never landed on.
+	if got := s.frame(); strings.Contains(got, "space open") {
+		t.Errorf("the ring landed on the resolved card:\n%s", got)
 	}
 }
 
@@ -85,17 +90,23 @@ func TestACardFoldsFromTheReader(t *testing.T) {
 	s := commented(t, 100, 24, on)
 	s.press("]")
 
-	if got := s.frame(); !strings.Contains(got, "╭─ ○ open") {
+	if got := s.frame(); !strings.Contains(got, "╭─ ◇ open") {
 		t.Fatalf("the card did not open bordered:\n%s", got)
 	}
 
 	s.press("space")
 	got := s.frame()
-	if strings.Contains(got, "╭─ ○ open") {
-		t.Errorf("space left the card bordered:\n%s", got)
+	if !strings.Contains(got, "▸ worth folding away") {
+		t.Errorf("space did not fold the card to its one row:\n%s", got)
 	}
-	if !strings.Contains(got, "○ open · worth folding away") {
-		t.Errorf("the folded row does not say which comment it is:\n%s", got)
+	if !strings.Contains(got, "space open") {
+		t.Errorf("the folded card names the fold rather than the way out of it:\n%s", got)
+	}
+
+	// The box stays. Without one a folded card is a line of grey text in a
+	// column of diff, which is what the diff's own notes look like.
+	if !strings.Contains(got, "╭─ ◇ open") {
+		t.Errorf("the folded card lost its box:\n%s", got)
 	}
 }
 

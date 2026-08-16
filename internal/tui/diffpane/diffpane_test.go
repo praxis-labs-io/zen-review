@@ -802,7 +802,7 @@ func under(t *testing.T, m diffpane.Model, want string) string {
 func TestACardHangsUnderTheLineItAnswers(t *testing.T) {
 	m := cards(t, twoHunks, 76, 30)
 
-	if got := under(t, m, `Unreviewed State = "unreviewed"`); !strings.Contains(got, "○ open") {
+	if got := under(t, m, `Unreviewed State = "unreviewed"`); !strings.Contains(got, "◇ open") {
 		t.Errorf("the row under the line it answers is %q, want the card", got)
 	}
 	if got := joined(t, m); !strings.Contains(got, "unreviewed is the longer word") {
@@ -837,7 +837,7 @@ func TestACardUnderItsOwnLineSaysNoNumber(t *testing.T) {
 func TestAFileCommentHeadsTheFile(t *testing.T) {
 	got := rows(t, cards(t, "README.md", 76, 20))
 
-	if !strings.Contains(got[0], "○ open · file") {
+	if !strings.Contains(got[0], "◇ open · file") {
 		t.Errorf("the first row is %q, want the file's own comment", got[0])
 	}
 	if !strings.Contains(got[1], "Does this still read right?") {
@@ -850,7 +850,7 @@ func TestAFileCommentHeadsTheFile(t *testing.T) {
 func TestACommentTheDiffHasNoLineForStillDraws(t *testing.T) {
 	got := joined(t, cards(t, twoHunks, 76, 30))
 
-	if !strings.Contains(got, "⊘ orphaned · was line 900") {
+	if !strings.Contains(got, "✕ orphaned · was line 900") {
 		t.Errorf("the stray did not draw, or drew as though it were placed:\n%s", got)
 	}
 }
@@ -860,12 +860,17 @@ func TestACommentTheDiffHasNoLineForStillDraws(t *testing.T) {
 func TestAResolvedCommentIsOneRowUntilSpaceOpensIt(t *testing.T) {
 	m := cards(t, "README.md", 76, 20)
 
+	// It keeps its box. Without one it is a line of grey text in a column of
+	// diff, which is what the diff's own notes look like.
 	got := joined(t, m)
-	if !strings.Contains(got, "● resolved · The old line said it better.") {
-		t.Errorf("the resolved comment is not folded to its one row:\n%s", got)
+	if !strings.Contains(got, "╭─ ◆ resolved") {
+		t.Errorf("the resolved comment lost its box:\n%s", got)
 	}
-	if strings.Contains(got, "╰──") && strings.Count(got, "╭─") != 1 {
-		t.Errorf("the resolved comment kept a border:\n%s", got)
+	if !strings.Contains(got, "▸ The old line said it better.") {
+		t.Errorf("the folded row does not say which comment it stands for:\n%s", got)
+	}
+	if h := boxHeight(t, m, "◆ resolved"); h != 3 {
+		t.Errorf("the folded card is %d rows, want a border, one row and a border", h)
 	}
 
 	// Onto its row, then open it. The file card is the first stop, the heading
@@ -876,9 +881,32 @@ func TestAResolvedCommentIsOneRowUntilSpaceOpensIt(t *testing.T) {
 	}
 	m = press(t, m, space)
 
-	if got := joined(t, m); !strings.Contains(got, "╭─ ● resolved") {
+	got = joined(t, m)
+	if strings.Contains(got, "▸ The old line said it better.") {
 		t.Errorf("space did not open the folded card:\n%s", got)
 	}
+	if !strings.Contains(got, "│ The old line said it better.") {
+		t.Errorf("the opened card does not hold the body:\n%s", got)
+	}
+}
+
+// boxHeight is how many rows a card spans, found from the border its label is
+// in down to the one that closes it, and 0 when the label is not on screen.
+func boxHeight(t *testing.T, m diffpane.Model, label string) int {
+	t.Helper()
+
+	got := rows(t, m)
+	for i, row := range got {
+		if !strings.Contains(row, label) {
+			continue
+		}
+		for j := i + 1; j < len(got); j++ {
+			if strings.Contains(got[j], "\u2570\u2500") {
+				return j - i + 1
+			}
+		}
+	}
+	return 0
 }
 
 // TestEveryCardRowIsExactlyThePane, at widths where a card loses its border. A
@@ -1037,7 +1065,7 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 // where a font missing a one-cell one only draws a box, so this is measured
 // rather than assumed.
 func TestEveryBadgeIsOneCell(t *testing.T) {
-	for _, glyph := range []string{"○", "⊙", "●", "⊘", mark} {
+	for _, glyph := range []string{"◇", "◈", "◆", "✕", "▸", mark} {
 		if got := lipgloss.Width(glyph); got != 1 {
 			t.Errorf("%q measures %d cells", glyph, got)
 		}

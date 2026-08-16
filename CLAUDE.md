@@ -274,16 +274,25 @@ editor one; the tree does the same job by hand.
 
 `]` and `[` walk what is unresolved, the way `n` walks what is unread. A ring
 that stepped through settled work is a ring nobody holds down. A resolved card
-still draws, folded to a row, and `j` still reaches it.
+still draws, folded, and `j` still reaches it.
 
 A comment draws as a bordered card indented to the code column, hanging under
 the last line it is about. It is one stop for the cursor rather than one per
 row: `j` steps onto it and the next `j` clears the whole thing.
 
 State is a badge in its top border and focus is the border's colour, because
-four states and one focus cannot share a channel. `○` open, `⊙` addressed, `●`
-resolved, `⊘` orphaned, each beside its own word: the glyph is the glance and
+four states and one focus cannot share a channel. `◇` open, `◈` addressed, `◆`
+resolved, `✕` orphaned, each beside its own word: the glyph is the glance and
 the word is what scans down a column.
+
+A diamond, where a hunk's badge is a circle. The two ladders sit in one column
+and mean different things, so they cannot share a shape, and their colours run
+opposite ways: a hunk is accent once it is done, a comment is accent while it
+still wants you. Orphaned leaves the family, being a loss and not a stage.
+
+A settled card folds to one row and keeps its box. Without the box it is a line
+of grey text in a column of diff, which is what the diff's own notes look like.
+Its footer names the direction the key goes rather than the state it is in.
 
 The label says only what the card's own position cannot. A card under its line
 needs no line number, because the gutter beside it has one. A range says the run
