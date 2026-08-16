@@ -122,18 +122,18 @@ func (m Model) ShortHelp() []key.Binding {
 // are the way out, and a third would take the room the ring needs at
 // fifty-six.
 func (m Model) paneKeys() []key.Binding {
-	// A selection is the one thing on screen with an end to it, so the bar names
-	// the keys that end it. The ring still answers and still cancels by landing.
-	if m.diff.Selecting() {
-		return []key.Binding{
-			comp.Pair(m.diff.Keys.Down, m.diff.Keys.Up, "j/k", "extend"),
-			key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")),
-		}
-	}
-
 	own := m.diff.Keys.Hints()
 	if m.focus == focusTree {
 		own = m.tree.Keys.Hints()
+	}
+
+	// A selection is the one thing on screen with an end to it, so the bar names
+	// the keys that end it. j extends only in the pane the selection is drawn in.
+	if m.diff.Selecting() {
+		if m.focus == focusDiff {
+			own = []key.Binding{comp.Pair(m.diff.Keys.Down, m.diff.Keys.Up, "j/k", "extend")}
+		}
+		return append(own, key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")))
 	}
 
 	return append(own,

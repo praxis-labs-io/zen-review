@@ -45,11 +45,22 @@ func TestTheBarNamesTheKeysThatEndASelection(t *testing.T) {
 		}
 	}
 
-	// From the tree as well, because that is where the bar still names it and
-	// the selection is still lit in the pane beside it.
-	s.press("h", "esc")
+	// The tree's own keys, because j walks the tree there. esc stays, because the
+	// selection is still lit in the pane beside it and answers from either.
+	s.press("h")
 
-	if got := s.bar(); !strings.Contains(got, "enter open") {
-		t.Errorf("the bar reads %q, want the tree's own line back", got)
+	got = s.bar()
+	if strings.Contains(got, "extend") {
+		t.Errorf("the bar reads %q, want no claim that j extends from the tree", got)
+	}
+	for _, want := range []string{"enter open", "esc cancel"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the bar reads %q, want it to name %q", got, want)
+		}
+	}
+
+	s.press("esc")
+	if got := s.bar(); strings.Contains(got, "esc cancel") {
+		t.Errorf("the bar reads %q, want the selection gone", got)
 	}
 }

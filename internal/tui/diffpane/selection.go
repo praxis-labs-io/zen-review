@@ -33,7 +33,10 @@ func (m Model) Selected() ([]review.Anchor, bool) {
 	if base.Start != 0 {
 		out = append(out, review.Anchor{Side: store.SideBase, Range: base})
 	}
-	return out, true
+
+	// A span over a heading or a card alone names nothing, which a caller has to
+	// tell from a run of lines rather than reach for an empty list of them.
+	return out, len(out) > 0
 }
 
 // grow takes one more line into a span, ignoring the 0 a row without that side

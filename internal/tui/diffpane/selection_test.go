@@ -177,6 +177,63 @@ func TestAResizeKeepsTheSelectionOnItsLines(t *testing.T) {
 	}
 }
 
+// TestARelayoutKeepsTheSelectionOnScreen. layout repaints with no cursor, so a
+// span it did not know about draws as bare code while Selected still names it.
+func TestARelayoutKeepsTheSelectionOnScreen(t *testing.T) {
+	card := testchangeset.Comment("bbbbbbbbbbbb", twoHunks, 11, 11,
+		"this card sits above the selection and wraps to a different number of rows at every width it is drawn at")
+
+	for _, tt := range []struct {
+		name  string
+		open  func(m diffpane.Model) diffpane.Model
+		relay func(m *diffpane.Model)
+	}{
+		{
+			"a resize",
+			func(m diffpane.Model) diffpane.Model {
+				m.Select(store.SideHead, 124)
+				return press(t, m, down, sel, down)
+			},
+			func(m *diffpane.Model) { m.SetSize(40, 24) },
+		},
+		{
+			// Folded from the card itself, which the cursor reaches while the
+			// selection is open because a card is one stop like any other row.
+			"folding a card inside the span",
+			func(m diffpane.Model) diffpane.Model {
+				m.Select(store.SideHead, 13)
+				return press(t, m, down, sel, down, down)
+			},
+			func(m *diffpane.Model) { *m = press(t, *m, space) },
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			m := tt.open(commented(t, twoHunks, 70, 24, card))
+
+			if got := filledRows(t, m); len(got) != 2 {
+				t.Fatalf("filled rows = %v, want the two the selection covers", got)
+			}
+
+			tt.relay(&m)
+
+			if got := filledRows(t, m); len(got) != 2 {
+				t.Errorf("filled rows = %v after %s, want the selection still drawn", got, tt.name)
+			}
+		})
+	}
+}
+
+// TestASpanOverNoCodeNamesNothing. A heading is one stop the cursor lands on, so
+// v there is a press a reader makes, and an empty list of anchors is not a scope.
+func TestASpanOverNoCodeNamesNothing(t *testing.T) {
+	m := commented(t, twoHunks, 70, 20)
+	m.Select(store.SideHead, 13)
+
+	if as, on := press(t, m, sel).Selected(); on {
+		t.Errorf("a selection over a heading alone reports %v", as)
+	}
+}
+
 // TestTheRootMovingTheCursorClearsTheSelection. A span anchored in a file the
 // reader has left is one nobody can see the ends of.
 func TestTheRootMovingTheCursorClearsTheSelection(t *testing.T) {

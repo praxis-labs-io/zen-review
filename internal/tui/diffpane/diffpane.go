@@ -322,10 +322,13 @@ func (m *Model) point(i int) {
 	m.cursor, m.waiting = i, false
 	m.repaint(was, i, m.headOf(was), m.headOf(i))
 
-	// A selection fills every row between its ends, so a cursor moving inside one
-	// repaints the run it just grew or shrank by rather than the two rows.
-	if m.Selecting() && was >= 0 {
-		for at := min(was, i); at <= max(was, i); at++ {
+	// The span and the row the cursor left, which is the run a selection just
+	// grew or shrank by. A relayout arrives here with was at -1 and all of it new.
+	if lo, hi, on := m.span(); on {
+		if was >= 0 {
+			lo, hi = min(lo, was), max(hi, was)
+		}
+		for at := lo; at <= hi; at++ {
 			m.repaint(at)
 		}
 	}
