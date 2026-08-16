@@ -68,6 +68,16 @@ func (s *source) UnmarkFile(g review.Generation, f review.File) (app.Reload, err
 	return s.write(fmt.Sprintf("UnmarkFile %s gen=%d", f.Diff.Path, g.Seq))
 }
 
+// AddComment records where the comment was aimed as well as what it says. A
+// golden cannot show that c named the right lines, and that is the invariant.
+func (s *source) AddComment(g review.Generation, n review.Note) (app.Reload, error) {
+	where := n.Path
+	if n.Scope != store.ScopeFile {
+		where = fmt.Sprintf("%s %s:%d-%d", n.Path, n.Side, n.Range.Start, n.Range.End)
+	}
+	return s.write(fmt.Sprintf("AddComment %s %s %s gen=%d", where, n.Scope, strconv.Quote(n.Body), g.Seq))
+}
+
 func (s *source) ResolveComment(g review.Generation, id string) (app.Reload, error) {
 	return s.write(fmt.Sprintf("ResolveComment %s gen=%d", id, g.Seq))
 }

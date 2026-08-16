@@ -52,6 +52,10 @@ type Source interface {
 	MarkFile(g review.Generation, f review.File) (Reload, error)
 	UnmarkFile(g review.Generation, f review.File) (Reload, error)
 
+	// AddComment writes one, so the card comes back hanging under the code it
+	// was written against.
+	AddComment(g review.Generation, n review.Note) (Reload, error)
+
 	// ResolveComment settles one comment, so the card the reader is on comes
 	// back under the state the write left it in.
 	ResolveComment(g review.Generation, id string) (Reload, error)

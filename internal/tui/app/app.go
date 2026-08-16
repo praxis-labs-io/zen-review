@@ -55,6 +55,10 @@ type Model struct {
 	// it, and the report is where it is read back.
 	summary string
 
+	// pending is what c scoped when the box went up, and empty while the box is
+	// down or holding the session note. It is what the save key branches on.
+	pending review.Note
+
 	// note is what the last reload found, until the next key clears it.
 	note notice
 
@@ -163,7 +167,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Down here and not at the key, so a write that failed leaves the box up
 		// holding the words. Typing on while it was out keeps it up too.
 		if m.compose.Value() == msg.text {
-			m.compose.Close()
+			m.shut()
+		}
+		return m, nil
+
+	case commentedMsg:
+		m.busy = false
+		m.apply(msg.r)
+		m.note = notice{text: "comment saved"}
+
+		if m.compose.Value() == msg.body {
+			m.shut()
 		}
 		return m, nil
 
@@ -281,6 +295,22 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
+	// Routed before the focus, because a selection is what c comments on from
+	// either pane. Nothing under the cursor is a press with nothing to do.
+	if key.Matches(msg, m.keys.Comment) {
+		// Refused while a reload is out: it would land under the open box and move
+		// the lines the box was scoped to. The bar already says why.
+		if m.busy {
+			return m, nil
+		}
+
+		cmd, ok := m.commentOn()
+		if !ok {
+			return m, nil
+		}
+		return m, cmd
+	}
+
 	// The note is the session's rather than a hunk's, so it sits with the reload
 	// rather than in a pane. Opening it writes nothing and waits on nothing.
 	if key.Matches(msg, m.keys.Note) {
@@ -357,7 +387,7 @@ func (m Model) typing(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case key.Matches(msg, m.compose.Keys.Discard):
-		m.compose.Close()
+		m.shut()
 		return m, nil
 
 	case key.Matches(msg, m.compose.Keys.Save):
@@ -367,6 +397,11 @@ func (m Model) typing(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+		// Which box is up. c holds what it scoped and C holds nothing.
+		if m.pending.Path != "" {
+			return m, m.saveComment(m.compose.Value())
+		}
+
 		cmd := m.saveNote(m.compose.Value())
 		return m, cmd
 	}
@@ -374,6 +409,13 @@ func (m Model) typing(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.compose, cmd = m.compose.Update(msg)
 	return m, cmd
+}
+
+// shut takes the box down and drops what it was scoped to, which is the same
+// two things whichever key put it up.
+func (m *Model) shut() {
+	m.compose.Close()
+	m.pending = review.Note{}
 }
 
 // syncCursor puts the ring on the hunk the diff pane's cursor is in, so a mark

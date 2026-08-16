@@ -10,8 +10,8 @@
 │ │ ctrl+u diff half page up      shift+tab previous file      q   quit      │ │
 │ │ ]/[    comment                r         mark read                        │ │
 │ │ z      place cursor: z/t/b    R         mark file                        │ │
-├─│ v      select lines           u         unmark                           │ │
-│ │ space  fold comment           U         unmark file                      │ │
+├─│ v      select lines           u/U       unmark                           │ │
+│ │ space  fold comment           c         comment                          │ │
 │ │ enter  go to its line         x         resolve comment                  │ │
 │ ╰──────────────────────────────────────────────────────────────────────────╯ │
 │ Comments                   0/0 ││                                            │

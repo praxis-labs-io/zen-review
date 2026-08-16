@@ -39,7 +39,7 @@ func TestTheBarNamesTheKeysThatEndASelection(t *testing.T) {
 	s.press("v", "j")
 
 	got := s.bar()
-	for _, want := range []string{"j/k extend", "esc cancel"} {
+	for _, want := range []string{"j/k extend", "c comment", "esc cancel"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("the bar reads %q, want it to name %q", got, want)
 		}
@@ -53,7 +53,7 @@ func TestTheBarNamesTheKeysThatEndASelection(t *testing.T) {
 	if strings.Contains(got, "extend") {
 		t.Errorf("the bar reads %q, want no claim that j extends from the tree", got)
 	}
-	for _, want := range []string{"enter open", "esc cancel"} {
+	for _, want := range []string{"enter open", "c comment", "esc cancel"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("the bar reads %q, want it to name %q", got, want)
 		}

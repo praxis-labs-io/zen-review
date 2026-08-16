@@ -257,7 +257,7 @@ n N                      next / prev unreviewed hunk
 r                        mark hunk reviewed, advance to next unreviewed
 R                        mark whole file reviewed
 u U                      take either back
-c                        comment on the selection
+c                        comment on the selection, the row, the hunk or the file
 v esc                    range selection for c, j/k extend. esc or v cancels
 C                        session summary note
 x                        resolve a comment
@@ -291,6 +291,16 @@ comment card are not lines anything is written against.
 way `x` is named in a card's own footer. It reaches one state of the program,
 and that is where a reader looks for it. It answers from either pane, because
 the selection stays lit while the reader walks the tree.
+
+`c` scopes to what is under the cursor and takes the first of these it finds: a
+selection, the code row the cursor is on, the hunk it is in, the file. A
+selection beats the focus the way `esc` does, and the tree focused with nothing
+selected is the file itself, because pointing at a file is what the tree is.
+
+A comment anchors to the head wherever the lines it covers have one, and to the
+base only when they have none, which is a selection of removals. The head is the
+code the next agent rewrites; a mark writes every side at once and a comment
+cannot. The box says which side it took, because base numbers read as head ones.
 
 A hunk is the block a paragraph motion moves by, so `}` and `{` step it. Vim's
 own diff mode says `]c` and `[c`, and the bracket pair is spoken for. Nothing in

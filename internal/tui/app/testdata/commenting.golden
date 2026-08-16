@@ -1,0 +1,16 @@
+╭─[1]─Zen Review───────────────────────╮╭─[2]─internal/review/state.go─────────────────────────────╮
+│  docs/superpowers/specs             ││       ○  @@ -10,5 +10,5 @@ package review               │
+│   ● design.md                  +3 -0 ││  10  10   // State is how much of a hunk or a file has b…│
+│  inte╭─Comment on internal/review/state.go:10───────────────────────────────────────────╮       │
+│    cl│                                                                                  │       │
+│     ○ │                                                                                  │       │
+│    re│                                                                                  │       │
+│     ⊙ │                                                                                  │       │
+├───────│                                                                                  │       │
+│ origin│                                                                                  │angese…│
+│ Genera│                                                                                  │, g.ID)│
+│ Review│                                                                                  │       │
+│ Commen╰───────────────────────────────────────────────────────ctrl+s save · esc discard ─╯       │
+│ Changes                   6  +10 -3 ││ 123 123       }                                          │
+╰──────────────────────────────────────╯╰────────────────────────────────────────────────────13/16─╯
+j/k move · n/N unread · }/{ hunk · ctrl+d/u page · r/R read · c comment · s reload · ? help · q quit
