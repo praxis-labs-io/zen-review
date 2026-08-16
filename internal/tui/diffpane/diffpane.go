@@ -298,27 +298,27 @@ func (m *Model) showCard(i int) {
 	}
 	c := m.cards[i]
 
-	top := c.at
+	// top is the highest the window goes, and hangs the lowest it goes and still
+	// shows the line the card is written under.
+	top, hangs := c.at, c.at
 	if c.anchor >= 0 {
-		top = c.anchor
+		top, hangs = c.anchor, c.at-1
 	}
+	top, hangs = m.abovePin(top), m.abovePin(hangs)
 
-	// The pin covers the top row, so the anchor cannot be it. One row higher puts
-	// the heading above the line rather than over it.
-	if h := m.headOf(top); h >= 0 && h < top {
-		top--
-	}
-
-	// A box being typed in wins that clash outright. Off the window it still holds
-	// every key, so there is nothing left to scroll to it with.
-	if c.id == draftID {
-		top = max(top, c.end()-m.height)
-	}
-
-	// A card and its anchor taller than the window cannot both be shown, and the
-	// line it answers is the half to keep.
-	m.offset = max(min(m.offset, top), min(c.end()-m.height, top))
+	// An anchor deeper than the window would take the card off the bottom with it.
+	// The scroll gives the rest of the span up rather than the card.
+	m.offset = max(min(m.offset, top), min(c.end()-m.height, hangs))
 	m.clampOffset()
+}
+
+// abovePin is a row the window can open on without the pinned heading covering
+// it: one higher where a heading sits above, and the row itself where none does.
+func (m Model) abovePin(at int) int {
+	if h := m.headOf(at); h >= 0 && h < at {
+		return at - 1
+	}
+	return at
 }
 
 // point puts the cursor on a row and repaints what moved: the two rows, and the

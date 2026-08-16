@@ -524,3 +524,17 @@ func TestTheBoxOnATallHunkIsOnScreen(t *testing.T) {
 		t.Errorf("the box is cut off at the bottom:\n%s", got)
 	}
 }
+
+// TestTheRingLandsOnACardBelowATallHunk. A card on a whole hunk anchors at the
+// top of it, and a ring that stopped there would land on a card off the window.
+func TestTheRingLandsOnACardBelowATallHunk(t *testing.T) {
+	deep := testchangeset.Comment("aaaaaaaaaaaa", "a.go", 5, 40, "this hunk is the whole file")
+
+	s := with(t, "zen-review", testchangeset.Derive(t, tallPatch()),
+		[]store.Comment{deep}, "", 100, 24)
+	s.press("]")
+
+	if got := s.frame(); !strings.Contains(got, "this hunk is the whole file") {
+		t.Errorf("the card the ring landed on is off the window:\n%s", got)
+	}
+}
