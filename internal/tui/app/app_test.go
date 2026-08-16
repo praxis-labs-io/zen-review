@@ -103,14 +103,9 @@ func TestTheFrameIsExactlyTheTerminal(t *testing.T) {
 		{72, 10},
 	}
 
-	// Each size three ways: as it opens, on a binary file the painter draws no
-	// rows for; walked to the file with the longest lines in the fixture; and
-	// under the overlay, which is composited rather than drawn and comes back
-	// with every line's trailing spaces trimmed unless they are put back.
-	// The s is the three-piece bar: the keys, a gap, and the notice. Its width
-	// arithmetic is the newest on the frame and the one a golden covers at one
-	// width only.
-	for _, keys := range [][]string{nil, code, {"?"}, {"s"}} {
+	// Each size every way the frame is built: as it opens, on a binary file, on
+	// the longest lines, under the bar's notice, and under each composited box.
+	for _, keys := range [][]string{nil, code, {"?"}, {"s"}, {"C"}} {
 		for _, size := range sizes {
 			s := open(t, size.width, size.height).press(keys...)
 			lines := s.lines()

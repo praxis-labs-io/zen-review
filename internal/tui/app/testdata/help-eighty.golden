@@ -5,14 +5,14 @@
 │ │ j      down                   n         next unread        h/1 tree pane │ │
 │ │ k      up                     N         previous unread    l/2 diff pane │ │
 │ │ g      top                    }         next hunk          s   reload    │ │
-│ │ G      bottom                 {         previous hunk      ?   help      │ │
-│ │ ctrl+d diff half page down    tab       next file          q   quit      │ │
-│ │ ctrl+u diff half page up      shift+tab previous file                    │ │
+│ │ G      bottom                 {         previous hunk      C   note      │ │
+│ │ ctrl+d diff half page down    tab       next file          ?   help      │ │
+│ │ ctrl+u diff half page up      shift+tab previous file      q   quit      │ │
 │ │ ]      next comment           r         mark read                        │ │
 │ │ [      previous comment       R         mark file                        │ │
 ├─│ z      place cursor: z/t/b    u         unmark                           │ │
 │ │ space  fold comment           U         unmark file                      │ │
-│ │ enter  go to its line                                                    │ │
+│ │ enter  go to its line         x         resolve comment                  │ │
 │ ╰──────────────────────────────────────────────────────────────────────────╯ │
 │ Comments                   0/0 ││                                            │
 │ Changes             6  +10 -3 ││                                            │

@@ -67,6 +67,10 @@ func (m *Model) resize(width, height int) {
 
 	m.tree.SetSize(m.treePane.InnerWidth(), m.treePane.ContentHeight())
 	m.diff.SetSize(m.diffPane.InnerWidth(), m.diffPane.InnerHeight())
+
+	// The box is placed over the whole frame rather than inside a pane, so it
+	// takes the frame's size and not a pane's.
+	m.compose.SetSize(m.width, m.height)
 }
 
 func (m Model) bodyHeight() int { return max(m.height-statusRow, 0) }
@@ -95,6 +99,12 @@ func (m Model) content() string {
 		return m.tooSmall()
 	}
 	frame := strings.Join([]string{m.body(), m.status()}, "\n")
+
+	// One or the other. The box has the keys while it is up, and the key that
+	// opens the help is a keystroke in the body.
+	if m.compose.Active() {
+		return comp.Over(frame, m.compose.View(), m.width, m.height)
+	}
 	if m.showing {
 		return m.overlay(frame)
 	}

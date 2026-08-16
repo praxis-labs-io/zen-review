@@ -262,6 +262,7 @@ v                        range selection, j/k extend
 C                        session summary note
 x                        resolve a comment
 enter                    tree: open file. comment: jump to its line
+ctrl+s esc               in the composer: save, discard
 
 p                        full-file preview
 |                        unified / side-by-side
@@ -301,6 +302,20 @@ still wants you. Orphaned leaves the family, being a loss and not a stage.
 A settled card folds to one row and keeps its box. Without the box it is a line
 of grey text in a column of diff, which is what the diff's own notes look like.
 Its footer names the direction the key goes rather than the state it is in.
+
+`x` is named in the lit card's own footer rather than on the status bar, because
+it reaches one row on the screen and that row is where a reader looks for it. A
+settled card does not offer it, and the engine still takes the press: the state
+ladder lives in `review`, and a second copy of it in the TUI is a second thing
+to keep true. An orphan is offered it, that being the only thing left anyone can
+do with a comment whose code is gone.
+
+The composer takes every key while it is up, `q` and `?` included. A note lost
+to the letter `q` cannot be taken back, and one key let out is one more thing to
+hold in mind while typing. `enter` is a newline in prose, so `ctrl+s` saves and
+`esc` discards; nothing else on screen says so, which is why the box carries
+both in its bottom border. A save refused because a reload is still in git
+leaves the box up rather than taking what was typed with it.
 
 The label says only what the card's own position cannot. A card under its line
 needs no line number, because the gutter beside it has one. A range says the run

@@ -3,14 +3,14 @@
 │  assets  │ j      down                   n         next unread        h/1 tree pane │           │
 │   ○ logo.p│ k      up                     N         previous unread    l/2 diff pane │           │
 │  docs/sup│ g      top                    }         next hunk          s   reload    │           │
-│   ● design│ G      bottom                 {         previous hunk      ?   help      │           │
-│  internal│ ctrl+d diff half page down    tab       next file          q   quit      │           │
-│    cli   │ ctrl+u diff half page up      shift+tab previous file                    │           │
+│   ● design│ G      bottom                 {         previous hunk      C   note      │           │
+│  internal│ ctrl+d diff half page down    tab       next file          ?   help      │           │
+│    cli   │ ctrl+u diff half page up      shift+tab previous file      q   quit      │           │
 ├───────────│ ]      next comment           r         mark read                        │           │
 │ origin/mai│ [      previous comment       R         mark file                        │           │
 │ Generation│ z      place cursor: z/t/b    u         unmark                           │           │
 │ Reviewed  │ space  fold comment           U         unmark file                      │           │
-│ Comments  │ enter  go to its line                                                    │           │
+│ Comments  │ enter  go to its line         x         resolve comment                  │           │
 │ Changes   ╰──────────────────────────────────────────────────────────────────────────╯           │
 ╰──────────────────────────────────────╯╰──────────────────────────────────────────────────────────╯
 j/k move · n/N unread · }/{ hunk · ctrl+d/u page · r/R read · s reload · ? help · q quit            

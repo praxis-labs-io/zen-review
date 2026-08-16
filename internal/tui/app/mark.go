@@ -115,18 +115,21 @@ func (m Model) write(do func(Source) (Reload, error), at stop, row int, advance 
 	src := m.src
 	return func() tea.Msg {
 		r, err := do(src)
-		if err == nil {
-			return wroteMsg{r: r, at: at, row: row, advance: advance}
+		if err != nil {
+			return failed(err)
 		}
-
-		// A refresh landing mid-press is not a failure. It is answered with the
-		// reload key rather than by pressing the same one again.
-		var stale *review.StaleGenerationError
-		if errors.As(err, &stale) {
-			return staleMsg{err: err}
-		}
-		return writeFailedMsg{err: err}
+		return wroteMsg{r: r, at: at, row: row, advance: advance}
 	}
+}
+
+// failed is what a write that did not land comes back as. A refresh landing
+// mid-press is answered with the reload key, not by pressing the same one again.
+func failed(err error) tea.Msg {
+	var stale *review.StaleGenerationError
+	if errors.As(err, &stale) {
+		return staleMsg{err: err}
+	}
+	return writeFailedMsg{err: err}
 }
 
 // start is the command a mark asks for, and false when the cursor names

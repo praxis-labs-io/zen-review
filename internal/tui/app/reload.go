@@ -24,6 +24,10 @@ type Reload struct {
 	// Comments come with the changeset rather than from a second call. The two
 	// have to be one generation, or a card hangs under a line that has moved.
 	Comments []store.Comment
+
+	// Summary is the session note, which C opens over. It rides along rather
+	// than being read off the session, which a command would race.
+	Summary string
 }
 
 // Source rebuilds the changeset from what is on disk.
@@ -47,6 +51,14 @@ type Source interface {
 	UnmarkHunk(g review.Generation, path string, h review.Hunk) (Reload, error)
 	MarkFile(g review.Generation, f review.File) (Reload, error)
 	UnmarkFile(g review.Generation, f review.File) (Reload, error)
+
+	// ResolveComment settles one comment, so the card the reader is on comes
+	// back under the state the write left it in.
+	ResolveComment(g review.Generation, id string) (Reload, error)
+
+	// SetSummary writes the session note and hands back what review stored. It
+	// names no generation: the note is the session's rather than a snapshot's.
+	SetSummary(text string) (string, error)
 }
 
 // reloadedMsg is a reload that came back.
@@ -152,6 +164,7 @@ func (m *Model) apply(r Reload) (stop, drift, bool) {
 	moved := r.Generation.ID != m.gen.ID
 
 	m.base, m.gen, m.changeset, m.comments = r.Base, r.Generation, r.Changeset, r.Comments
+	m.summary = r.Summary
 	m.tree.SetChangeset(m.changeset)
 	m.diff.SetFile(nil, nil, 0)
 

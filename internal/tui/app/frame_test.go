@@ -2,6 +2,7 @@ package app_test
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -67,6 +68,21 @@ func (s *source) UnmarkFile(g review.Generation, f review.File) (app.Reload, err
 	return s.write(fmt.Sprintf("UnmarkFile %s gen=%d", f.Diff.Path, g.Seq))
 }
 
+func (s *source) ResolveComment(g review.Generation, id string) (app.Reload, error) {
+	return s.write(fmt.Sprintf("ResolveComment %s gen=%d", id, g.Seq))
+}
+
+// SetSummary records the call and answers with the text, which is what a session
+// hands back once it has stored it.
+func (s *source) SetSummary(text string) (string, error) {
+	if s.wroteErr != nil {
+		return "", s.wroteErr
+	}
+	s.wrote = append(s.wrote, "SetSummary "+strconv.Quote(text))
+	s.at.Summary = text
+	return text, nil
+}
+
 // write records the call and answers with whatever the test pointed it at. A
 // write that failed records nothing: the transaction did not happen.
 func (s *source) write(call string) (app.Reload, error) {
@@ -106,15 +122,24 @@ func over(t *testing.T, c review.Changeset, width, height int) *screen {
 // what the card and comment-ring assertions drive.
 func commented(t *testing.T, width, height int, comments ...store.Comment) *screen {
 	t.Helper()
-	return with(t, "zen-review", testchangeset.Nested(t), comments, width, height)
+	return with(t, "zen-review", testchangeset.Nested(t), comments, "", width, height)
+}
+
+// noting opens the reader on a session that already has a note, which is what a
+// session resumed days later looks like and what C opens over.
+func noting(t *testing.T, summary string, width, height int) *screen {
+	t.Helper()
+	return with(t, "zen-review", testchangeset.Nested(t), nil, summary, width, height)
 }
 
 func build(t *testing.T, repo string, c review.Changeset, width, height int) *screen {
 	t.Helper()
-	return with(t, repo, c, nil, width, height)
+	return with(t, repo, c, nil, "", width, height)
 }
 
-func with(t *testing.T, repo string, c review.Changeset, comments []store.Comment, width, height int) *screen {
+func with(t *testing.T, repo string, c review.Changeset, comments []store.Comment,
+	summary string, width, height int,
+) *screen {
 	t.Helper()
 
 	r := app.Reload{
@@ -122,6 +147,7 @@ func with(t *testing.T, repo string, c review.Changeset, comments []store.Commen
 		Generation: review.Generation{ID: 2, Seq: 2},
 		Changeset:  c,
 		Comments:   comments,
+		Summary:    summary,
 	}
 
 	src := &source{at: r}
@@ -238,6 +264,7 @@ func (s *screen) reloading(c review.Changeset) *screen {
 		Base:       s.src.at.Base,
 		Generation: review.Generation{ID: g.ID + 1, Seq: g.Seq + 1},
 		Changeset:  c,
+		Summary:    s.src.at.Summary,
 	}
 	return s
 }
@@ -251,7 +278,18 @@ func (s *screen) wrote(c review.Changeset) *screen {
 		Base:       s.src.at.Base,
 		Generation: s.src.at.Generation,
 		Changeset:  c,
+		Comments:   s.src.at.Comments,
+		Summary:    s.src.at.Summary,
 	}
+	return s
+}
+
+// resolving points the source at the comments a write leaves behind, at the
+// generation already on screen. Settling one moves no git.
+func (s *screen) resolving(comments ...store.Comment) *screen {
+	s.t.Helper()
+
+	s.src.at.Comments = comments
 	return s
 }
 
@@ -269,6 +307,8 @@ func keystroke(k string) tea.KeyPressMsg {
 		return tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}
 	case "esc":
 		return tea.KeyPressMsg{Code: tea.KeyEscape}
+	case "backspace":
+		return tea.KeyPressMsg{Code: tea.KeyBackspace}
 	case "tab":
 		return tea.KeyPressMsg{Code: tea.KeyTab}
 	case "shift+tab":
@@ -277,6 +317,8 @@ func keystroke(k string) tea.KeyPressMsg {
 		return tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl}
 	case "ctrl+u":
 		return tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl}
+	case "ctrl+s":
+		return tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl}
 	}
 
 	r := []rune(k)

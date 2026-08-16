@@ -28,6 +28,9 @@ type KeyMap struct {
 	Unmark     key.Binding
 	UnmarkFile key.Binding
 
+	Resolve key.Binding
+	Note    key.Binding
+
 	Reload key.Binding
 
 	Left  key.Binding
@@ -64,6 +67,11 @@ func NewKeyMap() KeyMap {
 		MarkFile:   key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "mark file")),
 		Unmark:     key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "unmark")),
 		UnmarkFile: key.NewBinding(key.WithKeys("U"), key.WithHelp("U", "unmark file")),
+
+		// x settles a card and the card's own footer names it, which is where a
+		// key reaching one row on the screen belongs. C is the session's note.
+		Resolve: key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "resolve comment")),
+		Note:    key.NewBinding(key.WithKeys("C"), key.WithHelp("C", "note")),
 
 		// A session action, so it sits with the ring rather than in a pane. It is
 		// the one key here that reaches past the screen to the work tree.
@@ -180,9 +188,13 @@ func (m Model) FullHelp() [][]key.Binding {
 	// The reload is here and not in the ring's column: the ring moves the cursor
 	// and this moves the changeset under it. It is also the one key the bar
 	// cannot always carry, so this is where a reader on a narrow frame meets it.
+	// x settles a card from either pane, the way the mark keys settle a hunk, so
+	// it joins them rather than the column of the pane the card is drawn in.
+	verbs := append(m.markKeys(), m.keys.Resolve)
+
 	return [][]key.Binding{
 		movement,
-		append(m.ringKeys(), m.markKeys()...),
-		append(panes, m.keys.Reload, m.keys.Help, m.keys.Quit),
+		append(m.ringKeys(), verbs...),
+		append(panes, m.keys.Reload, m.keys.Note, m.keys.Help, m.keys.Quit),
 	}
 }
