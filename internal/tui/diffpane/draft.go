@@ -44,13 +44,17 @@ func (m *Model) Compose(c store.Comment) (tea.Cmd, bool) {
 
 	m.clearSelection()
 	m.draft = &draft{at: c, area: area, path: m.file.Diff.Path}
+
+	// Focused before the box is drawn, or the first frame is one with no cursor
+	// in it and the reader has to type to find out where they are.
+	cmd := m.draft.area.Focus()
 	m.layout()
 
 	if at := m.rowAt(place{comment: draftID, seq: -1}); at >= 0 {
 		m.point(at)
 		m.showCard(m.rows[at].card)
 	}
-	return m.draft.area.Focus(), true
+	return cmd, true
 }
 
 // Composing is whether a box is up, which is whether the pane has the keys.
