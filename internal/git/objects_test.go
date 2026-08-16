@@ -572,6 +572,26 @@ func TestUpdateRefSwapsOnlyFromWhereItWasTold(t *testing.T) {
 			t.Errorf("err = %v, want a plain failure rather than ErrRefMoved", err)
 		}
 	})
+
+	// Undoing a swap means putting the ref back to not existing, which is where
+	// a refresh that created it took it from.
+	t.Run("deleting from the wrong place", func(t *testing.T) {
+		if err := repo.UpdateRef(t.Context(), ref, "", first); !errors.Is(err, ErrRefMoved) {
+			t.Errorf("err = %v, want ErrRefMoved", err)
+		}
+		if got := f.Git("rev-parse", ref); got != second {
+			t.Errorf("a lost race left the ref at %s", got)
+		}
+	})
+
+	t.Run("deleting from where it is", func(t *testing.T) {
+		if err := repo.UpdateRef(t.Context(), ref, "", second); err != nil {
+			t.Fatalf("deleting the ref: %v", err)
+		}
+		if got := f.Git("for-each-ref", "--format=%(refname)", ref); got != "" {
+			t.Errorf("the ref is still there: %s", got)
+		}
+	})
 }
 
 // The whole promise of writing a generation into git: the bytes a comment was

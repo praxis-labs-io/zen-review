@@ -1,6 +1,7 @@
 package review_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -117,10 +118,16 @@ func (f *fixture) looseObjects() int {
 	return 0
 }
 
-// signatureEmail is what Refresh attributes a generation commit to. Counting
-// generations on the ref chain means telling them apart from the base history
-// they hang off.
+// signatureEmail is what Refresh attributes a generation commit to, and what
+// tells one apart from the base history it hangs off.
 const signatureEmail = "zen-review@invalid"
+
+// generations counts the generation commits a ref's first-parent chain holds.
+// seq is contiguous from 1, so the newest row's seq is what this has to match.
+func (f *fixture) generations(ref string) int {
+	f.t.Helper()
+	return strings.Count(f.Git("log", "--first-parent", "--format=%ae", ref), signatureEmail)
+}
 
 // edited is the common shape for these tests: a branch with one uncommitted
 // change on it, which is a changeset with something in it.
@@ -521,11 +528,61 @@ func TestConcurrentRefreshesNeverClaimAGenerationTheRefLost(t *testing.T) {
 		t.Errorf("the ref is at %s and the newest row says %s", ref, latest.CommitSha)
 	}
 
-	// seq is contiguous from 1, so the newest one counts the rows. Every one of
-	// them has to be a commit the ref chain actually reached.
-	built := strings.Count(f.Git("log", "--first-parent", "--format=%ae", racers[0].Ref()), signatureEmail)
-	if latest.Seq != built {
+	if built := f.generations(racers[0].Ref()); latest.Seq != built {
 		t.Errorf("the database holds %d generations and the ref chain holds %d", latest.Seq, built)
+	}
+}
+
+// An instance reading the ref after the winner moved it clears the swap and is
+// refused by the row write, so the refusal is what has to take its commit back off.
+func TestARefusedGenerationPutsTheRefBack(t *testing.T) {
+	f := edited(t)
+	slow, quick := f.mustOpen(""), f.mustOpen("")
+
+	// The whole of the quick refresh lands in the window the slow one has read
+	// its latest generation in and not yet read the ref.
+	slow.DuringRefresh(func() {
+		slow.DuringRefresh(nil)
+		if _, err := quick.Refresh(t.Context()); err != nil {
+			t.Fatalf("the quick refresh failed: %v", err)
+		}
+	})
+
+	if _, err := slow.Refresh(t.Context()); !errors.Is(err, git.ErrRefMoved) {
+		t.Fatalf("the slow refresh returned %v, want ErrRefMoved", err)
+	}
+
+	latest, found := f.latest(slow.ID())
+	if !found {
+		t.Fatal("the quick refresh wrote no generation")
+	}
+	if ref := f.Git("rev-parse", slow.Ref()); ref != latest.CommitSha {
+		t.Errorf("the ref is at %s and the only row says %s", ref, latest.CommitSha)
+	}
+	if built := f.generations(slow.Ref()); built != latest.Seq {
+		t.Errorf("the ref chain holds %d generations and the database holds %d", built, latest.Seq)
+	}
+}
+
+// A cancel is the other way the row does not land, and the commoner one: it is
+// a reader quitting rather than two instances racing.
+func TestACancelledRefreshStillPutsTheRefBack(t *testing.T) {
+	f := edited(t)
+	s := f.mustOpen("")
+
+	ctx, cancel := context.WithCancel(t.Context())
+	s.AfterSwap(cancel)
+
+	if _, err := s.Refresh(ctx); err == nil {
+		t.Fatal("the cancelled refresh reported a generation")
+	}
+
+	// The first refresh created the ref, so putting it back is deleting it.
+	if refs := f.sessionRefs(); refs != nil {
+		t.Errorf("refs = %v, want the swap taken back", refs)
+	}
+	if _, found := f.latest(s.ID()); found {
+		t.Error("a cancelled refresh wrote a generation row")
 	}
 }
 

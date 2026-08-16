@@ -179,6 +179,14 @@ somebody else moved it, and a refresh carrying out of a generation that is no
 longer the tip would drop every write made against the one in between. So it
 refuses, and reports the lost race the swap would have.
 
+The two gates are on different things, and clearing one is no promise about the
+other. A row that does not land therefore takes its commit back off the ref, so
+the loser leaves nothing rather than a generation commit no row names. That
+runs past a cancel, a reader quitting mid-refresh being commoner than two
+instances racing. It gives the ref up to a third instance already past it,
+which is the state a crash there leaves anyway: the next refresh parents on it
+and carries on.
+
 Reviewed state is line ranges, never hunk indices: an agent inserting twenty
 lines above hunk 3 leaves different code wearing the same label. A refresh
 translates them through one diff of the two generation trees, and a range that

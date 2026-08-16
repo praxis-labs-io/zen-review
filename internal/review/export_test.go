@@ -8,6 +8,10 @@ package review
 // It lives in a test file so the field stays unreachable outside a test binary.
 func (s *Session) DuringRefresh(run func()) { s.duringRefresh = run }
 
+// AfterSwap sets the seam between the ref moving and the row being written,
+// which is the window that leaves the two disagreeing if the row never lands.
+func (s *Session) AfterSwap(run func()) { s.afterSwap = run }
+
 // BeforeFreeze sets the other seam: it runs between a comment's state being read
 // and the swap that changes it, which is the window a refresh orphans one in.
 func (s *Session) BeforeFreeze(run func()) { s.beforeFreeze = run }

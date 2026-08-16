@@ -166,18 +166,21 @@ func (r *Repo) CommitTree(ctx context.Context, tree string, parents []string, me
 	return trim(out.stdout), nil
 }
 
-// UpdateRef points ref at sha, and returns ErrRefMoved unless ref is currently
-// at old. An empty old requires ref not to exist yet.
-//
-// The compare-and-swap is what stops two instances on one repository from
-// interleaving their writes. git reports a lost race as a fatal carrying a
-// message rather than a status of its own, so the message is what gets matched.
+// UpdateRef points ref at sha, ErrRefMoved unless ref is at old. An empty old
+// requires no ref yet; an empty sha deletes, so a swap can be put back.
 func (r *Repo) UpdateRef(ctx context.Context, ref, sha, old string) error {
-	if _, err := run(ctx, r.root, "update-ref", "--end-of-options", ref, sha, old); err != nil {
+	what := "pointing " + ref + " at " + sha
+	args := []string{"update-ref", "--end-of-options", ref, sha, old}
+	if sha == "" {
+		what = "deleting " + ref
+		args = []string{"update-ref", "-d", "--end-of-options", ref, old}
+	}
+
+	if _, err := run(ctx, r.root, args...); err != nil {
 		if refMismatch.MatchString(err.Error()) {
-			return fmt.Errorf("pointing %s at %s: %w", ref, sha, ErrRefMoved)
+			return fmt.Errorf("%s: %w", what, ErrRefMoved)
 		}
-		return fmt.Errorf("pointing %s at %s: %w", ref, sha, err)
+		return fmt.Errorf("%s: %w", what, err)
 	}
 	return nil
 }
