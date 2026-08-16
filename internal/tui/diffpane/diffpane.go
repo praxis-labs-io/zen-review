@@ -394,6 +394,12 @@ func (m *Model) reveal() {
 // clearPin keeps the cursor off the row the pinned heading covers, opening the
 // window one row higher so the pin has a line of its own.
 func (m *Model) clearPin() {
+	// A one-row pane has nowhere to open into, and the row it would give up is
+	// the cursor's. pinned stands down there instead.
+	if m.height <= 1 {
+		return
+	}
+
 	// Suppressing the pin instead cost the heading on every paging key: those
 	// move the cursor and the window by the same amount, so it sat here always.
 	if m.cursor != m.offset || m.offset <= 0 {
@@ -520,6 +526,12 @@ func (m *Model) scrollToCursor() {
 // window and not the cursor: a heading names the lines under it.
 func (m Model) pinned() int {
 	if m.offset >= len(m.rows) {
+		return -1
+	}
+
+	// Only reachable on a pane too short for clearPin to have opened a line. The
+	// cursor keeps the row: a reader who cannot see their own has lost more.
+	if m.cursor == m.offset {
 		return -1
 	}
 

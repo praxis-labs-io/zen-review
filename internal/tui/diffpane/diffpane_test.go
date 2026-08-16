@@ -1216,3 +1216,19 @@ func TestAPagingKeyParksGoingUpToo(t *testing.T) {
 		t.Errorf("the window sat at %d with the cursor on the first row", got)
 	}
 }
+
+// TestAOneRowPaneKeepsTheCursorOverThePin. The pane gets exactly one row at the
+// app's own minimum height, and there the pin and the cursor want the same line.
+// The heading is a label; a reader who cannot see their own row has lost more.
+func TestAOneRowPaneKeepsTheCursorOverThePin(t *testing.T) {
+	m := pane(t, twoHunks, 60, 1)
+	m.Select(store.SideHead, 13)
+
+	for i := range 4 {
+		m = press(t, m, down)
+		if filled(t, m) == "" {
+			t.Fatalf("after %d presses nothing on the pane carries the cursor: %q",
+				i+1, joined(t, m))
+		}
+	}
+}
