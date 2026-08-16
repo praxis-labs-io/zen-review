@@ -307,8 +307,13 @@ burn a review down.
 `j` and `k` move a row cursor rather than the window, and a hunk heading pins to
 the top row once it scrolls off, so the lines up there are never unlabelled. The
 pin follows the window and not the cursor, because a heading names the lines
-under it, and the next hunk's own heading pushes it out. It steps aside when the
-cursor is on that row: the heading costs less to lose than the cursor does.
+under it, and the next hunk's own heading pushes it out.
+
+The pin owns the top line, so the cursor never sits there: a key that would put
+it on that row opens the window one higher instead, and it lands on the second
+with its heading above it. Standing the pin down for the cursor was the first
+answer and it cost the heading on every paging key, which move the cursor and
+the window by the same amount and so put the cursor there on every press.
 
 ## Exit codes
 

@@ -383,6 +383,20 @@ func (m *Model) reveal() {
 		m.offset = max(m.offset, m.cursor-m.height+1)
 	}
 	m.clampOffset()
+	m.clearPin()
+}
+
+// clearPin keeps the cursor off the row the pinned heading covers, opening the
+// window one row higher so the pin has a line of its own.
+func (m *Model) clearPin() {
+	// Suppressing the pin instead cost the heading on every paging key: those
+	// move the cursor and the window by the same amount, so it sat here always.
+	if m.cursor != m.offset || m.offset <= 0 {
+		return
+	}
+	if at := m.headOf(m.cursor); at >= 0 && at < m.offset {
+		m.offset--
+	}
 }
 
 // repaint redraws rows in place, skipping any the pane does not hold and a pane
@@ -500,8 +514,7 @@ func (m *Model) scrollToCursor() {
 // pinned is the heading to hold on the top line, or -1 for none. It follows the
 // window and not the cursor: a heading names the lines under it.
 func (m Model) pinned() int {
-	// A cursor on that line keeps it. The heading costs less to lose.
-	if m.offset >= len(m.rows) || m.cursor == m.offset {
+	if m.offset >= len(m.rows) {
 		return -1
 	}
 
@@ -526,6 +539,10 @@ func (m *Model) place(row int) {
 	}
 	m.offset = m.cursor - row
 	m.clampOffset()
+
+	// zt asks for the top row, which is the pin's. The cursor takes the one
+	// under it rather than being drawn over by the heading it asked to see.
+	m.clearPin()
 }
 
 // fits is whether the hunk starting at a row is on screen whole already, its

@@ -74,10 +74,12 @@ func press(t *testing.T, m diffpane.Model, keys ...tea.KeyPressMsg) diffpane.Mod
 }
 
 var (
-	down  = tea.KeyPressMsg{Code: 'j', Text: "j"}
-	up    = tea.KeyPressMsg{Code: 'k', Text: "k"}
-	space = tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}
-	enter = tea.KeyPressMsg{Code: tea.KeyEnter}
+	down     = tea.KeyPressMsg{Code: 'j', Text: "j"}
+	up       = tea.KeyPressMsg{Code: 'k', Text: "k"}
+	space    = tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}
+	enter    = tea.KeyPressMsg{Code: tea.KeyEnter}
+	halfDown = tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl}
+	halfUp   = tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl}
 )
 
 // TestAFileIsItsLines: the numbers on both sides, the marker between them, and
@@ -1108,5 +1110,53 @@ func TestSelectCommentLeavesRoomForThePin(t *testing.T) {
 
 	if got := joined(t, m); !strings.Contains(got, `Unreviewed State = "unreviewed"`) {
 		t.Errorf("the pinned heading covered the line the card answers:\n%s", got)
+	}
+}
+
+// TestTheHeadingHoldsThroughAPagingKey. ctrl+d moves the cursor and the window
+// by the same amount, so a pin that stood down for a cursor on the top row
+// stood down on every press and the rows on screen went unlabelled.
+func TestTheHeadingHoldsThroughAPagingKey(t *testing.T) {
+	for _, key := range []tea.KeyPressMsg{halfDown, halfUp} {
+		m := pane(t, twoHunks, 70, 5)
+		m.Select(store.SideHead, 124)
+		m = press(t, m, key)
+
+		if got := rows(t, m)[0]; !strings.Contains(got, "@@") {
+			t.Errorf("after %v the top row is %q, want a hunk heading:\n%s",
+				key, got, joined(t, m))
+		}
+	}
+}
+
+// TestThePinDoesNotCoverTheCursor. It owns the top line, so the window opens a
+// row higher rather than drawing the heading over the row the reader is on.
+func TestThePinDoesNotCoverTheCursor(t *testing.T) {
+	m := pane(t, twoHunks, 70, 5)
+	m.Select(store.SideHead, 13)
+	m = press(t, m, halfDown)
+
+	if m.Cursor() == m.Scroll().Offset {
+		t.Fatalf("the cursor is on the top row at %d, where the pin draws", m.Cursor())
+	}
+	if got := filled(t, m); got == "" {
+		t.Errorf("the pin covered the cursor's own row:\n%s", joined(t, m))
+	}
+}
+
+// TestZtLandsUnderTheHeadingItAsksToSee. The top row is the pin's, so a cursor
+// put there is drawn over by the very heading zt was pressed to keep in view.
+func TestZtLandsUnderTheHeadingItAsksToSee(t *testing.T) {
+	m := pane(t, twoHunks, 70, 6)
+	m.Select(store.SideHead, 13)
+	m = press(t, m, down, down, down, down)
+	m = press(t, m, tea.KeyPressMsg{Code: 'z', Text: "z"}, tea.KeyPressMsg{Code: 't', Text: "t"})
+
+	got := rows(t, m)
+	if !strings.Contains(got[0], "@@ -10,5") {
+		t.Fatalf("the top row is %q, want the pinned heading:\n%s", got[0], joined(t, m))
+	}
+	if filled(t, m) == "" {
+		t.Errorf("zt put the cursor under the pin and lost it:\n%s", joined(t, m))
 	}
 }
