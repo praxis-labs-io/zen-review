@@ -346,6 +346,10 @@ func (m Model) bar(width int) string {
 	h.SetWidth(0)
 
 	own, out := m.paneKeys(), m.wayOut()
+	if m.diff.Composing() {
+		own, out = nil, m.composeKeys()
+	}
+
 	for n := len(own); n > 0; n-- {
 		line := h.ShortHelpView(append(own[:n:n], out...))
 		if lipgloss.Width(line) <= width {

@@ -1,11 +1,17 @@
 package app_test
 
 import (
+	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/zen-review/zen-review/internal/review"
 	"github.com/zen-review/zen-review/internal/store"
 	"github.com/zen-review/zen-review/internal/testchangeset"
+	"github.com/zen-review/zen-review/internal/tui/app"
 )
 
 // TestTheCommentRingCrossesFiles. The comments are one list over the whole
@@ -148,5 +154,343 @@ func TestTheCommentRingSkipsAFileTheChangesetLost(t *testing.T) {
 
 	if got := s.frame(); !strings.Contains(got, "this one is still here") {
 		t.Errorf("] never reached the comment it could show:\n%s", got)
+	}
+}
+
+// mixedPatch is one hunk that both removes and adds, so a selection has a side
+// to pick and a removal has one of its own.
+const mixedPatch = `diff --git a/a.go b/a.go
+--- a/a.go
++++ b/a.go
+@@ -1,3 +1,3 @@
+ one
+-two
++dos
+ three
+`
+
+// wrote is the one comment a press of c wrote, and fails on anything else.
+func wrote(t *testing.T, s *screen) string {
+	t.Helper()
+
+	got := s.calls()
+	if len(got) != 1 {
+		t.Fatalf("the writes were %v, want the one comment", got)
+	}
+	return got[0]
+}
+
+// TestCScopesToWhatIsUnderTheCursor. The scope is the whole of what the key
+// decides, and the ladder is what tells a line from a hunk from a file.
+func TestCScopesToWhatIsUnderTheCursor(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		keys []string
+		want string
+	}{
+		{"a hunk heading", nil, `AddComment a.go head:2-2 range "x" gen=2`},
+		{"a code row", []string{"j"}, `AddComment a.go head:1-1 line "x" gen=2`},
+		{"a removal", []string{"j", "j"}, `AddComment a.go base:2-2 line "x" gen=2`},
+
+		// The head wherever the lines have one, because that is the code the next
+		// agent rewrites. A selection of removals has none.
+		{"a selection", []string{"j", "v", "j", "j"}, `AddComment a.go head:1-2 range "x" gen=2`},
+		{"a selection of removals", []string{"j", "j", "v"}, `AddComment a.go base:2-2 line "x" gen=2`},
+
+		// The tree names the file, and a selection still open in the pane beside
+		// it is what c comments on from either.
+		{"the tree", []string{"h"}, `AddComment a.go file "x" gen=2`},
+		{"the tree over a selection", []string{"j", "v", "j", "j", "h"},
+			`AddComment a.go head:1-2 range "x" gen=2`},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24).press(tt.keys...)
+			s.press("c", "x", "ctrl+s")
+
+			if got := wrote(t, s); got != tt.want {
+				t.Errorf("c wrote %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestCOnAFileWithNoHunksCommentsOnTheFile. A binary file is one thing to read
+// and one thing to comment on, and it has no line to hang a card under.
+func TestCOnAFileWithNoHunksCommentsOnTheFile(t *testing.T) {
+	s := open(t, 100, 24)
+	if title := s.title(); !strings.Contains(title, "assets/logo.png") {
+		t.Fatalf("the reader did not open on the binary file: %q", title)
+	}
+
+	s.press("c", "x", "ctrl+s")
+	want := `AddComment assets/logo.png file "x" gen=2`
+	if got := wrote(t, s); got != want {
+		t.Errorf("c wrote %q, want %q", got, want)
+	}
+}
+
+// TestCOnADirectoryRowDoesNothing. There is no file under the cursor, so the
+// press has nothing to act on rather than something to refuse.
+func TestCOnADirectoryRowDoesNothing(t *testing.T) {
+	s := open(t, 100, 24).press("h", "j")
+
+	before := s.frame()
+	s.press("c")
+
+	if got := s.frame(); got != before {
+		t.Errorf("c on a directory row opened something:\n%s", got)
+	}
+	if got := s.calls(); len(got) != 0 {
+		t.Errorf("c on a directory row wrote %v", got)
+	}
+}
+
+// TestTheBoxHangsWhereTheCardWill, which is what says where the comment lands.
+// A box under one line needs no number: the gutter beside it has one.
+func TestTheBoxHangsWhereTheCardWill(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		keys  []string
+		label string
+		under string
+	}{
+		{"one line", []string{"j"}, "◇ new", "one"},
+
+		// The label says the run, because a box covering four lines cannot be
+		// read off the one row it hangs under.
+		{"a range", []string{"j", "v", "j", "j"}, "◇ new · lines 1-2", "dos"},
+
+		// Under the removal it is about, which is what says it is on the base.
+		{"a removal", []string{"j", "j"}, "◇ new", "two"},
+		{"the file", []string{"h"}, "◇ new · file", ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24).press(tt.keys...)
+			s.press("c")
+
+			lines := s.lines()
+			at := -1
+			for i, line := range lines {
+				if strings.Contains(line, tt.label) {
+					at = i
+					break
+				}
+			}
+			if at < 0 {
+				t.Fatalf("no row carries the box labelled %q:\n%s", tt.label, s.frame())
+			}
+			if !strings.Contains(lines[at], "╭─") {
+				t.Errorf("the label is not a box's top border: %q", lines[at])
+			}
+			if tt.under != "" && !strings.Contains(lines[at-1], tt.under) {
+				t.Errorf("the box hangs under %q, want the line holding %q", lines[at-1], tt.under)
+			}
+		})
+	}
+}
+
+// TestTheBarNamesTheBoxsKeysAndNothingElse. It takes q and ? too, so a bar
+// still offering the way out would be naming two keystrokes.
+func TestTheBarNamesTheBoxsKeysAndNothingElse(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24).press("j", "c")
+
+	got := s.bar()
+	for _, want := range []string{"ctrl+s save", "esc discard"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the bar reads %q, want it to name %q", got, want)
+		}
+	}
+	for _, gone := range []string{"q quit", "? help", "j/k move"} {
+		if strings.Contains(got, gone) {
+			t.Errorf("the bar still offers %q while the box has the keys: %q", gone, got)
+		}
+	}
+}
+
+// TestAnEmptyCommentWritesNothing and takes the box down. The engine refuses
+// one, and nothing typed is nothing the key can cost.
+func TestAnEmptyCommentWritesNothing(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24)
+	s.press("c", " ", "ctrl+s")
+
+	if got := s.calls(); len(got) != 0 {
+		t.Fatalf("an empty comment wrote %v", got)
+	}
+	if got := s.frame(); strings.Contains(got, "◇ new") {
+		t.Errorf("the box stayed up over nothing to save:\n%s", got)
+	}
+}
+
+// TestDiscardingACommentWritesNothing, and the next c comes up empty rather
+// than holding what was thrown away.
+func TestDiscardingACommentWritesNothing(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24)
+	s.press("c", "n", "o", "esc")
+
+	if got := s.calls(); len(got) != 0 {
+		t.Fatalf("esc wrote %v", got)
+	}
+
+	s.press("c")
+	if got := s.frame(); strings.Contains(got, "no") {
+		t.Errorf("the discarded words came back:\n%s", got)
+	}
+}
+
+// TestAFailedCommentKeepsTheWordsAndTheAim. The only thing a local transaction
+// can cost is what was typed into it, and the lines it was pointed at.
+func TestAFailedCommentKeepsTheWordsAndTheAim(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24).press("j", "v", "j", "j")
+	s.src.wroteErr = errors.New("the database is locked")
+	s.press("c", "h", "i", "ctrl+s")
+
+	got := s.frame()
+	if !strings.Contains(got, "◇ new · lines 1-2") {
+		t.Fatalf("the box came down on a write that did not land:\n%s", got)
+	}
+	if !strings.Contains(got, "hi") {
+		t.Errorf("the words went with it:\n%s", got)
+	}
+
+	// And the retry writes them, against the lines the first press was aimed at.
+	s.src.wroteErr = nil
+	s.press("ctrl+s")
+
+	want := `AddComment a.go head:1-2 range "hi" gen=2`
+	if got := wrote(t, s); got != want {
+		t.Errorf("the retry wrote %q, want %q", got, want)
+	}
+}
+
+// TestASavedCommentReportsItselfAndComesBackAsACard, which is the write going
+// through the same seam every other one does.
+func TestASavedCommentReportsItselfAndComesBackAsACard(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24).press("j")
+	s.resolving(testchangeset.Comment("aaaaaaaaaaaa", "a.go", 1, 1, "why one"))
+	s.press("c", "x", "ctrl+s")
+
+	got := s.frame()
+	if strings.Contains(got, "◇ new") {
+		t.Fatalf("the box stayed up after the write:\n%s", got)
+	}
+	if !strings.Contains(got, "why one") {
+		t.Errorf("the card the write left is not on screen:\n%s", got)
+	}
+	if bar := s.bar(); !strings.Contains(bar, "comment saved") {
+		t.Errorf("the bar reads %q, want the write reported", bar)
+	}
+}
+
+// TestCIsRefusedWhileAReloadIsOut. The generation would land under the open box
+// and move the lines it was scoped to, and the box cannot be re-aimed.
+func TestCIsRefusedWhileAReloadIsOut(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24)
+
+	running := s.hold(keystroke("s"))
+	s.press("c")
+
+	if got := s.frame(); strings.Contains(got, "◇ new") {
+		t.Errorf("the box came up over a reload still in git:\n%s", got)
+	}
+	if got := s.bar(); !strings.Contains(got, "reloading") {
+		t.Errorf("the bar reads %q, want it still saying what is happening", got)
+	}
+
+	// And once it has landed the key works, so the refusal costs one press.
+	s.drain(running)
+	s.press("c")
+
+	if got := s.frame(); !strings.Contains(got, "◇ new") {
+		t.Errorf("c did nothing after the reload landed:\n%s", got)
+	}
+}
+
+// TestCFallsBackToTheBoxOverTheFrame. It holds every key while it is up, so a
+// pane with no room to draw one is not a reason to have none.
+func TestCFallsBackToTheBoxOverTheFrame(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, mixedPatch), 50, 10)
+	s.press("c")
+
+	if got := s.frame(); !strings.Contains(got, "Comment on a.go") {
+		t.Fatalf("c opened nothing on a frame with no room beside the code:\n%s", got)
+	}
+
+	s.press("h", "i", "ctrl+s")
+	want := `AddComment a.go head:2-2 range "hi" gen=2`
+	if got := wrote(t, s); got != want {
+		t.Errorf("the box over the frame wrote %q, want %q", got, want)
+	}
+}
+
+// TestAFrameTooSmallForTheBoxTakesItOverTheFrame, with what was typed. Nothing
+// is lost by a terminal getting smaller under a reader mid-sentence.
+func TestAFrameTooSmallForTheBoxTakesItOverTheFrame(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24).press("j", "c", "h", "i")
+
+	if got := s.frame(); !strings.Contains(got, "◇ new") {
+		t.Fatalf("the box did not open beside the code:\n%s", got)
+	}
+
+	s.send(tea.WindowSizeMsg{Width: 50, Height: 10})
+
+	got := s.frame()
+	if !strings.Contains(got, "Comment on a.go:1") {
+		t.Fatalf("the box went with the room for it:\n%s", got)
+	}
+	if !strings.Contains(got, "hi") {
+		t.Errorf("the words went with it:\n%s", got)
+	}
+
+	s.press("ctrl+s")
+	want := `AddComment a.go head:1-1 line "hi" gen=2`
+	if got := wrote(t, s); got != want {
+		t.Errorf("the box that moved wrote %q, want %q", got, want)
+	}
+}
+
+// TestASaveThatLandedTakesTheBoxDown, whatever was typed while it was out. A
+// second save would write a second comment, where a note is one thing overwritten.
+func TestASaveThatLandedTakesTheBoxDown(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24).press("j", "c", "h", "i")
+
+	// Held, so the write is still out when the next key lands.
+	saving := s.hold(keystroke("ctrl+s"))
+	s.press("!")
+	s.drain(saving)
+
+	if got := s.frame(); strings.Contains(got, "◇ new") {
+		t.Fatalf("the box outlived the write:\n%s", got)
+	}
+
+	s.press("ctrl+s")
+	if got := s.calls(); len(got) != 1 {
+		t.Errorf("the writes were %v, want the one comment", got)
+	}
+}
+
+// TestAWriteSavedAndNotReadBackTakesTheBoxDown. Retrying that one writes a
+// second comment, where every other failure wrote nothing at all.
+func TestAWriteSavedAndNotReadBackTakesTheBoxDown(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24).press("j", "c", "h", "i")
+	s.src.wroteErr = fmt.Errorf("%w: the database is locked", app.ErrSaved)
+	s.press("ctrl+s")
+
+	if got := s.frame(); strings.Contains(got, "◇ new") {
+		t.Errorf("the box stayed up over a write that landed:\n%s", got)
+	}
+	if got := s.bar(); !strings.Contains(got, "the screen is behind it") {
+		t.Errorf("the bar reads %q, want it to say the write was saved", got)
+	}
+}
+
+// TestARefusedWriteNamesAKeyTheBoxWouldEat. s is a letter while a body is being
+// typed, so the bar cannot ask for it on its own.
+func TestARefusedWriteNamesAKeyTheBoxWouldEat(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24).press("j", "c", "h", "i")
+	s.src.wroteErr = &review.StaleGenerationError{Seq: 2, Current: 3}
+	s.press("ctrl+s")
+
+	if got := s.bar(); !strings.Contains(got, "esc, then s") {
+		t.Errorf("the bar reads %q, want the keys that reach the reload", got)
 	}
 }

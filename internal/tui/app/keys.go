@@ -28,6 +28,7 @@ type KeyMap struct {
 	Unmark     key.Binding
 	UnmarkFile key.Binding
 
+	Comment key.Binding
 	Resolve key.Binding
 	Note    key.Binding
 
@@ -72,8 +73,9 @@ func NewKeyMap() KeyMap {
 		Unmark:     key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "unmark")),
 		UnmarkFile: key.NewBinding(key.WithKeys("U"), key.WithHelp("U", "unmark file")),
 
-		// x settles a card and the card's own footer names it, which is where a
-		// key reaching one row on the screen belongs. C is the session's note.
+		// c writes one and x settles it, from the card's own footer: that is where
+		// a key reaching one row on the screen belongs. C is the session's note.
+		Comment: key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comment")),
 		Resolve: key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "resolve comment")),
 		Note:    key.NewBinding(key.WithKeys("C"), key.WithHelp("C", "note")),
 
@@ -102,7 +104,16 @@ func NewKeyMap() KeyMap {
 // It changes with focus, because the point of the line is what the next press
 // would do. The rest is one keypress away.
 func (m Model) ShortHelp() []key.Binding {
+	if m.diff.Composing() {
+		return m.composeKeys()
+	}
 	return append(m.paneKeys(), m.wayOut()...)
+}
+
+// composeKeys is what the bar carries while the box in the pane is up: its two,
+// and no way out, because q and ? are keystrokes in a body being typed.
+func (m Model) composeKeys() []key.Binding {
+	return []key.Binding{m.compose.Keys.Save, m.compose.Keys.Discard}
 }
 
 // paneKeys is what the pane holding the keys can do, then what the ring can do
@@ -133,7 +144,8 @@ func (m Model) paneKeys() []key.Binding {
 		if m.focus == focusDiff {
 			own = []key.Binding{comp.Pair(m.diff.Keys.Down, m.diff.Keys.Up, "j/k", "extend")}
 		}
-		return append(own, key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")))
+		return append(own, m.keys.Comment,
+			key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")))
 	}
 
 	return append(own,
@@ -141,19 +153,20 @@ func (m Model) paneKeys() []key.Binding {
 		comp.Pair(m.keys.NextHunk, m.keys.PrevHunk, "}/{", "hunk"),
 		m.diff.Keys.Paging(),
 		comp.Pair(m.keys.Mark, m.keys.MarkFile, "r/R", "read"),
+		m.keys.Comment,
 		m.keys.Reload,
 		comp.Pair(m.keys.NextComment, m.keys.PrevComment, "]/[", "comment"),
 		comp.Pair(m.keys.NextFile, m.keys.PrevFile, "tab", "file"),
 	)
 }
 
-// markKeys is the four that change what has been read, in the order the overlay
-// lists them: mark then unmark, hunk then file.
-//
-// They share the ring's column. A fourth column takes the modal past eighty
-// cells, where the pane clips it without an ellipsis and the way out is gone.
+// markKeys is what changes what has been read, in the order the overlay lists
+// them. The undo pair is one entry: this column is the tallest and has to fit.
 func (m Model) markKeys() []key.Binding {
-	return []key.Binding{m.keys.Mark, m.keys.MarkFile, m.keys.Unmark, m.keys.UnmarkFile}
+	return []key.Binding{
+		m.keys.Mark, m.keys.MarkFile,
+		comp.Pair(m.keys.Unmark, m.keys.UnmarkFile, "u/U", "unmark"),
+	}
 }
 
 // ringKeys is the six the ring answers to, in the order the overlay lists them.
@@ -172,10 +185,8 @@ func (m Model) wayOut() []key.Binding {
 	return []key.Binding{m.keys.Help, m.keys.Quit}
 }
 
-// FullHelp is the overlay, in columns.
-//
-// The bindings come off the pane that would match them rather than out of a
-// second list, so a key cannot be shown under text it no longer does.
+// FullHelp is the overlay, in three columns: a fourth clips against the eighty
+// cells it fits in. Its bindings come off the pane that would match them.
 func (m Model) FullHelp() [][]key.Binding {
 	panes := []key.Binding{m.keys.Left, m.keys.Right}
 
@@ -207,7 +218,7 @@ func (m Model) FullHelp() [][]key.Binding {
 	// cannot always carry, so this is where a reader on a narrow frame meets it.
 	// x settles a card from either pane, the way the mark keys settle a hunk, so
 	// it joins them rather than the column of the pane the card is drawn in.
-	verbs := append(m.markKeys(), m.keys.Resolve)
+	verbs := append(m.markKeys(), m.keys.Comment, m.keys.Resolve)
 
 	return [][]key.Binding{
 		movement,

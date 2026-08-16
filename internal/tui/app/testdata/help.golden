@@ -8,8 +8,8 @@
 │    cli  │ ctrl+u diff half page up      shift+tab previous file      C     note      │          │
 ├──────────│ ]/[    comment                r         mark read          ?     help      │          │
 │ origin/ma│                               R         mark file          q     quit      │          │
-│ Generatio│                               u         unmark                             │          │
-│ Reviewed │                               U         unmark file                        │          │
+│ Generatio│                               u/U       unmark                             │          │
+│ Reviewed │                               c         comment                            │          │
 │ Comments │                               x         resolve comment                    │          │
 │ Changes  ╰────────────────────────────────────────────────────────────────────────────╯          │
 ╰──────────────────────────────────────╯╰──────────────────────────────────────────────────────────╯

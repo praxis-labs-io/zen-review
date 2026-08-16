@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"strconv"
 
 	tea "charm.land/bubbletea/v2"
@@ -9,6 +10,10 @@ import (
 	"github.com/zen-review/zen-review/internal/store"
 	"github.com/zen-review/zen-review/internal/tui/comp"
 )
+
+// ErrSaved is a write that committed and could not be read back. A Source wraps
+// it, because this is the one failure a retry would write a second time.
+var ErrSaved = errors.New("the write was saved and the screen is behind it")
 
 // Reload is the changeset as it now stands, which is what a press of the reload
 // key brings back.
@@ -51,6 +56,10 @@ type Source interface {
 	UnmarkHunk(g review.Generation, path string, h review.Hunk) (Reload, error)
 	MarkFile(g review.Generation, f review.File) (Reload, error)
 	UnmarkFile(g review.Generation, f review.File) (Reload, error)
+
+	// AddComment writes one, so the card comes back hanging under the code it
+	// was written against.
+	AddComment(g review.Generation, n review.Note) (Reload, error)
 
 	// ResolveComment settles one comment, so the card the reader is on comes
 	// back under the state the write left it in.

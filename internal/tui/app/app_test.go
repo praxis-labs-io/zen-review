@@ -63,6 +63,10 @@ func TestGoldenFrames(t *testing.T) {
 		// a stripped golden cannot see it; this is the bar it takes over.
 		{"selecting", 100, 16, []string{"n", "n", "j", "v", "j", "j"}},
 
+		// The box c puts up, where the card will hang, with two keys typed into
+		// it. The j is what takes the cursor off the heading and onto code.
+		{"commenting", 100, 16, []string{"n", "n", "j", "c", "n", "o"}},
+
 		{"folded", 100, 16, []string{"h", "j", "space"}},
 		{"deep", 100, 16, []string{"h", "G"}},
 
@@ -109,7 +113,7 @@ func TestTheFrameIsExactlyTheTerminal(t *testing.T) {
 
 	// Each size every way the frame is built: as it opens, on a binary file, on
 	// the longest lines, under the bar's notice, and under each composited box.
-	for _, keys := range [][]string{nil, code, {"?"}, {"s"}, {"C"}, {"v", "j", "j"}} {
+	for _, keys := range [][]string{nil, code, {"?"}, {"s"}, {"C"}, {"c"}, {"v", "j", "j"}} {
 		for _, size := range sizes {
 			s := open(t, size.width, size.height).press(keys...)
 			lines := s.lines()

@@ -8,9 +8,9 @@
 │    cli   │ ctrl+u diff half page up      shift+tab previous file      q   quit      │           │
 ├───────────│ ]/[    comment                r         mark read                        │           │
 │ origin/mai│ z      place cursor: z/t/b    R         mark file                        │           │
-│ Generation│ v      select lines           u         unmark                           │           │
-│ Reviewed  │ space  fold comment           U         unmark file                      │           │
+│ Generation│ v      select lines           u/U       unmark                           │           │
+│ Reviewed  │ space  fold comment           c         comment                          │           │
 │ Comments  │ enter  go to its line         x         resolve comment                  │           │
 │ Changes   ╰──────────────────────────────────────────────────────────────────────────╯           │
 ╰──────────────────────────────────────╯╰──────────────────────────────────────────────────────────╯
-j/k move · n/N unread · }/{ hunk · ctrl+d/u page · r/R read · s reload · ? help · q quit            
+j/k move · n/N unread · }/{ hunk · ctrl+d/u page · r/R read · c comment · s reload · ? help · q quit

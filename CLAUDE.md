@@ -257,7 +257,7 @@ n N                      next / prev unreviewed hunk
 r                        mark hunk reviewed, advance to next unreviewed
 R                        mark whole file reviewed
 u U                      take either back
-c                        comment on the selection
+c                        comment on the selection, the row, the hunk or the file
 v esc                    range selection for c, j/k extend. esc or v cancels
 C                        session summary note
 x                        resolve a comment
@@ -291,6 +291,16 @@ comment card are not lines anything is written against.
 way `x` is named in a card's own footer. It reaches one state of the program,
 and that is where a reader looks for it. It answers from either pane, because
 the selection stays lit while the reader walks the tree.
+
+`c` scopes to what is under the cursor and takes the first of these it finds: a
+selection, the code row the cursor is on, the hunk it is in, the file. A
+selection beats the focus the way `esc` does, and the tree focused with nothing
+selected is the file itself, because pointing at a file is what the tree is.
+
+A comment anchors to the head wherever the lines it covers have one, and to the
+base only when they have none, which is a selection of removals. The head is the
+code the next agent rewrites; a mark writes every side at once and a comment
+cannot. The box says which side it took, because base numbers read as head ones.
 
 A hunk is the block a paragraph motion moves by, so `}` and `{` step it. Vim's
 own diff mode says `]c` and `[c`, and the bracket pair is spoken for. Nothing in
@@ -337,10 +347,28 @@ its bottom border.
 
 The box comes down when the write lands, not when the key is pressed. A save
 that failed leaves it up holding the words, and so does one the reader typed
-past: the only thing a local transaction can cost is what was typed into it. It
-draws over the too-small frame as well, a box owning the keys off screen being a
-reader with nowhere to go. A paste arrives as its own message rather than as
-keys, so the root routes what is not a key press into it too.
+past: the only thing a local transaction can cost is what was typed into it. A
+paste arrives as its own message rather than as keys, so the root routes what is
+not a key press into it too.
+
+`c` types in place and `C` types over the frame, because a comment has a line
+and a session note has none. The box `c` opens is the card it is about to
+become: same border, same indent, hanging under the same line, so the code it is
+about is still on screen above it and the file flows below. It carries the two
+keys in its own footer the way a card carries `x`, and the status bar names them
+and nothing else, `?` and `q` being letters while a body is being typed.
+
+A box nobody can see still holds every key, so where the pane has no room to
+draw one it goes over the frame instead, which is where `C`'s is drawn. A
+terminal shrinking under a reader mid-sentence carries the words across with it.
+`c` is refused only while a reload is in git, which would land under an open box
+and move the lines it was scoped to.
+
+A failed write keeps the box and the words, except the one that committed and
+could not be read back. That box comes down, because what it holds is written
+and saving it again writes a second comment. It is the only write here that
+cannot be retried, which is why the Source names it rather than reporting a
+failure like any other.
 
 The label says only what the card's own position cannot. A card under its line
 needs no line number, because the gutter beside it has one. A range says the run

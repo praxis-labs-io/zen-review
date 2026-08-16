@@ -112,6 +112,19 @@ func (m Model) drawCard(c store.Comment, placed bool) ([]string, []string) {
 			m.bareRow(c, placed, at, lipgloss.NewStyle().Background(m.theme.SelectedBackground))
 	}
 
+	// The box being typed in is always lit and names its own two keys, because
+	// it holds every key on the keyboard while it is up.
+	if c.ID == draftID {
+		box := comp.NewPane(m.theme).Label(m.cardLabel(c, placed)).Size(width, draftRows+2)
+		rows := lines(box.Focus(true).Footer("", m.draftHints(width)).
+			Render(strings.Join(m.draftBody(), "\n")))
+
+		for i := range rows {
+			rows[i] = indent(rows[i], at)
+		}
+		return rows, rows
+	}
+
 	// A folded card keeps its box. Without one it is a line of grey text in a
 	// column of diff, which is what the diff's own notes look like.
 	folded := m.folds(c)
@@ -197,8 +210,14 @@ func (m Model) cardLabel(c store.Comment, placed bool) string {
 func (m Model) cardHead(c store.Comment, placed bool, base lipgloss.Style) string {
 	glyph, on := m.commentBadge(c.State)
 
+	// The box is not a comment yet, and open is a state it reaches by landing.
+	word := string(c.State)
+	if c.ID == draftID {
+		word = "new"
+	}
+
 	head := base.Foreground(on).Render(glyph) +
-		base.Foreground(m.theme.Subtle).Render(" "+string(c.State))
+		base.Foreground(m.theme.Subtle).Render(" "+word)
 	if where := commentWhere(c, placed); where != "" {
 		head += base.Foreground(m.theme.Subtle).Render(" · " + where)
 	}

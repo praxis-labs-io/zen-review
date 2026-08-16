@@ -55,6 +55,10 @@ type Model struct {
 	// it, and the report is where it is read back.
 	summary string
 
+	// pending is what c scoped when the box went up, and empty while the box is
+	// down or holding the session note. It is what the save key branches on.
+	pending review.Note
+
 	// note is what the last reload found, until the next key clears it.
 	note notice
 
@@ -132,7 +136,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.resize(msg.Width, msg.Height)
-		return m, nil
+		return m, m.crossOver()
 
 	case tree.OpenMsg:
 		m.setFocus(focusDiff)
@@ -163,13 +167,31 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Down here and not at the key, so a write that failed leaves the box up
 		// holding the words. Typing on while it was out keeps it up too.
 		if m.compose.Value() == msg.text {
-			m.compose.Close()
+			m.shut()
 		}
+		return m, nil
+
+	case commentedMsg:
+		m.busy = false
+		m.apply(msg.r)
+		m.note = notice{text: "comment saved"}
+
+		// Down whatever was typed while it was out, where a note keeps the box
+		// and adds to it. A second save would write a second comment.
+		m.shut()
+		return m, nil
+
+	case savedMsg:
+		// The write committed and the read-back did not, so the box comes down:
+		// what it holds is written, and pressing save again would write it twice.
+		m.busy = false
+		m.shut()
+		m.note = notice{text: msg.err.Error() + ": press s", bad: true}
 		return m, nil
 
 	case staleMsg:
 		m.busy = false
-		m.note = notice{text: msg.err.Error() + ": press s", bad: true}
+		m.note = notice{text: msg.err.Error() + ": " + m.wayBack(), bad: true}
 		return m, nil
 
 	case writeFailedMsg:
@@ -191,6 +213,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// A paste arrives as a message of its own rather than as keys, so a box
 	// routed by press alone would silently drop one.
+	if m.diff.Composing() {
+		return m.drafting(msg)
+	}
 	if m.compose.Active() {
 		var cmd tea.Cmd
 		m.compose, cmd = m.compose.Update(msg)
@@ -200,8 +225,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	// The box takes every key, quit and help included. A q mid-sentence is a q,
-	// and one key let out is one more thing to keep in mind while typing.
+	// Either box takes every key, quit and help included. A q mid-sentence is a
+	// q, and one key let out is one more thing to keep in mind while typing.
+	if m.diff.Composing() {
+		return m.drafting(msg)
+	}
 	if m.compose.Active() {
 		return m.typing(msg)
 	}
@@ -275,6 +303,22 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		cmd, ok := m.start(i)
+		if !ok {
+			return m, nil
+		}
+		return m, cmd
+	}
+
+	// Routed before the focus, because a selection is what c comments on from
+	// either pane. Nothing under the cursor is a press with nothing to do.
+	if key.Matches(msg, m.keys.Comment) {
+		// Refused while a reload is out: it would land under the open box and move
+		// the lines the box was scoped to. The bar already says why.
+		if m.busy {
+			return m, nil
+		}
+
+		cmd, ok := m.commentOn()
 		if !ok {
 			return m, nil
 		}
@@ -357,7 +401,7 @@ func (m Model) typing(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case key.Matches(msg, m.compose.Keys.Discard):
-		m.compose.Close()
+		m.shut()
 		return m, nil
 
 	case key.Matches(msg, m.compose.Keys.Save):
@@ -367,6 +411,11 @@ func (m Model) typing(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+		// Which box is up. c holds what it scoped and C holds nothing.
+		if m.pending.Path != "" {
+			return m, m.saveComment(m.compose.Value())
+		}
+
 		cmd := m.saveNote(m.compose.Value())
 		return m, cmd
 	}
@@ -374,6 +423,26 @@ func (m Model) typing(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.compose, cmd = m.compose.Update(msg)
 	return m, cmd
+}
+
+// boxUp is whether either box has the keys, which is what makes a key named on
+// the bar a letter instead.
+func (m Model) boxUp() bool { return m.diff.Composing() || m.compose.Active() }
+
+// wayBack is the keys that answer a refused write. A box up takes s as a letter
+// and has to come down first, which costs what was typed into it.
+func (m Model) wayBack() string {
+	if m.boxUp() {
+		return "esc, then s"
+	}
+	return "press s"
+}
+
+// shut takes down whichever box is up and drops what it was scoped to.
+func (m *Model) shut() {
+	m.compose.Close()
+	m.diff.CloseDraft()
+	m.pending = review.Note{}
 }
 
 // syncCursor puts the ring on the hunk the diff pane's cursor is in, so a mark

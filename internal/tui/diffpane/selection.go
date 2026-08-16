@@ -16,14 +16,28 @@ func (m Model) Selected() ([]review.Anchor, bool) {
 	if !ok {
 		return nil, false
 	}
+	return anchorsOver(m.rows[lo : hi+1])
+}
 
+// Line is the anchors the cursor's own row names, and false on a row that is
+// not code. A context row names a line on both sides.
+func (m Model) Line() ([]review.Anchor, bool) {
+	if m.cursor < 0 || m.cursor >= len(m.rows) {
+		return nil, false
+	}
+	return anchorsOver(m.rows[m.cursor : m.cursor+1])
+}
+
+// anchorsOver is the lines a run of rows names, one span per side and the head
+// first.
+func anchorsOver(rows []row) ([]review.Anchor, bool) {
 	var head, base review.Range
-	for i := lo; i <= hi; i++ {
-		if m.rows[i].kind != codeRow {
+	for i := range rows {
+		if rows[i].kind != codeRow {
 			continue
 		}
-		head = grow(head, m.rows[i].line.New)
-		base = grow(base, m.rows[i].line.Old)
+		head = grow(head, rows[i].line.New)
+		base = grow(base, rows[i].line.Old)
 	}
 
 	var out []review.Anchor
@@ -34,7 +48,7 @@ func (m Model) Selected() ([]review.Anchor, bool) {
 		out = append(out, review.Anchor{Side: store.SideBase, Range: base})
 	}
 
-	// A span over a heading or a card alone names nothing, which a caller has to
+	// A run over a heading or a card alone names nothing, which a caller has to
 	// tell from a run of lines rather than reach for an empty list of them.
 	return out, len(out) > 0
 }

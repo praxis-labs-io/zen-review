@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/zen-review/zen-review/internal/review"
 	"github.com/zen-review/zen-review/internal/store"
 	"github.com/zen-review/zen-review/internal/testchangeset"
 	"github.com/zen-review/zen-review/internal/tui/diffpane"
@@ -20,8 +21,11 @@ var (
 // selected is the pane's spans as the cases below read them, side first.
 func selected(t *testing.T, m diffpane.Model) []string {
 	t.Helper()
+	return spans(m.Selected())
+}
 
-	as, on := m.Selected()
+// spans is what Selected and Line hand back, written out, and nil for neither.
+func spans(as []review.Anchor, on bool) []string {
 	if !on {
 		return nil
 	}
@@ -231,6 +235,42 @@ func TestASpanOverNoCodeNamesNothing(t *testing.T) {
 
 	if as, on := press(t, m, sel).Selected(); on {
 		t.Errorf("a selection over a heading alone reports %v", as)
+	}
+}
+
+// TestTheCursorsOwnRowNamesItsLines, which is what c scopes to with nothing
+// selected. A context row is on both sides and a changed row is on one.
+func TestTheCursorsOwnRowNamesItsLines(t *testing.T) {
+	card := testchangeset.Comment("cccccccccccc", twoHunks, 13, 13, "unreviewed is the clearer word.")
+
+	for _, tt := range []struct {
+		name string
+		at   func(m diffpane.Model) diffpane.Model
+		want []string
+	}{
+		{"a heading", func(m diffpane.Model) diffpane.Model { return m }, nil},
+		{"a context row", func(m diffpane.Model) diffpane.Model {
+			return press(t, m, down, down, down)
+		}, []string{"head 12:12", "base 12:12"}},
+		{"a removal", func(m diffpane.Model) diffpane.Model {
+			return press(t, m, down, down, down, down)
+		}, []string{"base 13:13"}},
+		{"an addition", func(m diffpane.Model) diffpane.Model {
+			return press(t, m, down, down, down, down, down)
+		}, []string{"head 13:13"}},
+		{"a card", func(m diffpane.Model) diffpane.Model {
+			m.SelectComment("cccccccccccc")
+			return m
+		}, nil},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			m := commented(t, twoHunks, 70, 20, card)
+			m.Select(store.SideHead, 13)
+
+			if got := spans(tt.at(m).Line()); !equal(got, tt.want) {
+				t.Errorf("the row names %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 
