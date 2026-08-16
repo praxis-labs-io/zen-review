@@ -418,3 +418,119 @@ func TestCommentsAtRefusesAGenerationThatHasMoved(t *testing.T) {
 		t.Errorf("err = %v, want store.ErrStaleGeneration", err)
 	}
 }
+
+// TestAnEditRewritesTheBodyAndNothingElse. The anchor is not a body's business,
+// and a rewrite that moved one would be a remap with no translation behind it.
+func TestAnEditRewritesTheBodyAndNothingElse(t *testing.T) {
+	db := open(t)
+	s := session(t, db, "edited")
+	g := holding(t, db, s, "one")
+	c := comment(t, db, s, g, "typo", 4)
+
+	later := epoch.Add(time.Hour)
+	edited, found, err := db.EditComment(t.Context(), c.ID, s.ID, "this reads forwards", later)
+	if err != nil {
+		t.Fatalf("rewriting the comment: %v", err)
+	}
+	if !found {
+		t.Fatal("the comment was not there to rewrite")
+	}
+
+	want := c
+	want.Body, want.UpdatedAt = "this reads forwards", later
+	if edited != want {
+		t.Errorf("answered with %+v, want %+v", edited, want)
+	}
+
+	got, _, err := db.Comment(t.Context(), c.ID)
+	if err != nil {
+		t.Fatalf("reading the comment: %v", err)
+	}
+	if got != want {
+		t.Errorf("stored %+v, want %+v", got, want)
+	}
+}
+
+// TestADeleteHandsBackTheRowThatWent, which is what a caller prints. Nothing
+// else can say what a comment said once it has gone.
+func TestADeleteHandsBackTheRowThatWent(t *testing.T) {
+	db := open(t)
+	s := session(t, db, "deleted")
+	g := holding(t, db, s, "one")
+	c := comment(t, db, s, g, "unmeant", 4)
+
+	gone, found, err := db.DeleteComment(t.Context(), c.ID, s.ID)
+	if err != nil {
+		t.Fatalf("deleting the comment: %v", err)
+	}
+	if !found {
+		t.Fatal("the comment was not there to delete")
+	}
+	if gone != c {
+		t.Errorf("answered with %+v, want the row it removed, %+v", gone, c)
+	}
+
+	if _, found, err = db.Comment(t.Context(), c.ID); err != nil || found {
+		t.Errorf("the comment is still there: found = %v, err = %v", found, err)
+	}
+}
+
+// TestAnEditOrDeleteReachesOneSessionsCommentsAlone. The database is shared by
+// every session in the repository, and one session's ids are not another's.
+func TestAnEditOrDeleteReachesOneSessionsCommentsAlone(t *testing.T) {
+	db := open(t)
+	mine := session(t, db, "mine")
+	g := holding(t, db, mine, "one")
+	c := comment(t, db, mine, g, "notyours", 4)
+
+	theirs := session(t, db, "theirs")
+
+	for _, tt := range []struct {
+		name string
+		miss func() (store.Comment, bool, error)
+	}{
+		{"an edit", func() (store.Comment, bool, error) {
+			return db.EditComment(t.Context(), c.ID, theirs.ID, "reaching over", epoch.Add(time.Hour))
+		}},
+		{"a delete", func() (store.Comment, bool, error) {
+			return db.DeleteComment(t.Context(), c.ID, theirs.ID)
+		}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			_, found, err := tt.miss()
+			if err != nil {
+				t.Fatalf("reaching over: %v", err)
+			}
+			if found {
+				t.Error("it reached a comment of another session")
+			}
+
+			got, _, err := db.Comment(t.Context(), c.ID)
+			if err != nil || got != c {
+				t.Errorf("the comment is %+v, want it left as %+v: %v", got, c, err)
+			}
+		})
+	}
+}
+
+// TestARefreshCarriesPastACommentThatHasGone. A delete is what makes a move name
+// nothing, and the generation it was written against still has to land.
+func TestARefreshCarriesPastACommentThatHasGone(t *testing.T) {
+	db := open(t)
+	s := session(t, db, "raced")
+	first := holding(t, db, s, "one")
+	c := comment(t, db, s, first, "vanishing", 4)
+
+	if _, _, err := db.DeleteComment(t.Context(), c.ID, s.ID); err != nil {
+		t.Fatalf("deleting the comment: %v", err)
+	}
+
+	if _, err := db.AddGeneration(t.Context(), store.Generation{
+		SessionID: s.ID, BaseSha: "base", HeadSha: "head", CommitSha: "two", CreatedAt: epoch,
+	}, []store.GenFile{{Path: "a.go", Status: diff.FileModified, BaseBlob: "b1", HeadBlob: "h2"}},
+		carrying(first, store.Carry{
+			Comments: []store.CommentMove{{ID: c.ID, Path: "a.go", LineRange: store.LineRange{Start: 9, End: 9}}},
+		})); err != nil {
+		t.Fatalf("carrying past a comment that has gone: %v", err)
+	}
+}

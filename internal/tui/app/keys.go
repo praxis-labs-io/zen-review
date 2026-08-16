@@ -30,6 +30,8 @@ type KeyMap struct {
 
 	Comment key.Binding
 	Resolve key.Binding
+	Edit    key.Binding
+	Delete  key.Binding
 	Note    key.Binding
 
 	Reload key.Binding
@@ -77,7 +79,13 @@ func NewKeyMap() KeyMap {
 		// a key reaching one row on the screen belongs. C is the session's note.
 		Comment: key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comment")),
 		Resolve: key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "resolve comment")),
-		Note:    key.NewBinding(key.WithKeys("C"), key.WithHelp("C", "note")),
+
+		// e opens the box holding what the card says, and D takes the card away at
+		// once: the capital does the whole of the thing, the way R and U do.
+		Edit:   key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit comment")),
+		Delete: key.NewBinding(key.WithKeys("D"), key.WithHelp("D", "delete comment")),
+
+		Note: key.NewBinding(key.WithKeys("C"), key.WithHelp("C", "note")),
 
 		// A session action, so it sits with the ring rather than in a pane. It is
 		// the one key here that reaches past the screen to the work tree.
@@ -169,11 +177,14 @@ func (m Model) markKeys() []key.Binding {
 	}
 }
 
-// ringKeys is the six the ring answers to, in the order the overlay lists them.
+// ringKeys is what the ring answers to, in the order the overlay lists them. The
+// hunk pair is one entry the way ]/[ is: this column is the tallest and has to fit.
 func (m Model) ringKeys() []key.Binding {
 	return []key.Binding{
+		// n and N keep a row each, being the pair a burn-down is held down on, and
+		// the file pair keeps two: tab/shift+tab as one label is wider than the rest.
 		m.keys.NextRead, m.keys.PrevRead,
-		m.keys.NextHunk, m.keys.PrevHunk,
+		comp.Pair(m.keys.NextHunk, m.keys.PrevHunk, "}/{", "hunk"),
 		m.keys.NextFile, m.keys.PrevFile,
 	}
 }
@@ -218,7 +229,8 @@ func (m Model) FullHelp() [][]key.Binding {
 	// cannot always carry, so this is where a reader on a narrow frame meets it.
 	// x settles a card from either pane, the way the mark keys settle a hunk, so
 	// it joins them rather than the column of the pane the card is drawn in.
-	verbs := append(m.markKeys(), m.keys.Comment, m.keys.Resolve)
+	verbs := append(m.markKeys(), m.keys.Comment, m.keys.Resolve,
+		comp.Pair(m.keys.Edit, m.keys.Delete, "e/D", "edit, delete"))
 
 	return [][]key.Binding{
 		movement,

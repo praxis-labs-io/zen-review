@@ -2,15 +2,15 @@
 │           ╭─Keys─────────────────────────────────────────────────────────────────────╮           │
 │  assets  │ j      down                   n         next unread        h/1 tree pane │           │
 │   ○ logo.p│ k      up                     N         previous unread    l/2 diff pane │           │
-│  docs/sup│ g      top                    }         next hunk          s   reload    │           │
-│   ● design│ G      bottom                 {         previous hunk      C   note      │           │
-│  internal│ ctrl+d diff half page down    tab       next file          ?   help      │           │
-│    cli   │ ctrl+u diff half page up      shift+tab previous file      q   quit      │           │
-├───────────│ ]/[    comment                r         mark read                        │           │
-│ origin/mai│ z      place cursor: z/t/b    R         mark file                        │           │
-│ Generation│ v      select lines           u/U       unmark                           │           │
-│ Reviewed  │ space  fold comment           c         comment                          │           │
-│ Comments  │ enter  go to its line         x         resolve comment                  │           │
+│  docs/sup│ g      top                    }/{       hunk               s   reload    │           │
+│   ● design│ G      bottom                 tab       next file          C   note      │           │
+│  internal│ ctrl+d diff half page down    shift+tab previous file      ?   help      │           │
+│    cli   │ ctrl+u diff half page up      r         mark read          q   quit      │           │
+├───────────│ ]/[    comment                R         mark file                        │           │
+│ origin/mai│ z      place cursor: z/t/b    u/U       unmark                           │           │
+│ Generation│ v      select lines           c         comment                          │           │
+│ Reviewed  │ space  fold comment           x         resolve comment                  │           │
+│ Comments  │ enter  go to its line         e/D       edit, delete                     │           │
 │ Changes   ╰──────────────────────────────────────────────────────────────────────────╯           │
 ╰──────────────────────────────────────╯╰──────────────────────────────────────────────────────────╯
 j/k move · n/N unread · }/{ hunk · ctrl+d/u page · r/R read · c comment · s reload · ? help · q quit

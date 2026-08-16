@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/zen-review/zen-review/internal/store"
+	"github.com/zen-review/zen-review/internal/testchangeset"
 	"github.com/zen-review/zen-review/internal/tui/diffpane"
 )
 
@@ -113,4 +114,82 @@ func TestABoxRefusesAPaneWithNoRoomForIt(t *testing.T) {
 			t.Errorf("a %dx%d pane reports one up", tt.width, tt.height)
 		}
 	}
+}
+
+// editing is a pane with the box open over a card that is already there.
+func editing(t *testing.T, width, height int, c store.Comment) diffpane.Model {
+	t.Helper()
+
+	m := commented(t, twoHunks, width, height, c)
+	m.Select(store.SideHead, 13)
+
+	if _, ok := m.Edit(c); !ok {
+		t.Fatalf("the pane refused a box at %dx%d", width, height)
+	}
+	return m
+}
+
+// TestTheBoxOverACardHoldsWhatItSaid, so a typo is fixed rather than retyped,
+// and the card itself comes down: the box is standing in its place.
+func TestTheBoxOverACardHoldsWhatItSaid(t *testing.T) {
+	card := testchangeset.Comment("cccccccccccc", twoHunks, 13, 13, "unreviewd is the clearer word.")
+	m := editing(t, 70, 20, card)
+
+	if got := m.Draft(); got != card.Body {
+		t.Errorf("the box holds %q, want what the card said", got)
+	}
+
+	got := joined(t, m)
+	if !strings.Contains(got, "◇ editing") {
+		t.Errorf("the box does not say what it is doing:\n%s", got)
+	}
+	if n := strings.Count(got, "unreviewd"); n != 1 {
+		t.Errorf("the words are drawn %d times, want once, in the box:\n%s", n, got)
+	}
+	if strings.Contains(got, "◇ open") {
+		t.Errorf("the card is still drawn under its own box:\n%s", got)
+	}
+}
+
+// TestTheBoxStandsWhereTheCardWas, which is under the code it answers rather
+// than at the foot of whatever is placed last.
+func TestTheBoxStandsWhereTheCardWas(t *testing.T) {
+	card := testchangeset.Comment("cccccccccccc", twoHunks, 13, 13, "unreviewd is the clearer word.")
+
+	was := at(t, rows(t, commented(t, twoHunks, 70, 20, card)), "◇ open")
+	now := at(t, rows(t, editing(t, 70, 20, card)), "◇ editing")
+
+	if was != now {
+		t.Errorf("the box is on row %d, want %d, where the card was", now, was)
+	}
+}
+
+// TestClosingTheBoxPutsTheCardBack. esc writes nothing, so what was there has to
+// come back saying what it always said.
+func TestClosingTheBoxPutsTheCardBack(t *testing.T) {
+	card := testchangeset.Comment("cccccccccccc", twoHunks, 13, 13, "unreviewd is the clearer word.")
+
+	m := press(t, editing(t, 70, 20, card), tea.KeyPressMsg{Code: 'x', Text: "x"})
+	m.CloseDraft()
+
+	got := joined(t, m)
+	if strings.Contains(got, "editing") {
+		t.Errorf("the box is still up:\n%s", got)
+	}
+	if !strings.Contains(got, "◇ open") || !strings.Contains(got, "unreviewd") {
+		t.Errorf("the card did not come back:\n%s", got)
+	}
+}
+
+// at is the first row holding a string, and -1 for a frame without it.
+func at(t *testing.T, lines []string, want string) int {
+	t.Helper()
+
+	for i, line := range lines {
+		if strings.Contains(line, want) {
+			return i
+		}
+	}
+	t.Fatalf("no row holds %q:\n%s", want, strings.Join(lines, "\n"))
+	return -1
 }

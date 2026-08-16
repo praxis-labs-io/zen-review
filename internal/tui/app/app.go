@@ -59,6 +59,10 @@ type Model struct {
 	// down or holding the session note. It is what the save key branches on.
 	pending review.Note
 
+	// editing is the comment the box is standing in for, and empty for one being
+	// written. The save key branches on it before it reads pending.
+	editing string
+
 	// note is what the last reload found, until the next key clears it.
 	note notice
 
@@ -179,6 +183,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Down whatever was typed while it was out, where a note keeps the box
 		// and adds to it. A second save would write a second comment.
 		m.shut()
+		return m, nil
+
+	case editedMsg:
+		m.busy = false
+		m.apply(msg.r)
+		m.note = notice{text: "comment updated"}
+		m.shut()
+		return m, nil
+
+	case deletedMsg:
+		m.busy = false
+		m.apply(msg.r)
+		m.note = notice{text: "comment deleted"}
 		return m, nil
 
 	case savedMsg:
@@ -349,6 +366,32 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
+	// e and D reach the card the cursor is on, whatever state it is in: a typo in
+	// a resolved comment is still a typo.
+	if key.Matches(msg, m.keys.Edit) {
+		if m.busy {
+			return m, nil
+		}
+		cmd, ok := m.editOn()
+		if !ok {
+			return m, nil
+		}
+		return m, cmd
+	}
+
+	if key.Matches(msg, m.keys.Delete) {
+		id, on := m.diff.Comment()
+		if !on {
+			return m, nil
+		}
+		m.note = notice{text: "deleting"}
+		if m.busy {
+			return m, nil
+		}
+		cmd := m.deleteComment(id)
+		return m, cmd
+	}
+
 	// The comment ring crosses files the way the hunk ring does, so it is routed
 	// here rather than in the pane that holds the cards.
 	if by, mine := m.stepping(msg); mine {
@@ -411,9 +454,9 @@ func (m Model) typing(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		// Which box is up. c holds what it scoped and C holds nothing.
-		if m.pending.Path != "" {
-			return m, m.saveComment(m.compose.Value())
+		// Which box is up. c and e hold what they were pointed at, C holds nothing.
+		if m.pending.Path != "" || m.editing != "" {
+			return m, m.save(m.compose.Value())
 		}
 
 		cmd := m.saveNote(m.compose.Value())
@@ -442,7 +485,7 @@ func (m Model) wayBack() string {
 func (m *Model) shut() {
 	m.compose.Close()
 	m.diff.CloseDraft()
-	m.pending = review.Note{}
+	m.pending, m.editing = review.Note{}, ""
 }
 
 // syncCursor puts the ring on the hunk the diff pane's cursor is in, so a mark

@@ -211,9 +211,13 @@ func (m Model) cardHead(c store.Comment, placed bool, base lipgloss.Style) strin
 	glyph, on := m.commentBadge(c.State)
 
 	// The box is not a comment yet, and open is a state it reaches by landing.
+	// One being retyped keeps its badge, because its state is not what changes.
 	word := string(c.State)
 	if c.ID == draftID {
 		word = "new"
+		if m.draft.edits != "" {
+			word = "editing"
+		}
 	}
 
 	head := base.Foreground(on).Render(glyph) +
@@ -259,7 +263,7 @@ func span(c store.Comment) string {
 }
 
 // cardHints is what the lit card answers to, dropped from the tail until it
-// fits. x is the root's key, named here because the card is what it reaches.
+// fits. x, e and D are the root's, named here because the card is what they reach.
 func (m Model) cardHints(c store.Comment, width int, placed, folded bool) string {
 	// The word is the direction the key goes, not the state it is in. A folded
 	// card naming the fold says the press would do what has been done.
@@ -268,7 +272,9 @@ func (m Model) cardHints(c store.Comment, width int, placed, folded bool) string
 		word = "space open"
 	}
 
-	parts := []string{word}
+	// Last, so a card too narrow for all five keeps the three it had. They reach a
+	// comment in any state: a typo in a resolved one is still a typo.
+	parts := []string{word, "e edit", "D delete"}
 	if c.State != store.CommentResolved {
 		parts = append([]string{"x resolve"}, parts...)
 	}

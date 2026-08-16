@@ -243,6 +243,47 @@ func (db *DB) FreezeComment(
 	return c, true, nil
 }
 
+// EditComment rewrites a body and stamps the row. It returns the row as it
+// landed, and false when that session holds no comment under the id.
+func (db *DB) EditComment(
+	ctx context.Context,
+	id, sessionID, body string,
+	now time.Time,
+) (Comment, bool, error) {
+	const q = `
+		UPDATE comments
+		SET body = ?, updated_at = ?
+		WHERE id = ? AND session_id = ?
+		RETURNING ` + commentColumns
+
+	c, err := scanComment(db.handle.QueryRowContext(ctx, q, body, stamp(now), id, sessionID))
+	if errors.Is(err, sql.ErrNoRows) {
+		return Comment{}, false, nil
+	}
+	if err != nil {
+		return Comment{}, false, fmt.Errorf("rewriting the comment %s: %w", id, err)
+	}
+	return c, true, nil
+}
+
+// DeleteComment removes a comment and returns the row that went. The session is
+// in the statement, so a delete cannot land on a row it was refused a read of.
+func (db *DB) DeleteComment(ctx context.Context, id, sessionID string) (Comment, bool, error) {
+	const q = `
+		DELETE FROM comments
+		WHERE id = ? AND session_id = ?
+		RETURNING ` + commentColumns
+
+	c, err := scanComment(db.handle.QueryRowContext(ctx, q, id, sessionID))
+	if errors.Is(err, sql.ErrNoRows) {
+		return Comment{}, false, nil
+	}
+	if err != nil {
+		return Comment{}, false, fmt.Errorf("deleting the comment %s: %w", id, err)
+	}
+	return c, true, nil
+}
+
 // comments runs one of the listing queries above.
 func comments(ctx context.Context, q rower, query, describe string, arg any) ([]Comment, error) {
 	rows, err := q.QueryContext(ctx, query, arg)

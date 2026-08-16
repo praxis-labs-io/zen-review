@@ -28,6 +28,10 @@ type draft struct {
 	// path is the file the box was opened over. A reload landing under it can
 	// put another file in the pane, and the box belongs to neither.
 	path string
+
+	// edits names the comment the box is standing in for, and is empty for one
+	// being written. That card comes down while the box is up.
+	edits string
 }
 
 // FitsBox is whether the pane has the room to draw a box being typed in. A box
@@ -37,20 +41,33 @@ func (m Model) FitsBox() bool {
 	return m.file != nil && width >= cardMin && m.height >= draftRows+2
 }
 
-// Compose opens a box where the comment will hang, and false for a pane with no
-// room to draw one.
+// Compose opens a box where a new comment will hang, and false for a pane with
+// no room to draw one.
 func (m *Model) Compose(c store.Comment) (tea.Cmd, bool) {
+	c.State = store.CommentOpen
+	return m.open(c, "", "")
+}
+
+// Edit opens the box over a card that is already there, holding what it says.
+// The card comes down: the box is standing in its place.
+func (m *Model) Edit(c store.Comment) (tea.Cmd, bool) {
+	return m.open(c, c.Body, c.ID)
+}
+
+// open puts a box in the pane and takes the cursor onto it.
+func (m *Model) open(c store.Comment, body, edits string) (tea.Cmd, bool) {
 	if !m.FitsBox() {
 		return nil, false
 	}
-	c.ID, c.State, c.Body = draftID, store.CommentOpen, ""
+	c.ID, c.Body = draftID, ""
 
 	area := comp.Textarea(m.theme)
 	area.SetHeight(draftRows)
 	area.SetWidth(m.draftWidth())
+	area.SetValue(body)
 
 	m.clearSelection()
-	m.draft = &draft{at: c, area: area, path: m.file.Diff.Path}
+	m.draft = &draft{at: c, area: area, path: m.file.Diff.Path, edits: edits}
 
 	// Focused before the box is drawn, or the first frame is one with no cursor
 	// in it and the reader has to type to find out where they are.

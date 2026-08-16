@@ -210,6 +210,41 @@ func (s *Session) ResolveComment(ctx context.Context, id string) (store.Comment,
 		store.CommentOpen, store.CommentAddressed, store.CommentOrphaned)
 }
 
+// EditComment rewrites what a comment says, in any state: a typo in a resolved
+// one is still a typo. The anchor never moves, so re-scoping is delete and write.
+func (s *Session) EditComment(ctx context.Context, id, body string) (store.Comment, error) {
+	if err := checkBody(body); err != nil {
+		return store.Comment{}, err
+	}
+
+	// No generation is asserted. A body is true at every one of them, and a
+	// refresh carries an anchor through columns this does not write.
+	now := time.Now().UTC().Truncate(time.Second)
+	c, found, err := s.db.EditComment(ctx, id, s.row.ID, body, now)
+	if err != nil {
+		return store.Comment{}, err
+	}
+	if !found {
+		return store.Comment{}, &NoCommentError{ID: id}
+	}
+	return c, nil
+}
+
+// DeleteComment removes a comment for good, in any state. A deleted state would
+// have to be filtered out of every count and every ring forever.
+func (s *Session) DeleteComment(ctx context.Context, id string) (store.Comment, error) {
+	// A refresh translating a row that has gone moves nothing and carries on, so
+	// there is no generation here to be stale.
+	c, found, err := s.db.DeleteComment(ctx, id, s.row.ID)
+	if err != nil {
+		return store.Comment{}, err
+	}
+	if !found {
+		return store.Comment{}, &NoCommentError{ID: id}
+	}
+	return c, nil
+}
+
 // freezeAttempts is how many goes at the swap below. A comment moves at most
 // twice, open to addressed or orphaned and then to resolved, so this is the
 // length of its life rather than a guess at how unlucky one call can get.
@@ -276,8 +311,8 @@ func (s *Session) comment(ctx context.Context, id string) (store.Comment, error)
 // check reads a note against itself, so a scope that disagrees with its lines
 // gets a sentence rather than a constraint violation from three layers down.
 func (n Note) check() error {
-	if strings.TrimSpace(n.Body) == "" {
-		return errors.New("a comment with nothing in it says nothing")
+	if err := checkBody(n.Body); err != nil {
+		return err
 	}
 	if n.Side != store.SideHead && n.Side != store.SideBase {
 		return fmt.Errorf("a comment anchors to the head or the base, not %q", n.Side)
@@ -299,6 +334,14 @@ func (n Note) check() error {
 		}
 	default:
 		return fmt.Errorf("a comment is scoped to a line, a range or a file, not %q", n.Scope)
+	}
+	return nil
+}
+
+// checkBody is the one rule a body keeps, which a write and a rewrite both take.
+func checkBody(body string) error {
+	if strings.TrimSpace(body) == "" {
+		return errors.New("a comment with nothing in it says nothing")
 	}
 	return nil
 }

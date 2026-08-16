@@ -174,6 +174,12 @@ while a refresh is in flight therefore moves forward with it or is refused,
 never accepted and lost. All the git work is done before that transaction opens,
 which it can be because nothing the translation needs is a row.
 
+Rewriting a comment and deleting one name no generation, and each has its own
+reason. A body is true at every generation, and the columns a refresh carries an
+anchor through are the ones an edit leaves alone. A delete takes the row, so
+there is no anchor left to go stale and a refresh translating one that has gone
+moves nothing and carries on.
+
 The refresh takes the same assertion. A swap can succeed on a ref read after
 somebody else moved it, and a refresh carrying out of a generation that is no
 longer the tip would drop every write made against the one in between. So it
@@ -261,6 +267,7 @@ c                        comment on the selection, the row, the hunk or the file
 v esc                    range selection for c, j/k extend. esc or v cancels
 C                        session summary note
 x                        resolve a comment
+e D                      rewrite a comment, delete one
 enter                    tree: open file. comment: jump to its line
 ctrl+s esc               in the composer: save, discard
 
@@ -336,6 +343,23 @@ already resolved, and is right to, because freezing one twice re-records an
 anchor that stopped moving a generation ago. So the key has nothing to do there,
 the way it has nothing to do on a row with no card. An orphan is offered it,
 that being the only thing left anyone can do with a comment whose code is gone.
+
+`e` and `D` are named there too, and nowhere else. Both reach a card in any
+state: a typo in a resolved comment is still a typo, and one nobody meant to
+write is a record of nothing. `D` acts at once, the capital doing the whole of
+the thing the way `R` and `U` do, and a card narrow enough to drop hints drops
+these two first, the overlay being where the rest of the keymap lives anyway.
+
+An edit is the body alone. The anchor never moves, so a comment on the wrong
+lines is a delete and a new one rather than a rewrite, which would be a second
+remap path with none of the translation rules behind it. The box `e` opens is
+the card itself: same border, same indent, same place, holding what it said. A
+delete is a real delete rather than a state, which would have to be filtered out
+of every count, every ring and every export forever.
+
+An empty body is a discard from `c`, because nothing was typed, and a refusal
+from `e`, because blanking a comment that says something is a delete and `D` is
+how that is spelled.
 
 The composer takes every key while it is up, `q` and `?` included. A note lost
 to the letter `q` cannot be taken back, and one key let out is one more thing to

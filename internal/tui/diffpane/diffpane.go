@@ -757,8 +757,15 @@ func (m *Model) layout() {
 	// pass over the lines gives it.
 	if m.draft != nil && m.draft.path == m.file.Diff.Path {
 		at := m.draft.at
-		at.GenerationID = m.gen
-		mine = append(mine, at)
+
+		// One being retyped takes the card's own place, generation included: a
+		// comment frozen at an older one hangs at the foot and the box goes there.
+		if i := index(mine, m.draft.edits); i >= 0 {
+			mine[i] = at
+		} else {
+			at.GenerationID = m.gen
+			mine = append(mine, at)
+		}
 	}
 
 	placed := make([]bool, len(mine))
@@ -860,6 +867,20 @@ func (m Model) mine() []store.Comment {
 		}
 	}
 	return out
+}
+
+// index is where a comment sits in a list of them, and -1 for one that is not
+// there. An empty id names none of them.
+func index(cs []store.Comment, id string) int {
+	if id == "" {
+		return -1
+	}
+	for i := range cs {
+		if cs[i].ID == id {
+			return i
+		}
+	}
+	return -1
 }
 
 // live is whether a comment's anchor is measured in the generation on screen. A
