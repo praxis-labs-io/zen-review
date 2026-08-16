@@ -8,9 +8,9 @@
 │ │ G      bottom                 {         previous hunk      C   note      │ │
 │ │ ctrl+d diff half page down    tab       next file          ?   help      │ │
 │ │ ctrl+u diff half page up      shift+tab previous file      q   quit      │ │
-│ │ ]      next comment           r         mark read                        │ │
-│ │ [      previous comment       R         mark file                        │ │
-├─│ z      place cursor: z/t/b    u         unmark                           │ │
+│ │ ]/[    comment                r         mark read                        │ │
+│ │ z      place cursor: z/t/b    R         mark file                        │ │
+├─│ v      select lines           u         unmark                           │ │
 │ │ space  fold comment           U         unmark file                      │ │
 │ │ enter  go to its line         x         resolve comment                  │ │
 │ ╰──────────────────────────────────────────────────────────────────────────╯ │

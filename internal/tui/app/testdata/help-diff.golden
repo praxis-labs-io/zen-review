@@ -6,9 +6,9 @@
 │   ● design│ G      bottom                 {         previous hunk      C   note      │           │
 │  internal│ ctrl+d diff half page down    tab       next file          ?   help      │           │
 │    cli   │ ctrl+u diff half page up      shift+tab previous file      q   quit      │           │
-├───────────│ ]      next comment           r         mark read                        │           │
-│ origin/mai│ [      previous comment       R         mark file                        │           │
-│ Generation│ z      place cursor: z/t/b    u         unmark                           │           │
+├───────────│ ]/[    comment                r         mark read                        │           │
+│ origin/mai│ z      place cursor: z/t/b    R         mark file                        │           │
+│ Generation│ v      select lines           u         unmark                           │           │
 │ Reviewed  │ space  fold comment           U         unmark file                      │           │
 │ Comments  │ enter  go to its line         x         resolve comment                  │           │
 │ Changes   ╰──────────────────────────────────────────────────────────────────────────╯           │

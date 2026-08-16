@@ -45,6 +45,10 @@ type KeyMap struct {
 	// anywhere else. They are the tree's two keys doing the tree's two jobs.
 	Fold key.Binding
 	Jump key.Binding
+
+	// Select anchors a range at the cursor, and Cancel takes it back.
+	Select key.Binding
+	Cancel key.Binding
 }
 
 // NewKeyMap is the bindings and the help text they carry.
@@ -63,6 +67,11 @@ func NewKeyMap() KeyMap {
 
 		Fold: key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "fold comment")),
 		Jump: key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "go to its line")),
+
+		// Cancel carries no help of its own. The bar names it while a selection is
+		// up, which is the only time it does anything.
+		Select: key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "select lines")),
+		Cancel: key.NewBinding(key.WithKeys("esc")),
 	}
 }
 
@@ -138,6 +147,10 @@ type Model struct {
 	// landing clears it, so a ring key between the two does not arm the next.
 	waiting bool
 
+	// anchor is where v was pressed, held as a place rather than a row: a card's
+	// height moves with the width, and every row after it renumbers.
+	anchor place
+
 	offset int
 
 	width  int
@@ -191,6 +204,7 @@ func New(t theme.Theme) Model {
 		painter: paint.Painter{Theme: t},
 		syntax:  s,
 		cursor:  -1,
+		anchor:  place{seq: -1},
 	}
 }
 
@@ -201,6 +215,7 @@ func New(t theme.Theme) Model {
 // which hunk it lands on and this pane never guesses.
 func (m *Model) SetFile(f *review.File, comments []store.Comment, at int64) {
 	m.file, m.comments, m.gen, m.offset = f, comments, at, 0
+	m.anchor = place{seq: -1}
 	m.layout()
 }
 
@@ -221,6 +236,7 @@ func (m Model) Hunk() (store.Side, int, bool) {
 // Restore puts the cursor and the window back where they were, for a reload that
 // changed nothing after landing has taken the reader to the hunk's heading.
 func (m *Model) Restore(cursor, offset int) {
+	m.clearSelection()
 	m.point(cursor)
 	m.offset = max(0, min(offset, m.maxOffset()))
 }
@@ -231,6 +247,7 @@ func (m *Model) Select(side store.Side, line int) {
 	if m.file == nil || len(m.headAt) != len(m.file.Hunks) {
 		return
 	}
+	m.clearSelection()
 
 	// A file with no hunks is one stop and one row, and the ring lands on it the
 	// same as any other. Its row carries no hunk, so Hunk still answers false.
@@ -251,6 +268,7 @@ func (m *Model) Select(side store.Side, line int) {
 // SelectComment lands the cursor on a comment's card, with the code it answers
 // still above it. Nothing happens for a comment this file does not hold.
 func (m *Model) SelectComment(id string) {
+	m.clearSelection()
 	for i := range m.cards {
 		if m.cards[i].id == id {
 			m.point(m.cards[i].at)
@@ -303,6 +321,14 @@ func (m *Model) point(i int) {
 	was := m.cursor
 	m.cursor, m.waiting = i, false
 	m.repaint(was, i, m.headOf(was), m.headOf(i))
+
+	// A selection fills every row between its ends, so a cursor moving inside one
+	// repaints the run it just grew or shrank by rather than the two rows.
+	if m.Selecting() && was >= 0 {
+		for at := min(was, i); at <= max(was, i); at++ {
+			m.repaint(at)
+		}
+	}
 
 	// A card's whole border changes with the cursor, so both cards it moved
 	// between are redrawn rather than the one row it left and the one it took.
@@ -439,7 +465,7 @@ func (m Model) render(i int) (string, lipgloss.Style) {
 	r := m.rows[i]
 
 	var fill color.Color
-	if i == m.cursor {
+	if i == m.cursor || m.inSelection(i) {
 		fill = m.theme.SelectedBackground
 	}
 
@@ -630,6 +656,10 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	}
 
 	switch {
+	case key.Matches(press, m.Keys.Select):
+		m.selectRange()
+	case key.Matches(press, m.Keys.Cancel):
+		m.clearSelection()
 	case key.Matches(press, m.Keys.Fold):
 		m.fold()
 	case key.Matches(press, m.Keys.Jump):
