@@ -10,7 +10,7 @@ require (
 	github.com/charmbracelet/x/ansi v0.11.7
 	github.com/charmbracelet/x/term v0.2.2
 	github.com/spf13/cobra v1.10.2
-	github.com/zen-kit/zen-kit v0.7.0
+	github.com/zen-kit/zen-kit v0.8.0
 	modernc.org/sqlite v1.56.0
 )
 
