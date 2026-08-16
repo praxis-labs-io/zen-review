@@ -38,6 +38,10 @@ const foldGlyph = "▸"
 // against the border reads as a rendering fault rather than as a box.
 const cardGutter = 1
 
+// noWords stands in for a body that has none. The engine refuses an empty one,
+// so this is the card saying the row is not a rendering fault.
+const noWords = "no words"
+
 // card is one comment on screen, and both the ways it draws. The cursor moving
 // in or out changes its whole border, and layout is where that is paid for.
 type card struct {
@@ -112,10 +116,12 @@ func (m Model) drawCard(c store.Comment, placed bool) ([]string, []string) {
 	// column of diff, which is what the diff's own notes look like.
 	folded := m.folds(c)
 
-	// Built one way or the other, never both: wrapping a long body and throwing
-	// it away is work every relayout pays for a card nobody has open.
-	body := m.foldedBody(c, width)
-	if !folded {
+	// Built one way or the other, never both: either sanitises the whole body,
+	// and the loser's pass is work every relayout pays for nothing.
+	var body []string
+	if folded {
+		body = m.foldedBody(c, width)
+	} else {
 		body = m.cardBody(c, width)
 	}
 
@@ -145,7 +151,7 @@ func (m Model) cardBody(c store.Comment, width int) []string {
 		out = append(out, gutter+text.Render(line))
 	}
 	if len(out) == 0 {
-		out = append(out, gutter+m.subtle().Render("no words"))
+		out = append(out, gutter+m.subtle().Render(noWords))
 	}
 	return out
 }
@@ -155,9 +161,9 @@ func (m Model) cardBody(c store.Comment, width int) []string {
 func (m Model) foldedBody(c store.Comment, width int) []string {
 	room := max(width-2-2*cardGutter, 1)
 
-	line := foldGlyph
+	line := foldGlyph + " " + noWords
 	if first := firstLine(c.Body); first != "" {
-		line += " " + first
+		line = foldGlyph + " " + first
 	}
 	return []string{strings.Repeat(" ", cardGutter) +
 		comp.Clip(m.subtle().Render(line), room, m.subtle())}
@@ -170,8 +176,8 @@ func (m Model) bareRow(c store.Comment, placed bool, at int, base lipgloss.Style
 	return []string{m.pad(lead+m.bareCard(c, placed, base), base)}
 }
 
-// bareCard is the one-row form: the badge, the state, and enough of the body to
-// recall it. A folded card and a pane too narrow for a border both take it.
+// bareCard is the borderless form: the badge, the state, and enough of the body
+// to recall it. Only a pane too narrow for a box takes it.
 func (m Model) bareCard(c store.Comment, placed bool, base lipgloss.Style) string {
 	row := m.cardHead(c, placed, base)
 	if first := firstLine(c.Body); first != "" {

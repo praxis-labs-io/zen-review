@@ -41,7 +41,9 @@ func TestTheCommentRingSkipsAResolvedOne(t *testing.T) {
 		s.press("]")
 	}
 
-	if got := s.frame(); !strings.Contains(got, "still wants an answer") {
+	// The hints, not the body: both cards draw their body whether lit or not, so
+	// only what a lit card names says which one the ring landed on.
+	if got := s.frame(); !strings.Contains(got, "space fold") {
 		t.Fatalf("the ring never landed on the open comment:\n%s", got)
 	}
 
