@@ -193,3 +193,23 @@ func at(t *testing.T, lines []string, want string) int {
 	t.Fatalf("no row holds %q:\n%s", want, strings.Join(lines, "\n"))
 	return -1
 }
+
+// TestTheBoxOnARangeTallerThanTheWindow is on screen. A card is clamped to the
+// line it answers, and a box off the window holds every key that would scroll it.
+func TestTheBoxOnARangeTallerThanTheWindow(t *testing.T) {
+	m := commented(t, twoHunks, 70, 8)
+	m.Select(store.SideHead, 13)
+
+	if _, ok := m.Compose(store.Comment{
+		Side:      store.SideHead,
+		Scope:     store.ScopeRange,
+		LineRange: store.LineRange{Start: 12, End: 14},
+	}); !ok {
+		t.Fatal("the pane refused a box")
+	}
+
+	got := joined(t, m)
+	if !strings.Contains(got, "◇ new") || !strings.Contains(got, "ctrl+s save") {
+		t.Errorf("the box is not on screen whole:\n%s", got)
+	}
+}

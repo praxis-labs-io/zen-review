@@ -309,6 +309,12 @@ func (m *Model) showCard(i int) {
 		top--
 	}
 
+	// A box being typed in wins that clash outright. Off the window it still holds
+	// every key, so there is nothing left to scroll to it with.
+	if c.id == draftID {
+		top = max(top, c.end()-m.height)
+	}
+
 	// A card and its anchor taller than the window cannot both be shown, and the
 	// line it answers is the half to keep.
 	m.offset = max(min(m.offset, top), min(c.end()-m.height, top))
