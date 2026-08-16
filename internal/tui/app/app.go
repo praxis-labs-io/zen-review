@@ -136,7 +136,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.resize(msg.Width, msg.Height)
-		return m, nil
+		return m, m.crossOver()
 
 	case tree.OpenMsg:
 		m.setFocus(focusDiff)
@@ -176,14 +176,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.apply(msg.r)
 		m.note = notice{text: "comment saved"}
 
-		if m.diff.Draft() == msg.body {
-			m.shut()
-		}
+		// Down whatever was typed while it was out, where a note keeps the box
+		// and adds to it. A second save would write a second comment.
+		m.shut()
+		return m, nil
+
+	case savedMsg:
+		// The write committed and the read-back did not, so the box comes down:
+		// what it holds is written, and pressing save again would write it twice.
+		m.busy = false
+		m.shut()
+		m.note = notice{text: msg.err.Error() + ": press s", bad: true}
 		return m, nil
 
 	case staleMsg:
 		m.busy = false
-		m.note = notice{text: msg.err.Error() + ": press s", bad: true}
+		m.note = notice{text: msg.err.Error() + ": " + m.wayBack(), bad: true}
 		return m, nil
 
 	case writeFailedMsg:
@@ -415,6 +423,19 @@ func (m Model) typing(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.compose, cmd = m.compose.Update(msg)
 	return m, cmd
+}
+
+// boxUp is whether either box has the keys, which is what makes a key named on
+// the bar a letter instead.
+func (m Model) boxUp() bool { return m.diff.Composing() || m.compose.Active() }
+
+// wayBack is the keys that answer a refused write. A box up takes s as a letter
+// and has to come down first, which costs what was typed into it.
+func (m Model) wayBack() string {
+	if m.boxUp() {
+		return "esc, then s"
+	}
+	return "press s"
 }
 
 // shut takes down whichever box is up and drops what it was scoped to.

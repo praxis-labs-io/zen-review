@@ -1,6 +1,7 @@
 package app
 
 import (
+	"strconv"
 	"strings"
 
 	"charm.land/bubbles/v2/key"
@@ -8,14 +9,11 @@ import (
 
 	"github.com/zen-review/zen-review/internal/review"
 	"github.com/zen-review/zen-review/internal/store"
+	"github.com/zen-review/zen-review/internal/tui/comp"
 )
 
 // commentedMsg is a comment that landed, with the changeset re-derived after it.
-// The body comes back so the box knows whether it is still holding it.
-type commentedMsg struct {
-	r    Reload
-	body string
-}
+type commentedMsg struct{ r Reload }
 
 // commenting is the comment c scopes, bodyless, and false when the cursor has
 // nothing under it. A selection beats the focus, the way esc does.
@@ -83,17 +81,46 @@ func (m *Model) commentOn() (tea.Cmd, bool) {
 		return nil, false
 	}
 
-	cmd, up := m.diff.Compose(store.Comment{
+	m.pending = n
+	if cmd, up := m.diff.Compose(store.Comment{
 		Side:      n.Side,
 		Scope:     n.Scope,
 		LineRange: store.LineRange{Start: n.Range.Start, End: n.Range.End},
-	})
-	if !up {
-		return nil, false
+	}); up {
+		return cmd, true
 	}
 
-	m.pending = n
-	return cmd, true
+	// No room for it beside the code, so it goes over the frame where C's box
+	// is drawn. A box that cannot be drawn at all is a reader typing at air.
+	return m.compose.Open(commentTitle(n), ""), true
+}
+
+// crossOver moves a box the pane has lost the room for onto the frame, with
+// what was typed into it. Nothing is lost by a terminal getting smaller.
+func (m *Model) crossOver() tea.Cmd {
+	if !m.diff.Composing() || m.diff.FitsBox() {
+		return nil
+	}
+
+	body := m.diff.Draft()
+	m.diff.CloseDraft()
+	return m.compose.Open(commentTitle(m.pending), body)
+}
+
+// commentTitle says what the words are for, which the box beside the code says
+// by hanging there. Only the base is named: head numbers are the gutter's.
+func commentTitle(n review.Note) string {
+	at := comp.Safe(n.Path)
+	if n.Scope != store.ScopeFile {
+		at += ":" + strconv.Itoa(n.Range.Start)
+		if n.Range.End != n.Range.Start {
+			at += "-" + strconv.Itoa(n.Range.End)
+		}
+	}
+	if n.Side == store.SideBase {
+		at += " (base)"
+	}
+	return "Comment on " + at
 }
 
 // drafting routes a key into the box, answering the two it owns first. Those
@@ -142,6 +169,6 @@ func (m *Model) saveComment(body string) tea.Cmd {
 		if err != nil {
 			return failed(err)
 		}
-		return commentedMsg{r: r, body: body}
+		return commentedMsg{r: r}
 	}
 }

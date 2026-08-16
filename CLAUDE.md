@@ -358,11 +358,17 @@ about is still on screen above it and the file flows below. It carries the two
 keys in its own footer the way a card carries `x`, and the status bar names them
 and nothing else, `?` and `q` being letters while a body is being typed.
 
-`c` is refused where that box cannot be drawn: a pane too narrow for a card, a
-frame too short for one, or a reload still in git, which would land under the
-box and move the lines it was scoped to. A box nobody can see still holds every
-key, which is a reader typing into nothing. The modal `C` opens has no such
-limit and draws over the too-small frame.
+A box nobody can see still holds every key, so where the pane has no room to
+draw one it goes over the frame instead, which is where `C`'s is drawn. A
+terminal shrinking under a reader mid-sentence carries the words across with it.
+`c` is refused only while a reload is in git, which would land under an open box
+and move the lines it was scoped to.
+
+A failed write keeps the box and the words, except the one that committed and
+could not be read back. That box comes down, because what it holds is written
+and saving it again writes a second comment. It is the only write here that
+cannot be retried, which is why the Source names it rather than reporting a
+failure like any other.
 
 The label says only what the card's own position cannot. A card under its line
 needs no line number, because the gutter beside it has one. A range says the run

@@ -140,7 +140,7 @@ func (r *reloader) wrote(g review.Generation, do func() error) (app.Reload, erro
 	// screen behind the review rather than the review unwritten, so it says so.
 	rel, err := r.at(g)
 	if err != nil {
-		return app.Reload{}, fmt.Errorf("the write was saved and the screen is behind it: %w", err)
+		return app.Reload{}, fmt.Errorf("%w: %w", app.ErrSaved, err)
 	}
 	return rel, nil
 }

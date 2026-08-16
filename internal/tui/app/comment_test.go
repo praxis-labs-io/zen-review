@@ -2,11 +2,16 @@ package app_test
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/zen-review/zen-review/internal/review"
 	"github.com/zen-review/zen-review/internal/store"
 	"github.com/zen-review/zen-review/internal/testchangeset"
+	"github.com/zen-review/zen-review/internal/tui/app"
 )
 
 // TestTheCommentRingCrossesFiles. The comments are one list over the whole
@@ -400,18 +405,92 @@ func TestCIsRefusedWhileAReloadIsOut(t *testing.T) {
 	}
 }
 
-// TestCIsRefusedOnAFrameWithNoRoomForTheBox. It takes every key while it is up,
-// so one nobody can see is a reader typing into nothing.
-func TestCIsRefusedOnAFrameWithNoRoomForTheBox(t *testing.T) {
+// TestCFallsBackToTheBoxOverTheFrame. It holds every key while it is up, so a
+// pane with no room to draw one is not a reason to have none.
+func TestCFallsBackToTheBoxOverTheFrame(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, mixedPatch), 50, 10)
+	s.press("c")
 
-	before := s.frame()
-	s.press("c", "h", "i", "ctrl+s")
-
-	if got := s.calls(); len(got) != 0 {
-		t.Errorf("a box nobody could see wrote %v", got)
+	if got := s.frame(); !strings.Contains(got, "Comment on a.go") {
+		t.Fatalf("c opened nothing on a frame with no room beside the code:\n%s", got)
 	}
-	if got := s.frame(); got != before {
-		t.Errorf("c opened something on a frame with no room:\n%s", got)
+
+	s.press("h", "i", "ctrl+s")
+	want := `AddComment a.go head:2-2 range "hi" gen=2`
+	if got := wrote(t, s); got != want {
+		t.Errorf("the box over the frame wrote %q, want %q", got, want)
+	}
+}
+
+// TestAFrameTooSmallForTheBoxTakesItOverTheFrame, with what was typed. Nothing
+// is lost by a terminal getting smaller under a reader mid-sentence.
+func TestAFrameTooSmallForTheBoxTakesItOverTheFrame(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24).press("j", "c", "h", "i")
+
+	if got := s.frame(); !strings.Contains(got, "◇ new") {
+		t.Fatalf("the box did not open beside the code:\n%s", got)
+	}
+
+	s.send(tea.WindowSizeMsg{Width: 50, Height: 10})
+
+	got := s.frame()
+	if !strings.Contains(got, "Comment on a.go:1") {
+		t.Fatalf("the box went with the room for it:\n%s", got)
+	}
+	if !strings.Contains(got, "hi") {
+		t.Errorf("the words went with it:\n%s", got)
+	}
+
+	s.press("ctrl+s")
+	want := `AddComment a.go head:1-1 line "hi" gen=2`
+	if got := wrote(t, s); got != want {
+		t.Errorf("the box that moved wrote %q, want %q", got, want)
+	}
+}
+
+// TestASaveThatLandedTakesTheBoxDown, whatever was typed while it was out. A
+// second save would write a second comment, where a note is one thing overwritten.
+func TestASaveThatLandedTakesTheBoxDown(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24).press("j", "c", "h", "i")
+
+	// Held, so the write is still out when the next key lands.
+	saving := s.hold(keystroke("ctrl+s"))
+	s.press("!")
+	s.drain(saving)
+
+	if got := s.frame(); strings.Contains(got, "◇ new") {
+		t.Fatalf("the box outlived the write:\n%s", got)
+	}
+
+	s.press("ctrl+s")
+	if got := s.calls(); len(got) != 1 {
+		t.Errorf("the writes were %v, want the one comment", got)
+	}
+}
+
+// TestAWriteSavedAndNotReadBackTakesTheBoxDown. Retrying that one writes a
+// second comment, where every other failure wrote nothing at all.
+func TestAWriteSavedAndNotReadBackTakesTheBoxDown(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24).press("j", "c", "h", "i")
+	s.src.wroteErr = fmt.Errorf("%w: the database is locked", app.ErrSaved)
+	s.press("ctrl+s")
+
+	if got := s.frame(); strings.Contains(got, "◇ new") {
+		t.Errorf("the box stayed up over a write that landed:\n%s", got)
+	}
+	if got := s.bar(); !strings.Contains(got, "the screen is behind it") {
+		t.Errorf("the bar reads %q, want it to say the write was saved", got)
+	}
+}
+
+// TestARefusedWriteNamesAKeyTheBoxWouldEat. s is a letter while a body is being
+// typed, so the bar cannot ask for it on its own.
+func TestARefusedWriteNamesAKeyTheBoxWouldEat(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24).press("j", "c", "h", "i")
+	s.src.wroteErr = &review.StaleGenerationError{Seq: 2, Current: 3}
+	s.press("ctrl+s")
+
+	if got := s.bar(); !strings.Contains(got, "esc, then s") {
+		t.Errorf("the bar reads %q, want the keys that reach the reload", got)
 	}
 }

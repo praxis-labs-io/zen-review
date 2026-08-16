@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"strconv"
 
 	tea "charm.land/bubbletea/v2"
@@ -9,6 +10,10 @@ import (
 	"github.com/zen-review/zen-review/internal/store"
 	"github.com/zen-review/zen-review/internal/tui/comp"
 )
+
+// ErrSaved is a write that committed and could not be read back. A Source wraps
+// it, because this is the one failure a retry would write a second time.
+var ErrSaved = errors.New("the write was saved and the screen is behind it")
 
 // Reload is the changeset as it now stands, which is what a press of the reload
 // key brings back.

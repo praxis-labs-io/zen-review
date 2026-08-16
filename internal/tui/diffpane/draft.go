@@ -30,10 +30,17 @@ type draft struct {
 	path string
 }
 
+// FitsBox is whether the pane has the room to draw a box being typed in. A box
+// nobody can see still holds every key, so the caller puts it somewhere else.
+func (m Model) FitsBox() bool {
+	_, width := m.cardBox()
+	return m.file != nil && width >= cardMin && m.height >= draftRows+2
+}
+
 // Compose opens a box where the comment will hang, and false for a pane with no
-// room to draw one: an unseen box holding every key is a reader typing at air.
+// room to draw one.
 func (m *Model) Compose(c store.Comment) (tea.Cmd, bool) {
-	if _, width := m.cardBox(); m.file == nil || width < cardMin || m.height < draftRows+2 {
+	if !m.FitsBox() {
 		return nil, false
 	}
 	c.ID, c.State, c.Body = draftID, store.CommentOpen, ""

@@ -23,6 +23,10 @@ type wroteMsg struct {
 // written and nothing was lost.
 type staleMsg struct{ err error }
 
+// savedMsg is a write that committed and could not be read back. What is on
+// screen is behind the review, which is the one failure a retry would double.
+type savedMsg struct{ err error }
+
 // intent is a mark key's ask, kept rather than the closure it builds. A press
 // held while a write is out is run against the cursor the write left behind.
 type intent struct {
@@ -126,8 +130,11 @@ func (m Model) write(do func(Source) (Reload, error), at stop, row int, advance 
 // mid-press is answered with the reload key, not by pressing the same one again.
 func failed(err error) tea.Msg {
 	var stale *review.StaleGenerationError
-	if errors.As(err, &stale) {
+	switch {
+	case errors.As(err, &stale):
 		return staleMsg{err: err}
+	case errors.Is(err, ErrSaved):
+		return savedMsg{err: err}
 	}
 	return writeFailedMsg{err: err}
 }
