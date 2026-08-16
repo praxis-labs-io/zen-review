@@ -229,8 +229,10 @@ func TestTheHalfPageKeysPageTheDiffFromTheTree(t *testing.T) {
 	s := open(t, 100, 16).press(code...)
 	columns := s.treeColumns()
 
+	// Twice. The first press parks the cursor mid-window without scrolling, and
+	// a stripped frame cannot see a cursor.
 	before := s.frame()
-	s.press("ctrl+d")
+	s.press("ctrl+d", "ctrl+d")
 	after := s.frame()
 
 	if before == after {

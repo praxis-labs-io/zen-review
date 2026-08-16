@@ -307,8 +307,19 @@ burn a review down.
 `j` and `k` move a row cursor rather than the window, and a hunk heading pins to
 the top row once it scrolls off, so the lines up there are never unlabelled. The
 pin follows the window and not the cursor, because a heading names the lines
-under it, and the next hunk's own heading pushes it out. It steps aside when the
-cursor is on that row: the heading costs less to lose than the cursor does.
+under it, and the next hunk's own heading pushes it out.
+
+The pin owns the top line, so the cursor never sits there: a key that would put
+it on that row opens the window one higher instead, and it lands on the second
+with its heading above it. Standing the pin down for the cursor was the first
+answer and it cost the heading on every paging key.
+
+`ctrl+u` and `ctrl+d` park the cursor mid-window and let the file run past it,
+rather than carrying it at whatever row it happened to be on. The ends are the
+exception and the only place it moves on screen: the window stops at the first
+row and the last, and the cursor goes on alone to the end of the file. Vim
+carries the cursor instead, which reads fine in an editor you are typing in and
+badly in a pane you are only reading.
 
 ## Exit codes
 

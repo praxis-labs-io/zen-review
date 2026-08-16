@@ -74,10 +74,12 @@ func press(t *testing.T, m diffpane.Model, keys ...tea.KeyPressMsg) diffpane.Mod
 }
 
 var (
-	down  = tea.KeyPressMsg{Code: 'j', Text: "j"}
-	up    = tea.KeyPressMsg{Code: 'k', Text: "k"}
-	space = tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}
-	enter = tea.KeyPressMsg{Code: tea.KeyEnter}
+	down     = tea.KeyPressMsg{Code: 'j', Text: "j"}
+	up       = tea.KeyPressMsg{Code: 'k', Text: "k"}
+	space    = tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}
+	enter    = tea.KeyPressMsg{Code: tea.KeyEnter}
+	halfDown = tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl}
+	halfUp   = tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl}
 )
 
 // TestAFileIsItsLines: the numbers on both sides, the marker between them, and
@@ -1108,5 +1110,125 @@ func TestSelectCommentLeavesRoomForThePin(t *testing.T) {
 
 	if got := joined(t, m); !strings.Contains(got, `Unreviewed State = "unreviewed"`) {
 		t.Errorf("the pinned heading covered the line the card answers:\n%s", got)
+	}
+}
+
+// TestTheHeadingHoldsThroughAPagingKey. ctrl+d moves the cursor and the window
+// by the same amount, so a pin that stood down for a cursor on the top row
+// stood down on every press and the rows on screen went unlabelled.
+func TestTheHeadingHoldsThroughAPagingKey(t *testing.T) {
+	for _, key := range []tea.KeyPressMsg{halfDown, halfUp} {
+		m := pane(t, twoHunks, 70, 5)
+		m.Select(store.SideHead, 124)
+		m = press(t, m, key)
+
+		if got := rows(t, m)[0]; !strings.Contains(got, "@@") {
+			t.Errorf("after %v the top row is %q, want a hunk heading:\n%s",
+				key, got, joined(t, m))
+		}
+	}
+}
+
+// TestThePinDoesNotCoverTheCursor. It owns the top line, so the window opens a
+// row higher rather than drawing the heading over the row the reader is on.
+func TestThePinDoesNotCoverTheCursor(t *testing.T) {
+	m := pane(t, twoHunks, 70, 5)
+	m.Select(store.SideHead, 13)
+	m = press(t, m, halfDown)
+
+	if m.Cursor() == m.Scroll().Offset {
+		t.Fatalf("the cursor is on the top row at %d, where the pin draws", m.Cursor())
+	}
+	if got := filled(t, m); got == "" {
+		t.Errorf("the pin covered the cursor's own row:\n%s", joined(t, m))
+	}
+}
+
+// TestZtLandsUnderTheHeadingItAsksToSee. The top row is the pin's, so a cursor
+// put there is drawn over by the very heading zt was pressed to keep in view.
+func TestZtLandsUnderTheHeadingItAsksToSee(t *testing.T) {
+	m := pane(t, twoHunks, 70, 6)
+	m.Select(store.SideHead, 13)
+	m = press(t, m, down, down, down, down)
+	m = press(t, m, tea.KeyPressMsg{Code: 'z', Text: "z"}, tea.KeyPressMsg{Code: 't', Text: "t"})
+
+	got := rows(t, m)
+	if !strings.Contains(got[0], "@@ -10,5") {
+		t.Fatalf("the top row is %q, want the pinned heading:\n%s", got[0], joined(t, m))
+	}
+	if filled(t, m) == "" {
+		t.Errorf("zt put the cursor under the pin and lost it:\n%s", joined(t, m))
+	}
+}
+
+// TestAPagingKeyParksTheCursorMidWindow, so the file runs past a cursor that
+// stays put and the eye keeps one place to read from.
+//
+// Three phases: the cursor reaches the middle without the window moving, then
+// the window carries it, then the window stops and it goes on to the last row.
+func TestAPagingKeyParksTheCursorMidWindow(t *testing.T) {
+	const height = 7
+
+	m := pane(t, twoHunks, 62, height)
+	m.Select(store.SideHead, 13)
+
+	m = press(t, m, halfDown)
+	if got := m.Scroll().Offset; got != 0 {
+		t.Errorf("the first page scrolled to %d, want the window still at the top", got)
+	}
+	if got := m.Cursor(); got != (height-1)/2 {
+		t.Errorf("the first page put the cursor on row %d, want the middle", got)
+	}
+
+	m = press(t, m, halfDown)
+	if got := m.Cursor() - m.Scroll().Offset; got != (height-1)/2 {
+		t.Errorf("the second page left the cursor on screen row %d, want the middle", got)
+	}
+
+	for range 6 {
+		m = press(t, m, halfDown)
+	}
+	if got, want := m.Cursor(), m.Scroll().Total-1; got != want {
+		t.Errorf("paging to the end left the cursor on row %d, want the last at %d", got, want)
+	}
+}
+
+// TestAPagingKeyParksGoingUpToo, and lands the cursor on the first row once the
+// window has run out of file above it.
+func TestAPagingKeyParksGoingUpToo(t *testing.T) {
+	const height = 7
+
+	m := pane(t, twoHunks, 62, height)
+	m.Select(store.SideHead, 124)
+	m = press(t, m, halfDown, halfDown, halfUp)
+
+	if got := m.Cursor() - m.Scroll().Offset; got != (height-1)/2 {
+		t.Errorf("ctrl+u left the cursor on screen row %d, want the middle", got)
+	}
+
+	for range 6 {
+		m = press(t, m, halfUp)
+	}
+	if got := m.Cursor(); got != 0 {
+		t.Errorf("paging to the top left the cursor on row %d, want the first", got)
+	}
+	if got := m.Scroll().Offset; got != 0 {
+		t.Errorf("the window sat at %d with the cursor on the first row", got)
+	}
+}
+
+// TestAOneRowPaneKeepsTheCursorOverThePin. The pane gets exactly one row at the
+// app's own minimum height, and there the pin and the cursor want the same line.
+// The heading is a label; a reader who cannot see their own row has lost more.
+func TestAOneRowPaneKeepsTheCursorOverThePin(t *testing.T) {
+	m := pane(t, twoHunks, 60, 1)
+	m.Select(store.SideHead, 13)
+
+	for i := range 4 {
+		m = press(t, m, down)
+		if filled(t, m) == "" {
+			t.Fatalf("after %d presses nothing on the pane carries the cursor: %q",
+				i+1, joined(t, m))
+		}
 	}
 }

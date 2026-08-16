@@ -367,13 +367,18 @@ func (m Model) blank(i int) bool {
 	return r.kind == noteRow && r.note == ""
 }
 
-// page moves the window half a screen and takes the cursor with it. Leaving the
-// cursor behind would page it off the pane, and the next j would haul it back.
+// page moves the cursor half a screen and parks it mid-window, so the file runs
+// past a cursor that stays put and the eye keeps one place to read from.
 func (m *Model) page(by int) {
-	m.offset += by
-	m.clampOffset()
+	// The ends are where it moves instead: the window stops at the first row
+	// and the last, and the cursor goes on alone to the end of the file.
 	m.moveTo(m.cursor + by)
+	m.place(m.middle())
 }
+
+// middle is the window row a paging key parks the cursor on, and the one zz
+// asks for by name.
+func (m Model) middle() int { return (m.height - 1) / 2 }
 
 // reveal brings the window back onto the cursor by as little as it takes. The
 // reader is already looking at the row; the window is what fell behind.
@@ -383,6 +388,26 @@ func (m *Model) reveal() {
 		m.offset = max(m.offset, m.cursor-m.height+1)
 	}
 	m.clampOffset()
+	m.clearPin()
+}
+
+// clearPin keeps the cursor off the row the pinned heading covers, opening the
+// window one row higher so the pin has a line of its own.
+func (m *Model) clearPin() {
+	// A one-row pane has nowhere to open into, and the row it would give up is
+	// the cursor's. pinned stands down there instead.
+	if m.height <= 1 {
+		return
+	}
+
+	// Suppressing the pin instead cost the heading on every paging key: those
+	// move the cursor and the window by the same amount, so it sat here always.
+	if m.cursor != m.offset || m.offset <= 0 {
+		return
+	}
+	if at := m.headOf(m.cursor); at >= 0 && at < m.offset {
+		m.offset--
+	}
 }
 
 // repaint redraws rows in place, skipping any the pane does not hold and a pane
@@ -500,8 +525,13 @@ func (m *Model) scrollToCursor() {
 // pinned is the heading to hold on the top line, or -1 for none. It follows the
 // window and not the cursor: a heading names the lines under it.
 func (m Model) pinned() int {
-	// A cursor on that line keeps it. The heading costs less to lose.
-	if m.offset >= len(m.rows) || m.cursor == m.offset {
+	if m.offset >= len(m.rows) {
+		return -1
+	}
+
+	// Only reachable on a pane too short for clearPin to have opened a line. The
+	// cursor keeps the row: a reader who cannot see their own has lost more.
+	if m.cursor == m.offset {
 		return -1
 	}
 
@@ -526,6 +556,10 @@ func (m *Model) place(row int) {
 	}
 	m.offset = m.cursor - row
 	m.clampOffset()
+
+	// zt asks for the top row, which is the pin's. The cursor takes the one
+	// under it rather than being drawn over by the heading it asked to see.
+	m.clearPin()
 }
 
 // fits is whether the hunk starting at a row is on screen whole already, its
@@ -582,7 +616,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.waiting = false
 		switch {
 		case key.Matches(press, m.Keys.Centre):
-			m.place((m.height - 1) / 2)
+			m.place(m.middle())
 		case key.Matches(press, m.Keys.ToTop):
 			m.place(0)
 		case key.Matches(press, m.Keys.ToBottom):
