@@ -258,7 +258,7 @@ r                        mark hunk reviewed, advance to next unreviewed
 R                        mark whole file reviewed
 u U                      take either back
 c                        comment on the selection
-v                        range selection, j/k extend
+v esc                    range selection for c, j/k extend. esc or v cancels
 C                        session summary note
 x                        resolve a comment
 enter                    tree: open file. comment: jump to its line
@@ -275,6 +275,22 @@ s                        reload
 `n` is the one that matters. A review is a burn-down and `n` is the key held
 until the count reaches zero. `r` advances after marking, so `r r r r` walks the
 whole thing.
+
+`v` scopes a comment and nothing else. The unit of review is the hunk, so `r`
+over a selection marks the hunk and advances, the same press it always was. The
+engine can mark lines and `review --lines` reaches it, but from the reader it
+buys nothing: `n` stops on a partial hunk as well as an unread one, so a
+part-marked hunk is handed back whole anyway, and re-reading four lines is
+cheaper than a badge nobody can read the extent of.
+
+A selection may cross a hunk, so `j` and `ctrl+d` keep working as they do
+everywhere else. Only code fills: a heading, the blank between two hunks and a
+comment card are not lines anything is written against.
+
+`esc` is named on the status bar while a selection is up and nowhere else, the
+way `x` is named in a card's own footer. It reaches one state of the program,
+and that is where a reader looks for it. It answers from either pane, because
+the selection stays lit while the reader walks the tree.
 
 A hunk is the block a paragraph motion moves by, so `}` and `{` step it. Vim's
 own diff mode says `]c` and `[c`, and the bracket pair is spoken for. Nothing in

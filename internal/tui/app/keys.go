@@ -127,6 +127,15 @@ func (m Model) paneKeys() []key.Binding {
 		own = m.tree.Keys.Hints()
 	}
 
+	// A selection is the one thing on screen with an end to it, so the bar names
+	// the keys that end it. j extends only in the pane the selection is drawn in.
+	if m.diff.Selecting() {
+		if m.focus == focusDiff {
+			own = []key.Binding{comp.Pair(m.diff.Keys.Down, m.diff.Keys.Up, "j/k", "extend")}
+		}
+		return append(own, key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")))
+	}
+
 	return append(own,
 		comp.Pair(m.keys.NextRead, m.keys.PrevRead, "n/N", "unread"),
 		comp.Pair(m.keys.NextHunk, m.keys.PrevHunk, "}/{", "hunk"),
@@ -182,14 +191,14 @@ func (m Model) FullHelp() [][]key.Binding {
 	// they answer from both.
 	movement = append(movement, m.diff.Keys.Scrolling()...)
 
-	// The comment ring only moves, where the ring column's keys all act on what
-	// they land on. It also keeps that column inside eighty cells.
-	movement = append(movement, m.keys.NextComment, m.keys.PrevComment)
+	// The comment ring only moves, where the ring column acts on what it lands
+	// on. One entry, because this column is the tallest at sixteen rows.
+	movement = append(movement, comp.Pair(m.keys.NextComment, m.keys.PrevComment, "]/[", "comment"))
 
 	// The z keys move the window under the cursor and the card keys act on the
 	// card it is on, so both reach one pane and are listed only where they work.
 	if m.focus == focusDiff {
-		movement = append(movement, m.diff.Keys.Place)
+		movement = append(movement, m.diff.Keys.Place, m.diff.Keys.Select)
 		movement = append(movement, m.diff.Keys.Cards()...)
 	}
 

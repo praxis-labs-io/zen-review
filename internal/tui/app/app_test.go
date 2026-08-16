@@ -59,6 +59,10 @@ func TestGoldenFrames(t *testing.T) {
 		// the column carrying the way out is the last one.
 		{"help-eighty", 80, 20, []string{"?"}},
 
+		// A selection open on the fixture's two-hunk file. The fill is colour and
+		// a stripped golden cannot see it; this is the bar it takes over.
+		{"selecting", 100, 16, []string{"n", "n", "j", "v", "j", "j"}},
+
 		{"folded", 100, 16, []string{"h", "j", "space"}},
 		{"deep", 100, 16, []string{"h", "G"}},
 
@@ -105,7 +109,7 @@ func TestTheFrameIsExactlyTheTerminal(t *testing.T) {
 
 	// Each size every way the frame is built: as it opens, on a binary file, on
 	// the longest lines, under the bar's notice, and under each composited box.
-	for _, keys := range [][]string{nil, code, {"?"}, {"s"}, {"C"}} {
+	for _, keys := range [][]string{nil, code, {"?"}, {"s"}, {"C"}, {"v", "j", "j"}} {
 		for _, size := range sizes {
 			s := open(t, size.width, size.height).press(keys...)
 			lines := s.lines()

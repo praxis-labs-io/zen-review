@@ -6,8 +6,8 @@
 │   ● desig│ G      bottom                 {         previous hunk      enter open      │          │
 │  interna│ ctrl+d diff half page down    tab       next file          s     reload    │          │
 │    cli  │ ctrl+u diff half page up      shift+tab previous file      C     note      │          │
-├──────────│ ]      next comment           r         mark read          ?     help      │          │
-│ origin/ma│ [      previous comment       R         mark file          q     quit      │          │
+├──────────│ ]/[    comment                r         mark read          ?     help      │          │
+│ origin/ma│                               R         mark file          q     quit      │          │
 │ Generatio│                               u         unmark                             │          │
 │ Reviewed │                               U         unmark file                        │          │
 │ Comments │                               x         resolve comment                    │          │

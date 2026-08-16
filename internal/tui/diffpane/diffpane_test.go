@@ -460,14 +460,26 @@ func TestTheFirstSizingScrollsToTheCursor(t *testing.T) {
 func filled(t *testing.T, m diffpane.Model) string {
 	t.Helper()
 
-	fill := params(t, lipgloss.NewStyle().Background(theme.RosePineMoon.SelectedBackground))
-
-	for _, line := range strings.Split(m.View(), "\n") {
-		if strings.Contains(line, fill) {
-			return strings.TrimRight(ansi.Strip(line), " ")
-		}
+	if rows := filledRows(t, m); len(rows) > 0 {
+		return rows[0]
 	}
 	return ""
+}
+
+// filledRows is every row wearing that fill, in the order the pane draws them, which
+// is what a selection covering a run of rows is asserted against.
+func filledRows(t *testing.T, m diffpane.Model) []string {
+	t.Helper()
+
+	fill := params(t, lipgloss.NewStyle().Background(theme.RosePineMoon.SelectedBackground))
+
+	var out []string
+	for _, line := range strings.Split(m.View(), "\n") {
+		if strings.Contains(line, fill) {
+			out = append(out, strings.TrimRight(ansi.Strip(line), " "))
+		}
+	}
+	return out
 }
 
 // TestJMovesTheCursorAndNotTheWindow, while the row it lands on is on screen. A

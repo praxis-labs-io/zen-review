@@ -240,6 +240,14 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// The bar names esc from either pane while a selection is up, so it is routed
+	// before the focus is. The tree would otherwise swallow it.
+	if m.diff.Selecting() && key.Matches(msg, m.diff.Keys.Cancel) {
+		var cmd tea.Cmd
+		m.diff, cmd = m.diff.Update(msg)
+		return m, cmd
+	}
+
 	// The reload runs off the update loop, one at a time. Two refreshes on one
 	// session race the ref swap against itself, and the loser of that race is a
 	// generation the database never hears about.
