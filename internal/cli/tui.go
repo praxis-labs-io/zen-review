@@ -113,7 +113,7 @@ func (r *reloader) SetSummary(text string) (string, error) {
 	if err := r.s.SetSummary(r.ctx, text); err != nil {
 		return "", err
 	}
-	return r.s.Summary(), nil
+	return r.s.Summary(r.ctx)
 }
 
 // wrote runs one write and hands back the changeset it left, re-derived at the
@@ -150,12 +150,20 @@ func (r *reloader) at(g review.Generation) (app.Reload, error) {
 	if err != nil {
 		return app.Reload{}, err
 	}
+
+	// Read here rather than held from open, so a note another instance wrote
+	// reaches the composer instead of being overwritten by what it opened with.
+	summary, err := r.s.Summary(r.ctx)
+	if err != nil {
+		return app.Reload{}, err
+	}
+
 	return app.Reload{
 		Base:       r.s.Base(),
 		Generation: g,
 		Changeset:  c,
 		Comments:   comments,
-		Summary:    r.s.Summary(),
+		Summary:    summary,
 	}, nil
 }
 

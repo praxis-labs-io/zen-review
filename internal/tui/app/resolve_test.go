@@ -72,17 +72,20 @@ func TestTheCursorStaysOnTheCardItSettled(t *testing.T) {
 	}
 }
 
-// TestResolveIsNotRefusedByTheReader. The engine owns the state ladder, and a
-// second copy of it here is a second thing to keep true.
-func TestResolveIsNotRefusedByTheReader(t *testing.T) {
+// TestASettledCardTakesNoSecondPress. ResolveComment refuses one already
+// resolved, so sending it puts a red error under a key the card stopped offering.
+func TestASettledCardTakesNoSecondPress(t *testing.T) {
 	on := testchangeset.Comment("aaaaaaaaaaaa", "README.md", 2, 2, "answer this one")
 
 	s := commented(t, 100, 24, on)
 	s.resolving(answered(on))
 	s.press("]", "x", "x")
 
-	if got := s.calls(); len(got) != 2 {
-		t.Errorf("the writes were %v, want the second press through to the engine", got)
+	if got := s.calls(); len(got) != 1 {
+		t.Fatalf("the writes were %v, want the second press to have nothing to do", got)
+	}
+	if got := s.bar(); strings.Contains(got, "cannot be marked") {
+		t.Errorf("the bar reads %q, want a press with nothing to do to say nothing", got)
 	}
 }
 

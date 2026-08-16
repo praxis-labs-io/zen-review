@@ -159,6 +159,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.busy = false
 		m.summary = msg.text
 		m.note = noted(msg.text)
+
+		// Down here and not at the key, so a write that failed leaves the box up
+		// holding the words. Typing on while it was out keeps it up too.
+		if m.compose.Value() == msg.text {
+			m.compose.Close()
+		}
 		return m, nil
 
 	case staleMsg:
@@ -181,6 +187,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyPressMsg:
 		return m.press(msg)
+	}
+
+	// A paste arrives as a message of its own rather than as keys, so a box
+	// routed by press alone would silently drop one.
+	if m.compose.Active() {
+		var cmd tea.Cmd
+		m.compose, cmd = m.compose.Update(msg)
+		return m, cmd
 	}
 	return m, nil
 }
@@ -268,10 +282,10 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
-	// A press on no card at all is most presses of this key, and it has nothing
-	// to act on rather than something to refuse.
+	// A press with nothing to settle under it is most presses of this key, and it
+	// has nothing to act on rather than something to refuse.
 	if key.Matches(msg, m.keys.Resolve) {
-		id, on := m.diff.Comment()
+		id, on := m.settling()
 		if !on {
 			return m, nil
 		}
@@ -329,19 +343,23 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // box stays up when the save is refused, or the press would lose what was typed.
 func (m Model) typing(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
+	// The way out of anywhere. Raw mode sends no interrupt, so without this the
+	// box is the one place in the program where ctrl+c does nothing at all.
+	case key.Matches(msg, m.keys.Interrupt):
+		return m, tea.Quit
+
 	case key.Matches(msg, m.compose.Keys.Discard):
 		m.compose.Close()
 		return m, nil
 
 	case key.Matches(msg, m.compose.Keys.Save):
+		// Neutral, because busy covers a mark and a resolve as well as a reload.
 		if m.busy {
-			m.note = notice{text: "reloading"}
+			m.note = notice{text: "still writing"}
 			return m, nil
 		}
-		text := m.compose.Value()
-		m.compose.Close()
 
-		cmd := m.saveNote(text)
+		cmd := m.saveNote(m.compose.Value())
 		return m, cmd
 	}
 

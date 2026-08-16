@@ -319,6 +319,8 @@ func keystroke(k string) tea.KeyPressMsg {
 		return tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl}
 	case "ctrl+s":
 		return tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl}
+	case "ctrl+c":
+		return tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}
 	}
 
 	r := []rune(k)

@@ -52,10 +52,15 @@ func runExport(cmd *cobra.Command, opts *options) (err error) {
 		return err
 	}
 
+	summary, err := s.Summary(ctx)
+	if err != nil {
+		return err
+	}
+
 	v := exportView{
 		header:   statusHeader(s, st),
 		Title:    title(s),
-		Summary:  s.Summary(),
+		Summary:  summary,
 		Comments: (&filter{state: unresolvedState}).apply(all),
 	}
 

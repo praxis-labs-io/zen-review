@@ -1,8 +1,12 @@
 package app_test
 
 import (
+	"errors"
 	"strings"
 	"testing"
+
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 // TestTheNoteOpensOverWhatTheSessionSays. A session resumed days later already
@@ -74,6 +78,109 @@ func TestDiscardingTheNoteWritesNothing(t *testing.T) {
 	}
 	if strings.Contains(got, "what the session saysno") {
 		t.Errorf("the typing survived the discard:\n%s", got)
+	}
+}
+
+// TestAFailedSaveKeepsTheWords. The write is a local transaction that landed or
+// did not, and the only thing it can cost is what the reader typed.
+func TestAFailedSaveKeepsTheWords(t *testing.T) {
+	s := noting(t, "", 100, 24)
+	s.src.wroteErr = errors.New("the database is locked")
+	s.press("C", "h", "i", "ctrl+s")
+
+	got := s.frame()
+	if !strings.Contains(got, "the database is locked") {
+		t.Fatalf("the failure was not reported:\n%s", got)
+	}
+	if !strings.Contains(got, "Session note") {
+		t.Errorf("the box came down on a write that did not land:\n%s", got)
+	}
+	if !strings.Contains(got, "hi") {
+		t.Errorf("the words went with it:\n%s", got)
+	}
+
+	// And the retry writes them, rather than the reader typing them again.
+	s.src.wroteErr = nil
+	s.press("ctrl+s")
+
+	if got := s.calls(); len(got) != 1 || got[0] != `SetSummary "hi"` {
+		t.Errorf("the writes were %v, want the retry to carry the same words", got)
+	}
+}
+
+// TestTypingOnThroughASaveKeepsTheBox. The write is out for as long as it takes,
+// and a close landing on top of it would drop what was added meanwhile.
+func TestTypingOnThroughASaveKeepsTheBox(t *testing.T) {
+	s := noting(t, "", 100, 24)
+	s.press("C", "h", "i")
+
+	// Held, so the write is still out when the next key lands.
+	saving := s.hold(keystroke("ctrl+s"))
+	s.press("!")
+	s.drain(saving)
+
+	got := s.frame()
+	if !strings.Contains(got, "Session note") {
+		t.Fatalf("the box came down on the write it was typed past:\n%s", got)
+	}
+	if !strings.Contains(got, "hi!") {
+		t.Errorf("what was typed after the save is gone:\n%s", got)
+	}
+}
+
+// TestCtrlCReachesOutOfTheBox. Raw mode sends no interrupt, so the box would
+// otherwise be the one place in the program with no way out but esc.
+func TestCtrlCReachesOutOfTheBox(t *testing.T) {
+	s := noting(t, "", 100, 24)
+	s.press("C")
+
+	cmd := s.hold(keystroke("ctrl+c"))
+	if cmd == nil {
+		t.Fatal("ctrl+c in the box returned no command")
+	}
+	if _, quit := cmd().(tea.QuitMsg); !quit {
+		t.Error("ctrl+c in the box did not quit")
+	}
+}
+
+// TestAPasteReachesTheBox. Bracketed paste arrives as a message of its own
+// rather than as keys, and a note is the one thing here anybody pastes.
+func TestAPasteReachesTheBox(t *testing.T) {
+	s := noting(t, "", 100, 24)
+	s.press("C")
+	s.send(tea.PasteMsg{Content: "pasted from somewhere else"})
+	s.press("ctrl+s")
+
+	want := `SetSummary "pasted from somewhere else"`
+	if got := s.calls(); len(got) != 1 || got[0] != want {
+		t.Errorf("the writes were %v, want %q", got, want)
+	}
+}
+
+// TestTheBoxDrawsOnAFrameTooSmallForThePanes. It owns the keys wherever it is
+// up, and one that is not on screen is a reader pressing q into nothing.
+func TestTheBoxDrawsOnAFrameTooSmallForThePanes(t *testing.T) {
+	s := noting(t, "what the session says", 50, 10)
+
+	if got := s.frame(); !strings.Contains(got, "this needs") {
+		t.Fatalf("the frame is not the too-small one:\n%s", got)
+	}
+
+	s.press("C")
+	got := s.frame()
+	if !strings.Contains(got, "Session note") {
+		t.Errorf("the box took the keys and drew nothing:\n%s", got)
+	}
+	if !strings.Contains(got, "esc discard") {
+		t.Errorf("the way out is not on screen:\n%s", got)
+	}
+
+	// The composite pads what it trimmed, and this frame is built by a different
+	// path from the one the size table walks.
+	for i, line := range s.lines() {
+		if w := lipgloss.Width(line); w != 50 {
+			t.Errorf("line %d is %d columns, want 50: %q", i, w, line)
+		}
 	}
 }
 

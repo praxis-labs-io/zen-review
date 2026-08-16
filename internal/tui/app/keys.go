@@ -38,6 +38,10 @@ type KeyMap struct {
 	Help  key.Binding
 	Close key.Binding
 	Quit  key.Binding
+
+	// Interrupt is the half of Quit that reaches out of the composer. q is a
+	// letter while a body is being typed and ctrl+c is never one.
+	Interrupt key.Binding
 }
 
 // NewKeyMap is the bindings and the help text they carry.
@@ -85,6 +89,10 @@ func NewKeyMap() KeyMap {
 		Help:  key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 		Close: key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "close help")),
 		Quit:  key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
+
+		// No help of its own. Quit's entry names the key a reader looks for, and
+		// this one only exists to get out of a box that eats every other key.
+		Interrupt: key.NewBinding(key.WithKeys("ctrl+c")),
 	}
 }
 

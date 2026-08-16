@@ -2,21 +2,34 @@ package review_test
 
 import (
 	"testing"
+
+	"github.com/zen-review/zen-review/internal/review"
 )
+
+// summary is the note a session reads back, or the test that failed reading it.
+func summary(t *testing.T, s *review.Session) string {
+	t.Helper()
+
+	note, err := s.Summary(t.Context())
+	if err != nil {
+		t.Fatalf("reading the summary: %v", err)
+	}
+	return note
+}
 
 // The note is what a review concluded, so it outlives the process that wrote it.
 func TestTheSummaryOutlivesTheSession(t *testing.T) {
 	f := branched(t)
 
 	first := f.mustOpen("")
-	if first.Summary() != "" {
-		t.Errorf("summary = %q on a session nobody wrote one for, want empty", first.Summary())
+	if got := summary(t, first); got != "" {
+		t.Errorf("summary = %q on a session nobody wrote one for, want empty", got)
 	}
 	if err := first.SetSummary(t.Context(), "held the store changes"); err != nil {
 		t.Fatalf("writing the summary: %v", err)
 	}
-	if first.Summary() != "held the store changes" {
-		t.Errorf("summary = %q, want the session to read back what it wrote", first.Summary())
+	if got := summary(t, first); got != "held the store changes" {
+		t.Errorf("summary = %q, want the session to read back what it wrote", got)
 	}
 	if err := first.Close(); err != nil {
 		t.Fatalf("closing the first session: %v", err)
@@ -24,8 +37,29 @@ func TestTheSummaryOutlivesTheSession(t *testing.T) {
 
 	second := f.mustOpen("")
 
-	if second.Summary() != "held the store changes" {
-		t.Errorf("summary = %q on the resumed session, want the note that was written", second.Summary())
+	if got := summary(t, second); got != "held the store changes" {
+		t.Errorf("summary = %q on the resumed session, want the note that was written", got)
+	}
+}
+
+// A reader open for an hour is not a snapshot. Without this the composer opens
+// over what the session started with and the next save puts that back.
+func TestASessionReadsANoteAnotherWrote(t *testing.T) {
+	f := branched(t)
+
+	reader := f.mustOpen("")
+	defer func() { _ = reader.Close() }()
+
+	writer := f.mustOpen("")
+	if err := writer.SetSummary(t.Context(), "written from the other one"); err != nil {
+		t.Fatalf("writing the summary: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("closing the writing session: %v", err)
+	}
+
+	if got := summary(t, reader); got != "written from the other one" {
+		t.Errorf("summary = %q on the session that was already open, want the newer note", got)
 	}
 }
 
@@ -41,14 +75,13 @@ func TestAnEmptySummaryClearsTheNote(t *testing.T) {
 		t.Fatalf("clearing the summary: %v", err)
 	}
 
-	if s.Summary() != "" {
-		t.Errorf("summary = %q, want it cleared", s.Summary())
+	if got := summary(t, s); got != "" {
+		t.Errorf("summary = %q, want it cleared", got)
 	}
 }
 
-// Moving the base is a write of the same row, and it leaves the note where it
-// was. The two have different writers so that resuming a session cannot lose
-// what it concluded.
+// Moving the base is a write of the same row and leaves the note where it was.
+// The two have different writers so resuming cannot lose what it concluded.
 func TestMovingTheBaseKeepsTheSummary(t *testing.T) {
 	f := branched(t)
 	f.Git("branch", "other", "main")
@@ -66,7 +99,7 @@ func TestMovingTheBaseKeepsTheSummary(t *testing.T) {
 	if second.Base().Ref != "other" {
 		t.Errorf("base = %s, want the one just passed", second.Base().Ref)
 	}
-	if second.Summary() != "held the store changes" {
-		t.Errorf("summary = %q, want the base move to have left it alone", second.Summary())
+	if got := summary(t, second); got != "held the store changes" {
+		t.Errorf("summary = %q, want the base move to have left it alone", got)
 	}
 }

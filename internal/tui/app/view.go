@@ -94,14 +94,16 @@ func (m Model) View() tea.View {
 	return v
 }
 
+// content is the frame with whichever box is up drawn over it, the too-small
+// frame included: a box owning the keys off screen is a reader with nowhere to go.
 func (m Model) content() string {
-	if m.width < minWidth || m.height < minHeight {
-		return m.tooSmall()
+	frame := m.tooSmall()
+	if m.width >= minWidth && m.height >= minHeight {
+		frame = strings.Join([]string{m.body(), m.status()}, "\n")
 	}
-	frame := strings.Join([]string{m.body(), m.status()}, "\n")
 
-	// One or the other. The box has the keys while it is up, and the key that
-	// opens the help is a keystroke in the body.
+	// One or the other. The composer has the keys while it is up, and the key
+	// that opens the help is a keystroke in the body.
 	if m.compose.Active() {
 		return comp.Over(frame, m.compose.View(), m.width, m.height)
 	}

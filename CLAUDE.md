@@ -305,17 +305,26 @@ Its footer names the direction the key goes rather than the state it is in.
 
 `x` is named in the lit card's own footer rather than on the status bar, because
 it reaches one row on the screen and that row is where a reader looks for it. A
-settled card does not offer it, and the engine still takes the press: the state
-ladder lives in `review`, and a second copy of it in the TUI is a second thing
-to keep true. An orphan is offered it, that being the only thing left anyone can
-do with a comment whose code is gone.
+settled card neither offers it nor takes it: `ResolveComment` refuses a comment
+already resolved, and is right to, because freezing one twice re-records an
+anchor that stopped moving a generation ago. So the key has nothing to do there,
+the way it has nothing to do on a row with no card. An orphan is offered it,
+that being the only thing left anyone can do with a comment whose code is gone.
 
 The composer takes every key while it is up, `q` and `?` included. A note lost
 to the letter `q` cannot be taken back, and one key let out is one more thing to
-hold in mind while typing. `enter` is a newline in prose, so `ctrl+s` saves and
-`esc` discards; nothing else on screen says so, which is why the box carries
-both in its bottom border. A save refused because a reload is still in git
-leaves the box up rather than taking what was typed with it.
+hold in mind while typing. `ctrl+c` is the exception, because raw mode sends no
+interrupt and a box that ate it would be the one place in the program with no
+way out but `esc`. `enter` is a newline in prose, so `ctrl+s` saves and `esc`
+discards; nothing else on screen says so, which is why the box carries both in
+its bottom border.
+
+The box comes down when the write lands, not when the key is pressed. A save
+that failed leaves it up holding the words, and so does one the reader typed
+past: the only thing a local transaction can cost is what was typed into it. It
+draws over the too-small frame as well, a box owning the keys off screen being a
+reader with nowhere to go. A paste arrives as its own message rather than as
+keys, so the root routes what is not a key press into it too.
 
 The label says only what the card's own position cannot. A card under its line
 needs no line number, because the gutter beside it has one. A range says the run
