@@ -1160,3 +1160,59 @@ func TestZtLandsUnderTheHeadingItAsksToSee(t *testing.T) {
 		t.Errorf("zt put the cursor under the pin and lost it:\n%s", joined(t, m))
 	}
 }
+
+// TestAPagingKeyParksTheCursorMidWindow, so the file runs past a cursor that
+// stays put and the eye keeps one place to read from.
+//
+// Three phases: the cursor reaches the middle without the window moving, then
+// the window carries it, then the window stops and it goes on to the last row.
+func TestAPagingKeyParksTheCursorMidWindow(t *testing.T) {
+	const height = 7
+
+	m := pane(t, twoHunks, 62, height)
+	m.Select(store.SideHead, 13)
+
+	m = press(t, m, halfDown)
+	if got := m.Scroll().Offset; got != 0 {
+		t.Errorf("the first page scrolled to %d, want the window still at the top", got)
+	}
+	if got := m.Cursor(); got != (height-1)/2 {
+		t.Errorf("the first page put the cursor on row %d, want the middle", got)
+	}
+
+	m = press(t, m, halfDown)
+	if got := m.Cursor() - m.Scroll().Offset; got != (height-1)/2 {
+		t.Errorf("the second page left the cursor on screen row %d, want the middle", got)
+	}
+
+	for range 6 {
+		m = press(t, m, halfDown)
+	}
+	if got, want := m.Cursor(), m.Scroll().Total-1; got != want {
+		t.Errorf("paging to the end left the cursor on row %d, want the last at %d", got, want)
+	}
+}
+
+// TestAPagingKeyParksGoingUpToo, and lands the cursor on the first row once the
+// window has run out of file above it.
+func TestAPagingKeyParksGoingUpToo(t *testing.T) {
+	const height = 7
+
+	m := pane(t, twoHunks, 62, height)
+	m.Select(store.SideHead, 124)
+	m = press(t, m, halfDown, halfDown, halfUp)
+
+	if got := m.Cursor() - m.Scroll().Offset; got != (height-1)/2 {
+		t.Errorf("ctrl+u left the cursor on screen row %d, want the middle", got)
+	}
+
+	for range 6 {
+		m = press(t, m, halfUp)
+	}
+	if got := m.Cursor(); got != 0 {
+		t.Errorf("paging to the top left the cursor on row %d, want the first", got)
+	}
+	if got := m.Scroll().Offset; got != 0 {
+		t.Errorf("the window sat at %d with the cursor on the first row", got)
+	}
+}
