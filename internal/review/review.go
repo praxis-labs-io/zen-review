@@ -13,6 +13,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"time"
@@ -119,9 +120,20 @@ func (s *Session) Repo() string {
 // Base is what the changeset is measured from.
 func (s *Session) Base() Base { return s.base }
 
-// Summary is the session-level note, and empty on a session nobody has written
-// one for.
-func (s *Session) Summary() string { return s.row.Summary }
+// Summary is the session-level note, read rather than answered off the row this
+// session opened on: a reader open for an hour is not a snapshot.
+func (s *Session) Summary(ctx context.Context) (string, error) {
+	row, found, err := s.db.Session(ctx, s.row.ID)
+	if err != nil {
+		return "", err
+	}
+	if !found {
+		return "", fmt.Errorf("the session %s is no longer in the database", s.row.ID)
+	}
+
+	s.row.Summary = row.Summary
+	return row.Summary, nil
+}
 
 // SetSummary writes the session-level note, replacing whatever was there. Empty
 // clears it, which is the only way to take one back.

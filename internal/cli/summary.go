@@ -70,9 +70,14 @@ func runSummary(cmd *cobra.Command, opts *options, set string) (err error) {
 		return err
 	}
 
+	summary, err := s.Summary(ctx)
+	if err != nil {
+		return err
+	}
+
 	v := summaryView{
 		header:  statusHeader(s, st),
-		Summary: s.Summary(),
+		Summary: summary,
 		Width:   screen(cmd.OutOrStdout()),
 	}
 	return emit(cmd.OutOrStdout(), v, opts.asJSON)

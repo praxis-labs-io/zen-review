@@ -128,7 +128,7 @@ func (m Model) drawCard(c store.Comment, placed bool) ([]string, []string) {
 	box := comp.NewPane(m.theme).Label(m.cardLabel(c, placed)).Size(width, len(body)+2)
 
 	plain := lines(box.Focus(false).Render(strings.Join(body, "\n")))
-	lit := lines(box.Focus(true).Footer("", m.cardHints(width, placed, folded)).
+	lit := lines(box.Focus(true).Footer("", m.cardHints(c, width, placed, folded)).
 		Render(strings.Join(body, "\n")))
 
 	for i := range plain {
@@ -239,9 +239,9 @@ func span(c store.Comment) string {
 	return strconv.Itoa(c.Start) + "-" + strconv.Itoa(c.End)
 }
 
-// cardHints is what the lit card answers to, dropped from the tail until the
-// line fits its border. enter is absent on a card with no line to go to.
-func (m Model) cardHints(width int, placed, folded bool) string {
+// cardHints is what the lit card answers to, dropped from the tail until it
+// fits. x is the root's key, named here because the card is what it reaches.
+func (m Model) cardHints(c store.Comment, width int, placed, folded bool) string {
 	// The word is the direction the key goes, not the state it is in. A folded
 	// card naming the fold says the press would do what has been done.
 	word := "space fold"
@@ -250,6 +250,9 @@ func (m Model) cardHints(width int, placed, folded bool) string {
 	}
 
 	parts := []string{word}
+	if c.State != store.CommentResolved {
+		parts = append([]string{"x resolve"}, parts...)
+	}
 	if placed {
 		parts = append([]string{"⏎ line"}, parts...)
 	}

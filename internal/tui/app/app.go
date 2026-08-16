@@ -19,6 +19,7 @@ import (
 	"github.com/zen-review/zen-review/internal/review"
 	"github.com/zen-review/zen-review/internal/store"
 	"github.com/zen-review/zen-review/internal/tui/comp"
+	"github.com/zen-review/zen-review/internal/tui/compose"
 	"github.com/zen-review/zen-review/internal/tui/diffpane"
 	"github.com/zen-review/zen-review/internal/tui/tree"
 )
@@ -50,12 +51,17 @@ type Model struct {
 	// changeset was derived at. The diff pane draws the ones on the file it holds.
 	comments []store.Comment
 
+	// summary is the session note. Nothing draws it: C opens the composer over
+	// it, and the report is where it is read back.
+	summary string
+
 	// note is what the last reload found, until the next key clears it.
 	note notice
 
-	tree tree.Model
-	diff diffpane.Model
-	help help.Model
+	tree    tree.Model
+	diff    diffpane.Model
+	help    help.Model
+	compose compose.Model
 
 	// The frames the two panes are drawn in. They hold the size, so the model
 	// asks them what is left inside rather than subtracting the border twice.
@@ -92,9 +98,11 @@ func New(t theme.Theme, src Source, repo string, r Reload) Model {
 		gen:       r.Generation,
 		changeset: r.Changeset,
 		comments:  r.Comments,
+		summary:   r.Summary,
 		tree:      tree.New(t, r.Changeset),
 		diff:      diffpane.New(t),
 		help:      comp.Help(t),
+		compose:   compose.New(t),
 		treePane:  comp.NewPane(t),
 		diffPane:  comp.NewPane(t),
 	}
@@ -141,6 +149,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.applyWrite(msg)
 		return m, nil
 
+	case resolvedMsg:
+		m.busy = false
+		m.apply(msg.r)
+		m.note = notice{text: m.answered()}
+		return m, nil
+
+	case notedMsg:
+		m.busy = false
+		m.summary = msg.text
+		m.note = noted(msg.text)
+
+		// Down here and not at the key, so a write that failed leaves the box up
+		// holding the words. Typing on while it was out keeps it up too.
+		if m.compose.Value() == msg.text {
+			m.compose.Close()
+		}
+		return m, nil
+
 	case staleMsg:
 		m.busy = false
 		m.note = notice{text: msg.err.Error() + ": press s", bad: true}
@@ -162,10 +188,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		return m.press(msg)
 	}
+
+	// A paste arrives as a message of its own rather than as keys, so a box
+	// routed by press alone would silently drop one.
+	if m.compose.Active() {
+		var cmd tea.Cmd
+		m.compose, cmd = m.compose.Update(msg)
+		return m, cmd
+	}
 	return m, nil
 }
 
 func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	// The box takes every key, quit and help included. A q mid-sentence is a q,
+	// and one key let out is one more thing to keep in mind while typing.
+	if m.compose.Active() {
+		return m.typing(msg)
+	}
+
 	// One press long, so it goes before the press that ends it is read. A reload
 	// still in git is the exception: the press did not end that, and the bar is
 	// the only thing saying it is happening.
@@ -233,6 +273,30 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
+	// The note is the session's rather than a hunk's, so it sits with the reload
+	// rather than in a pane. Opening it writes nothing and waits on nothing.
+	if key.Matches(msg, m.keys.Note) {
+		// Called before the return rather than in it: the order of a plain
+		// operand against a call beside it is the spec's to choose, not ours.
+		cmd := m.composing()
+		return m, cmd
+	}
+
+	// A press with nothing to settle under it is most presses of this key, and it
+	// has nothing to act on rather than something to refuse.
+	if key.Matches(msg, m.keys.Resolve) {
+		id, on := m.settling()
+		if !on {
+			return m, nil
+		}
+		m.note = notice{text: "resolving"}
+		if m.busy {
+			return m, nil
+		}
+		cmd := m.resolve(id)
+		return m, cmd
+	}
+
 	// The comment ring crosses files the way the hunk ring does, so it is routed
 	// here rather than in the pane that holds the cards.
 	if by, mine := m.stepping(msg); mine {
@@ -272,6 +336,35 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.diff, cmd = m.diff.Update(msg)
 		m.syncCursor()
 	}
+	return m, cmd
+}
+
+// typing routes a key into the composer, answering the two it owns first. The
+// box stays up when the save is refused, or the press would lose what was typed.
+func (m Model) typing(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch {
+	// The way out of anywhere. Raw mode sends no interrupt, so without this the
+	// box is the one place in the program where ctrl+c does nothing at all.
+	case key.Matches(msg, m.keys.Interrupt):
+		return m, tea.Quit
+
+	case key.Matches(msg, m.compose.Keys.Discard):
+		m.compose.Close()
+		return m, nil
+
+	case key.Matches(msg, m.compose.Keys.Save):
+		// Neutral, because busy covers a mark and a resolve as well as a reload.
+		if m.busy {
+			m.note = notice{text: "still writing"}
+			return m, nil
+		}
+
+		cmd := m.saveNote(m.compose.Value())
+		return m, cmd
+	}
+
+	var cmd tea.Cmd
+	m.compose, cmd = m.compose.Update(msg)
 	return m, cmd
 }
 

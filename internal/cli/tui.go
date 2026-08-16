@@ -94,6 +94,28 @@ func (r *reloader) UnmarkFile(g review.Generation, f review.File) (app.Reload, e
 	return r.wrote(g, func() error { return r.s.UnmarkFile(r.ctx, g, f) })
 }
 
+func (r *reloader) ResolveComment(g review.Generation, id string) (app.Reload, error) {
+	return r.wrote(g, func() error {
+		_, err := r.s.ResolveComment(r.ctx, id)
+		return err
+	})
+}
+
+// SetSummary writes the note and reads back what landed. It names no generation
+// because the note is the session's, so nothing here can go stale.
+func (r *reloader) SetSummary(text string) (string, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.shut {
+		return "", errors.New("the reader closed the session before this note started")
+	}
+	if err := r.s.SetSummary(r.ctx, text); err != nil {
+		return "", err
+	}
+	return r.s.Summary(r.ctx)
+}
+
 // wrote runs one write and hands back the changeset it left, re-derived at the
 // generation the write named rather than refreshed. It moved no git.
 func (r *reloader) wrote(g review.Generation, do func() error) (app.Reload, error) {
@@ -111,7 +133,7 @@ func (r *reloader) wrote(g review.Generation, do func() error) (app.Reload, erro
 	// screen behind the review rather than the review unwritten, so it says so.
 	rel, err := r.at(g)
 	if err != nil {
-		return app.Reload{}, fmt.Errorf("the mark was saved and the screen is behind it: %w", err)
+		return app.Reload{}, fmt.Errorf("the write was saved and the screen is behind it: %w", err)
 	}
 	return rel, nil
 }
@@ -128,7 +150,21 @@ func (r *reloader) at(g review.Generation) (app.Reload, error) {
 	if err != nil {
 		return app.Reload{}, err
 	}
-	return app.Reload{Base: r.s.Base(), Generation: g, Changeset: c, Comments: comments}, nil
+
+	// Read here rather than held from open, so a note another instance wrote
+	// reaches the composer instead of being overwritten by what it opened with.
+	summary, err := r.s.Summary(r.ctx)
+	if err != nil {
+		return app.Reload{}, err
+	}
+
+	return app.Reload{
+		Base:       r.s.Base(),
+		Generation: g,
+		Changeset:  c,
+		Comments:   comments,
+		Summary:    summary,
+	}, nil
 }
 
 // close releases the session, waiting on a reload still running and refusing
