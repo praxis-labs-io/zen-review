@@ -1,6 +1,7 @@
 package review_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -560,6 +561,28 @@ func TestARefusedGenerationPutsTheRefBack(t *testing.T) {
 	}
 	if built := f.generations(slow.Ref()); built != latest.Seq {
 		t.Errorf("the ref chain holds %d generations and the database holds %d", built, latest.Seq)
+	}
+}
+
+// A cancel is the other way the row does not land, and the commoner one: it is
+// a reader quitting rather than two instances racing.
+func TestACancelledRefreshStillPutsTheRefBack(t *testing.T) {
+	f := edited(t)
+	s := f.mustOpen("")
+
+	ctx, cancel := context.WithCancel(t.Context())
+	s.AfterSwap(cancel)
+
+	if _, err := s.Refresh(ctx); err == nil {
+		t.Fatal("the cancelled refresh reported a generation")
+	}
+
+	// The first refresh created the ref, so putting it back is deleting it.
+	if refs := f.sessionRefs(); refs != nil {
+		t.Errorf("refs = %v, want the swap taken back", refs)
+	}
+	if _, found := f.latest(s.ID()); found {
+		t.Error("a cancelled refresh wrote a generation row")
 	}
 }
 
