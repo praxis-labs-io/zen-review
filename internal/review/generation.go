@@ -212,9 +212,21 @@ func (s *Session) Refresh(ctx context.Context) (Generation, error) {
 		CreatedAt: now,
 	}, genFiles(files), advance)
 	if err != nil {
-		return Generation{}, lost(err)
+		return Generation{}, errors.Join(lost(err), s.unwind(ctx, commit, old))
 	}
 	return generationOf(row, snap.Skipped), nil
+}
+
+// unwind takes this refresh's commit back off the ref, the row it swapped for
+// having not landed. An empty old is the ref this refresh created.
+func (s *Session) unwind(ctx context.Context, commit, old string) error {
+	// A third instance already past us keeps the ref, leaving the state a crash
+	// here leaves, which Ref documents and the next refresh carries on from.
+	if err := s.repo.UpdateRef(ctx, s.Ref(), old, commit); err != nil &&
+		!errors.Is(err, git.ErrRefMoved) {
+		return err
+	}
+	return nil
 }
 
 // lost is the generation write refusing because the session advanced under it.
