@@ -268,3 +268,17 @@ func TestNothingCarriesACursorWithNoBoxUp(t *testing.T) {
 		t.Errorf("the frame carries a cursor at %d,%d with no box up", c.X, c.Y)
 	}
 }
+
+// TestASaveDropsTheEnterItWasFinishedOn, the way a body off stdin loses the one
+// a heredoc leaves. The card draws every break, so a stray one is a blank row.
+func TestASaveDropsTheEnterItWasFinishedOn(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24)
+	s.press("j", "c", "h", "i")
+	s.send(tea.KeyPressMsg{Code: tea.KeyEnter})
+	s.press("ctrl+s")
+
+	want := `AddComment a.go head:1-1 line "hi" gen=2`
+	if got := s.calls(); len(got) != 1 || got[0] != want {
+		t.Errorf("the writes were %v, want %q", got, want)
+	}
+}

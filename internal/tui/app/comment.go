@@ -211,6 +211,10 @@ func (m Model) drafting(msg tea.Msg) (tea.Model, tea.Cmd) {
 // save is the write the box makes: a rewrite where it is standing in for a card,
 // and a new comment where it is not.
 func (m *Model) save(body string) tea.Cmd {
+	// Trailing whitespace goes, the way it does off stdin: the enter somebody
+	// finished on is not a line of the comment, and the card would draw it.
+	body = strings.TrimRight(body, " \t\r\n")
+
 	if m.editing != "" {
 		return m.saveEdit(body)
 	}

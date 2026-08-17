@@ -305,3 +305,31 @@ func TestTheBoxStopsAtThePane(t *testing.T) {
 		t.Errorf("the box is %d rows, want 10", got)
 	}
 }
+
+// TestTheBoxOpensOnAWrappedBodyWholeAndUnscrolled. It counts the rows its lines
+// wrap into, so a body that folds twice at this width does not scroll away.
+func TestTheBoxOpensOnAWrappedBodyWholeAndUnscrolled(t *testing.T) {
+	body := "the first line of it, which is long enough to fold at this width\n" +
+		"and a second\n" +
+		"and a third line, also long enough to fold at the width this is drawn at\n" +
+		"the last line says LASTLINE"
+	card := testchangeset.Comment("cccccccccccc", twoHunks, 13, 13, body)
+
+	m := editing(t, 60, 30, card)
+
+	got := joined(t, m)
+	if !strings.Contains(got, "the first line of it") {
+		t.Errorf("the box opened scrolled past its first line:\n%s", got)
+	}
+	if !strings.Contains(got, "LASTLINE") {
+		t.Errorf("the box is too short for its last line:\n%s", got)
+	}
+
+	// A blank row inside the box is one the wrapping was not counted for.
+	lines := rows(t, m)
+	for i := at(t, lines, "◇ editing") + 1; i < at(t, lines, "ctrl+s save"); i++ {
+		if strings.TrimSpace(strings.ReplaceAll(lines[i], "│", "")) == "" {
+			t.Errorf("row %d inside the box is blank:\n%s", i, got)
+		}
+	}
+}

@@ -623,11 +623,11 @@ func (m *Model) SetSize(width, height int) {
 
 	m.width, m.height = width, height
 
-	// Width first: how many rows the box needs is a question about the width it
-	// is asked at.
+	// Width first: how many rows the box wraps into is a question about the width
+	// it is asked at.
 	if m.draft != nil {
 		m.draft.area.SetWidth(m.draftWidth())
-		m.draft.area.SetHeight(m.draftHeight())
+		m.capBox()
 	}
 	m.relayout(was)
 	m.reveal()

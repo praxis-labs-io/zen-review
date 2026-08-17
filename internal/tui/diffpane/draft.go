@@ -61,13 +61,18 @@ func (m *Model) open(c store.Comment, body, edits string) (tea.Cmd, bool) {
 	}
 	c.ID, c.Body = draftID, ""
 
+	// The textarea keeps its own height off the rows it wraps into, which is the
+	// count this cannot make: only it knows where its lines broke.
 	area := comp.Textarea(m.theme)
+	area.DynamicHeight = true
+	area.MinHeight = draftRows
+
 	area.SetWidth(m.draftWidth())
 	area.SetValue(body)
 
 	m.clearSelection()
 	m.draft = &draft{at: c, area: area, path: m.file.Diff.Path, edits: edits}
-	m.draft.area.SetHeight(m.draftHeight())
+	m.capBox()
 
 	// Focused before the box is drawn, or the first frame is one with no cursor
 	// in it and the reader has to type to find out where they are.
@@ -144,11 +149,13 @@ func (m *Model) CloseDraft() {
 // typing takes a key to the body and redraws the box in place. Nothing else on
 // screen moves for it until the box grows, which pushes the file down a row.
 func (m *Model) typing(msg tea.Msg) tea.Cmd {
+	was := m.draft.area.Height()
+
 	var cmd tea.Cmd
 	m.draft.area, cmd = m.draft.area.Update(msg)
+	m.capBox()
 
-	if h := m.draftHeight(); h != m.draft.area.Height() {
-		m.draft.area.SetHeight(h)
+	if m.draft.area.Height() != was {
 		m.grew()
 		return cmd
 	}
@@ -172,20 +179,14 @@ func (m *Model) grew() {
 	}
 }
 
-// draftHeight is the rows the box needs: every line it holds at the width it is
-// drawn in, never under draftRows and never taller than the pane.
-func (m Model) draftHeight() int {
-	width := m.draftWidth()
-
-	// Floor and not ceiling: the cursor sits after the last character, so a line
-	// filling the width exactly has already started the row under it.
-	rows := 0
-	for _, line := range strings.Split(m.draft.area.Value(), "\n") {
-		rows += lipgloss.Width(line)/width + 1
+// capBox holds the box to what the pane can draw around it: its two borders, the
+// line it hangs under, and the heading pinned over that. Past there it scrolls.
+func (m *Model) capBox() {
+	// Here rather than as the textarea's MaxHeight, which is also a limit on how
+	// many lines may be typed at all.
+	if room := max(m.height-4, 1); m.draft.area.Height() > room {
+		m.draft.area.SetHeight(room)
 	}
-	// Its two borders, the line it hangs under, and the heading pinned over that.
-	// A box past this loses its own footer to the clamp that keeps the line.
-	return min(max(rows, draftRows), max(m.height-4, 1))
 }
 
 // anchorOf is the row a card hangs under, or its own first row when the diff
