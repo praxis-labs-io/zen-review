@@ -20,9 +20,6 @@ func TestNoErrorMessageBeginsWithAValueTheCallerSupplied(t *testing.T) {
 	const marker = "zzmarkerzz"
 
 	for _, err := range []error{
-		&review.StackedError{Detected: marker, Candidates: []review.Candidate{{Branch: marker}}},
-		&review.NoMergeBaseError{Ref: marker},
-		&review.UnresolvableBaseError{Ref: marker},
 		&review.TooLargeError{Count: 6000, Limit: 5000, Dir: marker, InDir: 5900},
 		&review.TooLargeError{Count: 6000, Limit: 5000},
 		&review.StaleGenerationError{Seq: 3, Current: 4},

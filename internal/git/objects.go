@@ -151,6 +151,18 @@ func (r *Repo) SnapshotTree(ctx context.Context) (Snapshot, error) {
 	return Snapshot{Tree: trim(tree.stdout), Skipped: skipped}, nil
 }
 
+// EmptyTree is the tree with nothing in it, which is what an unborn HEAD is
+// measured from. Asked of git rather than hardcoded, so sha256 answers too.
+func (r *Repo) EmptyTree(ctx context.Context) (string, error) {
+	// mktree reads its entries from stdin, and exec hands a nil Stdin the null
+	// device, so it sees end-of-input and writes the empty tree.
+	out, err := run(ctx, r.root, "mktree")
+	if err != nil {
+		return "", fmt.Errorf("writing the empty tree: %w", err)
+	}
+	return trim(out), nil
+}
+
 // CommitTree writes a commit object. An empty parents makes a root commit.
 func (r *Repo) CommitTree(ctx context.Context, tree string, parents []string, message string, sig Signature) (string, error) {
 	args := []string{"commit-tree", tree}

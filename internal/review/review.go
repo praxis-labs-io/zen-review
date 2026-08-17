@@ -34,6 +34,23 @@ type Options struct {
 type Base struct {
 	Ref string
 	SHA string
+
+	// Fallback says why this is not the base a reader would expect, and is empty
+	// when nothing was passed over. A base carrying one is never stored.
+	Fallback string
+}
+
+// EmptyTree is a base with no commit under it: HEAD is unborn, so the changeset
+// is measured from the empty tree and no commit can parent on it.
+func (b Base) EmptyTree() bool { return b.Ref == "" }
+
+// Name is the base as a reader reads it. The empty tree has a sha and no ref to
+// be named by.
+func (b Base) Name() string {
+	if b.EmptyTree() {
+		return "empty tree"
+	}
+	return b.Ref
 }
 
 // Session is one repository plus one thing to review in it, open against the
@@ -52,12 +69,7 @@ type Session struct {
 }
 
 // Open resolves the session for the repository containing path, creating it on
-// first use, and settles what the changeset is measured from.
-//
-// It can refuse: a branch stacked on another local branch with no base chosen
-// yet returns *StackedError rather than guessing, and a base that no longer
-// resolves or no longer shares history says so instead of quietly picking
-// something else. The caller closes what it opens.
+// first use, and settles what it is measured from. The caller closes it.
 func Open(ctx context.Context, path string, opts Options) (*Session, error) {
 	repo, err := git.Open(ctx, path)
 	if err != nil {
@@ -181,10 +193,17 @@ func (s *Session) load(ctx context.Context, head git.Head, opts Options) error {
 		return err
 	}
 
+	// A fallback stores no ref. It is a guess made because the base asked for was
+	// not there, so it is made again rather than kept once the repository moves.
+	ref := base.Ref
+	if base.Fallback != "" {
+		ref = ""
+	}
+
 	// Written only when something changed. Opening a session to read its status
 	// twice should not touch the database the second time.
-	if !found || row.BaseRef != base.Ref {
-		row.BaseRef = base.Ref
+	if !found || row.BaseRef != ref {
+		row.BaseRef = ref
 		row.UpdatedAt = now
 		if err := s.db.SaveSession(ctx, row); err != nil {
 			return err

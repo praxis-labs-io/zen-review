@@ -11,6 +11,10 @@ import (
 )
 
 func (m Model) View() string {
+	if len(m.rows) == 0 {
+		return comp.Placeholder(m.theme, "no files changed", m.width, m.height)
+	}
+
 	blank := strings.Repeat(" ", max(0, m.width))
 
 	lines := make([]string, 0, m.height)

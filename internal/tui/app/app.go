@@ -112,6 +112,12 @@ func New(t theme.Theme, src Source, repo string, r Reload) Model {
 	}
 	m.setFocus(focusDiff)
 
+	// The base is not the one a reader would expect, and the bar is the only
+	// thing on screen with room to say why.
+	if r.Base.Fallback != "" {
+		m.note = notice{text: r.Base.Fallback, tone: warn}
+	}
+
 	if s, ok := m.opening(); ok {
 		m.land(s)
 	}
@@ -186,17 +192,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// what it holds is written, and pressing save again would write it twice.
 		m.busy = false
 		m.shut()
-		m.note = notice{text: msg.err.Error() + ": press s", bad: true}
+		m.note = notice{text: msg.err.Error() + ": press s", tone: bad}
 		return m, nil
 
 	case staleMsg:
 		m.busy = false
-		m.note = notice{text: msg.err.Error() + ": " + m.wayBack(), bad: true}
+		m.note = notice{text: msg.err.Error() + ": " + m.wayBack(), tone: bad}
 		return m, nil
 
 	case writeFailedMsg:
 		m.busy = false
-		m.note = notice{text: msg.err.Error(), bad: true}
+		m.note = notice{text: msg.err.Error(), tone: bad}
 		return m, nil
 
 	case reloadFailedMsg:
@@ -204,7 +210,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// transaction that committed or did not, and there is no half-applied
 		// state to paint over.
 		m.busy = false
-		m.note = notice{text: msg.err.Error(), bad: true}
+		m.note = notice{text: msg.err.Error(), tone: bad}
 		return m, nil
 
 	case tea.KeyPressMsg:

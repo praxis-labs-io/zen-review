@@ -154,6 +154,27 @@ order is the order it walked the index in, and one ordering from the engine is
 what keeps the printed table and the tree pane from disagreeing about what is
 first. Nothing above `review` sorts.
 
+### The base
+
+Nothing about the base stops the reader opening. The only startup that still
+fails is a directory that is not a repository, because there is nothing there to
+open. A refusal a reader cannot act on from inside the tool is a refusal that
+sends them to the shell to guess.
+
+So detection walks a ladder and always reaches the bottom of it: `origin/HEAD`,
+a local `main` or `master` that is not the branch HEAD is on, then HEAD itself,
+where the changeset is whatever has not been committed. A HEAD with no commit
+under it is measured from the empty tree, and every file reads as new. A branch
+stacked on another local branch takes the branch under it, which is the answer
+the candidate walk was already computing. A ref that stops resolving and one
+that loses the fork point are both a rung to step off.
+
+Every rung it steps off is a sentence on `Base.Fallback`: what it took and why.
+The CLI prints it under the headings, the reader gets it on the status bar on
+open, and `--base` is how it is corrected until `b` exists. A base that fell back
+is never stored, because it is a guess made for want of the one asked for, and
+storing it would keep the guess after the repository moved past it.
+
 ### Sessions and generations
 
 A session is one repo plus one branch, resumable days later. A generation is a

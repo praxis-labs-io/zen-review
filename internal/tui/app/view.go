@@ -178,7 +178,7 @@ func (m Model) facts() []fact {
 	subtle := lipgloss.NewStyle().Foreground(m.theme.Subtle)
 
 	return []fact{
-		{m.base.Ref, subtle.Render(short(m.base.SHA))},
+		{m.base.Name(), subtle.Render(short(m.base.SHA))},
 		{"Generation", subtle.Render(strconv.Itoa(m.gen.Seq))},
 		{"Reviewed", m.burndown()},
 		{"Comments", m.settled()},
@@ -280,9 +280,9 @@ func (m Model) status() string {
 		return m.pad(m.bar(m.width), m.width)
 	}
 
-	// A failed reload takes the whole line. It is a sentence rather than a
-	// label, and the keys are one press away where the reason it gives is not.
-	if m.note.bad {
+	// A sentence takes the whole line, where a label shares it with the keys.
+	// The keys are one press away and the reason a sentence gives is not.
+	if m.note.tone != plain {
 		return m.pad(right, m.width)
 	}
 
@@ -306,7 +306,10 @@ func (m Model) said() string {
 	}
 
 	c := m.theme.Subtle
-	if m.note.bad {
+	switch m.note.tone {
+	case warn:
+		c = m.theme.Warning
+	case bad:
 		c = m.theme.Error
 	}
 	return lipgloss.NewStyle().Foreground(c).Render(comp.Safe(m.note.text))

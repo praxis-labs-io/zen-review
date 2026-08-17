@@ -12,6 +12,7 @@ import (
 	"github.com/zen-kit/zen-kit/theme"
 
 	"github.com/zen-review/zen-review/internal/golden"
+	"github.com/zen-review/zen-review/internal/review"
 	"github.com/zen-review/zen-review/internal/store"
 	"github.com/zen-review/zen-review/internal/testchangeset"
 )
@@ -1194,5 +1195,55 @@ func TestAFailedReloadStillFillsTheBar(t *testing.T) {
 		if got := lipgloss.Width(s.bar()); got != width {
 			t.Errorf("at %d columns the error bar is %d wide: %q", width, got, s.bar())
 		}
+	}
+}
+
+// A changeset with nothing in it draws two panes saying so. Two blank boxes are
+// a state the reader has to read as an answer.
+func TestAnEmptyChangesetSaysSoInBothPanes(t *testing.T) {
+	base := review.Base{Ref: "origin/main", SHA: "a1b2c3d4e5f67890"}
+
+	frame := measured(t, base, review.Changeset{}, 100, 16).frame()
+
+	for _, want := range []string{"no files changed", "nothing to review"} {
+		if !strings.Contains(frame, want) {
+			t.Errorf("the frame is missing %q:\n%s", want, frame)
+		}
+	}
+}
+
+// The base is not the one a reader would expect, and the bar is the only thing
+// on screen with room to say why.
+func TestAFallbackBaseIsNamedOnTheStatusBar(t *testing.T) {
+	base := review.Base{
+		Ref:      "HEAD",
+		SHA:      "a1b2c3d4e5f67890",
+		Fallback: "this repository has no origin/HEAD, so the changeset is what has not been committed",
+	}
+
+	s := measured(t, base, testchangeset.Derive(t, ringPatch), 200, 16)
+
+	if !strings.Contains(s.bar(), base.Fallback) {
+		t.Errorf("bar = %q, want it to carry the fallback", s.bar())
+	}
+	if got := lipgloss.Width(s.bar()); got != 200 {
+		t.Errorf("the fallback bar is %d wide, want the whole line: %q", got, s.bar())
+	}
+
+	// The next key is what clears it, the way it clears anything a reload said.
+	if got := s.press("j").bar(); strings.Contains(got, base.Fallback) {
+		t.Errorf("bar = %q, want the next press to have cleared the notice", got)
+	}
+}
+
+// The empty tree has a sha and no ref, so the fact under the tree names it
+// rather than sitting there blank beside a sha.
+func TestTheEmptyTreeBaseIsNamedInTheFacts(t *testing.T) {
+	base := review.Base{SHA: "4b825dc642cb6eb9a060e54bf8d69288fbee4904"}
+
+	frame := measured(t, base, review.Changeset{}, 100, 16).frame()
+
+	if !strings.Contains(frame, "empty tree") {
+		t.Errorf("the frame does not name the base:\n%s", frame)
 	}
 }

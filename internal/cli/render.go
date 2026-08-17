@@ -47,20 +47,26 @@ func (v view) render() string {
 // answer.
 func (v header) empty(b *strings.Builder) {
 	if v.reason() == fresh {
-		fmt.Fprintf(b, "\nno changes since %s\n", v.Base.Ref)
+		fmt.Fprintf(b, "\nno changes since %s\n", v.Base.Name())
 		return
 	}
-	fmt.Fprintf(b, "\ngeneration %d held no changes since %s\n", v.Generation.Seq, v.Base.Ref)
+	fmt.Fprintf(b, "\ngeneration %d held no changes since %s\n", v.Generation.Seq, v.Base.Name())
 }
 
 // write is the three headings and the sentence about the generation, which every
 // command opens with.
 func (v header) write(b *strings.Builder) {
-	fmt.Fprintf(b, label, "base", fmt.Sprintf("%s (%s)", v.Base.Ref, short(v.Base.SHA)))
+	fmt.Fprintf(b, label, "base", fmt.Sprintf("%s (%s)", v.Base.Name(), short(v.Base.SHA)))
 	if v.Exists {
 		fmt.Fprintf(b, label, "generation", fmt.Sprint(v.Generation.Seq))
 	}
 	fmt.Fprintf(b, label, "session", v.Ref)
+
+	// The base is not the one a reader would expect, so it says which and why
+	// before it says anything about the changeset measured from it.
+	if v.Base.Fallback != "" {
+		fmt.Fprintf(b, "%s\n", v.Base.Fallback)
+	}
 
 	switch {
 	case !v.Exists:
@@ -209,6 +215,10 @@ type payload struct {
 type baseJSON struct {
 	Ref string `json:"ref"`
 	SHA string `json:"sha"`
+
+	// Fallback is why this is not the base that was asked for, and is absent when
+	// it is. Ref is empty beside it only for the empty tree, which has no ref.
+	Fallback string `json:"fallback,omitempty"`
 }
 
 type generationJSON struct {
@@ -251,7 +261,7 @@ func headerOf(v header) headerJSON {
 		Ref:         v.Ref,
 		Kind:        string(v.Kind),
 		Branch:      v.Branch,
-		Base:        baseJSON{Ref: v.Base.Ref, SHA: v.Base.SHA},
+		Base:        baseJSON{Ref: v.Base.Ref, SHA: v.Base.SHA, Fallback: v.Base.Fallback},
 		Stale:       v.Stale,
 		StaleReason: v.reason(),
 		Skipped:     make([]string, 0, len(v.Skipped)),

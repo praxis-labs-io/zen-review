@@ -1,12 +1,12 @@
 package review_test
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/zen-review/zen-review/internal/diff"
 	"github.com/zen-review/zen-review/internal/review"
 	"github.com/zen-review/zen-review/internal/store"
 	"github.com/zen-review/zen-review/internal/testrepo"
@@ -139,8 +139,8 @@ func TestTheBaseFlagOverridesAndThenSticks(t *testing.T) {
 }
 
 // Measuring a stacked branch from origin/main shows the parent branch's commits
-// as this branch's work. Refusing and naming the candidates beats guessing.
-func TestAStackedBranchRefusesAndNamesItsCandidates(t *testing.T) {
+// as this branch's work, so the nearest branch under it wins instead.
+func TestAStackedBranchTakesTheNearestBranchUnderIt(t *testing.T) {
 	f := newFixture(t)
 	f.commit("first")
 	f.TrackOrigin("main")
@@ -152,38 +152,20 @@ func TestAStackedBranchRefusesAndNamesItsCandidates(t *testing.T) {
 	f.Git("checkout", "-q", "-b", "stack-top")
 	f.commit("top")
 
-	_, err := f.open("")
-	if err == nil {
-		t.Fatal("a stacked branch should refuse rather than measure from origin/main")
+	// Nearest first: the branch it was actually cut from beats the one under that.
+	base := f.mustOpen("").Base()
+	if base.Ref != "stack-middle" {
+		t.Errorf("base = %s, want stack-middle", base.Ref)
+	}
+	if !strings.Contains(base.Fallback, "stack-middle") ||
+		!strings.Contains(base.Fallback, "origin/main") {
+		t.Errorf("fallback = %q, want it to name both what it took and what it passed over", base.Fallback)
 	}
 
-	var stacked *review.StackedError
-	if !errors.As(err, &stacked) {
-		t.Fatalf("err = %v (%T), want *review.StackedError", err, err)
-	}
-	if stacked.Detected != "origin/main" {
-		t.Errorf("detected = %s, want origin/main", stacked.Detected)
-	}
-
-	// Nearest first: the branch it was actually cut from comes before the one
-	// under that.
-	var names []string
-	for _, c := range stacked.Candidates {
-		names = append(names, c.Branch)
-	}
-	if len(names) != 2 || names[0] != "stack-middle" || names[1] != "stack-bottom" {
-		t.Fatalf("candidates = %v, want stack-middle then stack-bottom", names)
-	}
-	if stacked.Candidates[0].Ahead != 1 || stacked.Candidates[1].Ahead != 2 {
-		t.Errorf("ahead = %d and %d, want 1 and 2", stacked.Candidates[0].Ahead, stacked.Candidates[1].Ahead)
-	}
-	if !strings.Contains(err.Error(), "--base") {
-		t.Errorf("err = %v, want it to name the flag", err)
-	}
-
-	// Naming one of them settles it, which is the whole point of listing them.
-	if got := f.mustOpen("stack-middle").Base().Ref; got != "stack-middle" {
-		t.Errorf("base = %s, want stack-middle", got)
+	// The flag still settles it, and what it settles on is not a fallback.
+	chosen := f.mustOpen("stack-bottom").Base()
+	if chosen.Ref != "stack-bottom" || chosen.Fallback != "" {
+		t.Errorf("base = %+v, want stack-bottom with nothing to explain", chosen)
 	}
 }
 
@@ -360,50 +342,6 @@ func TestStartupFailuresSayWhatToDo(t *testing.T) {
 		}
 	})
 
-	t.Run("with no origin to fall back on", func(t *testing.T) {
-		f := newFixture(t)
-		f.commit("first")
-
-		_, err := f.open("")
-		if err == nil {
-			t.Fatal("a repository with no origin/HEAD should not guess a base")
-		}
-		if !strings.Contains(err.Error(), "--base") {
-			t.Errorf("err = %v, want it to name the flag", err)
-		}
-	})
-
-	t.Run("with a base that does not resolve", func(t *testing.T) {
-		f := branched(t)
-
-		_, err := f.open("no-such-ref")
-		if err == nil {
-			t.Fatal("a base that does not resolve should fail")
-		}
-		if !strings.Contains(err.Error(), "no-such-ref") {
-			t.Errorf("err = %v, want it to name the ref", err)
-		}
-	})
-
-	// origin/HEAD is symbolic and outlives what it points at, so renaming the
-	// remote's default branch leaves it naming a ref that is gone. The reader
-	// gets the flag, not a merge-base fatal about an object name.
-	t.Run("with an origin/HEAD pointing at nothing", func(t *testing.T) {
-		f := branched(t)
-		f.Git("update-ref", "-d", "refs/remotes/origin/main")
-
-		_, err := f.open("")
-		if err == nil {
-			t.Fatal("a dangling origin/HEAD should fail")
-		}
-		if !strings.Contains(err.Error(), "--base") {
-			t.Errorf("err = %v, want it to name the flag", err)
-		}
-		if strings.Contains(err.Error(), "fatal:") {
-			t.Errorf("err = %v, want guidance rather than raw git plumbing", err)
-		}
-	})
-
 	// A database that will not open is not always a permissions problem. A corrupt
 	// file and one written by a newer build both arrive here, and blaming
 	// permissions tells the reader to fix something that is already fine.
@@ -431,61 +369,170 @@ func TestStartupFailuresSayWhatToDo(t *testing.T) {
 	})
 }
 
-// A base force-push that loses the fork point has no clean answer. Saying so and
-// asking for another beats measuring from a merge base that does not exist.
-func TestABaseSharingNoHistorySaysTheForkPointIsGone(t *testing.T) {
-	f := branched(t)
+// Every way a base fails to name a fork point drops a rung and says so, rather
+// than refusing: a reader who cannot open the tool cannot change the base.
+func TestABaseThatCannotBeUsedFallsBackAndSaysWhy(t *testing.T) {
+	tests := []struct {
+		name string
 
-	f.Git("checkout", "-q", "--orphan", "unrelated")
-	f.commit("nothing in common")
-	f.Git("checkout", "-q", "feature")
+		// setup runs on a branched fixture and returns the base to open with.
+		setup func(f *fixture) string
 
-	_, err := f.open("unrelated")
-	if err == nil {
-		t.Fatal("a base sharing no history should fail")
+		want string
+		says []string
+	}{
+		{
+			name:  "a base that does not resolve",
+			setup: func(*fixture) string { return "no-such-ref" },
+			want:  "origin/main",
+			says:  []string{"no-such-ref", "does not resolve"},
+		},
+		{
+			name: "a stored base that has since gone",
+			setup: func(f *fixture) string {
+				f.mustOpen("chosen")
+				f.Git("branch", "-D", "chosen")
+				return ""
+			},
+			want: "origin/main",
+			says: []string{"chosen", "does not resolve"},
+		},
+		{
+			// origin/HEAD is symbolic and outlives what it points at, so renaming
+			// the remote's default branch leaves it naming a ref that is gone.
+			name: "an origin/HEAD pointing at nothing",
+			setup: func(f *fixture) string {
+				f.Git("update-ref", "-d", "refs/remotes/origin/main")
+				return ""
+			},
+			want: "main",
+			says: []string{"origin/HEAD", "is gone"},
+		},
+		{
+			// A base force-push that loses the fork point looks like this from here.
+			name: "a base sharing no history with the branch",
+			setup: func(f *fixture) string {
+				f.Git("checkout", "-q", "--orphan", "unrelated")
+				f.commit("nothing in common")
+				f.Git("checkout", "-q", "feature")
+				return "unrelated"
+			},
+			want: "origin/main",
+			says: []string{"unrelated", "shares no history"},
+		},
 	}
 
-	var gone *review.NoMergeBaseError
-	if !errors.As(err, &gone) {
-		t.Fatalf("err = %v (%T), want *review.NoMergeBaseError", err, err)
-	}
-	if gone.Ref != "unrelated" {
-		t.Errorf("ref = %s, want unrelated", gone.Ref)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			f := branched(t)
+			f.Git("branch", "chosen", "main")
+
+			base := f.mustOpen(tc.setup(f)).Base()
+
+			if base.Ref != tc.want {
+				t.Errorf("base = %s, want %s", base.Ref, tc.want)
+			}
+			for _, want := range tc.says {
+				if !strings.Contains(base.Fallback, want) {
+					t.Errorf("fallback = %q, want it to contain %q", base.Fallback, want)
+				}
+			}
+		})
 	}
 }
 
-// The stored base going away is said out loud. Falling back to detection would
-// silently change what the review is measuring, and everything already reviewed
-// was measured from the ref that just disappeared.
-func TestAStoredBaseThatStopsResolvingIsNotReplacedQuietly(t *testing.T) {
+// With no origin/HEAD the ladder tries a local default branch, then HEAD, where
+// the changeset is whatever has not been committed.
+func TestARepositoryWithNoRemoteFallsToTheLocalDefaultThenHead(t *testing.T) {
+	t.Run("to a local main", func(t *testing.T) {
+		f := newFixture(t)
+		f.commit("first")
+		f.Git("checkout", "-q", "-b", "feature")
+		f.commit("second")
+
+		base := f.mustOpen("").Base()
+
+		if base.Ref != "main" {
+			t.Errorf("base = %s, want main", base.Ref)
+		}
+		if !strings.Contains(base.Fallback, "no origin/HEAD") {
+			t.Errorf("fallback = %q, want it to say there is no origin/HEAD", base.Fallback)
+		}
+	})
+
+	t.Run("to HEAD on the default branch itself", func(t *testing.T) {
+		f := newFixture(t)
+		f.commit("first")
+
+		base := f.mustOpen("").Base()
+
+		if base.Ref != "HEAD" {
+			t.Errorf("base = %s, want HEAD", base.Ref)
+		}
+		if !strings.Contains(base.Fallback, "has not been committed") {
+			t.Errorf("fallback = %q, want it to say what the changeset is", base.Fallback)
+		}
+	})
+}
+
+// A repository whose first commit has not landed has nothing to measure from,
+// so the other side is the empty tree and every file reads as new.
+func TestAnUnbornHeadIsMeasuredFromTheEmptyTree(t *testing.T) {
+	f := newFixture(t)
+	f.Write("a.txt", "one\n")
+
+	s := f.mustOpen("")
+
+	if !s.Base().EmptyTree() {
+		t.Fatalf("base = %+v, want the empty tree", s.Base())
+	}
+	if !strings.Contains(s.Base().Fallback, "no commits") {
+		t.Errorf("fallback = %q, want it to say there are no commits", s.Base().Fallback)
+	}
+
+	files := f.changeset(s, f.refresh(s)).Files
+	if len(files) != 1 || files[0].Diff.Path != "a.txt" {
+		t.Fatalf("files = %+v, want a.txt alone", files)
+	}
+	if files[0].Diff.Status != diff.FileAdded {
+		t.Errorf("status = %v, want the file to read as added", files[0].Diff.Status)
+	}
+}
+
+// A branch stacked on another local branch is measured from the branch under it.
+// origin/main would read the parent's commits as this branch's work.
+func TestAStackedBranchIsMeasuredFromTheBranchBelowIt(t *testing.T) {
 	f := branched(t)
-	f.Git("branch", "chosen", "main")
+	f.Git("checkout", "-q", "-b", "child")
+	f.commit("on the child")
 
-	first := f.mustOpen("chosen")
-	if first.Base().Ref != "chosen" {
-		t.Fatalf("base = %s, want chosen", first.Base().Ref)
-	}
-	if err := first.Close(); err != nil {
-		t.Fatalf("closing: %v", err)
-	}
+	base := f.mustOpen("").Base()
 
-	f.Git("branch", "-D", "chosen")
-
-	_, err := f.open("")
-	if err == nil {
-		t.Fatal("a stored base that no longer resolves should fail")
+	if base.Ref != "feature" {
+		t.Errorf("base = %s, want feature", base.Ref)
 	}
-
-	var missing *review.UnresolvableBaseError
-	if !errors.As(err, &missing) {
-		t.Fatalf("err = %v (%T), want *review.UnresolvableBaseError", err, err)
+	if !strings.Contains(base.Fallback, "sits on top of feature") {
+		t.Errorf("fallback = %q, want it to say what it is stacked on", base.Fallback)
 	}
-	if missing.Ref != "chosen" {
-		t.Errorf("ref = %s, want chosen", missing.Ref)
+}
+
+// A fallback is a guess made because the base asked for was not there, so it is
+// made again once the repository moves rather than kept.
+func TestAFallbackBaseIsNotStored(t *testing.T) {
+	f := branched(t)
+	f.Git("update-ref", "-d", "refs/remotes/origin/main")
+
+	if got := f.mustOpen("").Base().Ref; got != "main" {
+		t.Fatalf("base = %s, want main", got)
 	}
 
-	// And the flag is the way out, which is what the message says to do.
-	if got := f.mustOpen("origin/main").Base().Ref; got != "origin/main" {
-		t.Errorf("base = %s, want origin/main", got)
+	f.TrackOrigin("main")
+
+	base := f.mustOpen("").Base()
+	if base.Ref != "origin/main" {
+		t.Errorf("base = %s, want origin/main once origin/HEAD is back", base.Ref)
+	}
+	if base.Fallback != "" {
+		t.Errorf("fallback = %q, want nothing left to explain", base.Fallback)
 	}
 }

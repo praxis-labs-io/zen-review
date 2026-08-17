@@ -2,6 +2,7 @@ package git
 
 import (
 	"errors"
+	"os"
 	"testing"
 )
 
@@ -20,6 +21,42 @@ func TestHeadReportsTheBranchAndTheCommit(t *testing.T) {
 	}
 	if head.SHA != sha {
 		t.Errorf("sha = %q, want %q", head.SHA, sha)
+	}
+}
+
+// A repository whose first commit has not landed is a state to review from, so
+// it answers Unborn rather than failing. The branch name is still there.
+func TestAnUnbornHeadIsAnAnswerRatherThanAFailure(t *testing.T) {
+	f := newFixture(t)
+	f.Write("a.txt", "one\n")
+
+	head, err := f.open().Head(t.Context())
+	if err != nil {
+		t.Fatalf("reading an unborn HEAD: %v", err)
+	}
+
+	if !head.Unborn() {
+		t.Errorf("head = %+v, want it to read as unborn", head)
+	}
+	if head.Branch != "main" {
+		t.Errorf("branch = %q, want main", head.Branch)
+	}
+}
+
+// The empty tree is what an unborn HEAD is measured from. It is asked of git
+// rather than hardcoded, so a repository on sha256 gets its own.
+func TestEmptyTreeIsTheTreeWithNothingInIt(t *testing.T) {
+	f := newFixture(t)
+	f.Write("a.txt", "one\n")
+	f.Commit("first")
+
+	got, err := f.open().EmptyTree(t.Context())
+	if err != nil {
+		t.Fatalf("writing the empty tree: %v", err)
+	}
+
+	if want := f.Git("hash-object", "-t", "tree", os.DevNull); got != want {
+		t.Errorf("empty tree = %q, want %q", got, want)
 	}
 }
 

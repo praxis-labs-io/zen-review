@@ -99,8 +99,18 @@ func (m Model) reload() tea.Cmd {
 // moving under a reader mid-hunk.
 type notice struct {
 	text string
-	bad  bool
+	tone tone
 }
+
+// tone is how a notice reads. Anything but plain takes the whole bar, being a
+// sentence rather than a label.
+type tone int
+
+const (
+	plain tone = iota
+	warn
+	bad
+)
 
 // drift is what a reload did to the hunk the cursor was on.
 type drift int
