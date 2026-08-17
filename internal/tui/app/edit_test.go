@@ -282,3 +282,19 @@ func TestASaveDropsTheEnterItWasFinishedOn(t *testing.T) {
 		t.Errorf("the writes were %v, want %q", got, want)
 	}
 }
+
+// TestARefusalReadsFromTheRightOfTheBar, where every other notice is. One thrown
+// to the left is a second place to look for what just happened.
+func TestARefusalReadsFromTheRightOfTheBar(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24).press("j", "c", "h", "i")
+	s.src.wroteErr = errors.New("the database is locked")
+	s.press("ctrl+s")
+
+	bar := strings.TrimRight(s.bar(), " ")
+	if !strings.HasSuffix(bar, "the database is locked") {
+		t.Errorf("the bar reads %q, want the refusal at its right", bar)
+	}
+	if !strings.Contains(bar, "ctrl+s save") {
+		t.Errorf("the bar reads %q, want the box's keys still on it", bar)
+	}
+}
