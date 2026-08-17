@@ -622,8 +622,12 @@ func (m *Model) SetSize(width, height int) {
 	was := m.placeOf(m.cursor)
 
 	m.width, m.height = width, height
+
+	// Width first: how many rows the box needs is a question about the width it
+	// is asked at.
 	if m.draft != nil {
 		m.draft.area.SetWidth(m.draftWidth())
+		m.draft.area.SetHeight(m.draftHeight())
 	}
 	m.relayout(was)
 	m.reveal()

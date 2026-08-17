@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/zen-review/zen-review/internal/store"
 	"github.com/zen-review/zen-review/internal/testchangeset"
@@ -209,5 +210,61 @@ func TestAnEditCrossesToTheFrameWithItsWords(t *testing.T) {
 	want := `EditComment aaaaaaaaaaaa "hi!" gen=2`
 	if got := s.calls(); len(got) != 1 || got[0] != want {
 		t.Errorf("the box that moved wrote %v, want %q", got, want)
+	}
+}
+
+// rowHolding is the frame row a string lands on, which is what a cursor position
+// is checked against.
+func rowHolding(t *testing.T, s *screen, want string) int {
+	t.Helper()
+
+	for i, line := range s.lines() {
+		if strings.Contains(line, want) {
+			return i
+		}
+	}
+	t.Fatalf("no row holds %q:\n%s", want, s.frame())
+	return -1
+}
+
+// TestTheCursorIsTheTerminalsOwn. Nothing is drawn into the body: the root hands
+// the position up and the terminal draws the cursor the reader set up.
+func TestTheCursorIsTheTerminalsOwn(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		keys []string
+	}{
+		{"the box beside the code", []string{"j", "c", "h", "i"}},
+		{"the box over the frame", []string{"C", "h", "i"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24).press(tt.keys...)
+
+			c := s.m.View().Cursor
+			if c == nil {
+				t.Fatal("the frame carries no cursor while a box is up")
+			}
+
+			// Cells and not bytes: a border rune is three of the second and one of
+			// the first, and a cursor is placed in cells.
+			row := rowHolding(t, s, "hi")
+			line := s.lines()[row]
+			want := lipgloss.Width(line[:strings.Index(line, "hi")]) + len("hi")
+
+			if c.Y != row || c.X != want {
+				t.Errorf("the cursor is at %d,%d, want %d,%d, just past what was typed",
+					c.X, c.Y, want, row)
+			}
+		})
+	}
+}
+
+// TestNothingCarriesACursorWithNoBoxUp, which is every other frame: a terminal
+// cursor parked in a diff is one the reader reads as an edit point.
+func TestNothingCarriesACursorWithNoBoxUp(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24)
+
+	if c := s.m.View().Cursor; c != nil {
+		t.Errorf("the frame carries a cursor at %d,%d with no box up", c.X, c.Y)
 	}
 }

@@ -15,8 +15,8 @@ import (
 // characters, so no comment can answer to this one.
 const draftID = "draft"
 
-// draftRows is how tall the box gets. It is a note hanging off a line, and the
-// code it is about is what the rest of the pane is for.
+// draftRows is the shortest the box gets. It grows to hold what is typed into
+// it, because a box that scrolls hides the sentence somebody is still writing.
 const draftRows = 4
 
 // draft is the comment being typed: where it will land, and the box it is typed
@@ -62,12 +62,12 @@ func (m *Model) open(c store.Comment, body, edits string) (tea.Cmd, bool) {
 	c.ID, c.Body = draftID, ""
 
 	area := comp.Textarea(m.theme)
-	area.SetHeight(draftRows)
 	area.SetWidth(m.draftWidth())
 	area.SetValue(body)
 
 	m.clearSelection()
 	m.draft = &draft{at: c, area: area, path: m.file.Diff.Path, edits: edits}
+	m.draft.area.SetHeight(m.draftHeight())
 
 	// Focused before the box is drawn, or the first frame is one with no cursor
 	// in it and the reader has to type to find out where they are.
@@ -84,6 +84,31 @@ func (m *Model) open(c store.Comment, body, edits string) (tea.Cmd, bool) {
 // Composing is whether a box is up, which is whether the pane has the keys.
 func (m Model) Composing() bool { return m.draft != nil }
 
+// TypingAt is where the terminal's cursor goes while a box is up, in the pane's
+// own coordinates. It is nil for a pane holding no box, or one scrolled off it.
+func (m Model) TypingAt() *tea.Cursor {
+	if m.draft == nil {
+		return nil
+	}
+
+	c := m.draft.area.Cursor()
+	at := m.rowAt(place{comment: draftID, seq: -1})
+	if c == nil || at < 0 {
+		return nil
+	}
+
+	// Past the indent the card hangs at, its border and the gutter inside it,
+	// and past the border row the box opens with.
+	left, _ := m.cardBox()
+	c.X += left + 1 + cardGutter
+	c.Y += at - m.offset + 1
+
+	if c.Y < 0 || c.Y >= m.height || c.X >= m.width {
+		return nil
+	}
+	return c
+}
+
 // Draft is what has been typed, and empty when no box is up.
 func (m Model) Draft() string {
 	if m.draft == nil {
@@ -92,15 +117,23 @@ func (m Model) Draft() string {
 	return m.draft.area.Value()
 }
 
-// CloseDraft takes the box down and leaves the cursor on the code it hung off.
+// CloseDraft takes the box down and leaves the cursor where the reader was when
+// they opened it: on the card the box stood in for, or on the code it hung off.
 func (m *Model) CloseDraft() {
 	if m.draft == nil {
 		return
 	}
 
-	at := m.anchorOf(draftID)
+	at, edits := m.anchorOf(draftID), m.draft.edits
 	m.draft = nil
 	m.layout()
+
+	// A card that came back unlit is one x and e no longer reach, and the reader
+	// pressed the key from it.
+	if edits != "" {
+		m.SelectComment(edits)
+		return
+	}
 
 	if at >= 0 {
 		m.point(min(at, len(m.rows)-1))
@@ -109,10 +142,16 @@ func (m *Model) CloseDraft() {
 }
 
 // typing takes a key to the body and redraws the box in place. Nothing else on
-// screen moves, so only the box's own rows are repainted.
+// screen moves for it until the box grows, which pushes the file down a row.
 func (m *Model) typing(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 	m.draft.area, cmd = m.draft.area.Update(msg)
+
+	if h := m.draftHeight(); h != m.draft.area.Height() {
+		m.draft.area.SetHeight(h)
+		m.grew()
+		return cmd
+	}
 
 	if at := m.rowAt(place{comment: draftID, seq: -1}); at >= 0 {
 		i := m.rows[at].card
@@ -120,6 +159,33 @@ func (m *Model) typing(msg tea.Msg) tea.Cmd {
 		m.repaintCard(at)
 	}
 	return cmd
+}
+
+// grew lays the file out around a box that changed height and keeps the whole of
+// it on screen, the row it gained included.
+func (m *Model) grew() {
+	at := place{comment: draftID, seq: -1}
+	m.relayout(at)
+
+	if i := m.rowAt(at); i >= 0 {
+		m.showCard(m.rows[i].card)
+	}
+}
+
+// draftHeight is the rows the box needs: every line it holds at the width it is
+// drawn in, never under draftRows and never taller than the pane.
+func (m Model) draftHeight() int {
+	width := m.draftWidth()
+
+	// Floor and not ceiling: the cursor sits after the last character, so a line
+	// filling the width exactly has already started the row under it.
+	rows := 0
+	for _, line := range strings.Split(m.draft.area.Value(), "\n") {
+		rows += lipgloss.Width(line)/width + 1
+	}
+	// Its two borders, the line it hangs under, and the heading pinned over that.
+	// A box past this loses its own footer to the clamp that keeps the line.
+	return min(max(rows, draftRows), max(m.height-4, 1))
 }
 
 // anchorOf is the row a card hangs under, or its own first row when the diff

@@ -293,28 +293,18 @@ func TestAWideIndentedLineKeepsItsIndent(t *testing.T) {
 	}
 }
 
-// A paragraph is folded whole. Somebody who hard-wrapped at their own width
-// would otherwise be folded a second time at this one, and every line would shed
-// its last word onto a line of its own.
-func TestAHardWrappedParagraphIsLaidOutAgainAndNotFoldedTwice(t *testing.T) {
+// A break somebody typed is one they meant. The listing and the card both draw
+// the body, and either reflowing it prints something nobody wrote.
+func TestABodyKeepsTheBreaksItWasWrittenWith(t *testing.T) {
 	f := clean(t)
-	f.stdin = strings.NewReader(
-		"the anchor translation is deliberately more forgiving than the one a\n" +
-			"reviewed range takes, because a comment on ten lines is about a region\n" +
-			"and an agent rewriting one line in the middle is the comment being\n" +
-			"acted on.\n")
+	f.stdin = strings.NewReader("the first thing\nthe second thing\nthe third\n")
 	f.comment("code.txt", "--hunk", "3", "--body", "-")
 
 	out := f.mustRun("comments")
 
-	for _, line := range strings.Split(out, "\n") {
-		if !strings.HasPrefix(line, "    ") {
-			continue
-		}
-		// Every line but the last is filled, so nothing comes back as one orphan
-		// word left over from somebody else's width.
-		if len(strings.Fields(line)) < 3 {
-			t.Errorf("a body line came back with %d words:\n%s", len(strings.Fields(line)), out)
+	for _, want := range []string{"    the first thing\n", "    the second thing\n", "    the third\n"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the listing lost a break, wanted %q:\n%s", want, out)
 		}
 	}
 }

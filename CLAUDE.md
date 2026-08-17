@@ -409,6 +409,15 @@ way out but `esc`. `enter` is a newline in prose, so `ctrl+s` saves and `esc`
 discards; nothing else on screen says so, which is why the box carries both in
 its bottom border.
 
+The box grows with what is typed into it rather than scrolling, because a box
+that scrolls hides the sentence still being written. It stops at what the pane
+can draw around it: its two borders, the line it hangs under, and the heading
+pinned over that. Past there it scrolls, having nowhere left to grow.
+
+The cursor in it is the terminal's own, placed by the root through the view. A
+drawn one is a block we paint in a colour of ours over the character it covers,
+and the reader set their cursor up already.
+
 The box comes down when the write lands, not when the key is pressed. A save
 that failed leaves it up holding the words, and so does one the reader typed
 past: the only thing a local transaction can cost is what was typed into it. A
@@ -493,4 +502,5 @@ before wrapping, tokenising a side whole. These are this repo's own.
 - **A pane clips overflow silently.** A row wider than the pane loses its trailing columns mid-cell with no ellipsis, and a width test still passes. The row has to fit before the pane sees it.
 - **A glyph is only one cell if lipgloss and the terminal agree it is.** The tree's folders and its file marker are Nerd Font, which is the one thing on screen that asks anything of the terminal's font. Measure a new one with `lipgloss.Width` before using it: a two-cell glyph puts every row after it out of step, where a font missing a one-cell glyph only draws a box.
 - **A stripped golden cannot see a colour.** The tree's cursor is a filled background and nothing else, so the frame is identical whether `j` moved or not. Anything said only in colour needs an assertion against the theme value beside the golden.
+- **A newline in a body is a break and not a soft wrap.** `comp.Wrap` folds each line on its own and joins none of them. It used to join a paragraph before folding, so a body hard-wrapped elsewhere reflowed to the width in hand, and the price was that every break somebody typed into the box was drawn away on the card that came back.
 - **Nothing moves on a refresh until the key is pressed.** A formatter running on save would otherwise reshuffle the page while a comment is being written.

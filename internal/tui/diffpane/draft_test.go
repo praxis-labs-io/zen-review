@@ -213,3 +213,95 @@ func TestTheBoxOnARangeTallerThanTheWindow(t *testing.T) {
 		t.Errorf("the box is not on screen whole:\n%s", got)
 	}
 }
+
+// TestACardDrawsTheBreaksTheBoxWasTypedWith. The box shows a newline as a break,
+// so a card that folded it away would say the reader wrote a paragraph.
+func TestACardDrawsTheBreaksTheBoxWasTypedWith(t *testing.T) {
+	card := testchangeset.Comment("cccccccccccc", twoHunks, 13, 13,
+		"the first thing\nthe second thing\nthe third")
+
+	m := commented(t, twoHunks, 70, 20, card)
+	m.SelectComment("cccccccccccc")
+
+	rows := rows(t, m)
+	first := at(t, rows, "the first thing")
+
+	for i, want := range []string{"the second thing", "the third"} {
+		if got := rows[first+1+i]; !strings.Contains(got, want) {
+			t.Errorf("row %d reads %q, want %q on a line of its own", first+1+i, got, want)
+		}
+	}
+}
+
+// TestClosingTheBoxPutsTheCursorBackOnTheCard it stood in for. That is the row
+// the reader pressed e from, and a card left unlit is one x and e cannot reach.
+func TestClosingTheBoxPutsTheCursorBackOnTheCard(t *testing.T) {
+	card := testchangeset.Comment("cccccccccccc", twoHunks, 13, 13, "unreviewd is the clearer word.")
+
+	m := editing(t, 70, 20, card)
+	m.CloseDraft()
+
+	if got := joined(t, m); !strings.Contains(got, "x resolve") {
+		t.Errorf("the card came back unlit:\n%s", got)
+	}
+	if id, on := m.Comment(); !on || id != "cccccccccccc" {
+		t.Errorf("the cursor is on %q (%v), want the card the box stood in for", id, on)
+	}
+}
+
+// boxRows is how tall the drawn box is, read off the frame: its own border rows
+// are the only thing that says what height it took.
+func boxRows(t *testing.T, m diffpane.Model, head string) int {
+	t.Helper()
+
+	lines := rows(t, m)
+	return at(t, lines, "ctrl+s save") - at(t, lines, head) + 1
+}
+
+// TestTheBoxGrowsWithWhatIsTypedIntoIt. One that scrolled would hide the
+// sentence somebody is still writing.
+func TestTheBoxGrowsWithWhatIsTypedIntoIt(t *testing.T) {
+	m := composing(t, 70, 24)
+	before := boxRows(t, m, "◇ new")
+
+	// Four newlines past the four rows it opens with, which is where it starts
+	// having to grow.
+	enter := tea.KeyPressMsg{Code: tea.KeyEnter}
+	m = press(t, m, enter, enter, enter, enter, enter, enter)
+
+	if got := boxRows(t, m, "◇ new"); got != before+3 {
+		t.Errorf("the box is %d rows after seven lines, want %d", got, before+3)
+	}
+}
+
+// TestTheBoxOpensTallEnoughForWhatItHolds, so editing a comment of five lines
+// does not open on four of them.
+func TestTheBoxOpensTallEnoughForWhatItHolds(t *testing.T) {
+	body := "one\ntwo\nthree\nfour\nfive\nsix"
+	card := testchangeset.Comment("cccccccccccc", twoHunks, 13, 13, body)
+
+	m := editing(t, 70, 24, card)
+
+	// Six lines and the two borders.
+	if got := boxRows(t, m, "◇ editing"); got != 8 {
+		t.Errorf("the box is %d rows, want 8, the six lines and its borders", got)
+	}
+	if got := joined(t, m); !strings.Contains(got, "six") {
+		t.Errorf("the last line is not on screen:\n%s", got)
+	}
+}
+
+// TestTheBoxStopsAtThePane. It grows to hold what is typed, and the pane is
+// where that stops: a box taller than the window is one nobody can see the end of.
+func TestTheBoxStopsAtThePane(t *testing.T) {
+	body := strings.Repeat("a line\n", 40)
+	card := testchangeset.Comment("cccccccccccc", twoHunks, 13, 13, body)
+
+	m := editing(t, 70, 12, card)
+
+	// The pane's twelve, less the line it hangs under and the heading pinned
+	// over that.
+	if got := boxRows(t, m, "◇ editing"); got != 10 {
+		t.Errorf("the box is %d rows, want 10", got)
+	}
+}

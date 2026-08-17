@@ -26,13 +26,14 @@ func TestWrapFoldsToWidth(t *testing.T) {
 	}
 }
 
-// TestWrapJoinsAParagraphBeforeFolding. A body somebody hard-wrapped at their
-// own width would otherwise fold again here and shed its last word every line.
-func TestWrapJoinsAParagraphBeforeFolding(t *testing.T) {
+// TestWrapKeepsTheBreaksSomebodyTyped. A newline is a break: it was typed into
+// the box on purpose, and folding it away draws words nobody wrote in that order.
+func TestWrapKeepsTheBreaksSomebodyTyped(t *testing.T) {
 	body := "one two three\nfour five six"
 
-	if got := comp.Wrap(body, 80); !slices.Equal(got, []string{"one two three four five six"}) {
-		t.Errorf("Wrap gave %q, want the two lines joined", got)
+	want := []string{"one two three", "four five six"}
+	if got := comp.Wrap(body, 80); !slices.Equal(got, want) {
+		t.Errorf("Wrap gave %q, want the two lines kept apart", got)
 	}
 }
 

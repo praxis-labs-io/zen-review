@@ -115,7 +115,8 @@ func (m Model) drawCard(c store.Comment, placed bool) ([]string, []string) {
 	// The box being typed in is always lit and names its own two keys, because
 	// it holds every key on the keyboard while it is up.
 	if c.ID == draftID {
-		box := comp.NewPane(m.theme).Label(m.cardLabel(c, placed)).Size(width, draftRows+2)
+		box := comp.NewPane(m.theme).Label(m.cardLabel(c, placed)).
+			Size(width, m.draft.area.Height()+2)
 		rows := lines(box.Focus(true).Footer("", m.draftHints(width)).
 			Render(strings.Join(m.draftBody(), "\n")))
 
