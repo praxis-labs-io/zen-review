@@ -80,6 +80,27 @@ func Churn(base lipgloss.Style, t theme.Theme, added, removed int) string {
 		base.Foreground(t.Error).Render("-"+strconv.Itoa(removed))
 }
 
+// Placeholder is a pane's empty state: one quiet line on an otherwise blank
+// block of exactly width by height, a third of the way down.
+func Placeholder(t theme.Theme, text string, width, height int) string {
+	subtle := lipgloss.NewStyle().Foreground(t.Subtle)
+
+	lines := make([]string, max(height, 0))
+	blank := strings.Repeat(" ", max(width, 0))
+	for i := range lines {
+		lines[i] = blank
+	}
+	if len(lines) == 0 || width <= 0 {
+		return strings.Join(lines, "\n")
+	}
+
+	row := Clip(subtle.Render(Safe(text)), width, subtle)
+	pad := (width - lipgloss.Width(row)) / 2
+	lines[len(lines)/3] = strings.Repeat(" ", pad) + row +
+		strings.Repeat(" ", width-pad-lipgloss.Width(row))
+	return strings.Join(lines, "\n")
+}
+
 // Help renders a keymap, styled from the theme rather than from bubbles'
 // defaults, which pick their own colours.
 func Help(t theme.Theme) help.Model {

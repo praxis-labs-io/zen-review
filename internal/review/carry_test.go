@@ -277,10 +277,10 @@ func TestAWholeFileMarkGoesWhenTheFileGainsHunks(t *testing.T) {
 	assertRanges(t, f.storedRanges(next), nil)
 }
 
-// The fork point going away has no answer, so the refresh refuses. What it must
-// not do is leave the review in a state that reads as unreviewed.
+// The fork point going away drops the refresh onto a base that still has one.
+// What it must not do is leave the review reading as unreviewed.
 func TestABaseForcePushThatLosesTheForkPointKeepsTheMarks(t *testing.T) {
-	f, s, first := marked(t)
+	f, s, _ := marked(t)
 
 	f.Git("checkout", "-q", "--orphan", "unrelated")
 	f.commit("nothing in common")
@@ -290,12 +290,17 @@ func TestABaseForcePushThatLosesTheForkPointKeepsTheMarks(t *testing.T) {
 
 	f.Write("code.txt", numbered(1, 21))
 
-	_, err := s.Refresh(t.Context())
-	var gone *review.NoMergeBaseError
-	if !errors.As(err, &gone) {
-		t.Fatalf("err = %v (%T), want *review.NoMergeBaseError", err, err)
+	next, err := s.Refresh(t.Context())
+	if err != nil {
+		t.Fatalf("refreshing past a lost fork point: %v", err)
 	}
-	assertRanges(t, f.storedRanges(first), []string{"code.txt head 5:9"})
+	if s.Base().Ref != "main" {
+		t.Errorf("base = %s, want the local main it fell back to", s.Base().Ref)
+	}
+	if s.Base().Fallback != "not origin/main" {
+		t.Errorf("fallback = %q, want it to say what it is not measured from", s.Base().Fallback)
+	}
+	assertRanges(t, f.storedRanges(next), []string{"code.txt head 5:9"})
 }
 
 // A mark against an old generation is not merely stale, it is inert: the carry

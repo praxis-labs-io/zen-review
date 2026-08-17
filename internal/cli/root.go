@@ -56,7 +56,7 @@ func NewRoot() *cobra.Command {
 	// The base sticks to the session, so the help says so rather than reading as
 	// a flag that applies to this invocation alone.
 	cmd.PersistentFlags().StringVar(&opts.baseRef, "base", "",
-		"ref to measure the changeset from, kept until another is passed (default origin/HEAD)")
+		"ref to measure the changeset from, kept until another is passed (detected when unset)")
 	cmd.PersistentFlags().BoolVar(&opts.asJSON, "json", false, "write the changeset as JSON")
 
 	cmd.AddCommand(

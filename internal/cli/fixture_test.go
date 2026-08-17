@@ -120,8 +120,9 @@ type wireHeader struct {
 	Branch  string `json:"branch"`
 
 	Base struct {
-		Ref string `json:"ref"`
-		SHA string `json:"sha"`
+		Ref      string `json:"ref"`
+		SHA      string `json:"sha"`
+		Fallback string `json:"fallback"`
 	} `json:"base"`
 
 	Generation *struct {

@@ -12,6 +12,7 @@ import (
 	"github.com/zen-kit/zen-kit/theme"
 
 	"github.com/zen-review/zen-review/internal/golden"
+	"github.com/zen-review/zen-review/internal/review"
 	"github.com/zen-review/zen-review/internal/store"
 	"github.com/zen-review/zen-review/internal/testchangeset"
 )
@@ -1194,5 +1195,86 @@ func TestAFailedReloadStillFillsTheBar(t *testing.T) {
 		if got := lipgloss.Width(s.bar()); got != width {
 			t.Errorf("at %d columns the error bar is %d wide: %q", width, got, s.bar())
 		}
+	}
+}
+
+// A changeset with nothing in it draws two panes saying so. Two blank boxes are
+// a state the reader has to read as an answer.
+func TestAnEmptyChangesetSaysSoInBothPanes(t *testing.T) {
+	base := review.Base{Ref: "origin/main", SHA: "a1b2c3d4e5f67890"}
+
+	frame := measured(t, base, review.Changeset{}, 100, 16).frame()
+
+	for _, want := range []string{"no files changed", "nothing to review"} {
+		if !strings.Contains(frame, want) {
+			t.Errorf("the frame is missing %q:\n%s", want, frame)
+		}
+	}
+}
+
+// The fallback reads beside the base rather than on the bar. It is a standing
+// fact about the session, and the bar is for what the last key did.
+func TestAFallbackBaseReadsBesideTheBase(t *testing.T) {
+	base := review.Base{Ref: "HEAD", SHA: "a1b2c3d4e5f67890", Fallback: "uncommitted"}
+
+	s := measured(t, base, testchangeset.Derive(t, ringPatch), 100, 16)
+
+	if want := "HEAD (uncommitted)"; !strings.Contains(s.frame(), want) {
+		t.Errorf("the frame is missing %q:\n%s", want, s.frame())
+	}
+	if strings.Contains(s.bar(), "uncommitted") {
+		t.Errorf("bar = %q, want the bar left to the keys", s.bar())
+	}
+
+	// It stands rather than clearing, which is what a notice would have done.
+	if !strings.Contains(s.press("j").frame(), "HEAD (uncommitted)") {
+		t.Error("a press cleared the fallback, which is not a notice")
+	}
+}
+
+// A pane too narrow for both clips the reason and keeps the ref. The ref is
+// what the sha beside it is a sha of.
+func TestANarrowPaneClipsTheReasonAndKeepsTheRef(t *testing.T) {
+	base := review.Base{
+		Ref:      "feature",
+		SHA:      "a1b2c3d4e5f67890",
+		Fallback: "not origin/a-long-branch-name",
+	}
+
+	frame := measured(t, base, testchangeset.Derive(t, ringPatch), 56, 16).frame()
+
+	if !strings.Contains(frame, "feature (") {
+		t.Errorf("the frame lost the ref:\n%s", frame)
+	}
+	if strings.Contains(frame, "a-long-branch-name") {
+		t.Errorf("the reason was not clipped at 56 columns:\n%s", frame)
+	}
+}
+
+// The empty tree has a sha and no ref, so the fact under the tree names it
+// rather than sitting there blank beside a sha.
+func TestTheEmptyTreeBaseIsNamedInTheFacts(t *testing.T) {
+	base := review.Base{SHA: "4b825dc642cb6eb9a060e54bf8d69288fbee4904"}
+
+	frame := measured(t, base, review.Changeset{}, 100, 16).frame()
+
+	if !strings.Contains(frame, "empty tree") {
+		t.Errorf("the frame does not name the base:\n%s", frame)
+	}
+}
+
+// The bar that has to carry the facts on one line separates them by a dot, so
+// the tag cannot use one: the sha would read as the value of a fact.
+func TestTheFallbackTagDoesNotReadAsAFactOnTheBar(t *testing.T) {
+	base := review.Base{Ref: "HEAD", SHA: "a1b2c3d4e5f67890", Fallback: "uncommitted"}
+
+	// Short enough that the facts do not fit their own box and fall to the bar.
+	bar := measured(t, base, testchangeset.Derive(t, ringPatch), 200, 6).bar()
+
+	if !strings.Contains(bar, "HEAD (uncommitted)") {
+		t.Errorf("bar = %q, want the tag bracketed onto the ref", bar)
+	}
+	if strings.Contains(bar, "HEAD · uncommitted") {
+		t.Errorf("bar = %q, want the tag not to read as its own fact", bar)
 	}
 }

@@ -2,6 +2,7 @@ package git
 
 import (
 	"errors"
+	"os"
 	"testing"
 )
 
@@ -20,6 +21,42 @@ func TestHeadReportsTheBranchAndTheCommit(t *testing.T) {
 	}
 	if head.SHA != sha {
 		t.Errorf("sha = %q, want %q", head.SHA, sha)
+	}
+}
+
+// A repository whose first commit has not landed is a state to review from, so
+// it answers Unborn rather than failing. The branch name is still there.
+func TestAnUnbornHeadIsAnAnswerRatherThanAFailure(t *testing.T) {
+	f := newFixture(t)
+	f.Write("a.txt", "one\n")
+
+	head, err := f.open().Head(t.Context())
+	if err != nil {
+		t.Fatalf("reading an unborn HEAD: %v", err)
+	}
+
+	if !head.Unborn() {
+		t.Errorf("head = %+v, want it to read as unborn", head)
+	}
+	if head.Branch != "main" {
+		t.Errorf("branch = %q, want main", head.Branch)
+	}
+}
+
+// The empty tree is what an unborn HEAD is measured from. It is asked of git
+// rather than hardcoded, so a repository on sha256 gets its own.
+func TestEmptyTreeIsTheTreeWithNothingInIt(t *testing.T) {
+	f := newFixture(t)
+	f.Write("a.txt", "one\n")
+	f.Commit("first")
+
+	got, err := f.open().EmptyTree(t.Context())
+	if err != nil {
+		t.Fatalf("writing the empty tree: %v", err)
+	}
+
+	if want := f.Git("hash-object", "-t", "tree", os.DevNull); got != want {
+		t.Errorf("empty tree = %q, want %q", got, want)
 	}
 }
 
@@ -288,5 +325,41 @@ func TestRefShaReadsARefThatExists(t *testing.T) {
 	}
 	if sha != want {
 		t.Errorf("sha = %q, want %q", sha, want)
+	}
+}
+
+// A ref that names nothing is an answer, and a git that broke is not. Reading
+// the two as one drops a caller onto a different base with nothing said.
+func TestResolveTellsAMissingRefFromABrokenGit(t *testing.T) {
+	f := newFixture(t)
+	f.Write("a.txt", "one\n")
+	sha := f.Commit("first")
+
+	got, ok, err := f.open().Resolve(t.Context(), "main")
+	if err != nil || !ok || got != sha {
+		t.Errorf("Resolve(main) = %q, %v, %v, want %q, true, nil", got, ok, err, sha)
+	}
+
+	if _, ok, err := f.open().Resolve(t.Context(), "no-such-ref"); err != nil || ok {
+		t.Errorf("Resolve(no-such-ref) = %v, %v, want false and no error", ok, err)
+	}
+}
+
+// An empty base walks the whole chain, which is what a tip with nothing above
+// it to bound the walk needs.
+func TestFirstParentsWithNoBaseWalksTheWholeChain(t *testing.T) {
+	f := newFixture(t)
+	f.Write("a.txt", "one\n")
+	first := f.Commit("first")
+	f.Write("a.txt", "two\n")
+	second := f.Commit("second")
+
+	got, err := f.open().FirstParents(t.Context(), "", "HEAD")
+	if err != nil {
+		t.Fatalf("walking the whole chain: %v", err)
+	}
+
+	if len(got) != 2 || got[0] != second || got[1] != first {
+		t.Errorf("chain = %v, want %s then %s", got, second, first)
 	}
 }

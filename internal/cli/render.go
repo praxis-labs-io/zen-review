@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/zen-review/zen-review/internal/diff"
+	"github.com/zen-review/zen-review/internal/review"
 )
 
 // label is the width of the widest heading, so the three of them line up
@@ -47,16 +48,16 @@ func (v view) render() string {
 // answer.
 func (v header) empty(b *strings.Builder) {
 	if v.reason() == fresh {
-		fmt.Fprintf(b, "\nno changes since %s\n", v.Base.Ref)
+		fmt.Fprintf(b, "\nno changes since %s\n", v.Base.Name())
 		return
 	}
-	fmt.Fprintf(b, "\ngeneration %d held no changes since %s\n", v.Generation.Seq, v.Base.Ref)
+	fmt.Fprintf(b, "\ngeneration %d held no changes since %s\n", v.Generation.Seq, v.Base.Name())
 }
 
 // write is the three headings and the sentence about the generation, which every
 // command opens with.
 func (v header) write(b *strings.Builder) {
-	fmt.Fprintf(b, label, "base", fmt.Sprintf("%s (%s)", v.Base.Ref, short(v.Base.SHA)))
+	fmt.Fprintf(b, label, "base", baseCell(v.Base))
 	if v.Exists {
 		fmt.Fprintf(b, label, "generation", fmt.Sprint(v.Generation.Seq))
 	}
@@ -71,6 +72,15 @@ func (v header) write(b *strings.Builder) {
 	case v.reason() == staleTree:
 		fmt.Fprintf(b, "the work tree has moved since generation %d was built\n", v.Generation.Seq)
 	}
+}
+
+// baseCell is the base and its sha, tagged when it is one nobody asked for.
+func baseCell(b review.Base) string {
+	cell := fmt.Sprintf("%s (%s)", b.Name(), short(b.SHA))
+	if b.Fallback == "" {
+		return cell
+	}
+	return cell + "  ·  " + b.Fallback
 }
 
 // writeFiles lays the rows out in columns.
@@ -209,6 +219,10 @@ type payload struct {
 type baseJSON struct {
 	Ref string `json:"ref"`
 	SHA string `json:"sha"`
+
+	// Fallback tags a base nobody asked for, and is absent when the base is the
+	// one that was. Ref is empty only for the empty tree, which has no ref.
+	Fallback string `json:"fallback,omitempty"`
 }
 
 type generationJSON struct {
@@ -251,7 +265,7 @@ func headerOf(v header) headerJSON {
 		Ref:         v.Ref,
 		Kind:        string(v.Kind),
 		Branch:      v.Branch,
-		Base:        baseJSON{Ref: v.Base.Ref, SHA: v.Base.SHA},
+		Base:        baseJSON{Ref: v.Base.Ref, SHA: v.Base.SHA, Fallback: v.Base.Fallback},
 		Stale:       v.Stale,
 		StaleReason: v.reason(),
 		Skipped:     make([]string, 0, len(v.Skipped)),

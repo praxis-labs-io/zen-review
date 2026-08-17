@@ -147,6 +147,18 @@ func build(t *testing.T, repo string, c review.Changeset, width, height int) *sc
 	return with(t, repo, c, nil, "", width, height)
 }
 
+// measured opens the reader from a base of the caller's choosing, which is what
+// the empty-state and fallback assertions drive.
+func measured(t *testing.T, base review.Base, c review.Changeset, width, height int) *screen {
+	t.Helper()
+
+	r := app.Reload{Base: base, Generation: review.Generation{ID: 2, Seq: 2}, Changeset: c}
+	src := &source{at: r}
+	s := &screen{t: t, m: app.New(theme.RosePineMoon, src, "zen-review", r), src: src}
+	s.send(tea.WindowSizeMsg{Width: width, Height: height})
+	return s
+}
+
 func with(t *testing.T, repo string, c review.Changeset, comments []store.Comment,
 	summary string, width, height int,
 ) *screen {

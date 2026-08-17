@@ -373,6 +373,12 @@ func (s *Session) parents(old string, hadRef bool, latest store.Generation, foun
 	if hadRef {
 		parents = append(parents, old)
 	}
+
+	// The empty tree is reachable from everywhere and is not a commit, so there
+	// is nothing here to pin and no way to pin it.
+	if s.base.EmptyTree() {
+		return parents
+	}
 	if !hadRef || !found || latest.BaseSha != s.base.SHA {
 		parents = append(parents, s.base.SHA)
 	}
