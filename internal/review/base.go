@@ -71,8 +71,11 @@ func (s *Session) resolveBase(ctx context.Context, head git.Head, stored, flag s
 // tryBase turns a ref into a fork point, or into the sentence saying why it is
 // not one. Only a git that broke under us is an error.
 func (s *Session) tryBase(ctx context.Context, ref, headSHA string) (Base, string, error) {
-	tip, err := s.repo.RevParse(ctx, ref)
+	tip, ok, err := s.repo.Resolve(ctx, ref)
 	if err != nil {
+		return Base{}, "", err
+	}
+	if !ok {
 		return Base{}, fmt.Sprintf(tagNotFmt, ref), nil
 	}
 
@@ -168,19 +171,28 @@ func (s *Session) ladder(ctx context.Context, head git.Head) ([]string, string, 
 	}
 	rungs = append(rungs, headRef)
 
+	// The rung above bounds the stack walk, and an empty bound walks the whole
+	// chain. On a default branch nothing under it is a stack, so it does not run.
+	bound := rungs[0]
+	if bound == headRef {
+		if slices.Contains(defaultNames, head.Branch) {
+			return rungs, why, nil
+		}
+		bound = ""
+	}
+
 	// A branch stacked on another local branch is not measured from what sits
 	// under both: that reads the parent's commits as this branch's work.
-	if rungs[0] != headRef {
-		candidates, err := s.stack(ctx, head, rungs[0])
-		if err != nil {
-			return nil, "", err
-		}
-		if len(candidates) > 0 {
-			if why == "" {
-				why = tagStacked
-			}
-			rungs = append([]string{candidates[0].Branch}, rungs...)
-		}
+	candidates, err := s.stack(ctx, head, bound)
+	if err != nil {
+		return nil, "", err
+	}
+
+	// The stack picked the rung, so it owns the tag. A remote that is missing or
+	// dangling would have landed on the same branch anyway.
+	if len(candidates) > 0 {
+		why = tagStacked
+		rungs = append([]string{candidates[0].Branch}, rungs...)
 	}
 	return rungs, why, nil
 }
@@ -198,7 +210,11 @@ func (s *Session) remoteDefault(ctx context.Context) (string, string, error) {
 
 	// origin/HEAD is symbolic and outlives what it points at: rename the
 	// remote's default branch and it names a ref that is gone.
-	if _, err := s.repo.RevParse(ctx, detected); err != nil {
+	_, ok, err := s.repo.Resolve(ctx, detected)
+	if err != nil {
+		return "", "", err
+	}
+	if !ok {
 		return "", fmt.Sprintf(tagDanglingFmt, detected), nil
 	}
 	return detected, "", nil

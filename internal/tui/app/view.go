@@ -183,15 +183,18 @@ func (m Model) facts() []fact {
 	}
 }
 
-// baseLabel is the ref, and quieter beside it the reason the base fell back to
-// it. The reason goes second, so the clip a narrow pane takes eats that first.
+// baseLabel is the ref, and quieter beside it the tag a base nobody asked for
+// wears. The tag goes second, so the clip a narrow pane takes eats it first.
 func (m Model) baseLabel() string {
 	label := lipgloss.NewStyle().Foreground(m.theme.Muted).Render(m.base.Name())
 	if m.base.Fallback == "" {
 		return label
 	}
+
+	// Bracketed rather than dotted: the bar carrying the facts on one line
+	// separates them by a dot, and the sha would read as the tag's value.
 	return label + lipgloss.NewStyle().Foreground(m.theme.Subtle).
-		Render(" · "+comp.Safe(m.base.Fallback))
+		Render(" ("+comp.Safe(m.base.Fallback)+")")
 }
 
 // settled is the comments answered over all of them, and the only thing on

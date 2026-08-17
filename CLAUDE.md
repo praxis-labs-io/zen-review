@@ -169,6 +169,12 @@ stacked on another local branch takes the branch under it, which is the answer
 the candidate walk was already computing. A ref that stops resolving and one
 that loses the fork point are both a rung to step off.
 
+The rung above bounds the candidate walk, and on a trunk called anything but
+`main` or `master` there is no rung above HEAD to bound it with, so it walks the
+whole first-parent chain instead. On a default branch it does not run at all: a
+tip left behind on that branch's own history is a branch nobody deleted, and
+measuring from it would hide every commit since.
+
 A base nobody asked for wears a tag on `Base.Fallback`, beside the ref in the
 facts and on the CLI's own base line. The tag names what the base is rather than
 what it is not, because the row carrying it already says which ref it is:
@@ -181,9 +187,12 @@ It is a standing fact and not a notice, so it does not take the status bar and
 no key clears it. The reason sits to the right of the ref, so the clip a narrow
 pane takes eats the reason and leaves the ref whole.
 
-A base that fell back is never stored, because it is a guess made for want of
-the one asked for, and storing it would keep the guess after the repository
-moved past it. `--base` is how it is corrected until `b` exists.
+A fallback writes no ref at all, and never clears the one already stored. It is
+a guess, so keeping it would hold after the repository moved past it, and
+clearing what was chosen would lose what to go back to: one mistyped `--base`
+would cost the session its base and every range measured from it. So the stored
+ref stands, the tag stands with it on every run until the ref resolves again,
+and `--base` is how it is corrected until `b` exists.
 
 ### Sessions and generations
 

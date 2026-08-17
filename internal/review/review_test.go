@@ -539,3 +539,114 @@ func TestAFallbackBaseIsNotStored(t *testing.T) {
 		t.Errorf("fallback = %q, want nothing left to explain", base.Fallback)
 	}
 }
+
+// A failed resolution must not cost the session the base it had. The stored ref
+// is what everything already reviewed was measured from.
+func TestAFallbackLeavesTheStoredBaseAlone(t *testing.T) {
+	f := branched(t)
+	f.Git("branch", "stable", "main")
+
+	if got := f.mustOpen("stable").Base().Ref; got != "stable" {
+		t.Fatalf("base = %s, want stable", got)
+	}
+
+	// A typo is one invocation, not a decision about the session.
+	typo := f.mustOpen("stabel").Base()
+	if typo.Ref != "origin/main" || typo.Fallback != "not stabel" {
+		t.Errorf("base = %+v, want origin/main tagged not stabel", typo)
+	}
+
+	if got := f.mustOpen("").Base(); got.Ref != "stable" || got.Fallback != "" {
+		t.Errorf("base = %+v, want the stored stable back", got)
+	}
+}
+
+// The tag stands on every run rather than on the first. status and refresh are
+// two processes, and the second must not read as a base somebody chose.
+func TestAFallbackTagSurvivesTheNextOpen(t *testing.T) {
+	f := branched(t)
+	f.Git("branch", "chosen", "main")
+	f.mustOpen("chosen")
+	f.Git("branch", "-D", "chosen")
+
+	for i := range 2 {
+		base := f.mustOpen("").Base()
+		if base.Ref != "origin/main" || base.Fallback != "not chosen" {
+			t.Errorf("open %d: base = %+v, want origin/main tagged not chosen", i+1, base)
+		}
+	}
+}
+
+// The stack picked the rung, so it owns the tag. A missing or dangling remote
+// would have landed on the same branch, so naming one misstates the cause.
+func TestAStackedBranchIsTaggedStackedWhateverTheRemoteDid(t *testing.T) {
+	tests := []struct {
+		name  string
+		broke func(f *fixture)
+	}{
+		{"with no remote at all", func(f *fixture) {
+			f.Git("update-ref", "-d", "refs/remotes/origin/HEAD")
+			f.Git("update-ref", "-d", "refs/remotes/origin/main")
+		}},
+		{"with a dangling origin/HEAD", func(f *fixture) {
+			f.Git("update-ref", "-d", "refs/remotes/origin/main")
+		}},
+		{"with a healthy remote", func(*fixture) {}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			f := branched(t)
+			f.Git("checkout", "-q", "-b", "child")
+			f.commit("on the child")
+			tc.broke(f)
+
+			base := f.mustOpen("").Base()
+
+			if base.Ref != "feature" {
+				t.Errorf("base = %s, want feature", base.Ref)
+			}
+			if base.Fallback != "stacked" {
+				t.Errorf("fallback = %q, want stacked", base.Fallback)
+			}
+		})
+	}
+}
+
+// A repository whose trunk is not called main has no rung above HEAD to bound
+// the stack walk, and the branch's own commits are what the reader came for.
+func TestAStackIsFoundWithNoRemoteAndNoDefaultBranch(t *testing.T) {
+	f := newFixture(t)
+	f.Git("checkout", "-q", "-b", "develop")
+	f.commit("first")
+	f.Git("checkout", "-q", "-b", "feature")
+	f.commit("real work")
+
+	base := f.mustOpen("").Base()
+
+	if base.Ref != "develop" {
+		t.Errorf("base = %s, want develop", base.Ref)
+	}
+	if base.Fallback != "stacked" {
+		t.Errorf("fallback = %q, want stacked", base.Fallback)
+	}
+}
+
+// On a default branch nothing under it is a stack. A tip left behind on this
+// branch's own history is a branch nobody deleted, and measuring from it would
+// hide every commit since.
+func TestADefaultBranchDoesNotStackOnATipLeftBehindOnIt(t *testing.T) {
+	f := newFixture(t)
+	f.commit("first")
+	f.Git("branch", "left-behind", "main")
+	f.commit("second")
+
+	base := f.mustOpen("").Base()
+
+	if base.Ref != "HEAD" {
+		t.Errorf("base = %s, want HEAD", base.Ref)
+	}
+	if base.Fallback != "uncommitted" {
+		t.Errorf("fallback = %q, want uncommitted", base.Fallback)
+	}
+}

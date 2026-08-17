@@ -327,3 +327,39 @@ func TestRefShaReadsARefThatExists(t *testing.T) {
 		t.Errorf("sha = %q, want %q", sha, want)
 	}
 }
+
+// A ref that names nothing is an answer, and a git that broke is not. Reading
+// the two as one drops a caller onto a different base with nothing said.
+func TestResolveTellsAMissingRefFromABrokenGit(t *testing.T) {
+	f := newFixture(t)
+	f.Write("a.txt", "one\n")
+	sha := f.Commit("first")
+
+	got, ok, err := f.open().Resolve(t.Context(), "main")
+	if err != nil || !ok || got != sha {
+		t.Errorf("Resolve(main) = %q, %v, %v, want %q, true, nil", got, ok, err, sha)
+	}
+
+	if _, ok, err := f.open().Resolve(t.Context(), "no-such-ref"); err != nil || ok {
+		t.Errorf("Resolve(no-such-ref) = %v, %v, want false and no error", ok, err)
+	}
+}
+
+// An empty base walks the whole chain, which is what a tip with nothing above
+// it to bound the walk needs.
+func TestFirstParentsWithNoBaseWalksTheWholeChain(t *testing.T) {
+	f := newFixture(t)
+	f.Write("a.txt", "one\n")
+	first := f.Commit("first")
+	f.Write("a.txt", "two\n")
+	second := f.Commit("second")
+
+	got, err := f.open().FirstParents(t.Context(), "", "HEAD")
+	if err != nil {
+		t.Fatalf("walking the whole chain: %v", err)
+	}
+
+	if len(got) != 2 || got[0] != second || got[1] != first {
+		t.Errorf("chain = %v, want %s then %s", got, second, first)
+	}
+}

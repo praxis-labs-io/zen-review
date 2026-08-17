@@ -1219,7 +1219,7 @@ func TestAFallbackBaseReadsBesideTheBase(t *testing.T) {
 
 	s := measured(t, base, testchangeset.Derive(t, ringPatch), 100, 16)
 
-	if want := "HEAD · uncommitted"; !strings.Contains(s.frame(), want) {
+	if want := "HEAD (uncommitted)"; !strings.Contains(s.frame(), want) {
 		t.Errorf("the frame is missing %q:\n%s", want, s.frame())
 	}
 	if strings.Contains(s.bar(), "uncommitted") {
@@ -1227,7 +1227,7 @@ func TestAFallbackBaseReadsBesideTheBase(t *testing.T) {
 	}
 
 	// It stands rather than clearing, which is what a notice would have done.
-	if !strings.Contains(s.press("j").frame(), "HEAD · uncommitted") {
+	if !strings.Contains(s.press("j").frame(), "HEAD (uncommitted)") {
 		t.Error("a press cleared the fallback, which is not a notice")
 	}
 }
@@ -1243,7 +1243,7 @@ func TestANarrowPaneClipsTheReasonAndKeepsTheRef(t *testing.T) {
 
 	frame := measured(t, base, testchangeset.Derive(t, ringPatch), 56, 16).frame()
 
-	if !strings.Contains(frame, "feature · ") {
+	if !strings.Contains(frame, "feature (") {
 		t.Errorf("the frame lost the ref:\n%s", frame)
 	}
 	if strings.Contains(frame, "a-long-branch-name") {
@@ -1260,5 +1260,21 @@ func TestTheEmptyTreeBaseIsNamedInTheFacts(t *testing.T) {
 
 	if !strings.Contains(frame, "empty tree") {
 		t.Errorf("the frame does not name the base:\n%s", frame)
+	}
+}
+
+// The bar that has to carry the facts on one line separates them by a dot, so
+// the tag cannot use one: the sha would read as the value of a fact.
+func TestTheFallbackTagDoesNotReadAsAFactOnTheBar(t *testing.T) {
+	base := review.Base{Ref: "HEAD", SHA: "a1b2c3d4e5f67890", Fallback: "uncommitted"}
+
+	// Short enough that the facts do not fit their own box and fall to the bar.
+	bar := measured(t, base, testchangeset.Derive(t, ringPatch), 200, 6).bar()
+
+	if !strings.Contains(bar, "HEAD (uncommitted)") {
+		t.Errorf("bar = %q, want the tag bracketed onto the ref", bar)
+	}
+	if strings.Contains(bar, "HEAD · uncommitted") {
+		t.Errorf("bar = %q, want the tag not to read as its own fact", bar)
 	}
 }

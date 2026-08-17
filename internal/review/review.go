@@ -193,11 +193,11 @@ func (s *Session) load(ctx context.Context, head git.Head, opts Options) error {
 		return err
 	}
 
-	// A fallback stores no ref. It is a guess made because the base asked for was
-	// not there, so it is made again rather than kept once the repository moves.
-	ref := base.Ref
-	if base.Fallback != "" {
-		ref = ""
+	// A fallback writes no ref, and does not clear the one already there. It is a
+	// guess, and overwriting a chosen base would lose what to go back to.
+	ref := row.BaseRef
+	if base.Fallback == "" {
+		ref = base.Ref
 	}
 
 	// Written only when something changed. Opening a session to read its status

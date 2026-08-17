@@ -74,6 +74,20 @@ func (r *Repo) RevParse(ctx context.Context, ref string) (string, error) {
 	return trim(out), nil
 }
 
+// Resolve is RevParse for a caller with an answer for a ref that names nothing.
+// Only a git that failed for some other reason is an error.
+func (r *Repo) Resolve(ctx context.Context, ref string) (string, bool, error) {
+	out, code, err := runStatus(ctx, r.root, 1,
+		"rev-parse", "--verify", "--quiet", "--end-of-options", ref+"^{commit}")
+	if err != nil {
+		return "", false, fmt.Errorf("resolving %s: %w", ref, err)
+	}
+	if code == 1 {
+		return "", false, nil
+	}
+	return trim(out), true, nil
+}
+
 // RefSha is the object a ref points at, and false for a ref that does not
 // exist. Absence is an answer here and not a failure: a session that has never
 // refreshed has no ref yet, and that is its normal first state.
@@ -113,9 +127,16 @@ func (r *Repo) MergeBase(ctx context.Context, a, b string) (string, error) {
 // on it, while a branch HEAD was cut from is. Walking every parent instead reads
 // both as the same thing, and one of them is a base nobody would measure from.
 func (r *Repo) FirstParents(ctx context.Context, base, tip string) ([]string, error) {
-	out, err := run(ctx, r.root, "rev-list", "--first-parent", "--end-of-options", base+".."+tip)
+	// An empty base walks the whole chain, for a tip with nothing above it to
+	// bound the walk.
+	rev := tip
+	if base != "" {
+		rev = base + ".." + tip
+	}
+
+	out, err := run(ctx, r.root, "rev-list", "--first-parent", "--end-of-options", rev)
 	if err != nil {
-		return nil, fmt.Errorf("walking the first parents from %s to %s: %w", base, tip, err)
+		return nil, fmt.Errorf("walking the first parents to %s: %w", tip, err)
 	}
 
 	line := trim(out)
