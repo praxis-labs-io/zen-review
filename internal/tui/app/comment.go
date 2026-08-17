@@ -215,14 +215,21 @@ func (m *Model) save(body string) tea.Cmd {
 	// finished on is not a line of the comment, and the card would draw it.
 	body = strings.TrimRight(body, " \t\r\n")
 
+	// Wiping a comment is not saving it, and it is not deleting one either: D is
+	// the key that does that, and the bar names it rather than refusing in prose.
+	if m.editing != "" && strings.TrimSpace(body) == "" {
+		m.note = notice{text: "nothing to save · D deletes it"}
+		return nil
+	}
+
 	if m.editing != "" {
 		return m.saveEdit(body)
 	}
 	return m.saveComment(body)
 }
 
-// saveEdit rewrites what a comment says. An empty body goes through and is
-// refused: blanking one is a delete, and D is how that is spelled.
+// saveEdit rewrites what a comment says, which is the whole of an edit: the
+// anchor it moves under is not this key's business.
 func (m *Model) saveEdit(body string) tea.Cmd {
 	src, g, id := m.src, m.gen, m.editing
 	m.busy = true

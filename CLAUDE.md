@@ -397,9 +397,10 @@ the card itself: same border, same indent, same place, holding what it said. A
 delete is a real delete rather than a state, which would have to be filtered out
 of every count, every ring and every export forever.
 
-An empty body is a discard from `c`, because nothing was typed, and a refusal
-from `e`, because blanking a comment that says something is a delete and `D` is
-how that is spelled.
+An empty body is a discard from `c`, because nothing was typed. From `e` it
+writes nothing and the bar says so, naming `D`: wiping a box is not saving a
+comment, and it is not deleting one either, which is a key of its own and not a
+second meaning for the save key.
 
 The composer takes every key while it is up, `q` and `?` included. A note lost
 to the letter `q` cannot be taken back, and one key let out is one more thing to

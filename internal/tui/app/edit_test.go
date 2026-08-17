@@ -64,17 +64,22 @@ func TestEditOnNoCardOpensNothing(t *testing.T) {
 	}
 }
 
-// TestAnEmptyEditGoesThroughToBeRefused. Blanking a comment that says something
-// is a delete, and D is how that is spelled.
-func TestAnEmptyEditGoesThroughToBeRefused(t *testing.T) {
+// TestAnEmptyEditWritesNothingAndNamesTheKeyThatWould. Wiping a comment is not
+// saving it, and the reader who meant to be rid of it has one key for that.
+func TestAnEmptyEditWritesNothingAndNamesTheKeyThatWould(t *testing.T) {
 	on := testchangeset.Comment("aaaaaaaaaaaa", "README.md", 2, 2, "hi")
 
 	s := commented(t, 100, 24, on)
 	s.press("]", "e", "backspace", "backspace", "ctrl+s")
 
-	want := `EditComment aaaaaaaaaaaa "" gen=2`
-	if got := s.calls(); len(got) != 1 || got[0] != want {
-		t.Errorf("the writes were %v, want %q", got, want)
+	if got := s.calls(); len(got) != 0 {
+		t.Errorf("an empty save wrote %v", got)
+	}
+	if got := s.bar(); !strings.Contains(got, "nothing to save") || !strings.Contains(got, "D deletes it") {
+		t.Errorf("the bar reads %q, want what the press did and the key that removes one", got)
+	}
+	if got := s.frame(); !strings.Contains(got, "◇ editing") {
+		t.Errorf("the box came down on a press that wrote nothing:\n%s", got)
 	}
 }
 
