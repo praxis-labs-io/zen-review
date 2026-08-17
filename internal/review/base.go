@@ -157,9 +157,10 @@ func (s *Session) ladder(ctx context.Context, head git.Head) ([]string, string, 
 			return nil, "", err
 		}
 		if len(candidates) > 0 {
+			// Names only what it passed over. fallbackOf names what it took.
 			if why == "" {
-				why = fmt.Sprintf("this branch sits on top of %s, so %s is not the fork point",
-					candidates[0].Branch, rungs[0])
+				why = fmt.Sprintf("%s is not the fork point of a branch stacked on %s",
+					rungs[0], candidates[0].Branch)
 			}
 			rungs = append([]string{candidates[0].Branch}, rungs...)
 		}

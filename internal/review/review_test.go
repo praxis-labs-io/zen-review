@@ -511,7 +511,7 @@ func TestAStackedBranchIsMeasuredFromTheBranchBelowIt(t *testing.T) {
 	if base.Ref != "feature" {
 		t.Errorf("base = %s, want feature", base.Ref)
 	}
-	if !strings.Contains(base.Fallback, "sits on top of feature") {
+	if !strings.Contains(base.Fallback, "stacked on feature") {
 		t.Errorf("fallback = %q, want it to say what it is stacked on", base.Fallback)
 	}
 }
