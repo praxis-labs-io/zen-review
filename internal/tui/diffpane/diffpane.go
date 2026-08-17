@@ -730,6 +730,10 @@ func (m *Model) jump() {
 // View pins the top row's own hunk heading there once that heading has scrolled
 // above the window, covering the line it sits on.
 func (m Model) View() string {
+	if m.file == nil {
+		return comp.Placeholder(m.theme, "nothing to review", m.width, m.height)
+	}
+
 	out := make([]string, 0, m.height)
 	for i := m.offset; i < len(m.rows) && len(out) < m.height; i++ {
 		out = append(out, m.rows[i].text)

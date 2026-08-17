@@ -154,6 +154,46 @@ order is the order it walked the index in, and one ordering from the engine is
 what keeps the printed table and the tree pane from disagreeing about what is
 first. Nothing above `review` sorts.
 
+### The base
+
+Nothing about the base stops the reader opening. The only startup that still
+fails is a directory that is not a repository, because there is nothing there to
+open. A refusal a reader cannot act on from inside the tool is a refusal that
+sends them to the shell to guess.
+
+So detection walks a ladder and always reaches the bottom of it: `origin/HEAD`,
+a local `main` or `master` that is not the branch HEAD is on, then HEAD itself,
+where the changeset is whatever has not been committed. A HEAD with no commit
+under it is measured from the empty tree, and every file reads as new. A branch
+stacked on another local branch takes the branch under it, which is the answer
+the candidate walk was already computing. A ref that stops resolving and one
+that loses the fork point are both a rung to step off.
+
+The rung above bounds the candidate walk, and on a trunk called anything but
+`main` or `master` there is no rung above HEAD to bound it with, so it walks the
+whole first-parent chain instead. On a default branch it does not run at all: a
+tip left behind on that branch's own history is a branch nobody deleted, and
+measuring from it would hide every commit since.
+
+A base nobody asked for wears a tag on `Base.Fallback`, beside the ref in the
+facts and on the CLI's own base line. The tag names what the base is rather than
+what it is not, because the row carrying it already says which ref it is:
+`no remote`, `uncommitted`, `stacked`. The two that name another ref are the two
+a reader cannot see any other way, `not tmp` and `origin/main gone`, where
+something was asked for and not given. The empty tree wears none, its name being
+the whole answer.
+
+It is a standing fact and not a notice, so it does not take the status bar and
+no key clears it. The reason sits to the right of the ref, so the clip a narrow
+pane takes eats the reason and leaves the ref whole.
+
+A fallback writes no ref at all, and never clears the one already stored. It is
+a guess, so keeping it would hold after the repository moved past it, and
+clearing what was chosen would lose what to go back to: one mistyped `--base`
+would cost the session its base and every range measured from it. So the stored
+ref stands, the tag stands with it on every run until the ref resolves again,
+and `--base` is how it is corrected until `b` exists.
+
 ### Sessions and generations
 
 A session is one repo plus one branch, resumable days later. A generation is a

@@ -25,17 +25,29 @@ type Head struct {
 	SHA    string
 }
 
+// Unborn is a HEAD with no commit under it: git init, nothing committed. The
+// branch name is still there, so a session keys on it as it always does.
+func (h Head) Unborn() bool { return h.SHA == "" }
+
 // Branch is one local branch and the commit it points at.
 type Branch struct {
 	Name string
 	SHA  string
 }
 
-// Head resolves HEAD to a branch name and a commit.
+// Head resolves HEAD to a branch name and a commit. A repository with no
+// commits answers Unborn rather than failing.
 func (r *Repo) Head(ctx context.Context) (Head, error) {
-	sha, err := r.RevParse(ctx, "HEAD")
+	// The only rev HEAD does not resolve to is the one never committed, and
+	// --verify --quiet exits 1 for it rather than printing a fatal.
+	sha, code, err := runStatus(ctx, r.root, 1, "rev-parse", "--verify", "--quiet", "--end-of-options", "HEAD^{commit}")
 	if err != nil {
-		return Head{}, err
+		return Head{}, fmt.Errorf("resolving HEAD: %w", err)
+	}
+
+	var head Head
+	if code == 0 {
+		head.SHA = trim(sha)
 	}
 
 	// --quiet exits 1 on a detached HEAD rather than printing a fatal, which is
@@ -45,9 +57,10 @@ func (r *Repo) Head(ctx context.Context) (Head, error) {
 		return Head{}, err
 	}
 	if code == 1 {
-		return Head{SHA: sha}, nil
+		return head, nil
 	}
-	return Head{Branch: trim(out), SHA: sha}, nil
+	head.Branch = trim(out)
+	return head, nil
 }
 
 // RevParse resolves a ref to a full commit sha, peeling a tag to the commit it
@@ -59,6 +72,20 @@ func (r *Repo) RevParse(ctx context.Context, ref string) (string, error) {
 		return "", fmt.Errorf("resolving %s: %w", ref, err)
 	}
 	return trim(out), nil
+}
+
+// Resolve is RevParse for a caller with an answer for a ref that names nothing.
+// Only a git that failed for some other reason is an error.
+func (r *Repo) Resolve(ctx context.Context, ref string) (string, bool, error) {
+	out, code, err := runStatus(ctx, r.root, 1,
+		"rev-parse", "--verify", "--quiet", "--end-of-options", ref+"^{commit}")
+	if err != nil {
+		return "", false, fmt.Errorf("resolving %s: %w", ref, err)
+	}
+	if code == 1 {
+		return "", false, nil
+	}
+	return trim(out), true, nil
 }
 
 // RefSha is the object a ref points at, and false for a ref that does not
@@ -100,9 +127,16 @@ func (r *Repo) MergeBase(ctx context.Context, a, b string) (string, error) {
 // on it, while a branch HEAD was cut from is. Walking every parent instead reads
 // both as the same thing, and one of them is a base nobody would measure from.
 func (r *Repo) FirstParents(ctx context.Context, base, tip string) ([]string, error) {
-	out, err := run(ctx, r.root, "rev-list", "--first-parent", "--end-of-options", base+".."+tip)
+	// An empty base walks the whole chain, for a tip with nothing above it to
+	// bound the walk.
+	rev := tip
+	if base != "" {
+		rev = base + ".." + tip
+	}
+
+	out, err := run(ctx, r.root, "rev-list", "--first-parent", "--end-of-options", rev)
 	if err != nil {
-		return nil, fmt.Errorf("walking the first parents from %s to %s: %w", base, tip, err)
+		return nil, fmt.Errorf("walking the first parents to %s: %w", tip, err)
 	}
 
 	line := trim(out)

@@ -10,6 +10,24 @@ import (
 	"github.com/zen-review/zen-review/internal/git"
 )
 
+// headRef is the bottom of the ladder: nothing above HEAD to measure from, so
+// the changeset is whatever has not been committed.
+const headRef = "HEAD"
+
+// defaultNames are the branches a repository with no origin/HEAD falls back to,
+// best first.
+var defaultNames = []string{"main", "master"}
+
+// The tags a fallback base wears. They name what the base is, because the row
+// carrying one already says which ref it is.
+const (
+	tagNoRemote    = "no remote"
+	tagUncommitted = "uncommitted"
+	tagStacked     = "stacked"
+	tagDanglingFmt = "%s gone"
+	tagNotFmt      = "not %s"
+)
+
 // Candidate is a local branch HEAD sits on top of, and how far back it is.
 type Candidate struct {
 	Branch string
@@ -19,143 +37,207 @@ type Candidate struct {
 	Ahead int
 }
 
-// StackedError means HEAD sits on top of another local branch and no base has
-// been chosen yet.
-//
-// It is typed because the CLI prints it and the base picker on `b` reads the
-// same list. Measuring a stacked branch from origin/main shows the parent
-// branch's commits as this branch's work, which is a worse answer than asking.
-type StackedError struct {
-	// Detected is what auto-detection would otherwise have taken.
-	Detected string
-
-	// Candidates are nearest first.
-	Candidates []Candidate
-}
-
-func (e *StackedError) Error() string {
-	names := make([]string, 0, len(e.Candidates))
-	for _, c := range e.Candidates {
-		names = append(names, c.Branch)
-	}
-	return fmt.Sprintf("this branch sits on top of %s, so %s is not the fork point: pass --base with one of them",
-		strings.Join(names, ", "), e.Detected)
-}
-
-// NoMergeBaseError means a base and HEAD share no history, which is what a base
-// force-push that loses the fork point looks like from here.
-type NoMergeBaseError struct{ Ref string }
-
-func (e *NoMergeBaseError) Error() string {
-	return fmt.Sprintf("the fork point is gone: %s and HEAD share no history, so pass --base with a ref this branch still grows from", e.Ref)
-}
-
-// UnresolvableBaseError means the base this session was measured from no longer
-// names anything.
-type UnresolvableBaseError struct{ Ref string }
-
-func (e *UnresolvableBaseError) Error() string {
-	return fmt.Sprintf("this session is measured from %s, which no longer resolves: pass --base to name another", e.Ref)
-}
-
 // resolveBase settles what the changeset is measured from: the flag, then what
-// the session already had, then detection.
-//
-// Detection is the only step that can refuse, and it runs only for a session
-// with nothing stored. A base chosen once is used again even where detection
-// would now say something else, because a base moving under a half-finished
-// review changes what every range already reviewed was measured against.
+// the session had, then the ladder. Nothing here refuses.
 func (s *Session) resolveBase(ctx context.Context, head git.Head, stored, flag string) (Base, error) {
-	ref, fromStore := flag, false
-	if ref == "" && stored != "" {
-		ref, fromStore = stored, true
-	}
-	if ref == "" {
-		found, err := s.detect(ctx, head)
+	// No commit to measure from, so the other side is the empty tree and every
+	// file in the work tree reads as new. A ref cannot mean anything here.
+	if head.Unborn() {
+		tree, err := s.repo.EmptyTree(ctx)
 		if err != nil {
 			return Base{}, err
 		}
-		ref = found
+		return Base{SHA: tree}, nil
 	}
 
-	return s.mergeBase(ctx, ref, head.SHA, fromStore)
-}
+	ref := flag
+	if ref == "" {
+		ref = stored
+	}
+	if ref == "" {
+		return s.detect(ctx, head, "")
+	}
 
-// mergeBase turns a ref into a fork point, and the two ways that goes wrong
-// into errors the command above can print.
-//
-// stored says the ref came from the session rather than from the reader. A
-// stored ref that no longer names anything is said out loud rather than
-// replaced by a fresh detection: falling back silently changes what the review
-// is measuring, and everything already reviewed was measured from the ref that
-// just went away.
-func (s *Session) mergeBase(ctx context.Context, ref, headSHA string, stored bool) (Base, error) {
-	tip, err := s.repo.RevParse(ctx, ref)
+	base, why, err := s.tryBase(ctx, ref, head.SHA)
 	if err != nil {
-		if stored {
-			return Base{}, &UnresolvableBaseError{Ref: ref}
-		}
 		return Base{}, err
 	}
+	if why == "" {
+		return base, nil
+	}
+	return s.detect(ctx, head, why)
+}
 
-	// The merge base runs against the commit that just resolved, not the ref
-	// again. A ref is mutable and an agent in another worktree is entitled to
-	// move it, which would leave the changeset measured from a commit nothing
-	// here ever checked. The name stays only as what the session stores and
-	// prints.
+// tryBase turns a ref into a fork point, or into the sentence saying why it is
+// not one. Only a git that broke under us is an error.
+func (s *Session) tryBase(ctx context.Context, ref, headSHA string) (Base, string, error) {
+	tip, ok, err := s.repo.Resolve(ctx, ref)
+	if err != nil {
+		return Base{}, "", err
+	}
+	if !ok {
+		return Base{}, fmt.Sprintf(tagNotFmt, ref), nil
+	}
+
+	// Against the commit that just resolved rather than the ref again. A ref is
+	// mutable, and an agent in another worktree is entitled to move it.
 	sha, err := s.repo.MergeBase(ctx, tip, headSHA)
 	if err != nil {
 		if errors.Is(err, git.ErrNoMergeBase) {
-			return Base{}, &NoMergeBaseError{Ref: ref}
+			return Base{}, fmt.Sprintf(tagNotFmt, ref), nil
 		}
-		return Base{}, err
+		return Base{}, "", err
 	}
-	return Base{Ref: ref, SHA: sha}, nil
+	return Base{Ref: ref, SHA: sha}, "", nil
 }
 
-// rebase re-derives the fork point from the ref the session already settled on.
-//
-// base_ref is what sticks; base_sha follows the branch. A rebase onto a newer
-// origin/main moves the fork point, and measuring from the old one shows every
-// commit the rebase brought in as this branch's work.
+// rebase re-derives the fork point. base_ref is what sticks; base_sha follows
+// the branch, or a rebase reads what it brought in as this branch's work.
 func (s *Session) rebase(ctx context.Context, head git.Head) error {
-	base, err := s.mergeBase(ctx, s.base.Ref, head.SHA, true)
+	was := s.base
+	base, err := s.resolveBase(ctx, head, was.Ref, "")
 	if err != nil {
 		return err
+	}
+
+	// The sentence belongs to the ref, and this only moved the sha under it.
+	// Open stepped off a ref a second walk of the ladder cannot see.
+	if base.Ref == was.Ref && base.Fallback == "" {
+		base.Fallback = was.Fallback
 	}
 	s.base = base
 	return nil
 }
 
-// detect proposes a base, and refuses rather than guess on a stacked branch.
-func (s *Session) detect(ctx context.Context, head git.Head) (string, error) {
-	detected, err := s.repo.DefaultRemoteBranch(ctx)
+// detect walks the ladder and always reaches the bottom of it. why is what went
+// wrong above it, and the first reason recorded is the one a reader can act on.
+func (s *Session) detect(ctx context.Context, head git.Head, why string) (Base, error) {
+	rungs, skipped, err := s.ladder(ctx, head)
 	if err != nil {
-		if errors.Is(err, git.ErrNoDefaultBranch) {
-			return "", errors.New("no origin/HEAD to measure from, so pass --base <ref>")
+		return Base{}, err
+	}
+	if why == "" {
+		why = skipped
+	}
+
+	for _, ref := range rungs {
+		base, fell, err := s.tryBase(ctx, ref, head.SHA)
+		if err != nil {
+			return Base{}, err
 		}
-		return "", err
+		if fell != "" {
+			if why == "" {
+				why = fell
+			}
+			continue
+		}
+		base.Fallback = tagOf(why, ref)
+		return base, nil
 	}
 
-	// origin/HEAD is a symbolic ref and outlives what it points at: rename the
-	// remote's default branch and it names a ref that is gone. Checking here
-	// rather than after the stack walk is what keeps that arriving as guidance
-	// instead of a merge-base fatal about an object name.
-	if _, err := s.repo.RevParse(ctx, detected); err != nil {
-		// Opening with the literal rather than the ref: fang title-cases the first
-		// word of an error, and a mangled ref in the sentence naming what to fix is
-		// worse than no sentence.
-		return "", fmt.Errorf("this repository's origin/HEAD points at %s, which no longer exists, so pass --base <ref>", detected)
+	// Unreachable: HEAD ends every ladder, and a HEAD that is not unborn
+	// resolves and is its own merge base.
+	return Base{}, fmt.Errorf("nothing in this repository to measure %s from", head.Branch)
+}
+
+// tagOf is the tag the landed base wears. Only the remoteless one reads
+// differently at the bottom rung, where the changeset is the uncommitted work.
+func tagOf(why, ref string) string {
+	if why == tagNoRemote && ref == headRef {
+		return tagUncommitted
+	}
+	return why
+}
+
+// ladder is every ref detection will try, best first, and why the ones missing
+// from it were passed over.
+func (s *Session) ladder(ctx context.Context, head git.Head) ([]string, string, error) {
+	remote, why, err := s.remoteDefault(ctx)
+	if err != nil {
+		return nil, "", err
 	}
 
-	candidates, err := s.stack(ctx, head, detected)
+	rungs := make([]string, 0, 3)
+	if remote != "" {
+		rungs = append(rungs, remote)
+	}
+
+	local, err := s.localDefault(ctx, head)
+	if err != nil {
+		return nil, "", err
+	}
+	if local != "" {
+		rungs = append(rungs, local)
+	}
+	rungs = append(rungs, headRef)
+
+	// The rung above bounds the stack walk, and an empty bound walks the whole
+	// chain. On a default branch nothing under it is a stack, so it does not run.
+	bound := rungs[0]
+	if bound == headRef {
+		if slices.Contains(defaultNames, head.Branch) {
+			return rungs, why, nil
+		}
+		bound = ""
+	}
+
+	// A branch stacked on another local branch is not measured from what sits
+	// under both: that reads the parent's commits as this branch's work.
+	candidates, err := s.stack(ctx, head, bound)
+	if err != nil {
+		return nil, "", err
+	}
+
+	// The stack picked the rung, so it owns the tag. A remote that is missing or
+	// dangling would have landed on the same branch anyway.
+	if len(candidates) > 0 {
+		why = tagStacked
+		rungs = append([]string{candidates[0].Branch}, rungs...)
+	}
+	return rungs, why, nil
+}
+
+// remoteDefault is origin/HEAD where it is set and still names something, and
+// the reason it is not otherwise.
+func (s *Session) remoteDefault(ctx context.Context) (string, string, error) {
+	detected, err := s.repo.DefaultRemoteBranch(ctx)
+	if errors.Is(err, git.ErrNoDefaultBranch) {
+		return "", tagNoRemote, nil
+	}
+	if err != nil {
+		return "", "", err
+	}
+
+	// origin/HEAD is symbolic and outlives what it points at: rename the
+	// remote's default branch and it names a ref that is gone.
+	_, ok, err := s.repo.Resolve(ctx, detected)
+	if err != nil {
+		return "", "", err
+	}
+	if !ok {
+		return "", fmt.Sprintf(tagDanglingFmt, detected), nil
+	}
+	return detected, "", nil
+}
+
+// localDefault is a local main or master to fall back to, and empty when there
+// is none or it is the branch HEAD is already on.
+func (s *Session) localDefault(ctx context.Context, head git.Head) (string, error) {
+	branches, err := s.repo.LocalBranches(ctx)
 	if err != nil {
 		return "", err
 	}
-	if len(candidates) > 0 {
-		return "", &StackedError{Detected: detected, Candidates: candidates}
+
+	for _, name := range defaultNames {
+		for _, b := range branches {
+			// The branch HEAD is on gives HEAD back, which the bottom rung
+			// already says more plainly.
+			if b.Name == name && b.Name != head.Branch {
+				return name, nil
+			}
+		}
 	}
-	return detected, nil
+	return "", nil
 }
 
 // stack is every local branch HEAD was branched from, nearest first.
