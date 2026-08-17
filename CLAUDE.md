@@ -169,11 +169,21 @@ stacked on another local branch takes the branch under it, which is the answer
 the candidate walk was already computing. A ref that stops resolving and one
 that loses the fork point are both a rung to step off.
 
-Every rung it steps off is a sentence on `Base.Fallback`: what it took and why.
-The CLI prints it under the headings, the reader gets it on the status bar on
-open, and `--base` is how it is corrected until `b` exists. A base that fell back
-is never stored, because it is a guess made for want of the one asked for, and
-storing it would keep the guess after the repository moved past it.
+A base nobody asked for wears a tag on `Base.Fallback`, beside the ref in the
+facts and on the CLI's own base line. The tag names what the base is rather than
+what it is not, because the row carrying it already says which ref it is:
+`no remote`, `uncommitted`, `stacked`. The two that name another ref are the two
+a reader cannot see any other way, `not tmp` and `origin/main gone`, where
+something was asked for and not given. The empty tree wears none, its name being
+the whole answer.
+
+It is a standing fact and not a notice, so it does not take the status bar and
+no key clears it. The reason sits to the right of the ref, so the clip a narrow
+pane takes eats the reason and leaves the ref whole.
+
+A base that fell back is never stored, because it is a guess made for want of
+the one asked for, and storing it would keep the guess after the repository
+moved past it. `--base` is how it is corrected until `b` exists.
 
 ### Sessions and generations
 

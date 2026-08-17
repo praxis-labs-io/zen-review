@@ -1215,19 +1215,19 @@ func TestAnEmptyChangesetSaysSoInBothPanes(t *testing.T) {
 // The fallback reads beside the base rather than on the bar. It is a standing
 // fact about the session, and the bar is for what the last key did.
 func TestAFallbackBaseReadsBesideTheBase(t *testing.T) {
-	base := review.Base{Ref: "HEAD", SHA: "a1b2c3d4e5f67890", Fallback: "no origin/HEAD"}
+	base := review.Base{Ref: "HEAD", SHA: "a1b2c3d4e5f67890", Fallback: "uncommitted"}
 
 	s := measured(t, base, testchangeset.Derive(t, ringPatch), 100, 16)
 
-	if want := "HEAD · no origin/HEAD"; !strings.Contains(s.frame(), want) {
+	if want := "HEAD · uncommitted"; !strings.Contains(s.frame(), want) {
 		t.Errorf("the frame is missing %q:\n%s", want, s.frame())
 	}
-	if strings.Contains(s.bar(), "no origin/HEAD") {
+	if strings.Contains(s.bar(), "uncommitted") {
 		t.Errorf("bar = %q, want the bar left to the keys", s.bar())
 	}
 
 	// It stands rather than clearing, which is what a notice would have done.
-	if !strings.Contains(s.press("j").frame(), "no origin/HEAD") {
+	if !strings.Contains(s.press("j").frame(), "HEAD · uncommitted") {
 		t.Error("a press cleared the fallback, which is not a notice")
 	}
 }
@@ -1238,7 +1238,7 @@ func TestANarrowPaneClipsTheReasonAndKeepsTheRef(t *testing.T) {
 	base := review.Base{
 		Ref:      "feature",
 		SHA:      "a1b2c3d4e5f67890",
-		Fallback: "origin/main is not the fork point",
+		Fallback: "not origin/a-long-branch-name",
 	}
 
 	frame := measured(t, base, testchangeset.Derive(t, ringPatch), 56, 16).frame()
@@ -1246,7 +1246,7 @@ func TestANarrowPaneClipsTheReasonAndKeepsTheRef(t *testing.T) {
 	if !strings.Contains(frame, "feature · ") {
 		t.Errorf("the frame lost the ref:\n%s", frame)
 	}
-	if strings.Contains(frame, "is not the fork point") {
+	if strings.Contains(frame, "a-long-branch-name") {
 		t.Errorf("the reason was not clipped at 56 columns:\n%s", frame)
 	}
 }

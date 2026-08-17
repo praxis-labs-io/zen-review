@@ -18,6 +18,16 @@ const headRef = "HEAD"
 // best first.
 var defaultNames = []string{"main", "master"}
 
+// The tags a fallback base wears. They name what the base is, because the row
+// carrying one already says which ref it is.
+const (
+	tagNoRemote    = "no remote"
+	tagUncommitted = "uncommitted"
+	tagStacked     = "stacked"
+	tagDanglingFmt = "%s gone"
+	tagNotFmt      = "not %s"
+)
+
 // Candidate is a local branch HEAD sits on top of, and how far back it is.
 type Candidate struct {
 	Branch string
@@ -37,7 +47,7 @@ func (s *Session) resolveBase(ctx context.Context, head git.Head, stored, flag s
 		if err != nil {
 			return Base{}, err
 		}
-		return Base{SHA: tree, Fallback: "no commits"}, nil
+		return Base{SHA: tree}, nil
 	}
 
 	ref := flag
@@ -63,7 +73,7 @@ func (s *Session) resolveBase(ctx context.Context, head git.Head, stored, flag s
 func (s *Session) tryBase(ctx context.Context, ref, headSHA string) (Base, string, error) {
 	tip, err := s.repo.RevParse(ctx, ref)
 	if err != nil {
-		return Base{}, fmt.Sprintf("%s does not resolve", ref), nil
+		return Base{}, fmt.Sprintf(tagNotFmt, ref), nil
 	}
 
 	// Against the commit that just resolved rather than the ref again. A ref is
@@ -71,7 +81,7 @@ func (s *Session) tryBase(ctx context.Context, ref, headSHA string) (Base, strin
 	sha, err := s.repo.MergeBase(ctx, tip, headSHA)
 	if err != nil {
 		if errors.Is(err, git.ErrNoMergeBase) {
-			return Base{}, fmt.Sprintf("%s shares no history with this branch", ref), nil
+			return Base{}, fmt.Sprintf(tagNotFmt, ref), nil
 		}
 		return Base{}, "", err
 	}
@@ -118,13 +128,22 @@ func (s *Session) detect(ctx context.Context, head git.Head, why string) (Base, 
 			}
 			continue
 		}
-		base.Fallback = why
+		base.Fallback = tagOf(why, ref)
 		return base, nil
 	}
 
 	// Unreachable: HEAD ends every ladder, and a HEAD that is not unborn
 	// resolves and is its own merge base.
 	return Base{}, fmt.Errorf("nothing in this repository to measure %s from", head.Branch)
+}
+
+// tagOf is the tag the landed base wears. Only the remoteless one reads
+// differently at the bottom rung, where the changeset is the uncommitted work.
+func tagOf(why, ref string) string {
+	if why == tagNoRemote && ref == headRef {
+		return tagUncommitted
+	}
+	return why
 }
 
 // ladder is every ref detection will try, best first, and why the ones missing
@@ -157,9 +176,8 @@ func (s *Session) ladder(ctx context.Context, head git.Head) ([]string, string, 
 			return nil, "", err
 		}
 		if len(candidates) > 0 {
-			// Names only what it passed over. Explain names what it took.
 			if why == "" {
-				why = fmt.Sprintf("%s is not the fork point", rungs[0])
+				why = tagStacked
 			}
 			rungs = append([]string{candidates[0].Branch}, rungs...)
 		}
@@ -172,7 +190,7 @@ func (s *Session) ladder(ctx context.Context, head git.Head) ([]string, string, 
 func (s *Session) remoteDefault(ctx context.Context) (string, string, error) {
 	detected, err := s.repo.DefaultRemoteBranch(ctx)
 	if errors.Is(err, git.ErrNoDefaultBranch) {
-		return "", "no origin/HEAD", nil
+		return "", tagNoRemote, nil
 	}
 	if err != nil {
 		return "", "", err
@@ -181,7 +199,7 @@ func (s *Session) remoteDefault(ctx context.Context) (string, string, error) {
 	// origin/HEAD is symbolic and outlives what it points at: rename the
 	// remote's default branch and it names a ref that is gone.
 	if _, err := s.repo.RevParse(ctx, detected); err != nil {
-		return "", fmt.Sprintf("%s is gone", detected), nil
+		return "", fmt.Sprintf(tagDanglingFmt, detected), nil
 	}
 	return detected, "", nil
 }

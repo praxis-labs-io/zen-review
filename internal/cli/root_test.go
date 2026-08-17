@@ -47,7 +47,7 @@ func TestABaseThatCannotBeUsedIsReportedRatherThanRefused(t *testing.T) {
 				return remoteless(t), nil
 			},
 			base: "HEAD",
-			says: []string{"no origin/HEAD", "has not been committed"},
+			says: []string{"HEAD (", "·  uncommitted"},
 		},
 		{
 			name: "with a base that does not resolve",
@@ -55,7 +55,7 @@ func TestABaseThatCannotBeUsedIsReportedRatherThanRefused(t *testing.T) {
 				return remoteless(t), []string{"--base", "no-such-ref"}
 			},
 			base: "HEAD",
-			says: []string{"no-such-ref", "does not resolve"},
+			says: []string{"·  not no-such-ref"},
 		},
 		{
 			// The path a reader hits days later without touching a flag. It has to
@@ -69,7 +69,7 @@ func TestABaseThatCannotBeUsedIsReportedRatherThanRefused(t *testing.T) {
 				return f, nil
 			},
 			base: "origin/main",
-			says: []string{"tmp", "does not resolve"},
+			says: []string{"·  not tmp"},
 		},
 		{
 			// Measuring a stacked branch from origin/main reads the parent's
@@ -86,7 +86,7 @@ func TestABaseThatCannotBeUsedIsReportedRatherThanRefused(t *testing.T) {
 				return f, nil
 			},
 			base: "feature",
-			says: []string{"is not the fork point", "so the base is feature"},
+			says: []string{"·  stacked"},
 		},
 	}
 
@@ -119,7 +119,7 @@ func TestARepositoryWithNoCommitsReviewsEverythingAsNew(t *testing.T) {
 
 	got := f.mustRun()
 
-	for _, want := range []string{"empty tree", "no commits", "A  a.txt"} {
+	for _, want := range []string{"empty tree", "A  a.txt"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("output = %q, want it to contain %q", got, want)
 		}
@@ -138,8 +138,8 @@ func TestTheFallbackReachesTheJSON(t *testing.T) {
 	if got.Base.Ref != "HEAD" {
 		t.Errorf("base ref = %q, want HEAD", got.Base.Ref)
 	}
-	if !strings.Contains(got.Base.Fallback, "no origin/HEAD") {
-		t.Errorf("fallback = %q, want it to say there is no origin/HEAD", got.Base.Fallback)
+	if got.Base.Fallback != "uncommitted" {
+		t.Errorf("fallback = %q, want it tagged uncommitted", got.Base.Fallback)
 	}
 }
 

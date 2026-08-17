@@ -297,8 +297,8 @@ func TestABaseForcePushThatLosesTheForkPointKeepsTheMarks(t *testing.T) {
 	if s.Base().Ref != "main" {
 		t.Errorf("base = %s, want the local main it fell back to", s.Base().Ref)
 	}
-	if !strings.Contains(s.Base().Fallback, "shares no history") {
-		t.Errorf("fallback = %q, want it to say the fork point is gone", s.Base().Fallback)
+	if s.Base().Fallback != "not origin/main" {
+		t.Errorf("fallback = %q, want it to say what it is not measured from", s.Base().Fallback)
 	}
 	assertRanges(t, f.storedRanges(next), []string{"code.txt head 5:9"})
 }
