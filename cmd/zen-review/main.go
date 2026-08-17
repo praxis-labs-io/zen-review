@@ -14,7 +14,10 @@ import (
 )
 
 func main() {
+	// The ANSI scheme, so the help reads in the palette the terminal is set to.
+	// fang's own is a fixed set of hex, and it fights every theme but its own.
 	err := fang.Execute(context.Background(), cli.NewRoot(),
+		fang.WithColorSchemeFunc(fang.AnsiColorScheme),
 		fang.WithVersion(version.Version),
 		fang.WithErrorHandler(report))
 	os.Exit(cli.ExitCode(err))
