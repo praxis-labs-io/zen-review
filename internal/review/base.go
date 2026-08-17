@@ -37,7 +37,7 @@ func (s *Session) resolveBase(ctx context.Context, head git.Head, stored, flag s
 		if err != nil {
 			return Base{}, err
 		}
-		return Base{SHA: tree, Fallback: "this repository has no commits, so every file reads as new"}, nil
+		return Base{SHA: tree, Fallback: "no commits"}, nil
 	}
 
 	ref := flag
@@ -118,7 +118,7 @@ func (s *Session) detect(ctx context.Context, head git.Head, why string) (Base, 
 			}
 			continue
 		}
-		base.Fallback = fallbackOf(why, ref)
+		base.Fallback = why
 		return base, nil
 	}
 
@@ -157,10 +157,9 @@ func (s *Session) ladder(ctx context.Context, head git.Head) ([]string, string, 
 			return nil, "", err
 		}
 		if len(candidates) > 0 {
-			// Names only what it passed over. fallbackOf names what it took.
+			// Names only what it passed over. Explain names what it took.
 			if why == "" {
-				why = fmt.Sprintf("%s is not the fork point of a branch stacked on %s",
-					rungs[0], candidates[0].Branch)
+				why = fmt.Sprintf("%s is not the fork point", rungs[0])
 			}
 			rungs = append([]string{candidates[0].Branch}, rungs...)
 		}
@@ -173,7 +172,7 @@ func (s *Session) ladder(ctx context.Context, head git.Head) ([]string, string, 
 func (s *Session) remoteDefault(ctx context.Context) (string, string, error) {
 	detected, err := s.repo.DefaultRemoteBranch(ctx)
 	if errors.Is(err, git.ErrNoDefaultBranch) {
-		return "", "this repository has no origin/HEAD", nil
+		return "", "no origin/HEAD", nil
 	}
 	if err != nil {
 		return "", "", err
@@ -182,7 +181,7 @@ func (s *Session) remoteDefault(ctx context.Context) (string, string, error) {
 	// origin/HEAD is symbolic and outlives what it points at: rename the
 	// remote's default branch and it names a ref that is gone.
 	if _, err := s.repo.RevParse(ctx, detected); err != nil {
-		return "", fmt.Sprintf("origin/HEAD points at %s, which is gone", detected), nil
+		return "", fmt.Sprintf("%s is gone", detected), nil
 	}
 	return detected, "", nil
 }
@@ -205,18 +204,6 @@ func (s *Session) localDefault(ctx context.Context, head git.Head) (string, erro
 		}
 	}
 	return "", nil
-}
-
-// fallbackOf is the sentence a base carries when it is not the one a reader
-// would expect, and empty when nothing was passed over.
-func fallbackOf(why, ref string) string {
-	if why == "" {
-		return ""
-	}
-	if ref == headRef {
-		return why + ", so the changeset is what has not been committed"
-	}
-	return fmt.Sprintf("%s, so the base is %s", why, ref)
 }
 
 // stack is every local branch HEAD was branched from, nearest first.

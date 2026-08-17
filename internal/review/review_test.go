@@ -157,9 +157,11 @@ func TestAStackedBranchTakesTheNearestBranchUnderIt(t *testing.T) {
 	if base.Ref != "stack-middle" {
 		t.Errorf("base = %s, want stack-middle", base.Ref)
 	}
-	if !strings.Contains(base.Fallback, "stack-middle") ||
-		!strings.Contains(base.Fallback, "origin/main") {
-		t.Errorf("fallback = %q, want it to name both what it took and what it passed over", base.Fallback)
+	if base.Fallback != "origin/main is not the fork point" {
+		t.Errorf("fallback = %q, want it to name what it passed over", base.Fallback)
+	}
+	if want := "origin/main is not the fork point, so the base is stack-middle"; base.Explain() != want {
+		t.Errorf("explain = %q, want %q", base.Explain(), want)
 	}
 
 	// The flag still settles it, and what it settles on is not a fallback.
@@ -406,7 +408,7 @@ func TestABaseThatCannotBeUsedFallsBackAndSaysWhy(t *testing.T) {
 				return ""
 			},
 			want: "main",
-			says: []string{"origin/HEAD", "is gone"},
+			says: []string{"origin/main", "is gone"},
 		},
 		{
 			// A base force-push that loses the fork point looks like this from here.
@@ -436,6 +438,12 @@ func TestABaseThatCannotBeUsedFallsBackAndSaysWhy(t *testing.T) {
 				if !strings.Contains(base.Fallback, want) {
 					t.Errorf("fallback = %q, want it to contain %q", base.Fallback, want)
 				}
+			}
+
+			// The short reason is what sits beside the base on screen. The
+			// sentence the CLI prints adds what was taken for it.
+			if want := ", so the base is " + tc.want; !strings.HasSuffix(base.Explain(), want) {
+				t.Errorf("explain = %q, want it to end %q", base.Explain(), want)
 			}
 		})
 	}
@@ -469,8 +477,11 @@ func TestARepositoryWithNoRemoteFallsToTheLocalDefaultThenHead(t *testing.T) {
 		if base.Ref != "HEAD" {
 			t.Errorf("base = %s, want HEAD", base.Ref)
 		}
-		if !strings.Contains(base.Fallback, "has not been committed") {
-			t.Errorf("fallback = %q, want it to say what the changeset is", base.Fallback)
+		if base.Fallback != "no origin/HEAD" {
+			t.Errorf("fallback = %q, want it to say there is no origin/HEAD", base.Fallback)
+		}
+		if !strings.Contains(base.Explain(), "has not been committed") {
+			t.Errorf("explain = %q, want it to say what the changeset is", base.Explain())
 		}
 	})
 }
@@ -486,8 +497,11 @@ func TestAnUnbornHeadIsMeasuredFromTheEmptyTree(t *testing.T) {
 	if !s.Base().EmptyTree() {
 		t.Fatalf("base = %+v, want the empty tree", s.Base())
 	}
-	if !strings.Contains(s.Base().Fallback, "no commits") {
+	if s.Base().Fallback != "no commits" {
 		t.Errorf("fallback = %q, want it to say there are no commits", s.Base().Fallback)
+	}
+	if !strings.Contains(s.Base().Explain(), "every file reads as new") {
+		t.Errorf("explain = %q, want it to say what the changeset is", s.Base().Explain())
 	}
 
 	files := f.changeset(s, f.refresh(s)).Files
@@ -511,8 +525,8 @@ func TestAStackedBranchIsMeasuredFromTheBranchBelowIt(t *testing.T) {
 	if base.Ref != "feature" {
 		t.Errorf("base = %s, want feature", base.Ref)
 	}
-	if !strings.Contains(base.Fallback, "stacked on feature") {
-		t.Errorf("fallback = %q, want it to say what it is stacked on", base.Fallback)
+	if want := "origin/main is not the fork point, so the base is feature"; base.Explain() != want {
+		t.Errorf("explain = %q, want %q", base.Explain(), want)
 	}
 }
 

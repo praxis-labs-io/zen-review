@@ -1212,27 +1212,42 @@ func TestAnEmptyChangesetSaysSoInBothPanes(t *testing.T) {
 	}
 }
 
-// The base is not the one a reader would expect, and the bar is the only thing
-// on screen with room to say why.
-func TestAFallbackBaseIsNamedOnTheStatusBar(t *testing.T) {
+// The fallback reads beside the base rather than on the bar. It is a standing
+// fact about the session, and the bar is for what the last key did.
+func TestAFallbackBaseReadsBesideTheBase(t *testing.T) {
+	base := review.Base{Ref: "HEAD", SHA: "a1b2c3d4e5f67890", Fallback: "no origin/HEAD"}
+
+	s := measured(t, base, testchangeset.Derive(t, ringPatch), 100, 16)
+
+	if want := "HEAD · no origin/HEAD"; !strings.Contains(s.frame(), want) {
+		t.Errorf("the frame is missing %q:\n%s", want, s.frame())
+	}
+	if strings.Contains(s.bar(), "no origin/HEAD") {
+		t.Errorf("bar = %q, want the bar left to the keys", s.bar())
+	}
+
+	// It stands rather than clearing, which is what a notice would have done.
+	if !strings.Contains(s.press("j").frame(), "no origin/HEAD") {
+		t.Error("a press cleared the fallback, which is not a notice")
+	}
+}
+
+// A pane too narrow for both clips the reason and keeps the ref. The ref is
+// what the sha beside it is a sha of.
+func TestANarrowPaneClipsTheReasonAndKeepsTheRef(t *testing.T) {
 	base := review.Base{
-		Ref:      "HEAD",
+		Ref:      "feature",
 		SHA:      "a1b2c3d4e5f67890",
-		Fallback: "this repository has no origin/HEAD, so the changeset is what has not been committed",
+		Fallback: "origin/main is not the fork point",
 	}
 
-	s := measured(t, base, testchangeset.Derive(t, ringPatch), 200, 16)
+	frame := measured(t, base, testchangeset.Derive(t, ringPatch), 56, 16).frame()
 
-	if !strings.Contains(s.bar(), base.Fallback) {
-		t.Errorf("bar = %q, want it to carry the fallback", s.bar())
+	if !strings.Contains(frame, "feature · ") {
+		t.Errorf("the frame lost the ref:\n%s", frame)
 	}
-	if got := lipgloss.Width(s.bar()); got != 200 {
-		t.Errorf("the fallback bar is %d wide, want the whole line: %q", got, s.bar())
-	}
-
-	// The next key is what clears it, the way it clears anything a reload said.
-	if got := s.press("j").bar(); strings.Contains(got, base.Fallback) {
-		t.Errorf("bar = %q, want the next press to have cleared the notice", got)
+	if strings.Contains(frame, "is not the fork point") {
+		t.Errorf("the reason was not clipped at 56 columns:\n%s", frame)
 	}
 }
 

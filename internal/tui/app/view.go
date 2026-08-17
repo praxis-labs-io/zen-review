@@ -145,12 +145,11 @@ func (m Model) body() string {
 // move into.
 func (m Model) meta() string {
 	width := max(m.treePane.InnerWidth()-metaIndent*2, 0)
-	muted := lipgloss.NewStyle().Foreground(m.theme.Muted)
 	subtle := lipgloss.NewStyle().Foreground(m.theme.Subtle)
 
 	rows := make([]string, 0, metaLines)
 	for _, f := range m.facts() {
-		rows = append(rows, spread(muted.Render(f.label), f.value, width, subtle))
+		rows = append(rows, spread(f.label, f.value, width, subtle))
 	}
 
 	// The pane pads each row out to its own width, which is the gutter on the
@@ -162,28 +161,37 @@ func (m Model) meta() string {
 	return strings.Join(rows, "\n")
 }
 
-// fact is one row of that list. The label is chrome and reads at one weight
-// throughout; the value is the part worth looking at.
+// fact is one row of that list. Both sides come back styled: the label is
+// chrome and the value is the part worth looking at.
 type fact struct {
 	label string
 	value string
 }
 
-// facts are what the changeset is measured against, which generation is on
-// screen, how far down the burn-down has come, and how much there is.
-//
-// The values come back styled. Only two of them carry a colour: the burn-down
-// wears the state it is at, and the churn says which way it went.
+// facts are the base, the generation on screen, the burn-down and how much
+// there is. Three carry a colour of their own; the rest are chrome.
 func (m Model) facts() []fact {
+	muted := lipgloss.NewStyle().Foreground(m.theme.Muted)
 	subtle := lipgloss.NewStyle().Foreground(m.theme.Subtle)
 
 	return []fact{
-		{m.base.Name(), subtle.Render(short(m.base.SHA))},
-		{"Generation", subtle.Render(strconv.Itoa(m.gen.Seq))},
-		{"Reviewed", m.burndown()},
-		{"Comments", m.settled()},
-		{"Changes", m.size()},
+		{m.baseLabel(), subtle.Render(short(m.base.SHA))},
+		{muted.Render("Generation"), subtle.Render(strconv.Itoa(m.gen.Seq))},
+		{muted.Render("Reviewed"), m.burndown()},
+		{muted.Render("Comments"), m.settled()},
+		{muted.Render("Changes"), m.size()},
 	}
+}
+
+// baseLabel is the ref, and quieter beside it the reason the base fell back to
+// it. The reason goes second, so the clip a narrow pane takes eats that first.
+func (m Model) baseLabel() string {
+	label := lipgloss.NewStyle().Foreground(m.theme.Muted).Render(m.base.Name())
+	if m.base.Fallback == "" {
+		return label
+	}
+	return label + lipgloss.NewStyle().Foreground(m.theme.Subtle).
+		Render(" · "+comp.Safe(m.base.Fallback))
 }
 
 // settled is the comments answered over all of them, and the only thing on
@@ -280,9 +288,9 @@ func (m Model) status() string {
 		return m.pad(m.bar(m.width), m.width)
 	}
 
-	// A sentence takes the whole line, where a label shares it with the keys.
-	// The keys are one press away and the reason a sentence gives is not.
-	if m.note.tone != plain {
+	// A failed reload takes the whole line. It is a sentence rather than a
+	// label, and the keys are one press away where the reason it gives is not.
+	if m.note.bad {
 		return m.pad(right, m.width)
 	}
 
@@ -306,10 +314,7 @@ func (m Model) said() string {
 	}
 
 	c := m.theme.Subtle
-	switch m.note.tone {
-	case warn:
-		c = m.theme.Warning
-	case bad:
+	if m.note.bad {
 		c = m.theme.Error
 	}
 	return lipgloss.NewStyle().Foreground(c).Render(comp.Safe(m.note.text))
@@ -318,12 +323,11 @@ func (m Model) said() string {
 // factLine is the facts on one line, for the bar that has to carry them. It
 // drops from the tail the way the keys do: a cut label states nothing.
 func (m Model) factLine(width int) string {
-	muted := lipgloss.NewStyle().Foreground(m.theme.Muted)
 	subtle := lipgloss.NewStyle().Foreground(m.theme.Subtle)
 
 	joined := make([]string, 0, len(m.facts()))
 	for _, f := range m.facts() {
-		joined = append(joined, muted.Render(f.label)+" "+f.value)
+		joined = append(joined, f.label+" "+f.value)
 	}
 
 	for n := len(joined); n > 0; n-- {

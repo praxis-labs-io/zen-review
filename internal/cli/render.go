@@ -64,8 +64,8 @@ func (v header) write(b *strings.Builder) {
 
 	// The base is not the one a reader would expect, so it says which and why
 	// before it says anything about the changeset measured from it.
-	if v.Base.Fallback != "" {
-		fmt.Fprintf(b, "%s\n", v.Base.Fallback)
+	if why := v.Base.Explain(); why != "" {
+		fmt.Fprintf(b, "%s\n", why)
 	}
 
 	switch {
@@ -261,7 +261,7 @@ func headerOf(v header) headerJSON {
 		Ref:         v.Ref,
 		Kind:        string(v.Kind),
 		Branch:      v.Branch,
-		Base:        baseJSON{Ref: v.Base.Ref, SHA: v.Base.SHA, Fallback: v.Base.Fallback},
+		Base:        baseJSON{Ref: v.Base.Ref, SHA: v.Base.SHA, Fallback: v.Base.Explain()},
 		Stale:       v.Stale,
 		StaleReason: v.reason(),
 		Skipped:     make([]string, 0, len(v.Skipped)),

@@ -86,7 +86,7 @@ func TestABaseThatCannotBeUsedIsReportedRatherThanRefused(t *testing.T) {
 				return f, nil
 			},
 			base: "feature",
-			says: []string{"stacked on feature", "origin/main"},
+			says: []string{"is not the fork point", "so the base is feature"},
 		},
 	}
 

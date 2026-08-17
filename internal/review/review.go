@@ -35,9 +35,23 @@ type Base struct {
 	Ref string
 	SHA string
 
-	// Fallback says why this is not the base a reader would expect, and is empty
-	// when nothing was passed over. A base carrying one is never stored.
+	// Fallback is why this is not the base a reader would expect, short enough to
+	// sit beside the ref on screen. Empty when nothing was passed over.
 	Fallback string
+}
+
+// Explain is the fallback as a sentence: the reason, and what was taken for it.
+// Empty when nothing was passed over.
+func (b Base) Explain() string {
+	switch {
+	case b.Fallback == "":
+		return ""
+	case b.EmptyTree():
+		return b.Fallback + ", so every file reads as new"
+	case b.Ref == headRef:
+		return b.Fallback + ", so the changeset is what has not been committed"
+	}
+	return fmt.Sprintf("%s, so the base is %s", b.Fallback, b.Ref)
 }
 
 // EmptyTree is a base with no commit under it: HEAD is unborn, so the changeset
