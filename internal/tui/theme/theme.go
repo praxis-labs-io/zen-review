@@ -1,6 +1,5 @@
-// Package theme holds the color palettes the UI styles from. Nothing in the
-// TUI hardcodes a color: a color that isn't here means this struct needs a
-// field.
+// Package theme holds the palette the UI styles from. Nothing in the TUI
+// hardcodes a color: a color that isn't here means this struct needs a field.
 package theme
 
 import (

@@ -36,10 +36,6 @@ func New(name string) (Syntax, bool) {
 	return Syntax{style: styles.Get(name), cache: make(map[uint64][][]Token)}, ok || name == ""
 }
 
-// Names lists the styles Chroma ships, for the message that follows a
-// name it did not recognise.
-func Names() []string { return styles.Names() }
-
 // Lines splits code into lines of colored tokens, lexer chosen from the path and
 // the body tokenised whole. Always at least one line, so an empty side indexes.
 func (s *Syntax) Lines(path, code string) [][]Token {
