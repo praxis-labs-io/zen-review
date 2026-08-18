@@ -11,8 +11,8 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/zen-kit/zen-kit/paint"
-	"github.com/zen-kit/zen-kit/theme"
+	"github.com/zen-review/zen-review/internal/tui/paint"
+	"github.com/zen-review/zen-review/internal/tui/theme"
 )
 
 // Safe makes repository text fit to print on one row.

@@ -7,10 +7,9 @@ import (
 
 	"charm.land/lipgloss/v2"
 
-	"github.com/zen-kit/zen-kit/paint"
-
 	"github.com/zen-review/zen-review/internal/store"
 	"github.com/zen-review/zen-review/internal/tui/comp"
+	"github.com/zen-review/zen-review/internal/tui/paint"
 )
 
 // The comment states as glyphs: a diamond, where a hunk's badge is a circle.

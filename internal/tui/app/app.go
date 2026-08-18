@@ -14,13 +14,12 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/zen-kit/zen-kit/theme"
-
 	"github.com/zen-review/zen-review/internal/review"
 	"github.com/zen-review/zen-review/internal/store"
 	"github.com/zen-review/zen-review/internal/tui/comp"
 	"github.com/zen-review/zen-review/internal/tui/compose"
 	"github.com/zen-review/zen-review/internal/tui/diffpane"
+	"github.com/zen-review/zen-review/internal/tui/theme"
 	"github.com/zen-review/zen-review/internal/tui/tree"
 )
 

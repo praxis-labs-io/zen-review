@@ -6,7 +6,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 
-	"github.com/zen-kit/zen-kit/theme"
+	"github.com/zen-review/zen-review/internal/tui/theme"
 )
 
 // Pane is a bordered region. It carries its name and an index in the top

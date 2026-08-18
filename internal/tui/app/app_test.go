@@ -9,12 +9,12 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/zen-kit/zen-kit/theme"
 
 	"github.com/zen-review/zen-review/internal/golden"
 	"github.com/zen-review/zen-review/internal/review"
 	"github.com/zen-review/zen-review/internal/store"
 	"github.com/zen-review/zen-review/internal/testchangeset"
+	"github.com/zen-review/zen-review/internal/tui/theme"
 )
 
 // code takes the keys to the tree and walks it to the fixture's two-hunk Go

@@ -47,8 +47,9 @@ make all              # lint (gofmt + mod-tidy + golangci-lint) + test + build
 make test             # go test -race -coverprofile ./...
 make lint             # includes gofmt check and go.mod tidiness
 make fmt-fix          # gofmt -w .
-make golden           # regenerate the golden files in internal/diff and internal/cli
+make golden           # regenerate every golden file: diff, cli, tui/app, tui/paint
 make install          # build to ~/.local/bin/zen-review
+go run ./cmd/paintdemo  # look at the painter
 go test ./internal/review/ -run TestName   # single test
 ```
 
@@ -62,18 +63,27 @@ CI pins golangci-lint to match the local brew version (`.github/workflows/ci.yml
 
 `.githooks/pre-push` is tracked and rejects pushes to `main`. `git config core.hooksPath .githooks` wires it up; the SessionStart hook does this on every session so a fresh clone is covered. Untracked `.git/hooks/` files don't survive a clone, which is why the hook lives here instead.
 
-## zen-kit
+## The visual layer
 
-The visual layer is a separate module, `github.com/zen-kit/zen-kit`: `theme`,
-`syntax`, and the `paint` diff-line painter. zen-octo paints from the same one.
+`tui/theme`, `tui/syntax` and the `tui/paint` diff-line painter. They were a
+separate module, `zen-kit`, until ZNR-60 brought them in.
 
-A rendering change that both tools want belongs there. A change only this tool
-wants belongs in `tui/diffpane`. zen-kit holds no model, no state, no layout and
-no keys, and pushing any of those into it is how it stops being reusable.
+The module was meant to keep this tool and zen-octo rendering a diff the same
+way. zen-octo never imported it: ZNO-43 copied `paint` in-tree instead, and
+`theme` and `syntax` drifted in both directions anyway. One consumer does not
+need a second repo, a second CI pin and a tag-and-bump on every colour change.
+zen-octo keeps its own copies and the two move independently now.
 
-It is pre-1.0 and both consumers are ours, so a breaking change there is a bump
-and two import fixes, not a deprecation cycle. `go run ./cmd/kitdemo` in that
-repo is how a theme change is judged.
+They still hold no model, no state, no layout and no keys, and every exported
+function is pure. Pushing any of those in is how they stop being the visual
+layer and start being a second renderer. Folding, scroll, side-by-side layout,
+hunk grouping, the two-sided tokenise split and review state belong to
+`tui/diffpane`.
+
+`go run ./cmd/paintdemo` is how a rendering change is judged. It paints a canned
+diff at a width where a row overflows: a hunk header, all three line kinds, a
+tab-indented line, a clipped row and a `Fill` row, so a theme change shows
+everything it broke in one screen. A golden file only holds it still.
 
 ## Charm module paths
 
@@ -90,9 +100,9 @@ charm.land/glamour/v2
 
 ## Project Management
 
-Work is tracked in Linear: Praxis Labs workspace, reached through the `linear-zen-review` MCP server declared in `.mcp.json`. This repo's tickets are the **Zen Review** team (key `ZNR`, tickets `ZNR-###`). zen-kit's are the **Zen Kit** team (key `ZNK`). Address projects and statuses **by name, never a UUID**; ids don't survive workspace moves.
+Work is tracked in Linear: Praxis Labs workspace, reached through the `linear-zen-review` MCP server declared in `.mcp.json`. Every ticket is the **Zen Review** team (key `ZNR`, tickets `ZNR-###`). Address projects and statuses **by name, never a UUID**; ids don't survive workspace moves.
 
-Zen Kit has no projects and no tickets yet, and everything filed against zen-kit so far is a `ZNR`. Give the next one a `ZNK` and its own bucket; leave the old ones where they are rather than renumbering links that already point at them.
+The **Zen Kit** team (key `ZNK`) is closed. It covered the module ZNR-60 absorbed, and its two open tickets came back as `ZNR`. Nothing new is filed there; the old `ZNK` links stay where they are rather than being renumbered.
 
 The bucket names are shared with other teams, so `save_issue` resolving a bare project name can land on another team's copy and fail the call. Pass the Zen Review project id in that one argument when it does.
 
@@ -129,7 +139,8 @@ Feature-complete work ships via the global `ship-feature` skill: `make all` gree
 
 ## Architecture
 
-`cmd/zen-review` is the entrypoint (fang over cobra). Everything else lives in `internal/`.
+`cmd/zen-review` is the entrypoint (fang over cobra). `cmd/paintdemo` paints a
+canned diff and exits. Everything else lives in `internal/`.
 
 ```
 internal/
@@ -139,6 +150,9 @@ internal/
   store/       SQLite and migrations. Nothing above it imports database/sql.
   cli/         the review subcommands. A thin shell over review/.
   tui/         app, tree, diffpane, compose, comp.
+  tui/theme/   the palette. Every style reads from one.
+  tui/syntax/  Chroma tokens, not rendered text.
+  tui/paint/   the diff-line painter. Pure functions.
   testrepo/    real git repos for tests. Test-only, imports nothing of ours.
   testchangeset/  changesets for the render tests. Test-only, no git, no database.
   golden/      the golden-file compare. Test-only, and owns the -update flag.
@@ -318,7 +332,7 @@ silently is not saved.
 
 The keymap is shared with zen-octo by convention, written down in both
 `CLAUDE.md` files rather than in shared code, so the two tools feel the same
-without either being hostage to the other's release cycle. zen-kit holds no keys.
+without either being hostage to the other's release cycle.
 
 ```
 j k g G                  movement
@@ -541,9 +555,18 @@ printed as an error.
 
 ## Rendering traps
 
-zen-kit's `CLAUDE.md` holds the painter's traps: per-cell backgrounds, clipping
-before wrapping, tokenising a side whole. These are this repo's own.
+Each of these looks like working code and produces a broken frame. The first
+group is why `tui/paint` and `tui/syntax` exist rather than every pane rolling
+its own; the rest belong to the panes above them.
 
+- **Every styled cell ends in a full SGR reset**, which clears the background along with the foreground. A row background has to be set per cell; wrapping a joined row paints only the first one, and the tint stops at the first token.
+- **A row with a background has to be padded to the full width.** Otherwise the tint ends where the code does and the block reads as ragged. A row with no background needs no padding, which is the only reason a context line is cheaper.
+- **`Style.Width` wraps before it clips.** Truncating to a column width means clipping explicitly first, or one long line of code becomes two rows.
+- **Soft wrap and a line-number gutter cannot both be on.** One long line folds onto a second row, and every line under it is then one further out of step with the number beside it. Clip instead, and only ever measure at a width where something overflows.
+- **A lexer carries state across lines.** Highlighting line by line comes apart on the first multi-line string. Tokenise the whole file, and tokenise the two sides of a diff separately, or the lexer reads a file holding both halves of every change. `syntax.Lines` takes a whole body for this reason; splitting a diff into two bodies is the caller's job.
+- **A raw tab is a variable number of cells.** One anywhere in a line puts every column after it out of step with the line above. `paint` expands them.
+- **Chroma's terminal formatter is unusable here.** It renders its own escapes, resets included. `syntax` returns tokens so the caller keeps control of the row.
+- **A Chroma style carries a background.** Taking it paints over the terminal's, which is what keeps a transparent one transparent. Read the foreground only.
 - **A viewport offset is a line, and a row is not.** Once rows are two lines, scroll arithmetic that lands on the row it wants opens the window on that row's second line with its title cut off above. Round the offset up to the next item boundary, and size the viewport to a whole number of rows or the end-of-list clamp lands back between two lines.
 - **`viewport.EnsureVisible` is not a scroll-to-cursor.** It acts only once the line is already outside the window, then puts it on the top row. Move the offset by hand.
 - **The shortest scroll onto the screen is the wrong one.** A key that lands on a block is taking the reader somewhere, so put the block at the top row, and leave it alone when it already fits on screen whole. A cursor moving a row at a time is the exception: the reader is already looking at the row, and the window is what fell behind.

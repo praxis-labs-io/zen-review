@@ -5,7 +5,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 
-	"github.com/zen-kit/zen-kit/theme"
+	"github.com/zen-review/zen-review/internal/tui/theme"
 )
 
 // Over composites over on top of base, centred in a frame of the given size.
