@@ -154,10 +154,12 @@ func (s *Session) SetBase(ctx context.Context, ref string) error {
 
 	if s.row.BaseRef != ref {
 		now := time.Now().UTC().Truncate(time.Second)
-		s.row.BaseRef, s.row.UpdatedAt = ref, now
-		if err := s.db.SaveSession(ctx, s.row); err != nil {
+		row := s.row
+		row.BaseRef, row.UpdatedAt = ref, now
+		if err := s.db.SaveSession(ctx, row); err != nil {
 			return err
 		}
+		s.row = row
 	}
 	s.base = base
 	return nil

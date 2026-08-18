@@ -338,8 +338,9 @@ func (s *Session) candidates(
 	var candidates []Candidate
 	for _, b := range branches {
 		current := b.Name == head.Branch
+		active := b.Name == s.base.Ref
 		atHead := b.SHA == head.SHA && b.Name != s.base.Ref && (excludeCurrent || !current)
-		if (excludeCurrent && current) || atHead || !mainline[b.SHA] {
+		if (excludeCurrent && current) || atHead || (!active && !mainline[b.SHA]) {
 			continue
 		}
 

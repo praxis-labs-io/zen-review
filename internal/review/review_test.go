@@ -204,6 +204,26 @@ func TestCandidatesGroupEveryFirstParentBranchNearestFirst(t *testing.T) {
 	}
 }
 
+func TestCandidatesKeepAnActiveBaseWhoseTipMovedAway(t *testing.T) {
+	f := branched(t)
+	s := f.mustOpen("")
+
+	f.Git("checkout", "-q", "main")
+	f.commit("new trunk work")
+	f.TrackOrigin("main")
+	f.Git("checkout", "-q", "feature")
+
+	got, err := s.Candidates(t.Context())
+	if err != nil {
+		t.Fatalf("listing candidates: %v", err)
+	}
+	if !slices.ContainsFunc(got.Remote, func(candidate review.Candidate) bool {
+		return candidate.Branch == "origin/main"
+	}) {
+		t.Errorf("remote candidates = %v, want the active origin/main", got.Remote)
+	}
+}
+
 func TestSetBasePersistsTheChoiceAndClearsTheFallback(t *testing.T) {
 	f := branched(t)
 	s := f.mustOpen("missing")
@@ -243,6 +263,23 @@ func TestSetBaseRejectsARefBeforeChangingTheSession(t *testing.T) {
 	}
 	if s.Base() != before {
 		t.Errorf("base = %+v, want %+v", s.Base(), before)
+	}
+}
+
+func TestSetBaseRetriesPersistenceAfterASaveFails(t *testing.T) {
+	f := branched(t)
+	s, err := f.open("")
+	if err != nil {
+		t.Fatalf("opening the session: %v", err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatalf("closing the database: %v", err)
+	}
+
+	for attempt := 1; attempt <= 2; attempt++ {
+		if err := s.SetBase(t.Context(), "main"); err == nil {
+			t.Errorf("attempt %d succeeded after the database closed", attempt)
+		}
 	}
 }
 
