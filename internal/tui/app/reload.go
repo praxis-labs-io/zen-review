@@ -65,6 +65,11 @@ type Source interface {
 	// back under the state the write left it in.
 	ResolveComment(g review.Generation, id string) (Reload, error)
 
+	// EditComment rewrites what one says and DeleteComment removes it. Both
+	// re-derive at the generation on screen, the way the rest of these do.
+	EditComment(g review.Generation, id, body string) (Reload, error)
+	DeleteComment(g review.Generation, id string) (Reload, error)
+
 	// SetSummary writes the session note and hands back what review stored. It
 	// names no generation: the note is the session's rather than a snapshot's.
 	SetSummary(text string) (string, error)

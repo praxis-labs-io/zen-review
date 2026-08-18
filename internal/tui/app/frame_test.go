@@ -82,6 +82,14 @@ func (s *source) ResolveComment(g review.Generation, id string) (app.Reload, err
 	return s.write(fmt.Sprintf("ResolveComment %s gen=%d", id, g.Seq))
 }
 
+func (s *source) EditComment(g review.Generation, id, body string) (app.Reload, error) {
+	return s.write(fmt.Sprintf("EditComment %s %s gen=%d", id, strconv.Quote(body), g.Seq))
+}
+
+func (s *source) DeleteComment(g review.Generation, id string) (app.Reload, error) {
+	return s.write(fmt.Sprintf("DeleteComment %s gen=%d", id, g.Seq))
+}
+
 // SetSummary records the call and answers with the text, which is what a session
 // hands back once it has stored it.
 func (s *source) SetSummary(text string) (string, error) {

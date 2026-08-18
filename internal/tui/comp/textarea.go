@@ -14,6 +14,11 @@ func Textarea(t theme.Theme) textarea.Model {
 	area.Prompt = ""
 	area.ShowLineNumbers = false
 	area.SetStyles(textareaStyles(t))
+
+	// The terminal's own cursor, placed by the root, rather than a block drawn
+	// into the text in a colour of ours. The reader set that cursor up already.
+	area.SetVirtualCursor(false)
+
 	return area
 }
 
@@ -34,6 +39,8 @@ func textareaStyles(t theme.Theme) textarea.Styles {
 	return textarea.Styles{
 		Focused: state,
 		Blurred: state,
-		Cursor:  textarea.CursorStyle{Color: t.Accent},
+		// No colour and no shape: what is left is what the terminal draws for
+		// every other program.
+		Cursor: textarea.CursorStyle{Blink: true},
 	}
 }

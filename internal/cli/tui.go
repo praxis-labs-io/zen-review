@@ -108,6 +108,20 @@ func (r *reloader) ResolveComment(g review.Generation, id string) (app.Reload, e
 	})
 }
 
+func (r *reloader) EditComment(g review.Generation, id, body string) (app.Reload, error) {
+	return r.wrote(g, func() error {
+		_, err := r.s.EditComment(r.ctx, id, body)
+		return err
+	})
+}
+
+func (r *reloader) DeleteComment(g review.Generation, id string) (app.Reload, error) {
+	return r.wrote(g, func() error {
+		_, err := r.s.DeleteComment(r.ctx, id)
+		return err
+	})
+}
+
 // SetSummary writes the note and reads back what landed. It names no generation
 // because the note is the session's, so nothing here can go stale.
 func (r *reloader) SetSummary(text string) (string, error) {

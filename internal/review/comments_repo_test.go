@@ -666,3 +666,127 @@ func TestCommentingOnAFileTakesTheSideItHasBytesOn(t *testing.T) {
 		})
 	}
 }
+
+// The body is the whole of an edit. Moving the anchor would be a second remap
+// path with none of the translation rules behind it.
+func TestAnEditRewritesTheBodyAndLeavesTheAnchor(t *testing.T) {
+	f, s, _, c := commented(t)
+
+	edited, err := s.EditComment(t.Context(), c.ID, "this reads forwards")
+	if err != nil {
+		t.Fatalf("rewriting the comment: %v", err)
+	}
+	if edited.Body != "this reads forwards" {
+		t.Errorf("body = %q, want what was typed", edited.Body)
+	}
+
+	got := f.storedComment(c.ID)
+	if got.Body != "this reads forwards" {
+		t.Errorf("stored body = %q, want what was typed", got.Body)
+	}
+	if got.Path != c.Path || got.Side != c.Side || got.LineRange != c.LineRange {
+		t.Errorf("anchor = %s %s %d:%d, want it left at %s %s %d:%d",
+			got.Path, got.Side, got.Start, got.End, c.Path, c.Side, c.Start, c.End)
+	}
+	if got.UpdatedAt.Before(c.UpdatedAt) {
+		t.Errorf("updatedAt = %s, want it stamped no earlier than %s", got.UpdatedAt, c.UpdatedAt)
+	}
+}
+
+// An edit is refused on the same sentence a write is, because a comment with
+// nothing in it says nothing whichever way it got that way.
+func TestAnEditRefusesAnEmptyBody(t *testing.T) {
+	f, s, _, c := commented(t)
+
+	if _, err := s.EditComment(t.Context(), c.ID, "   \n "); err == nil {
+		t.Fatal("a body with nothing in it should be refused")
+	}
+	if got := f.storedComment(c.ID); got.Body != c.Body {
+		t.Errorf("body = %q, want the refusal to have left %q", got.Body, c.Body)
+	}
+}
+
+// A comment goes for good. A deleted state would have to be filtered out of
+// every count, every ring and every export forever.
+func TestADeleteTakesTheCommentOutOfTheSession(t *testing.T) {
+	f, s, _, c := commented(t)
+
+	gone, err := s.DeleteComment(t.Context(), c.ID)
+	if err != nil {
+		t.Fatalf("deleting the comment: %v", err)
+	}
+	if gone.Body != c.Body {
+		t.Errorf("answered with %q, want the comment it removed", gone.Body)
+	}
+	assertComments(t, f.storedComments(s), nil)
+}
+
+// Both reach a comment in any state, because a typo in a resolved comment is
+// still a typo and one nobody meant to write is a record of nothing.
+func TestEditAndDeleteReachASettledComment(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		act  func(*review.Session, string) error
+		want []string
+	}{
+		{"an edit", func(s *review.Session, id string) error {
+			_, err := s.EditComment(t.Context(), id, "still worth saying")
+			return err
+		}, []string{"code.txt head 10:10 resolved"}},
+		{"a delete", func(s *review.Session, id string) error {
+			_, err := s.DeleteComment(t.Context(), id)
+			return err
+		}, nil},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			f, s, _, c := commented(t)
+			if _, err := s.ResolveComment(t.Context(), c.ID); err != nil {
+				t.Fatalf("resolving the comment: %v", err)
+			}
+
+			if err := tt.act(s, c.ID); err != nil {
+				t.Fatalf("reaching a resolved comment: %v", err)
+			}
+			assertComments(t, f.storedComments(s), tt.want)
+		})
+	}
+}
+
+// TestAnUnknownCommentIsRefusedByEditAndDelete, for the reason the state verbs
+// refuse one: the database holds every session and their ids are not shared.
+func TestAnUnknownCommentIsRefusedByEditAndDelete(t *testing.T) {
+	_, s, _, _ := commented(t)
+
+	for name, verb := range map[string]func(string) error{
+		"edit":   func(id string) error { _, err := s.EditComment(t.Context(), id, "hello"); return err },
+		"delete": func(id string) error { _, err := s.DeleteComment(t.Context(), id); return err },
+	} {
+		t.Run(name, func(t *testing.T) {
+			var missing *review.NoCommentError
+			if err := verb("4f1c8a2b3d9e"); !errors.As(err, &missing) {
+				t.Fatalf("err = %v, want it to say the session has no such comment", err)
+			}
+		})
+	}
+}
+
+// An edit names no generation, so a refresh landing between reading a comment
+// and rewriting it costs nothing: the body is true at every generation.
+func TestAnEditLandsAfterTheGenerationMoved(t *testing.T) {
+	f, s, _, c := commented(t)
+
+	f.Write("code.txt", numbered(101, 105)+numbered(1, 20))
+	f.refresh(s)
+
+	if _, err := s.EditComment(t.Context(), c.ID, "this reads forwards"); err != nil {
+		t.Fatalf("rewriting a comment the refresh moved: %v", err)
+	}
+
+	got := f.storedComment(c.ID)
+	if got.Body != "this reads forwards" {
+		t.Errorf("body = %q, want what was typed", got.Body)
+	}
+	if got.Start != 15 {
+		t.Errorf("anchor = %d, want the 15 the refresh carried it to", got.Start)
+	}
+}

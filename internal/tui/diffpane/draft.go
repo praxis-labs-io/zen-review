@@ -15,8 +15,8 @@ import (
 // characters, so no comment can answer to this one.
 const draftID = "draft"
 
-// draftRows is how tall the box gets. It is a note hanging off a line, and the
-// code it is about is what the rest of the pane is for.
+// draftRows is the shortest the box gets. It grows to hold what is typed into
+// it, because a box that scrolls hides the sentence somebody is still writing.
 const draftRows = 4
 
 // draft is the comment being typed: where it will land, and the box it is typed
@@ -28,29 +28,54 @@ type draft struct {
 	// path is the file the box was opened over. A reload landing under it can
 	// put another file in the pane, and the box belongs to neither.
 	path string
+
+	// edits names the comment the box is standing in for, and is empty for one
+	// being written. That card comes down while the box is up.
+	edits string
 }
 
 // FitsBox is whether the pane has the room to draw a box being typed in. A box
 // nobody can see still holds every key, so the caller puts it somewhere else.
 func (m Model) FitsBox() bool {
 	_, width := m.cardBox()
-	return m.file != nil && width >= cardMin && m.height >= draftRows+2
+
+	// The rows capBox reserves as well as the box's own floor. A pane that took
+	// one and then clamped it under that floor would draw two rows to type in.
+	return m.file != nil && width >= cardMin && m.height >= draftRows+4
 }
 
-// Compose opens a box where the comment will hang, and false for a pane with no
-// room to draw one.
+// Compose opens a box where a new comment will hang, and false for a pane with
+// no room to draw one.
 func (m *Model) Compose(c store.Comment) (tea.Cmd, bool) {
+	c.State = store.CommentOpen
+	return m.open(c, "", "")
+}
+
+// Edit opens the box over a card that is already there, holding what it says.
+// The card comes down: the box is standing in its place.
+func (m *Model) Edit(c store.Comment) (tea.Cmd, bool) {
+	return m.open(c, c.Body, c.ID)
+}
+
+// open puts a box in the pane and takes the cursor onto it.
+func (m *Model) open(c store.Comment, body, edits string) (tea.Cmd, bool) {
 	if !m.FitsBox() {
 		return nil, false
 	}
-	c.ID, c.State, c.Body = draftID, store.CommentOpen, ""
+	c.ID, c.Body = draftID, ""
 
+	// The textarea keeps its own height off the rows it wraps into, which is the
+	// count this cannot make: only it knows where its lines broke.
 	area := comp.Textarea(m.theme)
-	area.SetHeight(draftRows)
+	area.DynamicHeight = true
+	area.MinHeight = draftRows
+
 	area.SetWidth(m.draftWidth())
+	area.SetValue(body)
 
 	m.clearSelection()
-	m.draft = &draft{at: c, area: area, path: m.file.Diff.Path}
+	m.draft = &draft{at: c, area: area, path: m.file.Diff.Path, edits: edits}
+	m.capBox()
 
 	// Focused before the box is drawn, or the first frame is one with no cursor
 	// in it and the reader has to type to find out where they are.
@@ -67,6 +92,31 @@ func (m *Model) Compose(c store.Comment) (tea.Cmd, bool) {
 // Composing is whether a box is up, which is whether the pane has the keys.
 func (m Model) Composing() bool { return m.draft != nil }
 
+// TypingAt is where the terminal's cursor goes while a box is up, in the pane's
+// own coordinates. It is nil for a pane holding no box, or one scrolled off it.
+func (m Model) TypingAt() *tea.Cursor {
+	if m.draft == nil {
+		return nil
+	}
+
+	c := m.draft.area.Cursor()
+	at := m.rowAt(place{comment: draftID, seq: -1})
+	if c == nil || at < 0 {
+		return nil
+	}
+
+	// Past the indent the card hangs at, its border and the gutter inside it,
+	// and past the border row the box opens with.
+	left, _ := m.cardBox()
+	c.X += left + 1 + cardGutter
+	c.Y += at - m.offset + 1
+
+	if c.Y < 0 || c.Y >= m.height || c.X >= m.width {
+		return nil
+	}
+	return c
+}
+
 // Draft is what has been typed, and empty when no box is up.
 func (m Model) Draft() string {
 	if m.draft == nil {
@@ -75,15 +125,23 @@ func (m Model) Draft() string {
 	return m.draft.area.Value()
 }
 
-// CloseDraft takes the box down and leaves the cursor on the code it hung off.
+// CloseDraft takes the box down and leaves the cursor where the reader was when
+// they opened it: on the card the box stood in for, or on the code it hung off.
 func (m *Model) CloseDraft() {
 	if m.draft == nil {
 		return
 	}
 
-	at := m.anchorOf(draftID)
+	at, edits := m.anchorOf(draftID), m.draft.edits
 	m.draft = nil
 	m.layout()
+
+	// A card that came back unlit is one x and e no longer reach, and the reader
+	// pressed the key from it.
+	if edits != "" {
+		m.SelectComment(edits)
+		return
+	}
 
 	if at >= 0 {
 		m.point(min(at, len(m.rows)-1))
@@ -92,10 +150,18 @@ func (m *Model) CloseDraft() {
 }
 
 // typing takes a key to the body and redraws the box in place. Nothing else on
-// screen moves, so only the box's own rows are repainted.
+// screen moves for it until the box grows, which pushes the file down a row.
 func (m *Model) typing(msg tea.Msg) tea.Cmd {
+	was := m.draft.area.Height()
+
 	var cmd tea.Cmd
 	m.draft.area, cmd = m.draft.area.Update(msg)
+	m.capBox()
+
+	if m.draft.area.Height() != was {
+		m.grew()
+		return cmd
+	}
 
 	if at := m.rowAt(place{comment: draftID, seq: -1}); at >= 0 {
 		i := m.rows[at].card
@@ -103,6 +169,27 @@ func (m *Model) typing(msg tea.Msg) tea.Cmd {
 		m.repaintCard(at)
 	}
 	return cmd
+}
+
+// grew lays the file out around a box that changed height and keeps the whole of
+// it on screen, the row it gained included.
+func (m *Model) grew() {
+	at := place{comment: draftID, seq: -1}
+	m.relayout(at)
+
+	if i := m.rowAt(at); i >= 0 {
+		m.showCard(m.rows[i].card)
+	}
+}
+
+// capBox holds the box to what the pane can draw around it: its two borders, the
+// line it hangs under, and the heading pinned over that. Past there it scrolls.
+func (m *Model) capBox() {
+	// Here rather than as the textarea's MaxHeight, which is also a limit on how
+	// many lines may be typed at all. FitsBox is what keeps this off the floor.
+	if room := max(m.height-4, draftRows); m.draft.area.Height() > room {
+		m.draft.area.SetHeight(room)
+	}
 }
 
 // anchorOf is the row a card hangs under, or its own first row when the diff

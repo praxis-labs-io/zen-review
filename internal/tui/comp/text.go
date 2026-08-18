@@ -10,12 +10,12 @@ import (
 // of a modern terminal is a line the eye loses its place in on the way back.
 const BodyWidth = 80
 
-// Wrap is a body as the rows it draws as: paragraphs folded to width, blank
-// lines kept, and every line's own indent put back on the runs it folded into.
+// Wrap is a body as the rows it draws as: every line folded to width, its own
+// indent put back on the runs it folded into, and a newline kept as a break.
 func Wrap(body string, width int) []string {
 	var out []string
-	for _, block := range blocks(body) {
-		if block == "" {
+	for _, block := range strings.Split(body, "\n") {
+		if strings.TrimSpace(block) == "" {
 			out = append(out, "")
 			continue
 		}
@@ -27,35 +27,6 @@ func Wrap(body string, width int) []string {
 			out = append(out, lead+line)
 		}
 	}
-	return out
-}
-
-// blocks splits a body into the runs the layout treats as one thing. Consecutive
-// lines join, or a body hard-wrapped at another width sheds a word per line.
-func blocks(body string) []string {
-	var out []string
-	var para []string
-
-	flush := func() {
-		if len(para) > 0 {
-			out, para = append(out, strings.Join(para, " ")), nil
-		}
-	}
-
-	for _, line := range strings.Split(body, "\n") {
-		switch {
-		case strings.TrimSpace(line) == "":
-			flush()
-			out = append(out, "")
-		case opens(line):
-			flush()
-			out = append(out, line)
-		default:
-			para = append(para, line)
-		}
-	}
-
-	flush()
 	return out
 }
 
@@ -85,31 +56,4 @@ func fold(line string, width int) []string {
 		out = append(out, run)
 	}
 	return out
-}
-
-// opens reports a line that begins something: an indent, a bullet, a number, a
-// quote, a heading, a fence. Folding one into the paragraph above eats a list.
-func opens(line string) bool {
-	if line != strings.TrimLeft(line, " \t") {
-		return true
-	}
-	for _, mark := range []string{"- ", "* ", "+ ", "> ", "#", "```"} {
-		if strings.HasPrefix(line, mark) {
-			return true
-		}
-	}
-	return counted(line)
-}
-
-// counted reports an ordered list marker: digits, then a dot or a bracket, then
-// a space.
-func counted(line string) bool {
-	i := 0
-	for i < len(line) && line[i] >= '0' && line[i] <= '9' {
-		i++
-	}
-	if i == 0 || i+1 >= len(line) {
-		return false
-	}
-	return (line[i] == '.' || line[i] == ')') && line[i+1] == ' '
 }

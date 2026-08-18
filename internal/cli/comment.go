@@ -88,6 +88,58 @@ func newResolve(opts *options) *cobra.Command {
 		func(s *review.Session) mover { return s.ResolveComment })
 }
 
+func newDelete(opts *options) *cobra.Command {
+	return newVerb(opts, "delete", "Delete a comment",
+		"Delete a comment.\n\n"+
+			"It goes rather than settling into a state. A comment nobody meant to\n"+
+			"write is a record of nothing, and a state for it would have to be filtered\n"+
+			"out of every count and every ring forever. The row that went is what this\n"+
+			"prints, so --json hands back what it removed.",
+		func(s *review.Session) mover { return s.DeleteComment })
+}
+
+// newEdit is the one verb that is not a state, so it takes a body rather than
+// the id alone.
+func newEdit(opts *options) *cobra.Command {
+	var text string
+
+	cmd := &cobra.Command{
+		Use:   "edit <id>",
+		Short: "Rewrite what a comment says",
+		Long: "Rewrite what a comment says.\n\n" +
+			"The body and nothing else. The anchor never moves, so a comment on the\n" +
+			"wrong lines is a delete and a new one rather than an edit.",
+		SilenceUsage: true,
+		Args:         cobra.ExactArgs(1),
+
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := refuseBase(cmd); err != nil {
+				return err
+			}
+			if err := needsBody(cmd); err != nil {
+				return err
+			}
+
+			// Read before the database is opened, for the reason runComment gives:
+			// a body on stdin is the reader still typing.
+			written, err := body(cmd, text, "comment")
+			if err != nil {
+				return err
+			}
+
+			return runVerb(cmd, opts, args[0], func(s *review.Session) mover {
+				return func(ctx context.Context, id string) (store.Comment, error) {
+					return s.EditComment(ctx, id, written)
+				}
+			})
+		},
+	}
+
+	cmd.Flags().StringVar(&text, "body", "", "what the comment says, or - to read it from stdin")
+
+	return cmd
+}
+
 func newVerb(opts *options, use, short, long string, verb func(*review.Session) mover) *cobra.Command {
 	return &cobra.Command{
 		Use:          use + " <id>",
@@ -138,6 +190,11 @@ func (n *note) check(cmd *cobra.Command) error {
 	if n.file && cmd.Flags().Changed("side") {
 		return errors.New("the side is not a choice under --file, which takes the side the file has bytes on")
 	}
+	return needsBody(cmd)
+}
+
+// needsBody refuses a write with no --body, in the words both of them use.
+func needsBody(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("body") {
 		return errors.New("a comment needs something in it: pass --body <text>, or --body - to read it from stdin")
 	}

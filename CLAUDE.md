@@ -214,6 +214,12 @@ while a refresh is in flight therefore moves forward with it or is refused,
 never accepted and lost. All the git work is done before that transaction opens,
 which it can be because nothing the translation needs is a row.
 
+Rewriting a comment and deleting one name no generation, and each has its own
+reason. A body is true at every generation, and the columns a refresh carries an
+anchor through are the ones an edit leaves alone. A delete takes the row, so
+there is no anchor left to go stale and a refresh translating one that has gone
+moves nothing and carries on.
+
 The refresh takes the same assertion. A swap can succeed on a ref read after
 somebody else moved it, and a refresh carrying out of a generation that is no
 longer the tip would drop every write made against the one in between. So it
@@ -301,6 +307,7 @@ c                        comment on the selection, the row, the hunk or the file
 v esc                    range selection for c, j/k extend. esc or v cancels
 C                        session summary note
 x                        resolve a comment
+e D                      rewrite a comment, delete one
 enter                    tree: open file. comment: jump to its line
 ctrl+s esc               in the composer: save, discard
 
@@ -377,6 +384,28 @@ anchor that stopped moving a generation ago. So the key has nothing to do there,
 the way it has nothing to do on a row with no card. An orphan is offered it,
 that being the only thing left anyone can do with a comment whose code is gone.
 
+`e` and `D` are named there too, and nowhere else. Both reach a card in any
+state: a typo in a resolved comment is still a typo, and one nobody meant to
+write is a record of nothing. `D` acts at once, the capital doing the whole of
+the thing the way `R` and `U` do, and a card narrow enough to drop hints drops
+these two first, the overlay being where the rest of the keymap lives anyway.
+
+An edit is the body alone. The anchor never moves, so a comment on the wrong
+lines is a delete and a new one rather than a rewrite, which would be a second
+remap path with none of the translation rules behind it. The box `e` opens is
+the card itself: same border, same indent, same place, holding what it said. A
+delete is a real delete rather than a state, which would have to be filtered out
+of every count, every ring and every export forever.
+
+An empty body is a discard from `c`, because nothing was typed. From `e` it
+writes nothing and the bar says so: wiping a box is not saving a comment, and it
+is not deleting one either, which is a key of its own rather than a second
+meaning for the save key.
+
+The bar clears on the next press inside a box the way it does outside one. Every
+other line there is one press long, and one that stayed up would be read as an
+answer to a key pressed since.
+
 The composer takes every key while it is up, `q` and `?` included. A note lost
 to the letter `q` cannot be taken back, and one key let out is one more thing to
 hold in mind while typing. `ctrl+c` is the exception, because raw mode sends no
@@ -384,6 +413,15 @@ interrupt and a box that ate it would be the one place in the program with no
 way out but `esc`. `enter` is a newline in prose, so `ctrl+s` saves and `esc`
 discards; nothing else on screen says so, which is why the box carries both in
 its bottom border.
+
+The box grows with what is typed into it rather than scrolling, because a box
+that scrolls hides the sentence still being written. It stops at what the pane
+can draw around it: its two borders, the line it hangs under, and the heading
+pinned over that. Past there it scrolls, having nowhere left to grow.
+
+The cursor in it is the terminal's own, placed by the root through the view. A
+drawn one is a block we paint in a colour of ours over the character it covers,
+and the reader set their cursor up already.
 
 The box comes down when the write lands, not when the key is pressed. A save
 that failed leaves it up holding the words, and so does one the reader typed
@@ -464,9 +502,10 @@ before wrapping, tokenising a side whole. These are this repo's own.
 - **`viewport.EnsureVisible` is not a scroll-to-cursor.** It acts only once the line is already outside the window, then puts it on the top row. Move the offset by hand.
 - **The shortest scroll onto the screen is the wrong one.** A key that lands on a block is taking the reader somewhere, so put the block at the top row, and leave it alone when it already fits on screen whole. A cursor moving a row at a time is the exception: the reader is already looking at the row, and the window is what fell behind.
 - **A key cannot aim at a block through the scroll offset.** A pane that fits its content has no offset to move, so a key reading its target off the top row acts on the first block whatever the reader does. Give the pane a cursor or do not give it the key.
-- **A block that answers the line above it cannot go to the top row.** A comment hangs under the code it was written against, so topping the card scrolls that code away. Bring its last row on screen and scroll no further up than the line it answers. That is two clamps and no magic number, and it degrades honestly: a card taller than the window keeps the line rather than the card.
+- **A block that answers the line above it cannot go to the top row.** A comment hangs under the code it was written against, so topping the card scrolls that code away. Bring its last row on screen and scroll no further up than the line it answers. That is two clamps and no magic number, and it degrades honestly: a card taller than the window keeps the line rather than the card. The line it answers is the last of the lines it covers and not the first, because a comment on a whole hunk anchors at the top of the hunk, and a scroll holding out for that leaves the card off the bottom of any window shallower than the hunk. A box being typed in is where that costs the most: off the window it still holds every key that would scroll to it.
 - **A block whose height moves with the width breaks a row index.** A card's body wraps, so a resize renumbers every row after it and a stored cursor lands on something else. The pane remembers what the cursor was on, not which row: a comment id, or a sequence over the rows a width cannot move.
 - **A pane clips overflow silently.** A row wider than the pane loses its trailing columns mid-cell with no ellipsis, and a width test still passes. The row has to fit before the pane sees it.
 - **A glyph is only one cell if lipgloss and the terminal agree it is.** The tree's folders and its file marker are Nerd Font, which is the one thing on screen that asks anything of the terminal's font. Measure a new one with `lipgloss.Width` before using it: a two-cell glyph puts every row after it out of step, where a font missing a one-cell glyph only draws a box.
 - **A stripped golden cannot see a colour.** The tree's cursor is a filled background and nothing else, so the frame is identical whether `j` moved or not. Anything said only in colour needs an assertion against the theme value beside the golden.
+- **A newline in a body is a break and not a soft wrap.** `comp.Wrap` folds each line on its own and joins none of them. It used to join a paragraph before folding, so a body hard-wrapped elsewhere reflowed to the width in hand, and the price was that every break somebody typed into the box was drawn away on the card that came back.
 - **Nothing moves on a refresh until the key is pressed.** A formatter running on save would otherwise reshuffle the page while a comment is being written.

@@ -494,3 +494,47 @@ func TestARefusedWriteNamesAKeyTheBoxWouldEat(t *testing.T) {
 		t.Errorf("the bar reads %q, want the keys that reach the reload", got)
 	}
 }
+
+// tallPatch is one hunk deeper than any window the reader has, which is what
+// puts the box a hunk comment hangs under off the bottom of the pane.
+func tallPatch() string {
+	var b strings.Builder
+	b.WriteString("diff --git a/a.go b/a.go\n--- a/a.go\n+++ b/a.go\n@@ -1,40 +1,40 @@\n")
+	for i := 1; i <= 40; i++ {
+		if i%5 == 0 {
+			fmt.Fprintf(&b, "-old line %d\n+new line %d\n", i, i)
+			continue
+		}
+		fmt.Fprintf(&b, " line %d\n", i)
+	}
+	return b.String()
+}
+
+// TestTheBoxOnATallHunkIsOnScreen. c on a heading anchors at the top of the
+// hunk and hangs under the bottom, and the box holds every key that would scroll.
+func TestTheBoxOnATallHunkIsOnScreen(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, tallPatch()), 100, 24)
+	s.press("c")
+
+	got := s.frame()
+	if !strings.Contains(got, "◇ new") {
+		t.Fatalf("the box is off the window:\n%s", got)
+	}
+	if !strings.Contains(got, "ctrl+s save") {
+		t.Errorf("the box is cut off at the bottom:\n%s", got)
+	}
+}
+
+// TestTheRingLandsOnACardBelowATallHunk. A card on a whole hunk anchors at the
+// top of it, and a ring that stopped there would land on a card off the window.
+func TestTheRingLandsOnACardBelowATallHunk(t *testing.T) {
+	deep := testchangeset.Comment("aaaaaaaaaaaa", "a.go", 5, 40, "this hunk is the whole file")
+
+	s := with(t, "zen-review", testchangeset.Derive(t, tallPatch()),
+		[]store.Comment{deep}, "", 100, 24)
+	s.press("]")
+
+	if got := s.frame(); !strings.Contains(got, "this hunk is the whole file") {
+		t.Errorf("the card the ring landed on is off the window:\n%s", got)
+	}
+}

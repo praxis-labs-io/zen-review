@@ -4,15 +4,15 @@
 │ ╭─Keys─────────────────────────────────────────────────────────────────────╮ │
 │ │ j      down                   n         next unread        h/1 tree pane │ │
 │ │ k      up                     N         previous unread    l/2 diff pane │ │
-│ │ g      top                    }         next hunk          s   reload    │ │
-│ │ G      bottom                 {         previous hunk      C   note      │ │
-│ │ ctrl+d diff half page down    tab       next file          ?   help      │ │
-│ │ ctrl+u diff half page up      shift+tab previous file      q   quit      │ │
-│ │ ]/[    comment                r         mark read                        │ │
-│ │ z      place cursor: z/t/b    R         mark file                        │ │
-├─│ v      select lines           u/U       unmark                           │ │
-│ │ space  fold comment           c         comment                          │ │
-│ │ enter  go to its line         x         resolve comment                  │ │
+│ │ g      top                    }/{       hunk               s   reload    │ │
+│ │ G      bottom                 tab       next file          C   note      │ │
+│ │ ctrl+d diff half page down    shift+tab previous file      ?   help      │ │
+│ │ ctrl+u diff half page up      r         mark read          q   quit      │ │
+│ │ ]/[    comment                R         mark file                        │ │
+│ │ z      place cursor: z/t/b    u/U       unmark                           │ │
+├─│ v      select lines           c         comment                          │ │
+│ │ space  fold comment           x         resolve comment                  │ │
+│ │ enter  go to its line         e/D       edit, delete                     │ │
 │ ╰──────────────────────────────────────────────────────────────────────────╯ │
 │ Comments                   0/0 ││                                            │
 │ Changes             6  +10 -3 ││                                            │

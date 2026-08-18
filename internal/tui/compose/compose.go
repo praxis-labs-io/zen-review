@@ -113,6 +113,30 @@ func (m Model) View() string {
 		Render(body)
 }
 
+// TypingAt is where the terminal's cursor goes while the box is up, in the
+// frame's coordinates: this box is placed over the frame rather than in a pane.
+func (m Model) TypingAt() *tea.Cursor {
+	if !m.open {
+		return nil
+	}
+	c := m.area.Cursor()
+	if c == nil {
+		return nil
+	}
+
+	// Centred by Over, then past the pane's border and the padding on the body.
+	w, h := lipgloss.Size(m.View())
+	c.X += max(0, (m.width-w)/2) + 2
+	c.Y += max(0, (m.height-h)/2) + 1
+
+	// A frame with no room for the chrome puts it off the screen, and a cursor
+	// there is one the terminal parks wherever it likes.
+	if c.X >= m.width || c.Y >= m.height {
+		return nil
+	}
+	return c
+}
+
 // hints are the two keys, in the bottom border where a pane keeps its counter.
 // Nothing else on screen says how to get out of the box.
 func (m Model) hints() string {

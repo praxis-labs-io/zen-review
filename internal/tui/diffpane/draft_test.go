@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/zen-review/zen-review/internal/store"
+	"github.com/zen-review/zen-review/internal/testchangeset"
 	"github.com/zen-review/zen-review/internal/tui/diffpane"
 )
 
@@ -99,7 +100,9 @@ func TestClosingTheBoxLeavesTheCursorOnTheCode(t *testing.T) {
 // TestABoxRefusesAPaneWithNoRoomForIt. Every key goes into it while it is up,
 // so one that cannot be drawn is a reader typing into nothing.
 func TestABoxRefusesAPaneWithNoRoomForIt(t *testing.T) {
-	for _, tt := range []struct{ width, height int }{{18, 20}, {70, 4}} {
+	// The heights are the ones capBox would clamp under the box's own floor,
+	// which is a pane taking a box it can only give two rows to.
+	for _, tt := range []struct{ width, height int }{{18, 20}, {70, 4}, {70, 6}, {70, 7}} {
 		m := commented(t, twoHunks, tt.width, tt.height)
 		m.Select(store.SideHead, 13)
 
@@ -111,6 +114,224 @@ func TestABoxRefusesAPaneWithNoRoomForIt(t *testing.T) {
 		}
 		if m.Composing() {
 			t.Errorf("a %dx%d pane reports one up", tt.width, tt.height)
+		}
+	}
+}
+
+// editing is a pane with the box open over a card that is already there.
+func editing(t *testing.T, width, height int, c store.Comment) diffpane.Model {
+	t.Helper()
+
+	m := commented(t, twoHunks, width, height, c)
+	m.Select(store.SideHead, 13)
+
+	if _, ok := m.Edit(c); !ok {
+		t.Fatalf("the pane refused a box at %dx%d", width, height)
+	}
+	return m
+}
+
+// TestTheBoxOverACardHoldsWhatItSaid, so a typo is fixed rather than retyped,
+// and the card itself comes down: the box is standing in its place.
+func TestTheBoxOverACardHoldsWhatItSaid(t *testing.T) {
+	card := testchangeset.Comment("cccccccccccc", twoHunks, 13, 13, "unreviewd is the clearer word.")
+	m := editing(t, 70, 20, card)
+
+	if got := m.Draft(); got != card.Body {
+		t.Errorf("the box holds %q, want what the card said", got)
+	}
+
+	got := joined(t, m)
+	if !strings.Contains(got, "◇ editing") {
+		t.Errorf("the box does not say what it is doing:\n%s", got)
+	}
+	if n := strings.Count(got, "unreviewd"); n != 1 {
+		t.Errorf("the words are drawn %d times, want once, in the box:\n%s", n, got)
+	}
+	if strings.Contains(got, "◇ open") {
+		t.Errorf("the card is still drawn under its own box:\n%s", got)
+	}
+}
+
+// TestTheBoxStandsWhereTheCardWas, which is under the code it answers rather
+// than at the foot of whatever is placed last.
+func TestTheBoxStandsWhereTheCardWas(t *testing.T) {
+	card := testchangeset.Comment("cccccccccccc", twoHunks, 13, 13, "unreviewd is the clearer word.")
+
+	was := at(t, rows(t, commented(t, twoHunks, 70, 20, card)), "◇ open")
+	now := at(t, rows(t, editing(t, 70, 20, card)), "◇ editing")
+
+	if was != now {
+		t.Errorf("the box is on row %d, want %d, where the card was", now, was)
+	}
+}
+
+// TestClosingTheBoxPutsTheCardBack. esc writes nothing, so what was there has to
+// come back saying what it always said.
+func TestClosingTheBoxPutsTheCardBack(t *testing.T) {
+	card := testchangeset.Comment("cccccccccccc", twoHunks, 13, 13, "unreviewd is the clearer word.")
+
+	m := press(t, editing(t, 70, 20, card), tea.KeyPressMsg{Code: 'x', Text: "x"})
+	m.CloseDraft()
+
+	got := joined(t, m)
+	if strings.Contains(got, "editing") {
+		t.Errorf("the box is still up:\n%s", got)
+	}
+	if !strings.Contains(got, "◇ open") || !strings.Contains(got, "unreviewd") {
+		t.Errorf("the card did not come back:\n%s", got)
+	}
+}
+
+// at is the first row holding a string, and -1 for a frame without it.
+func at(t *testing.T, lines []string, want string) int {
+	t.Helper()
+
+	for i, line := range lines {
+		if strings.Contains(line, want) {
+			return i
+		}
+	}
+	t.Fatalf("no row holds %q:\n%s", want, strings.Join(lines, "\n"))
+	return -1
+}
+
+// TestTheBoxOnARangeTallerThanTheWindow is on screen. A card is clamped to the
+// line it answers, and a box off the window holds every key that would scroll it.
+func TestTheBoxOnARangeTallerThanTheWindow(t *testing.T) {
+	m := commented(t, twoHunks, 70, 8)
+	m.Select(store.SideHead, 13)
+
+	if _, ok := m.Compose(store.Comment{
+		Side:      store.SideHead,
+		Scope:     store.ScopeRange,
+		LineRange: store.LineRange{Start: 12, End: 14},
+	}); !ok {
+		t.Fatal("the pane refused a box")
+	}
+
+	got := joined(t, m)
+	if !strings.Contains(got, "◇ new") || !strings.Contains(got, "ctrl+s save") {
+		t.Errorf("the box is not on screen whole:\n%s", got)
+	}
+}
+
+// TestACardDrawsTheBreaksTheBoxWasTypedWith. The box shows a newline as a break,
+// so a card that folded it away would say the reader wrote a paragraph.
+func TestACardDrawsTheBreaksTheBoxWasTypedWith(t *testing.T) {
+	card := testchangeset.Comment("cccccccccccc", twoHunks, 13, 13,
+		"the first thing\nthe second thing\nthe third")
+
+	m := commented(t, twoHunks, 70, 20, card)
+	m.SelectComment("cccccccccccc")
+
+	rows := rows(t, m)
+	first := at(t, rows, "the first thing")
+
+	for i, want := range []string{"the second thing", "the third"} {
+		if got := rows[first+1+i]; !strings.Contains(got, want) {
+			t.Errorf("row %d reads %q, want %q on a line of its own", first+1+i, got, want)
+		}
+	}
+}
+
+// TestClosingTheBoxPutsTheCursorBackOnTheCard it stood in for. That is the row
+// the reader pressed e from, and a card left unlit is one x and e cannot reach.
+func TestClosingTheBoxPutsTheCursorBackOnTheCard(t *testing.T) {
+	card := testchangeset.Comment("cccccccccccc", twoHunks, 13, 13, "unreviewd is the clearer word.")
+
+	m := editing(t, 70, 20, card)
+	m.CloseDraft()
+
+	if got := joined(t, m); !strings.Contains(got, "x resolve") {
+		t.Errorf("the card came back unlit:\n%s", got)
+	}
+	if id, on := m.Comment(); !on || id != "cccccccccccc" {
+		t.Errorf("the cursor is on %q (%v), want the card the box stood in for", id, on)
+	}
+}
+
+// boxRows is how tall the drawn box is, read off the frame: its own border rows
+// are the only thing that says what height it took.
+func boxRows(t *testing.T, m diffpane.Model, head string) int {
+	t.Helper()
+
+	lines := rows(t, m)
+	return at(t, lines, "ctrl+s save") - at(t, lines, head) + 1
+}
+
+// TestTheBoxGrowsWithWhatIsTypedIntoIt. One that scrolled would hide the
+// sentence somebody is still writing.
+func TestTheBoxGrowsWithWhatIsTypedIntoIt(t *testing.T) {
+	m := composing(t, 70, 24)
+	before := boxRows(t, m, "◇ new")
+
+	// Four newlines past the four rows it opens with, which is where it starts
+	// having to grow.
+	enter := tea.KeyPressMsg{Code: tea.KeyEnter}
+	m = press(t, m, enter, enter, enter, enter, enter, enter)
+
+	if got := boxRows(t, m, "◇ new"); got != before+3 {
+		t.Errorf("the box is %d rows after seven lines, want %d", got, before+3)
+	}
+}
+
+// TestTheBoxOpensTallEnoughForWhatItHolds, so editing a comment of five lines
+// does not open on four of them.
+func TestTheBoxOpensTallEnoughForWhatItHolds(t *testing.T) {
+	body := "one\ntwo\nthree\nfour\nfive\nsix"
+	card := testchangeset.Comment("cccccccccccc", twoHunks, 13, 13, body)
+
+	m := editing(t, 70, 24, card)
+
+	// Six lines and the two borders.
+	if got := boxRows(t, m, "◇ editing"); got != 8 {
+		t.Errorf("the box is %d rows, want 8, the six lines and its borders", got)
+	}
+	if got := joined(t, m); !strings.Contains(got, "six") {
+		t.Errorf("the last line is not on screen:\n%s", got)
+	}
+}
+
+// TestTheBoxStopsAtThePane. It grows to hold what is typed, and the pane is
+// where that stops: a box taller than the window is one nobody can see the end of.
+func TestTheBoxStopsAtThePane(t *testing.T) {
+	body := strings.Repeat("a line\n", 40)
+	card := testchangeset.Comment("cccccccccccc", twoHunks, 13, 13, body)
+
+	m := editing(t, 70, 12, card)
+
+	// The pane's twelve, less the line it hangs under and the heading pinned
+	// over that.
+	if got := boxRows(t, m, "◇ editing"); got != 10 {
+		t.Errorf("the box is %d rows, want 10", got)
+	}
+}
+
+// TestTheBoxOpensOnAWrappedBodyWholeAndUnscrolled. It counts the rows its lines
+// wrap into, so a body that folds twice at this width does not scroll away.
+func TestTheBoxOpensOnAWrappedBodyWholeAndUnscrolled(t *testing.T) {
+	body := "the first line of it, which is long enough to fold at this width\n" +
+		"and a second\n" +
+		"and a third line, also long enough to fold at the width this is drawn at\n" +
+		"the last line says LASTLINE"
+	card := testchangeset.Comment("cccccccccccc", twoHunks, 13, 13, body)
+
+	m := editing(t, 60, 30, card)
+
+	got := joined(t, m)
+	if !strings.Contains(got, "the first line of it") {
+		t.Errorf("the box opened scrolled past its first line:\n%s", got)
+	}
+	if !strings.Contains(got, "LASTLINE") {
+		t.Errorf("the box is too short for its last line:\n%s", got)
+	}
+
+	// A blank row inside the box is one the wrapping was not counted for.
+	lines := rows(t, m)
+	for i := at(t, lines, "◇ editing") + 1; i < at(t, lines, "ctrl+s save"); i++ {
+		if strings.TrimSpace(strings.ReplaceAll(lines[i], "│", "")) == "" {
+			t.Errorf("row %d inside the box is blank:\n%s", i, got)
 		}
 	}
 }

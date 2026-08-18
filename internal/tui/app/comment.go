@@ -15,6 +15,9 @@ import (
 // commentedMsg is a comment that landed, with the changeset re-derived after it.
 type commentedMsg struct{ r Reload }
 
+// editedMsg is one whose words were rewritten. The anchor did not move for it.
+type editedMsg struct{ r Reload }
+
 // commenting is the comment c scopes, bodyless, and false when the cursor has
 // nothing under it. A selection beats the focus, the way esc does.
 func (m Model) commenting() (review.Note, bool) {
@@ -82,17 +85,47 @@ func (m *Model) commentOn() (tea.Cmd, bool) {
 	}
 
 	m.pending = n
-	if cmd, up := m.diff.Compose(store.Comment{
-		Side:      n.Side,
-		Scope:     n.Scope,
-		LineRange: store.LineRange{Start: n.Range.Start, End: n.Range.End},
-	}); up {
+	c := boxed(n)
+	if cmd, up := m.diff.Compose(c); up {
 		return cmd, true
 	}
 
 	// No room for it beside the code, so it goes over the frame where C's box
 	// is drawn. A box that cannot be drawn at all is a reader typing at air.
-	return m.compose.Open(commentTitle(n), ""), true
+	return m.compose.Open(commentTitle(c), ""), true
+}
+
+// editOn opens the box over the card the cursor is on, holding what it says. A
+// row with no card under it is a press with nothing to do.
+func (m *Model) editOn() (tea.Cmd, bool) {
+	id, on := m.diff.Comment()
+	if !on {
+		return nil, false
+	}
+	c, ok := m.commentAt(id)
+	if !ok {
+		return nil, false
+	}
+
+	m.editing = id
+	if cmd, up := m.diff.Edit(c); up {
+		return cmd, true
+	}
+	return m.compose.Open(editTitle(c), c.Body), true
+}
+
+// commentAt is one of the session's comments by id, and false for an id nothing
+// answers to, an empty one included.
+func (m Model) commentAt(id string) (store.Comment, bool) {
+	if id == "" {
+		return store.Comment{}, false
+	}
+	for _, c := range m.comments {
+		if c.ID == id {
+			return c, true
+		}
+	}
+	return store.Comment{}, false
 }
 
 // crossOver moves a box the pane has lost the room for onto the frame, with
@@ -104,28 +137,57 @@ func (m *Model) crossOver() tea.Cmd {
 
 	body := m.diff.Draft()
 	m.diff.CloseDraft()
-	return m.compose.Open(commentTitle(m.pending), body)
+	return m.compose.Open(m.boxTitle(), body)
 }
 
-// commentTitle says what the words are for, which the box beside the code says
-// by hanging there. Only the base is named: head numbers are the gutter's.
-func commentTitle(n review.Note) string {
-	at := comp.Safe(n.Path)
-	if n.Scope != store.ScopeFile {
-		at += ":" + strconv.Itoa(n.Range.Start)
-		if n.Range.End != n.Range.Start {
-			at += "-" + strconv.Itoa(n.Range.End)
+// boxTitle names what the open box is scoped to, whichever key opened it.
+func (m Model) boxTitle() string {
+	if c, ok := m.commentAt(m.editing); ok {
+		return editTitle(c)
+	}
+	return commentTitle(boxed(m.pending))
+}
+
+// boxed is the card a note is about to become, which is what the pane draws the
+// box as and what the title is read off.
+func boxed(n review.Note) store.Comment {
+	return store.Comment{
+		Path:      n.Path,
+		Side:      n.Side,
+		Scope:     n.Scope,
+		LineRange: store.LineRange{Start: n.Range.Start, End: n.Range.End},
+	}
+}
+
+func commentTitle(c store.Comment) string { return "Comment on " + where(c) }
+
+func editTitle(c store.Comment) string { return "Edit comment on " + where(c) }
+
+// where says what the words are for, which a box beside the code says by hanging
+// there. Only the base is named: head numbers are the gutter's.
+func where(c store.Comment) string {
+	at := comp.Safe(c.Path)
+	if c.Scope != store.ScopeFile {
+		at += ":" + strconv.Itoa(c.Start)
+		if c.End != c.Start {
+			at += "-" + strconv.Itoa(c.End)
 		}
 	}
-	if n.Side == store.SideBase {
+	if c.Side == store.SideBase {
 		at += " (base)"
 	}
-	return "Comment on " + at
+	return at
 }
 
 // drafting routes a key into the box, answering the two it owns first. Those
 // are the composer's: two boxes with one way out of them.
 func (m Model) drafting(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// One press long, the way it is outside the box. A line that outlived the
+	// press that put it there is one more thing to read past mid-sentence.
+	if !m.busy {
+		m.note = notice{}
+	}
+
 	if press, ok := msg.(tea.KeyPressMsg); ok {
 		switch {
 		// The way out of anywhere. Raw mode sends no interrupt, so without this
@@ -143,13 +205,51 @@ func (m Model) drafting(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.note = notice{text: "still writing"}
 				return m, nil
 			}
-			return m, m.saveComment(m.diff.Draft())
+			// Called before the return, for the reason the resize is: m is written
+			// through by save, and the order against it is the spec's to choose.
+			cmd := m.save(m.diff.Draft())
+			return m, cmd
 		}
 	}
 
 	var cmd tea.Cmd
 	m.diff, cmd = m.diff.Update(msg)
 	return m, cmd
+}
+
+// save is the write the box makes: a rewrite where it is standing in for a card,
+// and a new comment where it is not.
+func (m *Model) save(body string) tea.Cmd {
+	// Trailing whitespace goes, the way it does off stdin: the enter somebody
+	// finished on is not a line of the comment, and the card would draw it.
+	body = strings.TrimRight(body, " \t\r\n")
+
+	// Wiping a comment is not saving it, and it is not deleting one either: that
+	// is a key of its own, and one the box would take as a keystroke anyway.
+	if m.editing != "" && strings.TrimSpace(body) == "" {
+		m.note = notice{text: "cannot save an empty comment"}
+		return nil
+	}
+
+	if m.editing != "" {
+		return m.saveEdit(body)
+	}
+	return m.saveComment(body)
+}
+
+// saveEdit rewrites what a comment says, which is the whole of an edit: the
+// anchor it moves under is not this key's business.
+func (m *Model) saveEdit(body string) tea.Cmd {
+	src, g, id := m.src, m.gen, m.editing
+	m.busy = true
+
+	return func() tea.Msg {
+		r, err := src.EditComment(g, id, body)
+		if err != nil {
+			return failed(err)
+		}
+		return editedMsg{r: r}
+	}
 }
 
 // saveComment writes what was typed. An empty body takes the box down rather

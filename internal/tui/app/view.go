@@ -91,7 +91,29 @@ func (m Model) View() tea.View {
 	v := tea.NewView(m.content())
 	v.AltScreen = true
 	v.BackgroundColor = m.theme.Background
+	v.Cursor = m.typingAt()
 	return v
+}
+
+// typingAt is where the terminal's cursor goes: into whichever box is up, and
+// nowhere at all while neither is, which is most of the time.
+func (m Model) typingAt() *tea.Cursor {
+	if m.compose.Active() {
+		return m.compose.TypingAt()
+	}
+	if m.width < minWidth || m.height < minHeight {
+		return nil
+	}
+
+	// Past the tree's pane and the diff pane's own border, which is where the
+	// pane's content starts in the frame.
+	c := m.diff.TypingAt()
+	if c == nil {
+		return nil
+	}
+	c.X += m.treeWidth() + 1
+	c.Y++
+	return c
 }
 
 // content is the frame with whichever box is up drawn over it, the too-small
@@ -291,20 +313,20 @@ func (m Model) status() string {
 		return m.pad(m.bar(m.width), m.width)
 	}
 
-	// A failed reload takes the whole line. It is a sentence rather than a
-	// label, and the keys are one press away where the reason it gives is not.
-	if m.note.bad {
-		return m.pad(right, m.width)
+	// A refusal is a sentence rather than a label, so it is not cut to leave the
+	// keys their room. The keys give way instead, being one press from the help.
+	if !m.note.bad {
+		// A total or an answer to the key just pressed misstates itself when it
+		// is cut, so the keys are measured against what the right side left.
+		right = comp.Clip(right, room, subtle)
 	}
-
-	// A total or an answer to the key just pressed misstates itself when it is
-	// cut, so the keys are measured against what the right side left.
-	right = comp.Clip(right, room, subtle)
 	left := m.bar(max(m.width-lipgloss.Width(right)-2, 0))
 
+	// Every notice reads from the right, so there is one place to look for what
+	// just happened. A line with no room for both is the sentence's.
 	gap := m.width - lipgloss.Width(left) - lipgloss.Width(right)
 	if gap < 0 {
-		return m.pad(left, m.width)
+		return m.pad(right, m.width)
 	}
 	return left + strings.Repeat(" ", gap) + right
 }

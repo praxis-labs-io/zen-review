@@ -2,15 +2,15 @@
 │          ╭─Keys───────────────────────────────────────────────────────────────────────╮          │
 │  assets │ j      down                   n         next unread        h/1   tree pane │          │
 │   ○ logo.│ k      up                     N         previous unread    l/2   diff pane │          │
-│  docs/su│ g      top                    }         next hunk          space fold      │          │
-│   ● desig│ G      bottom                 {         previous hunk      enter open      │          │
-│  interna│ ctrl+d diff half page down    tab       next file          s     reload    │          │
-│    cli  │ ctrl+u diff half page up      shift+tab previous file      C     note      │          │
-├──────────│ ]/[    comment                r         mark read          ?     help      │          │
-│ origin/ma│                               R         mark file          q     quit      │          │
-│ Generatio│                               u/U       unmark                             │          │
-│ Reviewed │                               c         comment                            │          │
-│ Comments │                               x         resolve comment                    │          │
+│  docs/su│ g      top                    }/{       hunk               space fold      │          │
+│   ● desig│ G      bottom                 tab       next file          enter open      │          │
+│  interna│ ctrl+d diff half page down    shift+tab previous file      s     reload    │          │
+│    cli  │ ctrl+u diff half page up      r         mark read          C     note      │          │
+├──────────│ ]/[    comment                R         mark file          ?     help      │          │
+│ origin/ma│                               u/U       unmark             q     quit      │          │
+│ Generatio│                               c         comment                            │          │
+│ Reviewed │                               x         resolve comment                    │          │
+│ Comments │                               e/D       edit, delete                       │          │
 │ Changes  ╰────────────────────────────────────────────────────────────────────────────╯          │
 ╰──────────────────────────────────────╯╰──────────────────────────────────────────────────────────╯
 j/k move · enter open · space fold · n/N unread · }/{ hunk · ctrl+d/u page · ? help · q quit        
