@@ -10,11 +10,11 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/zen-kit/zen-kit/theme"
 
 	"github.com/zen-review/zen-review/internal/review"
 	"github.com/zen-review/zen-review/internal/testrepo"
 	"github.com/zen-review/zen-review/internal/tui/app"
+	"github.com/zen-review/zen-review/internal/tui/theme"
 )
 
 // reader is app.Model over a live session, with the runtime's job done by hand:

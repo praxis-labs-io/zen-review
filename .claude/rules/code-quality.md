@@ -38,7 +38,8 @@ running?** If no, the logic is in the wrong package.
 - **`internal/store` is the only package importing `database/sql`.** Everything else goes through `review`.
 - **`internal/review` is the engine, and the TUI holds none of it.** Every state change is a call into `review`, and `cli` calls the same functions. A behaviour reachable by key and not by subcommand is in the wrong place.
 - **`internal/tui/*` packages never import each other sideways.** Shared widgets live in `internal/tui/comp`.
-- **zen-kit stops at the TUI.** `tui/diffpane` and `tui/comp` import it for `theme`, `syntax` and the line painter. Nothing below `tui/` imports it at all.
+- **The visual layer stops at the TUI.** `tui/diffpane` and `tui/comp` import `tui/theme`, `tui/syntax` and `tui/paint`. Nothing below `tui/` imports any of the three.
+- **`tui/paint` imports `tui/theme` and `tui/syntax`, and neither of those imports anything of ours.** `go list -deps ./internal/tui/theme ./internal/tui/syntax` naming anything of ours but those two means the boundary has already broken. They were a separate module for this reason and keep the shape without it.
 
 ## State changes
 
@@ -56,12 +57,17 @@ and nothing moves on screen until the key is pressed.
 
 ## Styling
 
-Everything styles from the active theme in zen-kit, never a hardcoded Lipgloss
-color and never a Lipgloss default. A new color that isn't in `theme.Theme`
-means zen-kit needs a field.
+Everything styles from the `theme.Theme` it was handed, never a hardcoded
+Lipgloss color and never a Lipgloss default. A new color that isn't in
+`theme.Theme` means the struct needs a field.
 
-Diff rows come from `paint`. A second line painter here is the drift zen-kit
-exists to prevent.
+A nil color field means "leave the terminal's own showing". Guard for it rather
+than passing it to Lipgloss, or a transparent background stops being
+transparent.
+
+Diff rows come from `paint`, and every exported function there is pure: same
+arguments, same string. A second line painter anywhere else is the drift the
+package exists to prevent.
 
 ## Tests
 
@@ -71,6 +77,7 @@ exists to prevent.
 - **Remapping gets a case per way it goes bad**, over fixture repos: a line inserted above a reviewed hunk, a reviewed line deleted, a region rewritten wholesale, a rename, a delete, a rebase to identical content, a base change, a base force-push that loses the fork point.
 - `diff` gets golden files on unified diff text. `cli` gets golden JSON.
 - TUI render tests run at widths where something actually overflows, which is the only width that proves anything.
+- **`paint`'s goldens keep their escapes where the frame goldens are stripped.** What a painted row gets wrong is the colour and the fill, so `cat` one to read it. A case earns a file by being a way the painter goes wrong, not by being another example of it going right.
 
 ## File size
 

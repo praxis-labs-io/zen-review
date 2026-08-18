@@ -9,9 +9,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/zen-kit/zen-kit/theme"
 
 	"github.com/zen-review/zen-review/internal/testchangeset"
+	"github.com/zen-review/zen-review/internal/tui/theme"
 	"github.com/zen-review/zen-review/internal/tui/tree"
 )
 

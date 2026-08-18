@@ -8,10 +8,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"github.com/zen-kit/zen-kit/theme"
-
 	"github.com/zen-review/zen-review/internal/review"
 	"github.com/zen-review/zen-review/internal/tui/comp"
+	"github.com/zen-review/zen-review/internal/tui/theme"
 )
 
 const pickerRows = 5

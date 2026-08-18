@@ -4,7 +4,7 @@ import (
 	"charm.land/bubbles/v2/textarea"
 	"charm.land/lipgloss/v2"
 
-	"github.com/zen-kit/zen-kit/theme"
+	"github.com/zen-review/zen-review/internal/tui/theme"
 )
 
 // Textarea is the box prose is typed into, stripped of the chrome an editor

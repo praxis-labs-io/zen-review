@@ -6,9 +6,9 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/zen-kit/zen-kit/theme"
 
 	"github.com/zen-review/zen-review/internal/tui/comp"
+	"github.com/zen-review/zen-review/internal/tui/theme"
 )
 
 func pane() comp.Pane { return comp.NewPane(theme.RosePineMoon) }

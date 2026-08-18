@@ -11,10 +11,9 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
-	"github.com/zen-kit/zen-kit/theme"
-
 	"github.com/zen-review/zen-review/internal/review"
 	"github.com/zen-review/zen-review/internal/tui/app"
+	"github.com/zen-review/zen-review/internal/tui/theme"
 )
 
 // runRoot is a bare zen-review: the reader on a terminal, the printed
@@ -255,9 +254,5 @@ func runTUI(cmd *cobra.Command, opts *options) (err error) {
 		return err
 	}
 
-	t, ok := theme.Get(theme.Default)
-	if !ok {
-		return fmt.Errorf("zen-kit has no theme named %s", theme.Default)
-	}
-	return app.Run(cmd.Context(), t, src, s.Repo(), r)
+	return app.Run(cmd.Context(), theme.RosePineMoon, src, s.Repo(), r)
 }

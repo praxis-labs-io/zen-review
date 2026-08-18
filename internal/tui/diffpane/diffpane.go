@@ -1,7 +1,7 @@
 // Package diffpane is the right pane: the selected file's diff.
 //
-// It draws through zen-kit's painter, so this tool and zen-octo render a diff
-// the same way and neither grows a second line painter.
+// It draws through tui/paint, which every diff row in the tool goes through, so
+// nothing here grows a second line painter.
 package diffpane
 
 import (
@@ -12,14 +12,13 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"github.com/zen-kit/zen-kit/paint"
-	"github.com/zen-kit/zen-kit/syntax"
-	"github.com/zen-kit/zen-kit/theme"
-
 	"github.com/zen-review/zen-review/internal/diff"
 	"github.com/zen-review/zen-review/internal/review"
 	"github.com/zen-review/zen-review/internal/store"
 	"github.com/zen-review/zen-review/internal/tui/comp"
+	"github.com/zen-review/zen-review/internal/tui/paint"
+	"github.com/zen-review/zen-review/internal/tui/syntax"
+	"github.com/zen-review/zen-review/internal/tui/theme"
 )
 
 // KeyMap is what the pane answers to.
