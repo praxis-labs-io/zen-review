@@ -650,6 +650,9 @@ func (m Model) Path() string {
 	return m.file.Diff.Path
 }
 
+// Placing reports that z owns the next key, before the root claims it.
+func (m Model) Placing() bool { return m.waiting }
+
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	// The box takes every message while it is up, a paste included. The root
 	// answers the two keys it owns and never gets here with one.

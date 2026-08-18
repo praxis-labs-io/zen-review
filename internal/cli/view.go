@@ -38,7 +38,8 @@ type header struct {
 type view struct {
 	header
 
-	Files []diff.File
+	Files      []diff.File
+	Candidates *review.BaseCandidates
 }
 
 // changesetView is the same session with the review derived on it, which is what

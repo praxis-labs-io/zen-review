@@ -300,6 +300,117 @@ func TestTheOverlaySaysWhichPaneAKeyMoves(t *testing.T) {
 	}
 }
 
+func TestTheBasePickerFiltersAndSelectsAcrossGroups(t *testing.T) {
+	s := open(t, 100, 20)
+	s.src.candidates = review.BaseCandidates{
+		Local: []review.Candidate{
+			{Branch: "parent", Ahead: 1},
+			{Branch: "older", Ahead: 3},
+		},
+		Remote: []review.Candidate{{Branch: "origin/main", Ahead: 4}},
+	}
+
+	s.press("b")
+	frame := s.frame()
+	for _, want := range []string{"Base", "Local", "Remote", "origin/main (current)"} {
+		if !strings.Contains(frame, want) {
+			t.Errorf("picker has no %q:\n%s", want, frame)
+		}
+	}
+	var selected string
+	for _, line := range strings.Split(s.raw(), "\n") {
+		if strings.Contains(ansi.Strip(line), "> parent") {
+			selected = line
+			break
+		}
+	}
+	if !strings.Contains(selected, styleParams(t, lipgloss.NewStyle().Foreground(theme.RosePineMoon.Text))) ||
+		!strings.Contains(selected, styleParams(t, lipgloss.NewStyle().Background(theme.RosePineMoon.SelectedBackground))) ||
+		!strings.Contains(selected, ";1m") {
+		t.Errorf("selected base does not use readable text on its fill:\n%s", s.raw())
+	}
+
+	s.press("p", "a", "r")
+	frame = s.frame()
+	if !strings.Contains(frame, "parent") || strings.Contains(frame, "older") {
+		t.Errorf("filter did not leave only parent:\n%s", frame)
+	}
+	s.press("enter")
+	if got := s.src.wrote; len(got) != 1 || got[0] != "SetBase parent" {
+		t.Errorf("writes = %v, want SetBase parent", got)
+	}
+	if strings.Contains(s.frame(), "↑/↓ move") {
+		t.Errorf("picker stayed open after the base changed:\n%s", s.frame())
+	}
+}
+
+func styleParams(t *testing.T, style lipgloss.Style) string {
+	t.Helper()
+	probe := style.Render("x")
+	start, end := strings.Index(probe, "["), strings.Index(probe, "m")
+	if start < 0 || end < start {
+		t.Fatalf("style rendered no escape: %q", probe)
+	}
+	return probe[start+1 : end]
+}
+
+func TestTheBasePickerCanCancelAndChooseNothing(t *testing.T) {
+	s := open(t, 100, 20)
+	s.src.candidates = review.BaseCandidates{
+		Remote: []review.Candidate{{Branch: "origin/main", Ahead: 1}},
+	}
+
+	s.press("b", "enter")
+	if len(s.src.wrote) != 0 || strings.Contains(s.frame(), "↑/↓ move") {
+		t.Errorf("choosing the current base did not close without writing")
+	}
+
+	s.press("b", "x")
+	if frame := s.frame(); !strings.Contains(frame, "No matching branches") {
+		t.Errorf("picker has no empty result:\n%s", frame)
+	}
+	s.press("enter", "esc")
+	if len(s.src.wrote) != 0 {
+		t.Errorf("writes = %v, want none", s.src.wrote)
+	}
+}
+
+func TestTheBasePickerKeepsFailuresInTheModal(t *testing.T) {
+	s := open(t, 100, 20)
+	s.src.candidates = review.BaseCandidates{
+		Local: []review.Candidate{{Branch: "parent", Ahead: 1}},
+	}
+	s.press("b")
+	s.src.wroteErr = errors.New("the branch moved")
+	s.press("enter")
+
+	frame := s.frame()
+	if !strings.Contains(frame, "the branch moved") || !strings.Contains(frame, "↑/↓ move") {
+		t.Errorf("failed picker lost its error or input:\n%s", frame)
+	}
+}
+
+func TestTheBasePickerReportsALoadFailureWithoutOpening(t *testing.T) {
+	s := open(t, 100, 20)
+	s.src.err = errors.New("git stopped")
+	s.press("b")
+
+	frame := s.frame()
+	if !strings.Contains(frame, "git stopped") || strings.Contains(frame, "↑/↓ move") {
+		t.Errorf("load failure did not stay on the frame:\n%s", frame)
+	}
+}
+
+func TestZBOwnsTheBAtTheRoot(t *testing.T) {
+	s := open(t, 100, 16).press("z", "b")
+	if s.src.baseReads != 0 {
+		t.Errorf("base reads = %d, want zb routed to the diff pane", s.src.baseReads)
+	}
+	if strings.Contains(s.frame(), "search branches") {
+		t.Errorf("zb opened the base picker:\n%s", s.frame())
+	}
+}
+
 // TestTheTreeIsHeadedByTheRepository, so a reader with two of these open knows
 // which one they are looking at. What is in it is said in the footer.
 //

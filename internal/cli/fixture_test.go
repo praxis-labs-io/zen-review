@@ -158,6 +158,17 @@ type wire struct {
 		Additions int `json:"additions"`
 		Deletions int `json:"deletions"`
 	} `json:"totals"`
+
+	Candidates *struct {
+		Local  []candidateWire `json:"local"`
+		Remote []candidateWire `json:"remote"`
+	} `json:"candidates"`
+}
+
+type candidateWire struct {
+	Ref   string `json:"ref"`
+	SHA   string `json:"sha"`
+	Ahead int    `json:"ahead"`
 }
 
 // stateWire is what files, review and unreview answer with: the same session,

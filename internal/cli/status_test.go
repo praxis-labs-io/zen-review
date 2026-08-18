@@ -29,6 +29,26 @@ func TestStatusWritesNothing(t *testing.T) {
 	}
 }
 
+func TestOnlyStatusJSONListsBaseCandidates(t *testing.T) {
+	f := branched(t)
+
+	status, _ := f.decode("status")
+	if status.Candidates == nil {
+		t.Fatal("status has no candidates")
+	}
+	if len(status.Candidates.Remote) != 1 || status.Candidates.Remote[0].Ref != "origin/main" {
+		t.Errorf("remote candidates = %v, want origin/main", status.Candidates.Remote)
+	}
+
+	refreshed, _ := f.decode("refresh")
+	if refreshed.Candidates != nil {
+		t.Errorf("refresh candidates = %v, want the field absent", refreshed.Candidates)
+	}
+	if out := f.mustRun("status"); strings.Contains(out, "candidate") {
+		t.Errorf("prose status exposed JSON candidates:\n%s", out)
+	}
+}
+
 // A session with nothing built yet is where an unreadable path matters most,
 // because there is no generation to have reported it earlier and no other way
 // to find out. The skipped paths come from the snapshot status just took, so

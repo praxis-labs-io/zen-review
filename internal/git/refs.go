@@ -181,17 +181,32 @@ func (r *Repo) DefaultRemoteBranch(ctx context.Context) (string, error) {
 
 // LocalBranches lists refs/heads with the commit each one points at.
 func (r *Repo) LocalBranches(ctx context.Context) ([]Branch, error) {
+	return r.branches(ctx, "local", "refs/heads")
+}
+
+// RemoteBranches lists remote-tracking branches with the commit each one
+// points at. Symbolic aliases such as origin/HEAD are not branches somebody can
+// choose, so they are left out.
+func (r *Repo) RemoteBranches(ctx context.Context) ([]Branch, error) {
+	return r.branches(ctx, "remote", "refs/remotes")
+}
+
+func (r *Repo) branches(ctx context.Context, kind, namespace string) ([]Branch, error) {
 	// A branch name can hold neither a NUL nor a newline, so this format parses
 	// exactly.
-	out, err := run(ctx, r.root, "for-each-ref", "--format=%(refname:short)%00%(objectname)", "refs/heads")
+	out, err := run(ctx, r.root, "for-each-ref", "--format=%(refname:short)%00%(objectname)%00%(symref)", namespace)
 	if err != nil {
-		return nil, fmt.Errorf("listing local branches: %w", err)
+		return nil, fmt.Errorf("listing %s branches: %w", kind, err)
 	}
 
 	var branches []Branch
 	for _, line := range strings.Split(trim(out), "\n") {
-		name, sha, ok := strings.Cut(line, "\x00")
+		name, rest, ok := strings.Cut(line, "\x00")
 		if !ok {
+			continue
+		}
+		sha, symbolic, ok := strings.Cut(rest, "\x00")
+		if !ok || symbolic != "" {
 			continue
 		}
 		branches = append(branches, Branch{Name: name, SHA: sha})

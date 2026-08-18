@@ -129,6 +129,9 @@ func (m Model) content() string {
 	if m.compose.Active() {
 		return comp.Over(frame, m.compose.View(), m.width, m.height)
 	}
+	if m.picker.active() {
+		return comp.Over(frame, m.picker.view(m.width, m.height), m.width, m.height)
+	}
 	if m.showing {
 		return m.overlay(frame)
 	}

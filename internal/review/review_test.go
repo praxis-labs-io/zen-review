@@ -3,6 +3,7 @@ package review_test
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -165,6 +166,120 @@ func TestAStackedBranchTakesTheNearestBranchUnderIt(t *testing.T) {
 	chosen := f.mustOpen("stack-bottom").Base()
 	if chosen.Ref != "stack-bottom" || chosen.Fallback != "" {
 		t.Errorf("base = %+v, want stack-bottom with nothing to explain", chosen)
+	}
+}
+
+func TestCandidatesGroupEveryFirstParentBranchNearestFirst(t *testing.T) {
+	f := newFixture(t)
+	main := f.commit("main")
+	f.TrackOrigin("main")
+	f.Git("checkout", "-q", "-b", "parent")
+	parent := f.commit("parent")
+	f.Git("update-ref", "refs/remotes/upstream/parent", parent)
+	f.Git("checkout", "-q", "-b", "child")
+	f.commit("child")
+	f.Git("branch", "merged", main)
+
+	s := f.mustOpen("")
+	got, err := s.Candidates(t.Context())
+	if err != nil {
+		t.Fatalf("listing candidates: %v", err)
+	}
+
+	wantLocal := []review.Candidate{
+		{Branch: "child", SHA: f.Git("rev-parse", "child"), Ahead: 0},
+		{Branch: "parent", SHA: parent, Ahead: 1},
+		{Branch: "main", SHA: main, Ahead: 2},
+		{Branch: "merged", SHA: main, Ahead: 2},
+	}
+	wantRemote := []review.Candidate{
+		{Branch: "upstream/parent", SHA: parent, Ahead: 1},
+		{Branch: "origin/main", SHA: main, Ahead: 2},
+	}
+	if !slices.Equal(got.Local, wantLocal) {
+		t.Errorf("local = %v, want %v", got.Local, wantLocal)
+	}
+	if !slices.Equal(got.Remote, wantRemote) {
+		t.Errorf("remote = %v, want %v", got.Remote, wantRemote)
+	}
+}
+
+func TestCandidatesKeepAnActiveBaseWhoseTipMovedAway(t *testing.T) {
+	f := branched(t)
+	s := f.mustOpen("")
+
+	f.Git("checkout", "-q", "main")
+	f.commit("new trunk work")
+	f.TrackOrigin("main")
+	f.Git("checkout", "-q", "feature")
+
+	got, err := s.Candidates(t.Context())
+	if err != nil {
+		t.Fatalf("listing candidates: %v", err)
+	}
+	if !slices.ContainsFunc(got.Remote, func(candidate review.Candidate) bool {
+		return candidate.Branch == "origin/main"
+	}) {
+		t.Errorf("remote candidates = %v, want the active origin/main", got.Remote)
+	}
+}
+
+func TestSetBasePersistsTheChoiceAndClearsTheFallback(t *testing.T) {
+	f := branched(t)
+	s := f.mustOpen("missing")
+	if s.Base().Fallback == "" {
+		t.Fatal("the setup did not fall back")
+	}
+	if err := s.SetSummary(t.Context(), "keep this"); err != nil {
+		t.Fatalf("setting summary: %v", err)
+	}
+
+	if err := s.SetBase(t.Context(), "main"); err != nil {
+		t.Fatalf("setting base: %v", err)
+	}
+	if got := s.Base(); got.Ref != "main" || got.Fallback != "" {
+		t.Errorf("base = %+v, want main without a fallback", got)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatalf("closing the first session: %v", err)
+	}
+
+	reopened := f.mustOpen("")
+	if reopened.Base().Ref != "main" {
+		t.Errorf("reopened base = %s, want main", reopened.Base().Ref)
+	}
+	if summary, err := reopened.Summary(t.Context()); err != nil || summary != "keep this" {
+		t.Errorf("summary = %q, %v, want it preserved", summary, err)
+	}
+}
+
+func TestSetBaseRejectsARefBeforeChangingTheSession(t *testing.T) {
+	f := branched(t)
+	s := f.mustOpen("")
+	before := s.Base()
+
+	if err := s.SetBase(t.Context(), "missing"); err == nil {
+		t.Fatal("a missing ref was accepted")
+	}
+	if s.Base() != before {
+		t.Errorf("base = %+v, want %+v", s.Base(), before)
+	}
+}
+
+func TestSetBaseRetriesPersistenceAfterASaveFails(t *testing.T) {
+	f := branched(t)
+	s, err := f.open("")
+	if err != nil {
+		t.Fatalf("opening the session: %v", err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatalf("closing the database: %v", err)
+	}
+
+	for attempt := 1; attempt <= 2; attempt++ {
+		if err := s.SetBase(t.Context(), "main"); err == nil {
+			t.Errorf("attempt %d succeeded after the database closed", attempt)
+		}
 	}
 }
 

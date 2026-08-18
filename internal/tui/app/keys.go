@@ -35,6 +35,7 @@ type KeyMap struct {
 	Note    key.Binding
 
 	Reload key.Binding
+	Base   key.Binding
 
 	Left  key.Binding
 	Right key.Binding
@@ -87,9 +88,9 @@ func NewKeyMap() KeyMap {
 
 		Note: key.NewBinding(key.WithKeys("C"), key.WithHelp("C", "note")),
 
-		// A session action, so it sits with the ring rather than in a pane. It is
-		// the one key here that reaches past the screen to the work tree.
+		// These session actions reach past the screen to the repository.
 		Reload: key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "reload")),
+		Base:   key.NewBinding(key.WithKeys("b"), key.WithHelp("b", "change base")),
 
 		// The digits are the badges the panes carry in their borders. They join
 		// the bindings that already move focus rather than being declared beside
@@ -163,6 +164,7 @@ func (m Model) paneKeys() []key.Binding {
 		comp.Pair(m.keys.Mark, m.keys.MarkFile, "r/R", "read"),
 		m.keys.Comment,
 		m.keys.Reload,
+		m.keys.Base,
 		comp.Pair(m.keys.NextComment, m.keys.PrevComment, "]/[", "comment"),
 		comp.Pair(m.keys.NextFile, m.keys.PrevFile, "tab", "file"),
 	)
@@ -224,17 +226,13 @@ func (m Model) FullHelp() [][]key.Binding {
 		movement = append(movement, m.diff.Keys.Cards()...)
 	}
 
-	// The reload is here and not in the ring's column: the ring moves the cursor
-	// and this moves the changeset under it. It is also the one key the bar
-	// cannot always carry, so this is where a reader on a narrow frame meets it.
-	// x settles a card from either pane, the way the mark keys settle a hunk, so
-	// it joins them rather than the column of the pane the card is drawn in.
+	// These verbs act from either pane, so they sit beside the shared ring.
 	verbs := append(m.markKeys(), m.keys.Comment, m.keys.Resolve,
 		comp.Pair(m.keys.Edit, m.keys.Delete, "e/D", "edit, delete"))
 
 	return [][]key.Binding{
 		movement,
 		append(m.ringKeys(), verbs...),
-		append(panes, m.keys.Reload, m.keys.Note, m.keys.Help, m.keys.Quit),
+		append(panes, m.keys.Reload, m.keys.Base, m.keys.Note, m.keys.Help, m.keys.Quit),
 	}
 }

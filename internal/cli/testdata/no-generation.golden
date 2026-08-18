@@ -17,5 +17,21 @@
     "hunks": 0,
     "additions": 0,
     "deletions": 0
+  },
+  "candidates": {
+    "local": [
+      {
+        "ref": "feature",
+        "sha": "<sha>",
+        "ahead": 0
+      }
+    ],
+    "remote": [
+      {
+        "ref": "origin/main",
+        "sha": "<sha>",
+        "ahead": 0
+      }
+    ]
   }
 }
