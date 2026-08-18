@@ -68,6 +68,12 @@ func In(c store.Comment, s store.CommentState) store.Comment {
 	return c
 }
 
+// Answered gives a comment the words an address left behind.
+func Answered(c store.Comment, answer string) store.Comment {
+	c.Answer = answer
+	return c
+}
+
 // OnBase moves a comment to the base side, where it is recorded under the name
 // the file has on the base rather than the one the changeset lists it under.
 func OnBase(c store.Comment) store.Comment {
@@ -85,8 +91,8 @@ func NestedComments() []store.Comment {
 		Comment("bbbbbbbbbbbb", state, 13, 13, "unreviewed is the longer word and the clearer one."),
 		Comment("cccccccccccc", state, 124, 125,
 			"These two say the same thing twice. Cut the second."),
-		In(Comment("dddddddddddd", state, 126, 126, "Derive takes the rows now."),
-			store.CommentAddressed),
+		Answered(In(Comment("dddddddddddd", state, 126, 126, "Derive takes the rows now."),
+			store.CommentAddressed), "It does, and hands them back in tree order."),
 		In(Comment("eeeeeeeeeeee", state, 900, 900, "This line left the changeset."),
 			store.CommentOrphaned),
 		In(Comment("ffffffffffff", "README.md", 3, 3, "The old line said it better."),

@@ -350,7 +350,7 @@ func queue(t *testing.T) (*fixture, map[string]string) {
 		"resolved":  f.comment("gone.txt", "--file", "--body", "the whole file"),
 	}
 
-	f.mustRun("address", ids["addressed"])
+	f.mustRun("address", ids["addressed"], "--body", "it moved into the store package")
 	f.mustRun("resolve", ids["resolved"])
 
 	f.Write("code.txt", numbered(1, 2)+"line 3 replaced\n"+numbered(4, 29)+"line 30 changed\n"+numbered(31, 40))

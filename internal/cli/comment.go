@@ -69,14 +69,47 @@ func newComment(opts *options) *cobra.Command {
 	return cmd
 }
 
+// newAddress is the one state verb that takes words, because the state is a
+// claim and the words are what back it.
 func newAddress(opts *options) *cobra.Command {
-	return newVerb(opts, "address", "Record that a comment has been handled",
-		"Record that a comment has been handled.\n\n"+
-			"This is the agent's verb. It stops the comment moving and says the work\n"+
-			"was done; it does not close it, because the claim and the confirmation\n"+
-			"are different facts and a queue letting one stand for the other is worth\n"+
-			"nothing.",
-		func(s *review.Session) mover { return s.AddressComment })
+	var text string
+
+	cmd := &cobra.Command{
+		Use:   "address <id>",
+		Short: "Record that a comment has been handled, and say how",
+		Long: "Record that a comment has been handled, and say how.\n\n" +
+			"This is the agent's verb. It stops the comment moving and says the work\n" +
+			"was done; it does not close it, because the claim and the confirmation\n" +
+			"are different facts and a queue letting one stand for the other is worth\n" +
+			"nothing.\n\n" +
+			"The answer is what the reader confirms against. It is optional, because\n" +
+			"half a queue is change requests where the diff is the answer, and the\n" +
+			"other half are questions a diff does not answer at all.",
+		SilenceUsage: true,
+		Args:         cobra.ExactArgs(1),
+
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := refuseBase(cmd); err != nil {
+				return err
+			}
+
+			// Read before the database is opened, for the reason runComment gives.
+			written, err := body(cmd, text, "answer")
+			if err != nil {
+				return err
+			}
+
+			return runVerb(cmd, opts, args[0], func(s *review.Session) mover {
+				return func(ctx context.Context, id string) (store.Comment, error) {
+					return s.AddressComment(ctx, id, written)
+				}
+			})
+		},
+	}
+
+	cmd.Flags().StringVar(&text, "body", "", "what the answer says, or - to read it from stdin")
+
+	return cmd
 }
 
 func newResolve(opts *options) *cobra.Command {
@@ -101,14 +134,16 @@ func newDelete(opts *options) *cobra.Command {
 // newEdit is the one verb that is not a state, so it takes a body rather than
 // the id alone.
 func newEdit(opts *options) *cobra.Command {
-	var text string
+	var text, answer string
 
 	cmd := &cobra.Command{
 		Use:   "edit <id>",
 		Short: "Rewrite what a comment says",
 		Long: "Rewrite what a comment says.\n\n" +
-			"The body and nothing else. The anchor never moves, so a comment on the\n" +
-			"wrong lines is a delete and a new one rather than an edit.",
+			"The reader's words, the agent's answer, or both. The anchor never moves,\n" +
+			"so a comment on the wrong lines is a delete and a new one rather than an\n" +
+			"edit. An empty --answer takes the answer back; an empty --body is refused,\n" +
+			"because wiping a comment is a delete and has its own verb.",
 		SilenceUsage: true,
 		Args:         cobra.ExactArgs(1),
 
@@ -116,26 +151,31 @@ func newEdit(opts *options) *cobra.Command {
 			if err := refuseBase(cmd); err != nil {
 				return err
 			}
-			if err := needsBody(cmd); err != nil {
+			if err := needsWords(cmd); err != nil {
 				return err
 			}
 
 			// Read before the database is opened, for the reason runComment gives:
-			// a body on stdin is the reader still typing.
-			written, err := body(cmd, text, "comment")
+			// words on stdin are the reader still typing.
+			written, err := given(cmd, "body", text, "comment")
+			if err != nil {
+				return err
+			}
+			said, err := given(cmd, "answer", answer, "answer")
 			if err != nil {
 				return err
 			}
 
 			return runVerb(cmd, opts, args[0], func(s *review.Session) mover {
 				return func(ctx context.Context, id string) (store.Comment, error) {
-					return s.EditComment(ctx, id, written)
+					return s.EditComment(ctx, id, written, said)
 				}
 			})
 		},
 	}
 
 	cmd.Flags().StringVar(&text, "body", "", "what the comment says, or - to read it from stdin")
+	cmd.Flags().StringVar(&answer, "answer", "", "what the answer says, or - to read it from stdin")
 
 	return cmd
 }
@@ -197,6 +237,14 @@ func (n *note) check(cmd *cobra.Command) error {
 func needsBody(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("body") {
 		return errors.New("a comment needs something in it: pass --body <text>, or --body - to read it from stdin")
+	}
+	return nil
+}
+
+// needsWords is needsBody for a command that can rewrite either half.
+func needsWords(cmd *cobra.Command) error {
+	if !cmd.Flags().Changed("body") && !cmd.Flags().Changed("answer") {
+		return errors.New("an edit needs something to write: pass --body <text> or --answer <text>, either as - to read it from stdin")
 	}
 	return nil
 }
@@ -386,3 +434,17 @@ func body(cmd *cobra.Command, flag, what string) (string, error) {
 }
 
 func trailing(s string) string { return strings.TrimRight(s, " \t\r\n") }
+
+// given is body for a flag that may be left out. A flag nobody spelled is nil,
+// which is what tells the engine to leave that half of the comment alone.
+func given(cmd *cobra.Command, flag, value, what string) (*string, error) {
+	if !cmd.Flags().Changed(flag) {
+		return nil, nil
+	}
+
+	written, err := body(cmd, value, what)
+	if err != nil {
+		return nil, err
+	}
+	return &written, nil
+}

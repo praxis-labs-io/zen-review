@@ -35,6 +35,13 @@ type commentsView struct {
 // indent is what a body hangs under the row naming it.
 const indent = "    "
 
+// elbow opens an answer under the body it answers, the way the card hangs its
+// box off the comment. Three single-cell glyphs, counted rather than measured.
+const (
+	elbow      = "╰─ "
+	elbowWidth = 3
+)
+
 // screen is the terminal's width capped at comp.BodyWidth, and the cap itself
 // when there is nothing to measure. A pipe and a test both take the fallback.
 func screen(out io.Writer) int {
@@ -88,6 +95,7 @@ func writeComments(b *strings.Builder, comments []store.Comment, width int) {
 		}
 		writeRow(b, "", widths, rows[i])
 		writeBody(b, c.Body, width)
+		writeAnswer(b, c.Answer, width)
 	}
 }
 
@@ -101,6 +109,27 @@ func writeBody(b *strings.Builder, body string, width int) {
 			continue
 		}
 		b.WriteString(indent + line + "\n")
+	}
+}
+
+// writeAnswer runs the answer under the body it answers, opened by the elbow the
+// card hangs its box off. Without it the two run together as one person talking.
+func writeAnswer(b *strings.Builder, answer string, width int) {
+	if answer == "" {
+		return
+	}
+
+	room := max(width-len(indent)-elbowWidth, 1)
+	for i, line := range comp.Wrap(answer, room) {
+		lead := indent + strings.Repeat(" ", elbowWidth)
+		if i == 0 {
+			lead = indent + elbow
+		}
+		if line == "" {
+			b.WriteString("\n")
+			continue
+		}
+		b.WriteString(lead + line + "\n")
 	}
 }
 
@@ -164,6 +193,9 @@ type commentJSON struct {
 	State store.CommentState `json:"state"`
 	Body  string             `json:"body"`
 
+	// Answer is what an address left behind, and empty when it left none.
+	Answer string `json:"answer"`
+
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
@@ -198,6 +230,7 @@ func commentsPayloadOf(v commentsView) commentsPayload {
 			End:       c.End,
 			State:     c.State,
 			Body:      c.Body,
+			Answer:    c.Answer,
 			CreatedAt: c.CreatedAt,
 			UpdatedAt: c.UpdatedAt,
 		})

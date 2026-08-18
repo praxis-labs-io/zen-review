@@ -193,34 +193,52 @@ func byTreeOrder(rows []store.Comment) []store.Comment {
 	return rows
 }
 
-// AddressComment is the agent's verb: a claim that the comment has been handled.
+// AddressComment is the agent's verb: a claim that the comment has been handled,
+// and the words that back it.
 //
 // Only an open comment can be addressed. Nothing here reaches resolved, because
 // the claim and the confirmation are different facts and a queue that let one
 // stand for the other would be worth nothing.
-func (s *Session) AddressComment(ctx context.Context, id string) (store.Comment, error) {
-	return s.freeze(ctx, id, store.CommentAddressed, store.CommentOpen)
+//
+// The answer is optional. Half a queue is change requests where the diff is the
+// answer, and demanding a sentence there gets "done" typed into every one.
+func (s *Session) AddressComment(ctx context.Context, id, answer string) (store.Comment, error) {
+	// Whitespace alone is no answer. Leading indent somebody meant is kept, the
+	// way a body's is.
+	if strings.TrimSpace(answer) == "" {
+		answer = ""
+	}
+	return s.freeze(ctx, id, store.CommentAddressed, &answer, store.CommentOpen)
 }
 
 // ResolveComment is the reader's verb, and it closes anything that is not
 // already closed. An orphaned comment is resolved the same way: the code it was
 // about is gone, and saying so is the reader's call.
 func (s *Session) ResolveComment(ctx context.Context, id string) (store.Comment, error) {
-	return s.freeze(ctx, id, store.CommentResolved,
+	return s.freeze(ctx, id, store.CommentResolved, nil,
 		store.CommentOpen, store.CommentAddressed, store.CommentOrphaned)
 }
 
-// EditComment rewrites what a comment says, in any state: a typo in a resolved
+// EditComment rewrites what a comment holds, in any state: a typo in a resolved
 // one is still a typo. The anchor never moves, so re-scoping is delete and write.
-func (s *Session) EditComment(ctx context.Context, id, body string) (store.Comment, error) {
-	if err := checkBody(body); err != nil {
-		return store.Comment{}, err
+//
+// A nil field is left alone and at least one has to be given. An empty answer is
+// allowed, that being how one is taken back; an empty body is not, because
+// wiping a comment is a delete and has its own verb.
+func (s *Session) EditComment(ctx context.Context, id string, body, answer *string) (store.Comment, error) {
+	if body == nil && answer == nil {
+		return store.Comment{}, errors.New("an edit needs something to write: give a body, an answer, or both")
+	}
+	if body != nil {
+		if err := checkBody(*body); err != nil {
+			return store.Comment{}, err
+		}
 	}
 
-	// No generation is asserted. A body is true at every one of them, and a
+	// No generation is asserted. Words are true at every one of them, and a
 	// refresh carries an anchor through columns this does not write.
 	now := time.Now().UTC().Truncate(time.Second)
-	c, found, err := s.db.EditComment(ctx, id, s.row.ID, body, now)
+	c, found, err := s.db.EditComment(ctx, id, s.row.ID, body, answer, now)
 	if err != nil {
 		return store.Comment{}, err
 	}
@@ -266,6 +284,7 @@ func (s *Session) freeze(
 	ctx context.Context,
 	id string,
 	to store.CommentState,
+	answer *string,
 	from ...store.CommentState,
 ) (store.Comment, error) {
 	for range freezeAttempts {
@@ -282,7 +301,7 @@ func (s *Session) freeze(
 		}
 
 		now := time.Now().UTC().Truncate(time.Second)
-		frozen, won, err := s.db.FreezeComment(ctx, id, c.State, to, now)
+		frozen, won, err := s.db.FreezeComment(ctx, id, c.State, to, answer, now)
 		if err != nil {
 			return store.Comment{}, err
 		}

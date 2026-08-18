@@ -285,7 +285,7 @@ func TestACommentThatHasStoppedMovingStaysWhereItWas(t *testing.T) {
 		{
 			state: store.CommentAddressed,
 			stop: func(s *review.Session, id string) error {
-				_, err := s.AddressComment(t.Context(), id)
+				_, err := s.AddressComment(t.Context(), id, "")
 				return err
 			},
 		},
@@ -326,11 +326,11 @@ func TestACommentThatHasStoppedMovingStaysWhereItWas(t *testing.T) {
 func TestAnAgentCannotReachResolved(t *testing.T) {
 	_, s, _, c := commented(t)
 
-	if _, err := s.AddressComment(t.Context(), c.ID); err != nil {
+	if _, err := s.AddressComment(t.Context(), c.ID, ""); err != nil {
 		t.Fatalf("addressing the comment: %v", err)
 	}
 
-	_, err := s.AddressComment(t.Context(), c.ID)
+	_, err := s.AddressComment(t.Context(), c.ID, "")
 	var state *review.CommentStateError
 	if !errors.As(err, &state) {
 		t.Fatalf("err = %v, want a refusal naming the state it is in", err)
@@ -342,8 +342,113 @@ func TestAnAgentCannotReachResolved(t *testing.T) {
 	if _, err := s.ResolveComment(t.Context(), c.ID); err != nil {
 		t.Fatalf("resolving the comment: %v", err)
 	}
-	if _, err := s.AddressComment(t.Context(), c.ID); !errors.As(err, &state) {
+	if _, err := s.AddressComment(t.Context(), c.ID, ""); !errors.As(err, &state) {
 		t.Errorf("err = %v, want a resolved comment to refuse being addressed", err)
+	}
+}
+
+// The state is a claim, and the answer is what a reader confirms it against.
+// Without one the only way to check the claim is to re-read the code, which is
+// the work the state was meant to save.
+func TestAddressingCarriesTheWordsThatBackIt(t *testing.T) {
+	f, s, _, c := commented(t)
+
+	addressed, err := s.AddressComment(t.Context(), c.ID, "the retry loop needs it first")
+	if err != nil {
+		t.Fatalf("addressing the comment: %v", err)
+	}
+	if addressed.Answer != "the retry loop needs it first" {
+		t.Errorf("answer = %q, want what was written", addressed.Answer)
+	}
+	if addressed.Body != c.Body {
+		t.Errorf("body = %q, want the reader's words left alone", addressed.Body)
+	}
+
+	if got := f.storedComment(c.ID); got.Answer != "the retry loop needs it first" {
+		t.Errorf("stored answer = %q, want what was written", got.Answer)
+	}
+}
+
+// Half a queue is change requests where the diff is the answer. Demanding a
+// sentence there gets "done" typed into every one of them.
+func TestAddressingTakesNoAnswerAtAll(t *testing.T) {
+	f, s, _, c := commented(t)
+
+	addressed, err := s.AddressComment(t.Context(), c.ID, "   \n\t ")
+	if err != nil {
+		t.Fatalf("addressing with no answer: %v", err)
+	}
+	if addressed.Answer != "" {
+		t.Errorf("answer = %q, want whitespace to count as none", addressed.Answer)
+	}
+	if got := f.storedComment(c.ID); got.State != store.CommentAddressed {
+		t.Errorf("state = %s, want the address to have landed anyway", got.State)
+	}
+}
+
+// An answer is words, not an anchor. A refresh carries the columns a translation
+// moves and this is not one of them.
+func TestAnAnswerSurvivesARefreshAndAResolve(t *testing.T) {
+	f, s, _, c := commented(t)
+
+	if _, err := s.AddressComment(t.Context(), c.ID, "rewritten above"); err != nil {
+		t.Fatalf("addressing the comment: %v", err)
+	}
+
+	f.Write("code.txt", numbered(1, 5)+"an inserted line\n"+numbered(6, 20))
+	f.refresh(s)
+
+	if got := f.storedComment(c.ID); got.Answer != "rewritten above" {
+		t.Fatalf("the refresh left the answer as %q", got.Answer)
+	}
+
+	resolved, err := s.ResolveComment(t.Context(), c.ID)
+	if err != nil {
+		t.Fatalf("resolving the comment: %v", err)
+	}
+	if resolved.Answer != "rewritten above" {
+		t.Errorf("the resolve took the answer, leaving %q", resolved.Answer)
+	}
+}
+
+// An edit reaches either half. A typo in an answer is still a typo, and an empty
+// one is how it is taken back; an empty body is a delete and has its own verb.
+func TestAnEditReachesTheAnswer(t *testing.T) {
+	f, s, _, c := commented(t)
+
+	if _, err := s.AddressComment(t.Context(), c.ID, "first try"); err != nil {
+		t.Fatalf("addressing the comment: %v", err)
+	}
+	if _, err := s.ResolveComment(t.Context(), c.ID); err != nil {
+		t.Fatalf("resolving the comment: %v", err)
+	}
+
+	edited, err := s.EditComment(t.Context(), c.ID, nil, ptr("actually, the transport"))
+	if err != nil {
+		t.Fatalf("rewriting the answer: %v", err)
+	}
+	if edited.Answer != "actually, the transport" {
+		t.Errorf("answer = %q, want what was typed", edited.Answer)
+	}
+	if edited.Body != c.Body {
+		t.Errorf("body = %q, want the reader's words left alone", edited.Body)
+	}
+
+	if _, err := s.EditComment(t.Context(), c.ID, nil, ptr("")); err != nil {
+		t.Fatalf("taking the answer back: %v", err)
+	}
+	if got := f.storedComment(c.ID); got.Answer != "" {
+		t.Errorf("stored answer = %q, want it taken back", got.Answer)
+	}
+}
+
+// An edit naming neither half writes nothing, so it is refused rather than
+// stamping a row that did not change.
+func TestAnEditNamingNeitherHalfIsRefused(t *testing.T) {
+	_, s, _, c := commented(t)
+
+	if _, err := s.EditComment(t.Context(), c.ID, nil, nil); err == nil {
+		t.Fatal("an edit with nothing to write should be refused")
 	}
 }
 
@@ -367,7 +472,7 @@ func TestAnUnknownCommentIsRefusedByBothVerbs(t *testing.T) {
 	_, s, _, _ := commented(t)
 
 	for name, verb := range map[string]func(string) error{
-		"address": func(id string) error { _, err := s.AddressComment(t.Context(), id); return err },
+		"address": func(id string) error { _, err := s.AddressComment(t.Context(), id, ""); return err },
 		"resolve": func(id string) error { _, err := s.ResolveComment(t.Context(), id); return err },
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -667,12 +772,15 @@ func TestCommentingOnAFileTakesTheSideItHasBytesOn(t *testing.T) {
 	}
 }
 
-// The body is the whole of an edit. Moving the anchor would be a second remap
+// ptr is the pointer a partial edit takes. A nil field is left alone.
+func ptr(s string) *string { return &s }
+
+// The words are the whole of an edit. Moving the anchor would be a second remap
 // path with none of the translation rules behind it.
 func TestAnEditRewritesTheBodyAndLeavesTheAnchor(t *testing.T) {
 	f, s, _, c := commented(t)
 
-	edited, err := s.EditComment(t.Context(), c.ID, "this reads forwards")
+	edited, err := s.EditComment(t.Context(), c.ID, ptr("this reads forwards"), nil)
 	if err != nil {
 		t.Fatalf("rewriting the comment: %v", err)
 	}
@@ -698,7 +806,7 @@ func TestAnEditRewritesTheBodyAndLeavesTheAnchor(t *testing.T) {
 func TestAnEditRefusesAnEmptyBody(t *testing.T) {
 	f, s, _, c := commented(t)
 
-	if _, err := s.EditComment(t.Context(), c.ID, "   \n "); err == nil {
+	if _, err := s.EditComment(t.Context(), c.ID, ptr("   \n "), nil); err == nil {
 		t.Fatal("a body with nothing in it should be refused")
 	}
 	if got := f.storedComment(c.ID); got.Body != c.Body {
@@ -730,7 +838,7 @@ func TestEditAndDeleteReachASettledComment(t *testing.T) {
 		want []string
 	}{
 		{"an edit", func(s *review.Session, id string) error {
-			_, err := s.EditComment(t.Context(), id, "still worth saying")
+			_, err := s.EditComment(t.Context(), id, ptr("still worth saying"), nil)
 			return err
 		}, []string{"code.txt head 10:10 resolved"}},
 		{"a delete", func(s *review.Session, id string) error {
@@ -758,7 +866,7 @@ func TestAnUnknownCommentIsRefusedByEditAndDelete(t *testing.T) {
 	_, s, _, _ := commented(t)
 
 	for name, verb := range map[string]func(string) error{
-		"edit":   func(id string) error { _, err := s.EditComment(t.Context(), id, "hello"); return err },
+		"edit":   func(id string) error { _, err := s.EditComment(t.Context(), id, ptr("hello"), nil); return err },
 		"delete": func(id string) error { _, err := s.DeleteComment(t.Context(), id); return err },
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -778,7 +886,7 @@ func TestAnEditLandsAfterTheGenerationMoved(t *testing.T) {
 	f.Write("code.txt", numbered(101, 105)+numbered(1, 20))
 	f.refresh(s)
 
-	if _, err := s.EditComment(t.Context(), c.ID, "this reads forwards"); err != nil {
+	if _, err := s.EditComment(t.Context(), c.ID, ptr("this reads forwards"), nil); err != nil {
 		t.Fatalf("rewriting a comment the refresh moved: %v", err)
 	}
 

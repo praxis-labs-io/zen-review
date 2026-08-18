@@ -43,13 +43,13 @@ func TestAnEditBodyCanArriveOnStdin(t *testing.T) {
 
 // An edit with no --body is a comment about to be blanked, which the engine
 // refuses anyway. The refusal names the flag and how to reach stdin with it.
-func TestAnEditWithNoBodyIsRefused(t *testing.T) {
+func TestAnEditWithNoWordsIsRefused(t *testing.T) {
 	f := clean(t)
 	id := f.comment("code.txt", "--lines", "3", "--body", "here")
 
 	err := f.failure("edit", id)
 
-	for _, want := range []string{"--body", "stdin"} {
+	for _, want := range []string{"--body", "--answer", "stdin"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("err = %v, want it to name %q", err, want)
 		}
@@ -110,5 +110,94 @@ func TestAnUnknownIdIsRefusedByEditAndDelete(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// The state is a claim and the answer is what a reader confirms it against. An
+// address with no words leaves nothing to confirm but the code itself.
+func TestAddressCarriesTheAnswer(t *testing.T) {
+	f := clean(t)
+	id := f.comment("code.txt", "--lines", "3", "--body", "why is this here")
+
+	w, _ := f.decodeComments("address", id, "--body", "the retry loop needs it first")
+
+	got := only(t, w)
+	if got.Answer != "the retry loop needs it first" {
+		t.Errorf("answer = %q, want what was passed", got.Answer)
+	}
+	if got.Body != "why is this here" {
+		t.Errorf("body = %q, want the reader's words left alone", got.Body)
+	}
+	if got.State != "addressed" {
+		t.Errorf("state = %q, want addressed", got.State)
+	}
+}
+
+// Half a queue is change requests where the diff is the answer, so the flag is
+// optional and the verb is the one it always was without it.
+func TestAddressStillTakesNoWordsAtAll(t *testing.T) {
+	f := clean(t)
+	id := f.comment("code.txt", "--lines", "3", "--body", "cap this")
+
+	w, _ := f.decodeComments("address", id)
+
+	got := only(t, w)
+	if got.Answer != "" {
+		t.Errorf("answer = %q, want none", got.Answer)
+	}
+	if got.State != "addressed" {
+		t.Errorf("state = %q, want addressed", got.State)
+	}
+}
+
+// An answer arrives on stdin the way a body does, because an agent writing one
+// is holding prose with newlines in it.
+func TestAnAnswerCanArriveOnStdin(t *testing.T) {
+	f := clean(t)
+	id := f.comment("code.txt", "--lines", "3", "--body", "why")
+
+	f.stdin = strings.NewReader("the first reason\n\nand the second\n")
+	w, _ := f.decodeComments("address", id, "--body", "-")
+
+	want := "the first reason\n\nand the second"
+	if got := only(t, w); got.Answer != want {
+		t.Errorf("answer = %q, want %q", got.Answer, want)
+	}
+}
+
+// A typo in an answer is still a typo, and an empty one is how it is taken back.
+func TestEditRewritesTheAnswer(t *testing.T) {
+	f := clean(t)
+	id := f.comment("code.txt", "--lines", "3", "--body", "why is this here")
+	f.decodeComments("address", id, "--body", "first try")
+
+	w, _ := f.decodeComments("edit", id, "--answer", "actually, the transport")
+
+	got := only(t, w)
+	if got.Answer != "actually, the transport" {
+		t.Errorf("answer = %q, want what was passed", got.Answer)
+	}
+	if got.Body != "why is this here" {
+		t.Errorf("body = %q, want the reader's words left alone", got.Body)
+	}
+
+	back, _ := f.decodeComments("edit", id, "--answer", "")
+	if got := only(t, back); got.Answer != "" {
+		t.Errorf("answer = %q, want it taken back", got.Answer)
+	}
+}
+
+// Both halves in one call is one write, so a script rewriting an exchange does
+// not leave the row half-corrected if the second command fails.
+func TestEditRewritesBothHalvesAtOnce(t *testing.T) {
+	f := clean(t)
+	id := f.comment("code.txt", "--lines", "3", "--body", "why is this here")
+	f.decodeComments("address", id, "--body", "first try")
+
+	w, _ := f.decodeComments("edit", id, "--body", "why is this still here", "--answer", "because")
+
+	got := only(t, w)
+	if got.Body != "why is this still here" || got.Answer != "because" {
+		t.Errorf("body = %q answer = %q, want both rewritten", got.Body, got.Answer)
 	}
 }

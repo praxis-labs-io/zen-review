@@ -115,7 +115,7 @@ func TestOnlyTheOpenCommentsOfOneGenerationAreCarried(t *testing.T) {
 
 	closed := comment(t, db, s, first, "resolved-here", 11)
 	if _, _, err := db.FreezeComment(t.Context(), closed.ID,
-		store.CommentOpen, store.CommentResolved, epoch); err != nil {
+		store.CommentOpen, store.CommentResolved, nil, epoch); err != nil {
 		t.Fatalf("resolving the comment: %v", err)
 	}
 
@@ -278,7 +278,7 @@ func TestFreezingACommentRecordsWhereItWas(t *testing.T) {
 
 	later := epoch.Add(time.Hour)
 	frozen, won, err := db.FreezeComment(t.Context(), c.ID,
-		store.CommentOpen, store.CommentAddressed, later)
+		store.CommentOpen, store.CommentAddressed, nil, later)
 	if err != nil {
 		t.Fatalf("addressing the comment: %v", err)
 	}
@@ -328,7 +328,7 @@ func TestFreezingRecordsTheAnchorTheRowHasNow(t *testing.T) {
 
 	// c is the read the caller started from, and says a.go:4.
 	frozen, won, err := db.FreezeComment(t.Context(), c.ID,
-		store.CommentOpen, store.CommentResolved, epoch.Add(time.Hour))
+		store.CommentOpen, store.CommentResolved, nil, epoch.Add(time.Hour))
 	if err != nil || !won {
 		t.Fatalf("resolving the comment: won = %v, err = %v", won, err)
 	}
@@ -348,13 +348,13 @@ func TestFreezingAgainstAStateThatMovedChangesNothing(t *testing.T) {
 	g := holding(t, db, s, "one")
 	c := comment(t, db, s, g, "raced", 4)
 
-	_, won, err := db.FreezeComment(t.Context(), c.ID, store.CommentOpen, store.CommentResolved, epoch)
+	_, won, err := db.FreezeComment(t.Context(), c.ID, store.CommentOpen, store.CommentResolved, nil, epoch)
 	if err != nil || !won {
 		t.Fatalf("resolving the comment: won = %v, err = %v", won, err)
 	}
 
 	later := epoch.Add(time.Hour)
-	_, won, err = db.FreezeComment(t.Context(), c.ID, store.CommentOpen, store.CommentAddressed, later)
+	_, won, err = db.FreezeComment(t.Context(), c.ID, store.CommentOpen, store.CommentAddressed, nil, later)
 	if err != nil {
 		t.Fatalf("addressing the comment: %v", err)
 	}
@@ -386,14 +386,14 @@ func TestACommentStateOutsideTheVocabularyIsRefused(t *testing.T) {
 	} {
 		c := comment(t, db, s, g, string(state), 4)
 		if _, _, err := db.FreezeComment(t.Context(), c.ID,
-			store.CommentOpen, state, epoch); err != nil {
+			store.CommentOpen, state, nil, epoch); err != nil {
 			t.Errorf("the state %q was refused: %v", state, err)
 		}
 	}
 
 	c := comment(t, db, s, g, "outside", 4)
 	if _, _, err := db.FreezeComment(t.Context(), c.ID,
-		store.CommentOpen, store.CommentState("done"), epoch); err == nil {
+		store.CommentOpen, store.CommentState("done"), nil, epoch); err == nil {
 		t.Error("a state outside the vocabulary should be refused")
 	}
 }
@@ -428,7 +428,7 @@ func TestAnEditRewritesTheBodyAndNothingElse(t *testing.T) {
 	c := comment(t, db, s, g, "typo", 4)
 
 	later := epoch.Add(time.Hour)
-	edited, found, err := db.EditComment(t.Context(), c.ID, s.ID, "this reads forwards", later)
+	edited, found, err := db.EditComment(t.Context(), c.ID, s.ID, ptr("this reads forwards"), nil, later)
 	if err != nil {
 		t.Fatalf("rewriting the comment: %v", err)
 	}
@@ -490,7 +490,7 @@ func TestAnEditOrDeleteReachesOneSessionsCommentsAlone(t *testing.T) {
 		miss func() (store.Comment, bool, error)
 	}{
 		{"an edit", func() (store.Comment, bool, error) {
-			return db.EditComment(t.Context(), c.ID, theirs.ID, "reaching over", epoch.Add(time.Hour))
+			return db.EditComment(t.Context(), c.ID, theirs.ID, ptr("reaching over"), nil, epoch.Add(time.Hour))
 		}},
 		{"a delete", func() (store.Comment, bool, error) {
 			return db.DeleteComment(t.Context(), c.ID, theirs.ID)
@@ -532,5 +532,96 @@ func TestARefreshCarriesPastACommentThatHasGone(t *testing.T) {
 			Comments: []store.CommentMove{{ID: c.ID, Path: "a.go", LineRange: store.LineRange{Start: 9, End: 9}}},
 		})); err != nil {
 		t.Fatalf("carrying past a comment that has gone: %v", err)
+	}
+}
+
+// ptr is the pointer a partial write takes. A nil field is left alone, so every
+// caller naming one field has to name the other as nothing.
+func ptr(s string) *string { return &s }
+
+func TestAnAnswerLandsInTheSameWriteAsTheState(t *testing.T) {
+	db := open(t)
+	s := session(t, db, "answered")
+	g := holding(t, db, s, "one")
+	c := comment(t, db, s, g, "why is this here", 4)
+
+	if c.Answer != "" {
+		t.Fatalf("a fresh comment has no answer, got %q", c.Answer)
+	}
+
+	frozen, won, err := db.FreezeComment(t.Context(), c.ID,
+		store.CommentOpen, store.CommentAddressed, ptr("the retry loop needs it"), epoch.Add(time.Hour))
+	if err != nil || !won {
+		t.Fatalf("addressing the comment: won = %v, err = %v", won, err)
+	}
+	if frozen.Answer != "the retry loop needs it" {
+		t.Errorf("the answer came back as %q", frozen.Answer)
+	}
+
+	read, found, err := db.Comment(t.Context(), c.ID)
+	if err != nil || !found {
+		t.Fatalf("reading the comment back: found = %v, err = %v", found, err)
+	}
+	if read.Answer != "the retry loop needs it" {
+		t.Errorf("the answer was not stored, got %q", read.Answer)
+	}
+}
+
+// A resolve names no answer, so the one an address left has to survive it. The
+// alternative is reading it and writing it back, which loses an edit that landed
+// in between.
+func TestAResolveLeavesTheAnswerStanding(t *testing.T) {
+	db := open(t)
+	s := session(t, db, "kept")
+	g := holding(t, db, s, "one")
+	c := comment(t, db, s, g, "why", 4)
+
+	if _, _, err := db.FreezeComment(t.Context(), c.ID,
+		store.CommentOpen, store.CommentAddressed, ptr("because"), epoch); err != nil {
+		t.Fatalf("addressing the comment: %v", err)
+	}
+
+	resolved, won, err := db.FreezeComment(t.Context(), c.ID,
+		store.CommentAddressed, store.CommentResolved, nil, epoch.Add(time.Hour))
+	if err != nil || !won {
+		t.Fatalf("resolving the comment: won = %v, err = %v", won, err)
+	}
+	if resolved.Answer != "because" {
+		t.Errorf("the resolve took the answer, leaving %q", resolved.Answer)
+	}
+}
+
+func TestAnEditWritesOneHalfAndLeavesTheOther(t *testing.T) {
+	db := open(t)
+	s := session(t, db, "halves")
+	g := holding(t, db, s, "one")
+	c := comment(t, db, s, g, "typo", 4)
+
+	if _, _, err := db.FreezeComment(t.Context(), c.ID,
+		store.CommentOpen, store.CommentAddressed, ptr("first try"), epoch); err != nil {
+		t.Fatalf("addressing the comment: %v", err)
+	}
+
+	for _, tc := range []struct {
+		what         string
+		body, answer *string
+		wantBody     string
+		wantAnswer   string
+	}{
+		{"the answer alone", nil, ptr("actually, this"), "this reads backwards", "actually, this"},
+		{"the body alone", ptr("this reads forwards"), nil, "this reads forwards", "actually, this"},
+		{"both at once", ptr("both"), ptr("and this"), "both", "and this"},
+		{"an answer taken back", nil, ptr(""), "both", ""},
+	} {
+		edited, found, err := db.EditComment(t.Context(), c.ID, s.ID, tc.body, tc.answer, epoch.Add(time.Hour))
+		if err != nil || !found {
+			t.Fatalf("rewriting %s: found = %v, err = %v", tc.what, found, err)
+		}
+		if edited.Body != tc.wantBody {
+			t.Errorf("rewriting %s left the body as %q, want %q", tc.what, edited.Body, tc.wantBody)
+		}
+		if edited.Answer != tc.wantAnswer {
+			t.Errorf("rewriting %s left the answer as %q, want %q", tc.what, edited.Answer, tc.wantAnswer)
+		}
 	}
 }

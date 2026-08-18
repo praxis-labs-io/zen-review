@@ -110,7 +110,8 @@ func (r *reloader) ResolveComment(g review.Generation, id string) (app.Reload, e
 
 func (r *reloader) EditComment(g review.Generation, id, body string) (app.Reload, error) {
 	return r.wrote(g, func() error {
-		_, err := r.s.EditComment(r.ctx, id, body)
+		// The body alone. An answer is the agent's word and has no key.
+		_, err := r.s.EditComment(r.ctx, id, &body, nil)
 		return err
 	})
 }

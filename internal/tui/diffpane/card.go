@@ -42,6 +42,18 @@ const cardGutter = 1
 // so this is the card saying the row is not a rendering fault.
 const noWords = "no words"
 
+// answerRail is the gutter the answer's box hangs in. The rail is drawn in it,
+// so the box is that much narrower and that much further in.
+const answerRail = 2
+
+// The rail, read down: past the box's top border, into its first row of words,
+// then clear. There is only ever one answer, so the elbow is never a tee.
+const (
+	railDown  = "│ "
+	railElbow = "╰─"
+	railClear = "  "
+)
+
 // card is one comment on screen, and both the ways it draws. The cursor moving
 // in or out changes its whole border, and layout is where that is paid for.
 type card struct {
@@ -171,6 +183,13 @@ func (m Model) drawCard(c store.Comment, placed bool) ([]string, []string) {
 	lit := lines(box.Focus(true).Footer("", m.cardHints(c, width, placed, folded)).
 		Render(strings.Join(body, "\n")))
 
+	// A folded card takes its answer with it. One row is what folding means, and
+	// a box still hanging off it says the card is open.
+	if !folded {
+		plain = append(plain, m.answerBox(c, width, false)...)
+		lit = append(lit, m.answerBox(c, width, true)...)
+	}
+
 	for i := range plain {
 		plain[i] = indent(plain[i], at)
 		lit[i] = indent(lit[i], at)
@@ -178,22 +197,61 @@ func (m Model) drawCard(c store.Comment, placed bool) ([]string, []string) {
 	return plain, lit
 }
 
-// cardBody is the comment's words, folded to what the box leaves them and set
-// in off the border. Prose is capped: a card on a wide terminal still reads.
+// cardBody is the comment's words, and the stand-in when it has none.
 func (m Model) cardBody(c store.Comment, width int) []string {
+	out := m.boxBody(c.Body, width)
+	if len(out) == 0 {
+		out = append(out, strings.Repeat(" ", cardGutter)+m.subtle().Render(noWords))
+	}
+	return out
+}
+
+// boxBody is words folded to what a box leaves them and set in off the border.
+// Prose is capped: a card on a wide terminal still reads.
+func (m Model) boxBody(words string, width int) []string {
 	room := max(width-2-2*cardGutter, 1)
 
 	text := lipgloss.NewStyle().Foreground(m.theme.Text)
 	gutter := strings.Repeat(" ", cardGutter)
 
 	var out []string
-	for _, line := range comp.Wrap(comp.Prose(c.Body), min(room, comp.BodyWidth)) {
+	for _, line := range comp.Wrap(comp.Prose(words), min(room, comp.BodyWidth)) {
 		out = append(out, gutter+text.Render(line))
 	}
-	if len(out) == 0 {
-		out = append(out, gutter+m.subtle().Render(noWords))
-	}
 	return out
+}
+
+// answerBox is what an address left behind, as its own box hanging off the card
+// on a rail. It is nil for a comment with no answer and for a pane with no room
+// to draw a second border, where the card is left whole rather than shrunk.
+//
+// It takes the card's focus rather than its own. The card is one stop for the
+// cursor, so there is no state where one of the two boxes is lit and not the
+// other. The rail never lights: it is the only cue for the nesting, and a cue
+// that changes colour is a second thing to read.
+func (m Model) answerBox(c store.Comment, width int, lit bool) []string {
+	inner := width - answerRail
+	if c.Answer == "" || inner < cardMin {
+		return nil
+	}
+
+	body := m.boxBody(c.Answer, inner)
+	box := comp.NewPane(m.theme).Label(" "+m.subtle().Render("answer")+" ").
+		Size(inner, len(body)+2)
+
+	rail := lipgloss.NewStyle().Foreground(m.theme.BorderMutedOrSubtle())
+	rows := lines(box.Focus(lit).Render(strings.Join(body, "\n")))
+	for i := range rows {
+		switch i {
+		case 0:
+			rows[i] = rail.Render(railDown) + rows[i]
+		case 1:
+			rows[i] = rail.Render(railElbow) + rows[i]
+		default:
+			rows[i] = railClear + rows[i]
+		}
+	}
+	return rows
 }
 
 // foldedBody is a settled card's one row: the mark saying it is folded, and

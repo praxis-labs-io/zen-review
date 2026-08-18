@@ -230,6 +230,8 @@ type commentEntry struct {
 	State string `json:"state"`
 	Body  string `json:"body"`
 
+	Answer string `json:"answer"`
+
 	CreatedAt string `json:"createdAt"`
 	UpdatedAt string `json:"updatedAt"`
 }
