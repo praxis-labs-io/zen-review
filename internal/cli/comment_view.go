@@ -35,7 +35,7 @@ type commentsView struct {
 // indent is what a body hangs under the row naming it.
 const indent = "    "
 
-// elbow opens an answer under the body it answers, the way the card hangs its
+// elbow opens a response under the body it answers, the way the card hangs its
 // box off the comment. Three single-cell glyphs, counted rather than measured.
 const (
 	elbow      = "╰─ "
@@ -95,7 +95,7 @@ func writeComments(b *strings.Builder, comments []store.Comment, width int) {
 		}
 		writeRow(b, "", widths, rows[i])
 		writeBody(b, c.Body, width)
-		writeAnswer(b, c.Answer, width)
+		writeResponse(b, c.Response, width)
 	}
 }
 
@@ -112,19 +112,19 @@ func writeBody(b *strings.Builder, body string, width int) {
 	}
 }
 
-// writeAnswer runs the answer under the body it answers, opened by the elbow the
-// card hangs its box off. Without it the two run together as one person talking.
-func writeAnswer(b *strings.Builder, answer string, width int) {
-	if answer == "" {
+// writeResponse runs the response under the body it answers, opened by the elbow
+// the card hangs its box off. Without it the two run together as one person.
+func writeResponse(b *strings.Builder, response string, width int) {
+	if response == "" {
 		return
 	}
 
 	room := max(width-len(indent)-elbowWidth, 1)
 
-	// The elbow goes on the first line with words on it. An answer opening on a
+	// The elbow goes on the first line with words on it. A response opening on a
 	// blank line would otherwise spend it on nothing and print with no elbow.
 	opened := false
-	for _, line := range comp.Wrap(answer, room) {
+	for _, line := range comp.Wrap(response, room) {
 		if line == "" {
 			b.WriteString("\n")
 			continue
@@ -198,8 +198,8 @@ type commentJSON struct {
 	State store.CommentState `json:"state"`
 	Body  string             `json:"body"`
 
-	// Answer is what an address left behind, and empty when it left none.
-	Answer string `json:"answer"`
+	// Response is what an address left behind, and empty when it left none.
+	Response string `json:"response"`
 
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
@@ -235,7 +235,7 @@ func commentsPayloadOf(v commentsView) commentsPayload {
 			End:       c.End,
 			State:     c.State,
 			Body:      c.Body,
-			Answer:    c.Answer,
+			Response:  c.Response,
 			CreatedAt: c.CreatedAt,
 			UpdatedAt: c.UpdatedAt,
 		})

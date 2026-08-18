@@ -132,8 +132,8 @@ func (v exportView) markdown() string {
 
 		// A state with no words behind it is what the reader has to re-read the
 		// code to check, which is the work the state was meant to save.
-		if c.Answer != "" {
-			fmt.Fprintf(&b, "\n> %s\n", strings.ReplaceAll(c.Answer, "\n", "\n> "))
+		if c.Response != "" {
+			fmt.Fprintf(&b, "\n> %s\n", strings.ReplaceAll(c.Response, "\n", "\n> "))
 		}
 	}
 	return finish(&b)

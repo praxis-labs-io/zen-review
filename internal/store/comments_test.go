@@ -535,18 +535,18 @@ func TestARefreshCarriesPastACommentThatHasGone(t *testing.T) {
 	}
 }
 
-// ptr is the answer a freeze names. Nil is a transition leaving the row's own
+// ptr is the response a freeze names. Nil is a transition leaving the row's own
 // answer alone, so a caller writing one has to hand over an address.
 func ptr(s string) *string { return &s }
 
-func TestAnAnswerLandsInTheSameWriteAsTheState(t *testing.T) {
+func TestAResponseLandsInTheSameWriteAsTheState(t *testing.T) {
 	db := open(t)
 	s := session(t, db, "answered")
 	g := holding(t, db, s, "one")
 	c := comment(t, db, s, g, "why is this here", 4)
 
-	if c.Answer != "" {
-		t.Fatalf("a fresh comment has no answer, got %q", c.Answer)
+	if c.Response != "" {
+		t.Fatalf("a fresh comment has no response, got %q", c.Response)
 	}
 
 	frozen, won, err := db.FreezeComment(t.Context(), c.ID,
@@ -554,18 +554,18 @@ func TestAnAnswerLandsInTheSameWriteAsTheState(t *testing.T) {
 	if err != nil || !won {
 		t.Fatalf("addressing the comment: won = %v, err = %v", won, err)
 	}
-	if frozen.Answer != "the retry loop needs it" {
-		t.Errorf("the answer came back as %q", frozen.Answer)
+	if frozen.Response != "the retry loop needs it" {
+		t.Errorf("the response came back as %q", frozen.Response)
 	}
 
 	read, found, err := db.Comment(t.Context(), c.ID)
 	if err != nil || !found {
 		t.Fatalf("reading the comment back: found = %v, err = %v", found, err)
 	}
-	if read.Answer != "the retry loop needs it" {
-		t.Errorf("the answer was not stored, got %q", read.Answer)
+	if read.Response != "the retry loop needs it" {
+		t.Errorf("the response was not stored, got %q", read.Response)
 	}
 }
 
-// A resolve names no answer, so the one an address left has to survive it. The
+// A resolve names no response, so the one an address left has to survive it. The
 // alternative is reading it and writing it back, which loses an edit that landed

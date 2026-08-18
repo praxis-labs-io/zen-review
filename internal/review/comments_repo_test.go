@@ -347,7 +347,7 @@ func TestAnAgentCannotReachResolved(t *testing.T) {
 	}
 }
 
-// The state is a claim, and the answer is what a reader confirms it against.
+// The state is a claim, and the response is what a reader confirms it against.
 // Without one the only way to check the claim is to re-read the code, which is
 // the work the state was meant to save.
 func TestAddressingCarriesTheWordsThatBackIt(t *testing.T) {
@@ -357,38 +357,38 @@ func TestAddressingCarriesTheWordsThatBackIt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("addressing the comment: %v", err)
 	}
-	if addressed.Answer != "the retry loop needs it first" {
-		t.Errorf("answer = %q, want what was written", addressed.Answer)
+	if addressed.Response != "the retry loop needs it first" {
+		t.Errorf("response = %q, want what was written", addressed.Response)
 	}
 	if addressed.Body != c.Body {
 		t.Errorf("body = %q, want the reader's words left alone", addressed.Body)
 	}
 
-	if got := f.storedComment(c.ID); got.Answer != "the retry loop needs it first" {
-		t.Errorf("stored answer = %q, want what was written", got.Answer)
+	if got := f.storedComment(c.ID); got.Response != "the retry loop needs it first" {
+		t.Errorf("stored response = %q, want what was written", got.Response)
 	}
 }
 
-// Half a queue is change requests where the diff is the answer. Demanding a
+// Half a queue is change requests where the diff is the response. Demanding a
 // sentence there gets "done" typed into every one of them.
 func TestAddressingTakesNoAnswerAtAll(t *testing.T) {
 	f, s, _, c := commented(t)
 
 	addressed, err := s.AddressComment(t.Context(), c.ID, "   \n\t ")
 	if err != nil {
-		t.Fatalf("addressing with no answer: %v", err)
+		t.Fatalf("addressing with no response: %v", err)
 	}
-	if addressed.Answer != "" {
-		t.Errorf("answer = %q, want whitespace to count as none", addressed.Answer)
+	if addressed.Response != "" {
+		t.Errorf("response = %q, want whitespace to count as none", addressed.Response)
 	}
 	if got := f.storedComment(c.ID); got.State != store.CommentAddressed {
 		t.Errorf("state = %s, want the address to have landed anyway", got.State)
 	}
 }
 
-// An answer is words, not an anchor. A refresh carries the columns a translation
+// A response is words, not an anchor. A refresh carries the columns a translation
 // moves and this is not one of them.
-func TestAnAnswerSurvivesARefreshAndAResolve(t *testing.T) {
+func TestAResponseSurvivesARefreshAndAResolve(t *testing.T) {
 	f, s, _, c := commented(t)
 
 	if _, err := s.AddressComment(t.Context(), c.ID, "rewritten above"); err != nil {
@@ -398,16 +398,16 @@ func TestAnAnswerSurvivesARefreshAndAResolve(t *testing.T) {
 	f.Write("code.txt", numbered(1, 5)+"an inserted line\n"+numbered(6, 20))
 	f.refresh(s)
 
-	if got := f.storedComment(c.ID); got.Answer != "rewritten above" {
-		t.Fatalf("the refresh left the answer as %q", got.Answer)
+	if got := f.storedComment(c.ID); got.Response != "rewritten above" {
+		t.Fatalf("the refresh left the response as %q", got.Response)
 	}
 
 	resolved, err := s.ResolveComment(t.Context(), c.ID)
 	if err != nil {
 		t.Fatalf("resolving the comment: %v", err)
 	}
-	if resolved.Answer != "rewritten above" {
-		t.Errorf("the resolve took the answer, leaving %q", resolved.Answer)
+	if resolved.Response != "rewritten above" {
+		t.Errorf("the resolve took the response, leaving %q", resolved.Response)
 	}
 }
 

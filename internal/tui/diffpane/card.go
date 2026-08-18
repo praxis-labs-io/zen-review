@@ -42,9 +42,9 @@ const cardGutter = 1
 // so this is the card saying the row is not a rendering fault.
 const noWords = "no words"
 
-// answerRail is the gutter the answer's box hangs in. The rail is drawn in it,
-// so the box is that much narrower and that much further in.
-const answerRail = 2
+// responseRail is the gutter the response's box hangs in. The rail is drawn in
+// it, so the box is that much narrower and that much further in.
+const responseRail = 2
 
 // The rail, read down: past the box's top border, into its first row of words,
 // then clear. There is only ever one answer, so the elbow is never a tee.
@@ -183,11 +183,13 @@ func (m Model) drawCard(c store.Comment, placed bool) ([]string, []string) {
 	lit := lines(box.Focus(true).Footer("", m.cardHints(c, width, placed, folded)).
 		Render(strings.Join(body, "\n")))
 
-	// A folded card takes its answer with it. One row is what folding means, and
-	// a box still hanging off it says the card is open.
+	// A folded card takes its response with it. One row is what folding means,
+	// and a box hanging off it says the card is open. One drawing serves both:
+	// the response has no lit form.
 	if !folded {
-		plain = append(plain, m.answerBox(c, width, false)...)
-		lit = append(lit, m.answerBox(c, width, true)...)
+		box := m.responseBox(c, width)
+		plain = append(plain, box...)
+		lit = append(lit, box...)
 	}
 
 	for i := range plain {
@@ -221,26 +223,25 @@ func (m Model) boxBody(words string, width int) []string {
 	return out
 }
 
-// answerBox is what an address left behind, as its own box hanging off the card
-// on a rail. It is nil for a comment with no answer and for a pane with no room
-// to draw a second border, where the card is left whole rather than shrunk.
+// responseBox is what an address left behind, as its own box hanging off the
+// card on a rail. It is nil for a comment with no response and for a pane with
+// no room for a second border, where the card is left whole rather than shrunk.
 //
-// It takes the card's focus rather than its own. The card is one stop for the
-// cursor, so there is no state where one of the two boxes is lit and not the
-// other. The rail never lights: it is the only cue for the nesting, and a cue
-// that changes colour is a second thing to read.
-func (m Model) answerBox(c store.Comment, width int, lit bool) []string {
-	inner := width - answerRail
-	if c.Answer == "" || inner < cardMin {
+// Neither it nor the rail ever lights. A lit border says a key reaches here, and
+// nothing reaches a response: it takes no cursor and there is nothing to do on
+// it. Lighting it with the card would promise a stop that never arrives.
+func (m Model) responseBox(c store.Comment, width int) []string {
+	inner := width - responseRail
+	if c.Response == "" || inner < cardMin {
 		return nil
 	}
 
-	body := m.boxBody(c.Answer, inner)
-	box := comp.NewPane(m.theme).Label(" "+m.subtle().Render("answer")+" ").
+	body := m.boxBody(c.Response, inner)
+	box := comp.NewPane(m.theme).Label(" "+m.subtle().Render("response")+" ").
 		Size(inner, len(body)+2)
 
 	rail := lipgloss.NewStyle().Foreground(m.theme.BorderMutedOrSubtle())
-	rows := lines(box.Focus(lit).Render(strings.Join(body, "\n")))
+	rows := lines(box.Focus(false).Render(strings.Join(body, "\n")))
 	for i := range rows {
 		switch i {
 		case 0:

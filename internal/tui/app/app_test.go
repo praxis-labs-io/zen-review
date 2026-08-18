@@ -94,14 +94,14 @@ func TestGoldenFrames(t *testing.T) {
 	}
 }
 
-// TestTheAnsweredCardGoldenFrame. The card renders against the pane, and the
+// TestTheRespondedCardGoldenFrame. The card renders against the pane, and the
 // pane clips what overruns it without a mark, so the rail and the second border
 // have to be measured inside the frame that holds them rather than beside it.
-func TestTheAnsweredCardGoldenFrame(t *testing.T) {
+func TestTheRespondedCardGoldenFrame(t *testing.T) {
 	s := commented(t, 100, 20, testchangeset.NestedComments()...)
 	s.press("]", "]", "]", "]")
 
-	golden.Compare(t, "answered", []byte(s.frame()+"\n"))
+	golden.Compare(t, "responded", []byte(s.frame()+"\n"))
 }
 
 // TestTheFrameIsExactlyTheTerminal is the clipping proof the goldens cannot

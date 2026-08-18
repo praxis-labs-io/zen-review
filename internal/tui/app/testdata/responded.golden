@@ -12,7 +12,7 @@
 │                                      ││           ╭─ ◈ addressed ───────────────────────────────╮│
 ├──────────────────────────────────────┤│           │ Derive takes the rows now.                  ││
 │ origin/main                  a1b2c3d ││           ╰───⏎ line · x resolve · space fold · e edit ─╯│
-│ Generation                         2 ││           │ ╭─ answer ──────────────────────────────────╮│
+│ Generation                         2 ││           │ ╭─ response ────────────────────────────────╮│
 │ Reviewed                         2/7 ││           ╰─│ It does, and hands them back in tree      ││
 │ Comments                         1/6 ││             │ order.                                    ││
 │ Changes                   6  +10 -3 ││             ╰───────────────────────────────────────────╯│
