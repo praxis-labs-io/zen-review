@@ -148,3 +148,15 @@ func TestTheExportedReportIsTheContract(t *testing.T) {
 	subs := append(commentSubs(w), [2]string{w.Base.SHA[:7], "<sha>"})
 	golden.Compare(t, "export", []byte(scrub(out, w.wireHeader, subs...)))
 }
+
+// A paste lands in front of somebody who cannot open the repository, so the
+// words backing a claim have to travel with it.
+func TestTheExportCarriesTheAnswer(t *testing.T) {
+	f, _ := queue(t)
+
+	out := f.mustRun("export")
+
+	if !strings.Contains(out, "> it moved into the store package") {
+		t.Errorf("the report drops the answer behind an addressed comment:\n%s", out)
+	}
+}

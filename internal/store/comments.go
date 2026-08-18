@@ -255,25 +255,23 @@ func (db *DB) FreezeComment(
 	return c, true, nil
 }
 
-// EditComment rewrites what a comment holds and stamps the row. It returns the
-// row as it landed, and false when that session holds no comment under the id.
+// EditComment rewrites a body and stamps the row. It returns the row as it
+// landed, and false when that session holds no comment under the id.
 //
-// A nil field is left alone, so the reader's words and the agent's are rewritten
-// together or one at a time, in one statement either way.
+// The answer is not reachable here. It is the agent's words and the reader's
+// verb, and one id naming both is how the wrong one gets rewritten.
 func (db *DB) EditComment(
 	ctx context.Context,
-	id, sessionID string,
-	body, answer *string,
+	id, sessionID, body string,
 	now time.Time,
 ) (Comment, bool, error) {
 	const q = `
 		UPDATE comments
-		SET body = COALESCE(?, body), answer = COALESCE(?, answer), updated_at = ?
+		SET body = ?, updated_at = ?
 		WHERE id = ? AND session_id = ?
 		RETURNING ` + commentColumns
 
-	c, err := scanComment(db.handle.QueryRowContext(ctx, q,
-		body, answer, stamp(now), id, sessionID))
+	c, err := scanComment(db.handle.QueryRowContext(ctx, q, body, stamp(now), id, sessionID))
 	if errors.Is(err, sql.ErrNoRows) {
 		return Comment{}, false, nil
 	}

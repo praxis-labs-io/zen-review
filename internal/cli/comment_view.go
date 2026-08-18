@@ -120,14 +120,19 @@ func writeAnswer(b *strings.Builder, answer string, width int) {
 	}
 
 	room := max(width-len(indent)-elbowWidth, 1)
-	for i, line := range comp.Wrap(answer, room) {
-		lead := indent + strings.Repeat(" ", elbowWidth)
-		if i == 0 {
-			lead = indent + elbow
-		}
+
+	// The elbow goes on the first line with words on it. An answer opening on a
+	// blank line would otherwise spend it on nothing and print with no elbow.
+	opened := false
+	for _, line := range comp.Wrap(answer, room) {
 		if line == "" {
 			b.WriteString("\n")
 			continue
+		}
+
+		lead := indent + strings.Repeat(" ", elbowWidth)
+		if !opened {
+			lead, opened = indent+elbow, true
 		}
 		b.WriteString(lead + line + "\n")
 	}

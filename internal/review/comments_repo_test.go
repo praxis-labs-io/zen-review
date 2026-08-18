@@ -411,47 +411,6 @@ func TestAnAnswerSurvivesARefreshAndAResolve(t *testing.T) {
 	}
 }
 
-// An edit reaches either half. A typo in an answer is still a typo, and an empty
-// one is how it is taken back; an empty body is a delete and has its own verb.
-func TestAnEditReachesTheAnswer(t *testing.T) {
-	f, s, _, c := commented(t)
-
-	if _, err := s.AddressComment(t.Context(), c.ID, "first try"); err != nil {
-		t.Fatalf("addressing the comment: %v", err)
-	}
-	if _, err := s.ResolveComment(t.Context(), c.ID); err != nil {
-		t.Fatalf("resolving the comment: %v", err)
-	}
-
-	edited, err := s.EditComment(t.Context(), c.ID, nil, ptr("actually, the transport"))
-	if err != nil {
-		t.Fatalf("rewriting the answer: %v", err)
-	}
-	if edited.Answer != "actually, the transport" {
-		t.Errorf("answer = %q, want what was typed", edited.Answer)
-	}
-	if edited.Body != c.Body {
-		t.Errorf("body = %q, want the reader's words left alone", edited.Body)
-	}
-
-	if _, err := s.EditComment(t.Context(), c.ID, nil, ptr("")); err != nil {
-		t.Fatalf("taking the answer back: %v", err)
-	}
-	if got := f.storedComment(c.ID); got.Answer != "" {
-		t.Errorf("stored answer = %q, want it taken back", got.Answer)
-	}
-}
-
-// An edit naming neither half writes nothing, so it is refused rather than
-// stamping a row that did not change.
-func TestAnEditNamingNeitherHalfIsRefused(t *testing.T) {
-	_, s, _, c := commented(t)
-
-	if _, err := s.EditComment(t.Context(), c.ID, nil, nil); err == nil {
-		t.Fatal("an edit with nothing to write should be refused")
-	}
-}
-
 // The code an orphan was about is gone, and saying it is dealt with is the
 // reader's call. Nothing else clears it out of the queue.
 func TestResolvingClosesAnOrphan(t *testing.T) {
@@ -772,15 +731,12 @@ func TestCommentingOnAFileTakesTheSideItHasBytesOn(t *testing.T) {
 	}
 }
 
-// ptr is the pointer a partial edit takes. A nil field is left alone.
-func ptr(s string) *string { return &s }
-
 // The words are the whole of an edit. Moving the anchor would be a second remap
 // path with none of the translation rules behind it.
 func TestAnEditRewritesTheBodyAndLeavesTheAnchor(t *testing.T) {
 	f, s, _, c := commented(t)
 
-	edited, err := s.EditComment(t.Context(), c.ID, ptr("this reads forwards"), nil)
+	edited, err := s.EditComment(t.Context(), c.ID, "this reads forwards")
 	if err != nil {
 		t.Fatalf("rewriting the comment: %v", err)
 	}
@@ -806,7 +762,7 @@ func TestAnEditRewritesTheBodyAndLeavesTheAnchor(t *testing.T) {
 func TestAnEditRefusesAnEmptyBody(t *testing.T) {
 	f, s, _, c := commented(t)
 
-	if _, err := s.EditComment(t.Context(), c.ID, ptr("   \n "), nil); err == nil {
+	if _, err := s.EditComment(t.Context(), c.ID, "   \n "); err == nil {
 		t.Fatal("a body with nothing in it should be refused")
 	}
 	if got := f.storedComment(c.ID); got.Body != c.Body {
@@ -838,7 +794,7 @@ func TestEditAndDeleteReachASettledComment(t *testing.T) {
 		want []string
 	}{
 		{"an edit", func(s *review.Session, id string) error {
-			_, err := s.EditComment(t.Context(), id, ptr("still worth saying"), nil)
+			_, err := s.EditComment(t.Context(), id, "still worth saying")
 			return err
 		}, []string{"code.txt head 10:10 resolved"}},
 		{"a delete", func(s *review.Session, id string) error {
@@ -866,7 +822,7 @@ func TestAnUnknownCommentIsRefusedByEditAndDelete(t *testing.T) {
 	_, s, _, _ := commented(t)
 
 	for name, verb := range map[string]func(string) error{
-		"edit":   func(id string) error { _, err := s.EditComment(t.Context(), id, ptr("hello"), nil); return err },
+		"edit":   func(id string) error { _, err := s.EditComment(t.Context(), id, "hello"); return err },
 		"delete": func(id string) error { _, err := s.DeleteComment(t.Context(), id); return err },
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -886,7 +842,7 @@ func TestAnEditLandsAfterTheGenerationMoved(t *testing.T) {
 	f.Write("code.txt", numbered(101, 105)+numbered(1, 20))
 	f.refresh(s)
 
-	if _, err := s.EditComment(t.Context(), c.ID, ptr("this reads forwards"), nil); err != nil {
+	if _, err := s.EditComment(t.Context(), c.ID, "this reads forwards"); err != nil {
 		t.Fatalf("rewriting a comment the refresh moved: %v", err)
 	}
 

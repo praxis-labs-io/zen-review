@@ -263,9 +263,18 @@ The other half are questions, and a sentence is the whole of what they wanted.
 One answer and not a thread. A comment stops moving when it is addressed, so the
 exchange is one round: the reader asks, the agent answers, the reader resolves or
 writes a new comment. A second `address` is refused by the state gate it always
-was. `edit` reaches either half, `--body` for the reader's words and `--answer`
-for the agent's, in one write when both are given; an empty `--answer` takes the
-answer back, where an empty `--body` is still a delete and still has its own verb.
+was.
+
+`--body` is the words of the thing the command names, on every command that takes
+one: the comment on `comment`, the answer on `address`, the comment again on
+`edit`. One word and one column, so an invocation reused against the wrong verb
+is a refusal rather than a write to the wrong half.
+
+`edit` does not reach the answer. It is the reader's verb over the reader's
+words, and one id naming two voices is how the agent's get rewritten by a reader
+fixing their own typo, or the reader's get rewritten by an agent. The tool has no
+identity to enforce that with, so what it does instead is refuse to make the
+wrong write easy. An answer stands as it was written.
 
 The answer lands in the same swap as the state, so nothing can be addressed with
 the words lost. Every other transition passes no answer at all rather than
@@ -421,13 +430,13 @@ write is a record of nothing. `D` acts at once, the capital doing the whole of
 the thing the way `R` and `U` do, and a card narrow enough to drop hints drops
 these two first, the overlay being where the rest of the keymap lives anyway.
 
-`e` is the body alone, the answer being the agent's word and reachable from
-`edit --answer` where it was written. The anchor never moves either way, so a
-comment on the wrong lines is a delete and a new one rather than a rewrite, which
-would be a second remap path with none of the translation rules behind it. The
-box `e` opens is the card itself: same border, same indent, same place, holding
-what it said. A delete is a real delete rather than a state, which would have to
-be filtered out of every count, every ring and every export forever.
+An edit is the body alone, the answer being the agent's words and no business of
+the reader's verb. The anchor never moves either, so a comment on the wrong lines
+is a delete and a new one rather than a rewrite, which would be a second remap
+path with none of the translation rules behind it. The box `e` opens is the card
+itself: same border, same indent, same place, holding what it said. A delete is a
+real delete rather than a state, which would have to be filtered out of every
+count, every ring and every export forever.
 
 An empty body is a discard from `c`, because nothing was typed. From `e` it
 writes nothing and the bar says so: wiping a box is not saving a comment, and it

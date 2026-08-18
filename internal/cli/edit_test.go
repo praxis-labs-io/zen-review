@@ -43,13 +43,13 @@ func TestAnEditBodyCanArriveOnStdin(t *testing.T) {
 
 // An edit with no --body is a comment about to be blanked, which the engine
 // refuses anyway. The refusal names the flag and how to reach stdin with it.
-func TestAnEditWithNoWordsIsRefused(t *testing.T) {
+func TestAnEditWithNoBodyIsRefused(t *testing.T) {
 	f := clean(t)
 	id := f.comment("code.txt", "--lines", "3", "--body", "here")
 
 	err := f.failure("edit", id)
 
-	for _, want := range []string{"--body", "--answer", "stdin"} {
+	for _, want := range []string{"--body", "stdin"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("err = %v, want it to name %q", err, want)
 		}
@@ -165,39 +165,17 @@ func TestAnAnswerCanArriveOnStdin(t *testing.T) {
 	}
 }
 
-// A typo in an answer is still a typo, and an empty one is how it is taken back.
-func TestEditRewritesTheAnswer(t *testing.T) {
+// The elbow is the one cue saying the words below are the agent's. An answer
+// opening on a blank line would spend it on nothing and print with none at all.
+func TestAnAnswerOpeningOnABlankLineKeepsItsElbow(t *testing.T) {
 	f := clean(t)
-	id := f.comment("code.txt", "--lines", "3", "--body", "why is this here")
-	f.decodeComments("address", id, "--body", "first try")
+	id := f.comment("code.txt", "--lines", "3", "--body", "why")
 
-	w, _ := f.decodeComments("edit", id, "--answer", "actually, the transport")
+	f.stdin = strings.NewReader("\nthe answer starts here\n")
+	f.mustRun("address", id, "--body", "-")
 
-	got := only(t, w)
-	if got.Answer != "actually, the transport" {
-		t.Errorf("answer = %q, want what was passed", got.Answer)
-	}
-	if got.Body != "why is this here" {
-		t.Errorf("body = %q, want the reader's words left alone", got.Body)
-	}
-
-	back, _ := f.decodeComments("edit", id, "--answer", "")
-	if got := only(t, back); got.Answer != "" {
-		t.Errorf("answer = %q, want it taken back", got.Answer)
-	}
-}
-
-// Both halves in one call is one write, so a script rewriting an exchange does
-// not leave the row half-corrected if the second command fails.
-func TestEditRewritesBothHalvesAtOnce(t *testing.T) {
-	f := clean(t)
-	id := f.comment("code.txt", "--lines", "3", "--body", "why is this here")
-	f.decodeComments("address", id, "--body", "first try")
-
-	w, _ := f.decodeComments("edit", id, "--body", "why is this still here", "--answer", "because")
-
-	got := only(t, w)
-	if got.Body != "why is this still here" || got.Answer != "because" {
-		t.Errorf("body = %q answer = %q, want both rewritten", got.Body, got.Answer)
+	out := f.mustRun("comments")
+	if !strings.Contains(out, "╰─ the answer starts here") {
+		t.Errorf("the answer printed with no elbow:\n%s", out)
 	}
 }

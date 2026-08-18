@@ -129,6 +129,12 @@ func (v exportView) markdown() string {
 			fmt.Fprintf(&b, "\n## %s\n", file)
 		}
 		fmt.Fprintf(&b, "\n**`%s`** %s, %s, `%s`\n\n%s\n", at(c), c.Side, c.State, c.ID, c.Body)
+
+		// A state with no words behind it is what the reader has to re-read the
+		// code to check, which is the work the state was meant to save.
+		if c.Answer != "" {
+			fmt.Fprintf(&b, "\n> %s\n", strings.ReplaceAll(c.Answer, "\n", "\n> "))
+		}
 	}
 	return finish(&b)
 }

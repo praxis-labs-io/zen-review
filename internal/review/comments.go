@@ -219,26 +219,20 @@ func (s *Session) ResolveComment(ctx context.Context, id string) (store.Comment,
 		store.CommentOpen, store.CommentAddressed, store.CommentOrphaned)
 }
 
-// EditComment rewrites what a comment holds, in any state: a typo in a resolved
+// EditComment rewrites what a comment says, in any state: a typo in a resolved
 // one is still a typo. The anchor never moves, so re-scoping is delete and write.
 //
-// A nil field is left alone and at least one has to be given. An empty answer is
-// allowed, that being how one is taken back; an empty body is not, because
-// wiping a comment is a delete and has its own verb.
-func (s *Session) EditComment(ctx context.Context, id string, body, answer *string) (store.Comment, error) {
-	if body == nil && answer == nil {
-		return store.Comment{}, errors.New("an edit needs something to write: give a body, an answer, or both")
-	}
-	if body != nil {
-		if err := checkBody(*body); err != nil {
-			return store.Comment{}, err
-		}
+// The body and nothing else. An answer is the agent's words, and the reader's
+// verb reaching them is how the wrong half gets rewritten.
+func (s *Session) EditComment(ctx context.Context, id, body string) (store.Comment, error) {
+	if err := checkBody(body); err != nil {
+		return store.Comment{}, err
 	}
 
-	// No generation is asserted. Words are true at every one of them, and a
+	// No generation is asserted. A body is true at every one of them, and a
 	// refresh carries an anchor through columns this does not write.
 	now := time.Now().UTC().Truncate(time.Second)
-	c, found, err := s.db.EditComment(ctx, id, s.row.ID, body, answer, now)
+	c, found, err := s.db.EditComment(ctx, id, s.row.ID, body, now)
 	if err != nil {
 		return store.Comment{}, err
 	}
