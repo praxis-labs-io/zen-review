@@ -44,19 +44,17 @@ func driving(t *testing.T, repo *testrepo.Repo) *reader {
 		t.Fatal(err)
 	}
 
+	// The cleanup goes on before anything that can fail, or a session opened and
+	// then fataled past stays open while the repository is removed under it.
 	src := &reloader{ctx: t.Context(), s: s}
+	r := &reader{t: t, src: src, repo: repo}
+	t.Cleanup(r.release)
+
 	first, err := src.Reload()
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	r := &reader{
-		t:    t,
-		m:    app.New(theme.RosePineMoon, src, s.Repo(), first),
-		src:  src,
-		repo: repo,
-	}
-	t.Cleanup(r.release)
+	r.m = app.New(theme.RosePineMoon, src, s.Repo(), first)
 
 	r.send(tea.WindowSizeMsg{Width: 120, Height: 40})
 	return r
@@ -81,6 +79,12 @@ func (r *reader) typing(text string) *reader {
 func (r *reader) send(msg tea.Msg) {
 	r.t.Helper()
 
+	// A press past the read-back is refused by the reloader as a toast nothing
+	// here reads, so the test would go green on a session that wrote nothing.
+	if r.closed {
+		r.t.Fatal("the session was closed by a read-back, and this press writes nothing")
+	}
+
 	var cmd tea.Cmd
 	r.m, cmd = r.m.Update(msg)
 	r.drain(cmd)
@@ -96,6 +100,12 @@ func (r *reader) drain(cmd tea.Cmd) {
 		out := cmd()
 		if out == nil {
 			return
+		}
+
+		// Update ignores a batch, so every command inside one would be dropped
+		// and the drive would report writes it never made.
+		if b, ok := out.(tea.BatchMsg); ok {
+			r.t.Fatalf("the model batched %d commands, which this harness runs one at a time", len(b))
 		}
 		r.m, cmd = r.m.Update(out)
 	}
