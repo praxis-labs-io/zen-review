@@ -64,9 +64,9 @@ func TestEditOnNoCardOpensNothing(t *testing.T) {
 	}
 }
 
-// TestAnEmptyEditWritesNothingAndNamesTheKeyThatWould. Wiping a comment is not
-// saving it, and the reader who meant to be rid of it has one key for that.
-func TestAnEmptyEditWritesNothingAndNamesTheKeyThatWould(t *testing.T) {
+// TestAnEmptyEditWritesNothingAndSaysSo, and the line goes on the next press
+// like every other: one that stayed up would outlive what put it there.
+func TestAnEmptyEditWritesNothingAndSaysSo(t *testing.T) {
 	on := testchangeset.Comment("aaaaaaaaaaaa", "README.md", 2, 2, "hi")
 
 	s := commented(t, 100, 24, on)
@@ -75,11 +75,16 @@ func TestAnEmptyEditWritesNothingAndNamesTheKeyThatWould(t *testing.T) {
 	if got := s.calls(); len(got) != 0 {
 		t.Errorf("an empty save wrote %v", got)
 	}
-	if got := s.bar(); !strings.Contains(got, "nothing to save") || !strings.Contains(got, "D deletes it") {
-		t.Errorf("the bar reads %q, want what the press did and the key that removes one", got)
+	if got := s.bar(); !strings.Contains(got, "cannot save an empty comment") {
+		t.Errorf("the bar reads %q, want what the press could not do", got)
 	}
 	if got := s.frame(); !strings.Contains(got, "◇ editing") {
 		t.Errorf("the box came down on a press that wrote nothing:\n%s", got)
+	}
+
+	s.press("h")
+	if got := s.bar(); strings.Contains(got, "cannot save") {
+		t.Errorf("the bar still reads %q a keystroke later", got)
 	}
 }
 

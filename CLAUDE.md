@@ -398,9 +398,13 @@ delete is a real delete rather than a state, which would have to be filtered out
 of every count, every ring and every export forever.
 
 An empty body is a discard from `c`, because nothing was typed. From `e` it
-writes nothing and the bar says so, naming `D`: wiping a box is not saving a
-comment, and it is not deleting one either, which is a key of its own and not a
-second meaning for the save key.
+writes nothing and the bar says so: wiping a box is not saving a comment, and it
+is not deleting one either, which is a key of its own rather than a second
+meaning for the save key.
+
+The bar clears on the next press inside a box the way it does outside one. Every
+other line there is one press long, and one that stayed up would be read as an
+answer to a key pressed since.
 
 The composer takes every key while it is up, `q` and `?` included. A note lost
 to the letter `q` cannot be taken back, and one key let out is one more thing to

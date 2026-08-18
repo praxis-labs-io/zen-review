@@ -182,6 +182,12 @@ func where(c store.Comment) string {
 // drafting routes a key into the box, answering the two it owns first. Those
 // are the composer's: two boxes with one way out of them.
 func (m Model) drafting(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// One press long, the way it is outside the box. A line that outlived the
+	// press that put it there is one more thing to read past mid-sentence.
+	if !m.busy {
+		m.note = notice{}
+	}
+
 	if press, ok := msg.(tea.KeyPressMsg); ok {
 		switch {
 		// The way out of anywhere. Raw mode sends no interrupt, so without this
@@ -215,10 +221,10 @@ func (m *Model) save(body string) tea.Cmd {
 	// finished on is not a line of the comment, and the card would draw it.
 	body = strings.TrimRight(body, " \t\r\n")
 
-	// Wiping a comment is not saving it, and it is not deleting one either: D is
-	// the key that does that, and the bar names it rather than refusing in prose.
+	// Wiping a comment is not saving it, and it is not deleting one either: that
+	// is a key of its own, and one the box would take as a keystroke anyway.
 	if m.editing != "" && strings.TrimSpace(body) == "" {
-		m.note = notice{text: "nothing to save · D deletes it"}
+		m.note = notice{text: "cannot save an empty comment"}
 		return nil
 	}
 

@@ -437,6 +437,10 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // typing routes a key into the composer, answering the two it owns first. The
 // box stays up when the save is refused, or the press would lose what was typed.
 func (m Model) typing(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if !m.busy {
+		m.note = notice{}
+	}
+
 	switch {
 	// The way out of anywhere. Raw mode sends no interrupt, so without this the
 	// box is the one place in the program where ctrl+c does nothing at all.
