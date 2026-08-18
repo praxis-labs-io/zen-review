@@ -32,5 +32,13 @@ func runStatus(cmd *cobra.Command, opts *options) (err error) {
 	if err != nil {
 		return err
 	}
-	return emit(cmd.OutOrStdout(), view{header: statusHeader(s, st), Files: st.Files}, opts.asJSON)
+	v := view{header: statusHeader(s, st), Files: st.Files}
+	if opts.asJSON {
+		candidates, err := s.Candidates(cmd.Context())
+		if err != nil {
+			return err
+		}
+		v.Candidates = &candidates
+	}
+	return emit(cmd.OutOrStdout(), v, opts.asJSON)
 }

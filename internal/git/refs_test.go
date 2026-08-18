@@ -3,6 +3,7 @@ package git
 import (
 	"errors"
 	"os"
+	"slices"
 	"testing"
 )
 
@@ -195,6 +196,24 @@ func TestLocalBranchesListsEveryHeadWithItsCommit(t *testing.T) {
 		if got[i] != want[i] {
 			t.Errorf("branch %d = %v, want %v", i, got[i], want[i])
 		}
+	}
+}
+
+func TestRemoteBranchesLeaveOutSymbolicAliases(t *testing.T) {
+	f := newFixture(t)
+	f.Write("a.txt", "one\n")
+	main := f.Commit("first")
+	f.Git("update-ref", "refs/remotes/origin/main", main)
+	f.Git("update-ref", "refs/remotes/upstream/stable", main)
+	f.Git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+
+	got, err := f.open().RemoteBranches(t.Context())
+	if err != nil {
+		t.Fatalf("listing remote branches: %v", err)
+	}
+	want := []Branch{{Name: "origin/main", SHA: main}, {Name: "upstream/stable", SHA: main}}
+	if !slices.Equal(got, want) {
+		t.Errorf("branches = %v, want %v", got, want)
 	}
 }
 

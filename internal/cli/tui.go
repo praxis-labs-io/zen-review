@@ -78,6 +78,33 @@ func (r *reloader) Reload() (app.Reload, error) {
 	return r.at(g)
 }
 
+func (r *reloader) Candidates() (review.BaseCandidates, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.shut {
+		return review.BaseCandidates{}, errors.New("the reader closed the session before the bases loaded")
+	}
+	return r.s.Candidates(r.ctx)
+}
+
+func (r *reloader) SetBase(ref string) (app.Reload, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.shut {
+		return app.Reload{}, errors.New("the reader closed the session before the base changed")
+	}
+	if err := r.s.SetBase(r.ctx, ref); err != nil {
+		return app.Reload{}, err
+	}
+	g, err := build(r.ctx, r.s)
+	if err != nil {
+		return app.Reload{}, err
+	}
+	return r.at(g)
+}
+
 func (r *reloader) MarkHunk(g review.Generation, path string, h review.Hunk) (app.Reload, error) {
 	return r.wrote(g, func() error { return r.s.MarkHunk(r.ctx, g, path, h) })
 }

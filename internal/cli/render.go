@@ -212,8 +212,20 @@ type headerJSON struct {
 type payload struct {
 	headerJSON
 
-	Files  []fileJSON `json:"files"`
-	Totals totalsJSON `json:"totals"`
+	Files      []fileJSON      `json:"files"`
+	Totals     totalsJSON      `json:"totals"`
+	Candidates *candidatesJSON `json:"candidates,omitempty"`
+}
+
+type candidatesJSON struct {
+	Local  []candidateJSON `json:"local"`
+	Remote []candidateJSON `json:"remote"`
+}
+
+type candidateJSON struct {
+	Ref   string `json:"ref"`
+	SHA   string `json:"sha"`
+	Ahead int    `json:"ahead"`
 }
 
 type baseJSON struct {
@@ -307,8 +319,24 @@ func payloadOf(v view) payload {
 	}
 	p.Totals.Files = len(v.Files)
 	p.Totals.Hunks = hunks(v.Files)
+	if v.Candidates != nil {
+		p.Candidates = &candidatesJSON{
+			Local:  candidateJSONs(v.Candidates.Local),
+			Remote: candidateJSONs(v.Candidates.Remote),
+		}
+	}
 
 	return p
+}
+
+func candidateJSONs(candidates []review.Candidate) []candidateJSON {
+	out := make([]candidateJSON, 0, len(candidates))
+	for _, candidate := range candidates {
+		out = append(out, candidateJSON{
+			Ref: candidate.Branch, SHA: candidate.SHA, Ahead: candidate.Ahead,
+		})
+	}
+	return out
 }
 
 // encode writes the view as JSON, indented to match the goldens elsewhere in

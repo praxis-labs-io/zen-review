@@ -49,6 +49,8 @@ type Reload struct {
 // implementation over a session is what that flag protects.
 type Source interface {
 	Reload() (Reload, error)
+	Candidates() (review.BaseCandidates, error)
+	SetBase(ref string) (Reload, error)
 
 	// The writes name the generation on screen, which is what everything
 	// written anchors to, and re-derive at it rather than refreshing.
@@ -75,6 +77,14 @@ type Source interface {
 	SetSummary(text string) (string, error)
 }
 
+type basesLoadedMsg struct{ candidates review.BaseCandidates }
+type basesFailedMsg struct{ err error }
+type baseSetMsg struct {
+	ref string
+	r   Reload
+}
+type baseSetFailedMsg struct{ err error }
+
 // reloadedMsg is a reload that came back.
 type reloadedMsg struct{ r Reload }
 
@@ -94,6 +104,28 @@ func (m Model) reload() tea.Cmd {
 			return reloadFailedMsg{err: err}
 		}
 		return reloadedMsg{r: r}
+	}
+}
+
+func (m Model) loadBases() tea.Cmd {
+	src := m.src
+	return func() tea.Msg {
+		candidates, err := src.Candidates()
+		if err != nil {
+			return basesFailedMsg{err: err}
+		}
+		return basesLoadedMsg{candidates: candidates}
+	}
+}
+
+func (m Model) setBase(ref string) tea.Cmd {
+	src := m.src
+	return func() tea.Msg {
+		r, err := src.SetBase(ref)
+		if err != nil {
+			return baseSetFailedMsg{err: err}
+		}
+		return baseSetMsg{ref: ref, r: r}
 	}
 }
 

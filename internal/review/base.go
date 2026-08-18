@@ -28,13 +28,61 @@ const (
 	tagNotFmt      = "not %s"
 )
 
-// Candidate is a local branch HEAD sits on top of, and how far back it is.
+// Candidate is a branch HEAD sits on top of, and how far back it is.
 type Candidate struct {
 	Branch string
 	SHA    string
 
 	// Ahead is how many commits HEAD has that the candidate does not.
 	Ahead int
+}
+
+// BaseCandidates are the local and remote-tracking branches HEAD sits on top
+// of. The two groups stay separate because the same name and commit can exist
+// in both and mean different things to the reader.
+type BaseCandidates struct {
+	Local  []Candidate
+	Remote []Candidate
+}
+
+// Candidates lists branches on HEAD's first-parent ancestry, nearest first.
+// At HEAD, only the current branch and active base remain as escape paths.
+func (s *Session) Candidates(ctx context.Context) (BaseCandidates, error) {
+	head, err := s.repo.Head(ctx)
+	if err != nil {
+		return BaseCandidates{}, err
+	}
+	if head.Unborn() {
+		return BaseCandidates{}, nil
+	}
+
+	chain, err := s.repo.FirstParents(ctx, "", head.SHA)
+	if err != nil {
+		return BaseCandidates{}, err
+	}
+	mainline := make(map[string]bool, len(chain))
+	for _, sha := range chain {
+		mainline[sha] = true
+	}
+
+	local, err := s.repo.LocalBranches(ctx)
+	if err != nil {
+		return BaseCandidates{}, err
+	}
+	remote, err := s.repo.RemoteBranches(ctx)
+	if err != nil {
+		return BaseCandidates{}, err
+	}
+
+	locals, err := s.candidates(ctx, head, mainline, local, false)
+	if err != nil {
+		return BaseCandidates{}, err
+	}
+	remotes, err := s.candidates(ctx, head, mainline, remote, false)
+	if err != nil {
+		return BaseCandidates{}, err
+	}
+	return BaseCandidates{Local: locals, Remote: remotes}, nil
 }
 
 // resolveBase settles what the changeset is measured from: the flag, then what
@@ -277,9 +325,21 @@ func (s *Session) stack(ctx context.Context, head git.Head, detected string) ([]
 		return nil, err
 	}
 
+	return s.candidates(ctx, head, mainline, branches, true)
+}
+
+func (s *Session) candidates(
+	ctx context.Context,
+	head git.Head,
+	mainline map[string]bool,
+	branches []git.Branch,
+	excludeCurrent bool,
+) ([]Candidate, error) {
 	var candidates []Candidate
 	for _, b := range branches {
-		if b.Name == head.Branch || b.SHA == head.SHA || !mainline[b.SHA] {
+		current := b.Name == head.Branch
+		atHead := b.SHA == head.SHA && b.Name != s.base.Ref && (excludeCurrent || !current)
+		if (excludeCurrent && current) || atHead || !mainline[b.SHA] {
 			continue
 		}
 

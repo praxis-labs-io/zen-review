@@ -70,6 +70,7 @@ type Model struct {
 	diff    diffpane.Model
 	help    help.Model
 	compose compose.Model
+	picker  basePicker
 
 	// The frames the two panes are drawn in. They hold the size, so the model
 	// asks them what is left inside rather than subtracting the border twice.
@@ -111,6 +112,7 @@ func New(t theme.Theme, src Source, repo string, r Reload) Model {
 		diff:      diffpane.New(t),
 		help:      comp.Help(t),
 		compose:   compose.New(t),
+		picker:    newBasePicker(t),
 		treePane:  comp.NewPane(t),
 		diffPane:  comp.NewPane(t),
 	}
@@ -154,6 +156,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.busy = false
 		was, d, moved := m.apply(msg.r)
 		m.note = said(was, d, m.gen.Seq, moved)
+		return m, nil
+
+	case basesLoadedMsg:
+		m.busy = false
+		cmd := m.picker.open(msg.candidates, m.base.Ref)
+		return m, cmd
+
+	case basesFailedMsg:
+		m.busy = false
+		m.note = notice{text: msg.err.Error(), bad: true}
+		return m, nil
+
+	case baseSetMsg:
+		m.busy = false
+		m.apply(msg.r)
+		m.picker.close()
+		m.note = notice{text: "base changed to " + msg.ref}
+		return m, nil
+
+	case baseSetFailedMsg:
+		m.busy = false
+		m.picker.err = msg.err.Error()
 		return m, nil
 
 	case wroteMsg:
@@ -246,6 +270,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.compose, cmd = m.compose.Update(msg)
 		return m, cmd
 	}
+	if m.picker.active() {
+		return m, m.picker.update(msg)
+	}
 	return m, nil
 }
 
@@ -257,6 +284,17 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	if m.compose.Active() {
 		return m.typing(msg)
+	}
+	if m.picker.active() {
+		return m.picking(msg)
+	}
+
+	// The diff pane owns every second key after z, including root bindings.
+	if m.focus == focusDiff && m.diff.Placing() {
+		var cmd tea.Cmd
+		m.diff, cmd = m.diff.Update(msg)
+		m.syncCursor()
+		return m, cmd
 	}
 
 	// One press long, so it goes before the press that ends it is read. A reload
@@ -314,6 +352,15 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.note = notice{text: "reloading"}
 		m.busy = true
 		return m, m.reload()
+	}
+
+	if key.Matches(msg, m.keys.Base) {
+		if m.busy {
+			return m, nil
+		}
+		m.note = notice{text: "loading bases"}
+		m.busy = true
+		return m, m.loadBases()
 	}
 
 	// The mark keys go through the same one-at-a-time gate. A write is a local
@@ -440,6 +487,32 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.syncCursor()
 	}
 	return m, cmd
+}
+
+func (m Model) picking(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case key.Matches(msg, m.keys.Interrupt):
+		return m, tea.Quit
+	case key.Matches(msg, m.keys.Close):
+		m.picker.close()
+		return m, nil
+	case msg.String() == "enter":
+		ref, ok := m.picker.choice()
+		if !ok {
+			return m, nil
+		}
+		if ref == m.base.Ref {
+			m.picker.close()
+			return m, nil
+		}
+		if m.busy {
+			return m, nil
+		}
+		m.picker.err = ""
+		m.busy = true
+		return m, m.setBase(ref)
+	}
+	return m, m.picker.update(msg)
 }
 
 // typing routes a key into the composer, answering the two it owns first. The

@@ -41,7 +41,9 @@ type source struct {
 
 	// wroteErr is what the next write comes back with, where err is the
 	// reload's. The two keys fail for different reasons and are asserted apart.
-	wroteErr error
+	wroteErr   error
+	candidates review.BaseCandidates
+	baseReads  int
 }
 
 func (s *source) Reload() (app.Reload, error) {
@@ -49,6 +51,23 @@ func (s *source) Reload() (app.Reload, error) {
 	if s.err != nil {
 		return app.Reload{}, s.err
 	}
+	return s.at, nil
+}
+
+func (s *source) Candidates() (review.BaseCandidates, error) {
+	s.baseReads++
+	if s.err != nil {
+		return review.BaseCandidates{}, s.err
+	}
+	return s.candidates, nil
+}
+
+func (s *source) SetBase(ref string) (app.Reload, error) {
+	if s.wroteErr != nil {
+		return app.Reload{}, s.wroteErr
+	}
+	s.wrote = append(s.wrote, "SetBase "+ref)
+	s.at.Base = review.Base{Ref: ref, SHA: "chosen-base"}
 	return s.at, nil
 }
 

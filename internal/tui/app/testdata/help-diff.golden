@@ -1,16 +1,16 @@
 ╭─[1]─Zen Review───────────────────────╮╭─[2]─assets/logo.png──────────────────────────────────────╮
-│           ╭─Keys─────────────────────────────────────────────────────────────────────╮           │
-│  assets  │ j      down                   n         next unread        h/1 tree pane │           │
-│   ○ logo.p│ k      up                     N         previous unread    l/2 diff pane │           │
-│  docs/sup│ g      top                    }/{       hunk               s   reload    │           │
-│   ● design│ G      bottom                 tab       next file          C   note      │           │
-│  internal│ ctrl+d diff half page down    shift+tab previous file      ?   help      │           │
-│    cli   │ ctrl+u diff half page up      r         mark read          q   quit      │           │
-├───────────│ ]/[    comment                R         mark file                        │           │
-│ origin/mai│ z      place cursor: z/t/b    u/U       unmark                           │           │
-│ Generation│ v      select lines           c         comment                          │           │
-│ Reviewed  │ space  fold comment           x         resolve comment                  │           │
-│ Comments  │ enter  go to its line         e/D       edit, delete                     │           │
-│ Changes   ╰──────────────────────────────────────────────────────────────────────────╯           │
+│          ╭─Keys───────────────────────────────────────────────────────────────────────╮          │
+│  assets │ j      down                   n         next unread        h/1 tree pane   │          │
+│   ○ logo.│ k      up                     N         previous unread    l/2 diff pane   │          │
+│  docs/su│ g      top                    }/{       hunk               s   reload      │          │
+│   ● desig│ G      bottom                 tab       next file          b   change base │          │
+│  interna│ ctrl+d diff half page down    shift+tab previous file      C   note        │          │
+│    cli  │ ctrl+u diff half page up      r         mark read          ?   help        │          │
+├──────────│ ]/[    comment                R         mark file          q   quit        │          │
+│ origin/ma│ z      place cursor: z/t/b    u/U       unmark                             │          │
+│ Generatio│ v      select lines           c         comment                            │          │
+│ Reviewed │ space  fold comment           x         resolve comment                    │          │
+│ Comments │ enter  go to its line         e/D       edit, delete                       │          │
+│ Changes  ╰────────────────────────────────────────────────────────────────────────────╯          │
 ╰──────────────────────────────────────╯╰──────────────────────────────────────────────────────────╯
 j/k move · n/N unread · }/{ hunk · ctrl+d/u page · r/R read · c comment · s reload · ? help · q quit

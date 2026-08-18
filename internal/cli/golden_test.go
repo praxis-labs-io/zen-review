@@ -69,9 +69,20 @@ func TestTheJSONShapeIsTheContract(t *testing.T) {
 
 			w, raw := f.decode(args...)
 
-			golden.Compare(t, tc.name, []byte(scrub(raw, w.wireHeader)))
+			golden.Compare(t, tc.name, []byte(scrub(raw, w.wireHeader, candidateSubs(w)...)))
 		})
 	}
+}
+
+func candidateSubs(w wire) [][2]string {
+	if w.Candidates == nil {
+		return nil
+	}
+	var subs [][2]string
+	for _, candidate := range append(w.Candidates.Local, w.Candidates.Remote...) {
+		subs = append(subs, [2]string{candidate.SHA, "<sha>"})
+	}
+	return subs
 }
 
 // The changeset payload is the other contract, and the one a script marking

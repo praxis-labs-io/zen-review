@@ -54,5 +54,21 @@
     "hunks": 3,
     "additions": 2,
     "deletions": 2
+  },
+  "candidates": {
+    "local": [
+      {
+        "ref": "feature",
+        "sha": "<sha>",
+        "ahead": 0
+      }
+    ],
+    "remote": [
+      {
+        "ref": "origin/main",
+        "sha": "<sha>",
+        "ahead": 0
+      }
+    ]
   }
 }

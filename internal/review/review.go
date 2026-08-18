@@ -13,6 +13,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -131,6 +132,36 @@ func (s *Session) Repo() string {
 
 // Base is what the changeset is measured from.
 func (s *Session) Base() Base { return s.base }
+
+// SetBase replaces the ref this session keeps. It validates the ref against
+// HEAD before writing anything, and a chosen ref never carries a fallback tag.
+func (s *Session) SetBase(ctx context.Context, ref string) error {
+	head, err := s.repo.Head(ctx)
+	if err != nil {
+		return err
+	}
+	if head.Unborn() {
+		return errors.New("an unborn branch has no base to choose")
+	}
+
+	base, why, err := s.tryBase(ctx, ref, head.SHA)
+	if err != nil {
+		return err
+	}
+	if why != "" {
+		return fmt.Errorf("%s does not resolve to a base of HEAD", ref)
+	}
+
+	if s.row.BaseRef != ref {
+		now := time.Now().UTC().Truncate(time.Second)
+		s.row.BaseRef, s.row.UpdatedAt = ref, now
+		if err := s.db.SaveSession(ctx, s.row); err != nil {
+			return err
+		}
+	}
+	s.base = base
+	return nil
+}
 
 // Summary is the session-level note, read rather than answered off the row this
 // session opened on: a reader open for an hour is not a snapshot.
