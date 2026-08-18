@@ -1,0 +1,20 @@
+╭─[1]─Zen Review───────────────────────╮╭─[2]─internal/review/state.go─────────────────────────────╮
+│  docs/superpowers/specs             ││       ●  @@ -120,5 +120,7 @@ func (s *Session) Changese…│
+│   ● design.md                  +3 -0 ││ 122 122           return Changeset{}, err                │
+│  internal                           ││ 123 123       }                                          │
+│    cli                              ││     124 +     // Ranges are read off the generation.     │
+│     ○ render.go                +1 -1 ││     125 +     // Never off the working tree.             │
+│    review                           ││           ╭─ ◇ open · lines 124-125 ────────────────────╮│
+│     ⊙ state.go                 +3 -1 ││           │ These two say the same thing twice. Cut the ││
+│    tui/diffpane                     ││           │ second.                                     ││
+│     ○ painting_the_unified_ro… +2 -0 ││           ╰─────────────────────────────────────────────╯│
+│ ○ README.md                    +1 -1 ││ 124 126       return Derive(files, rows), nil            │
+│                                      ││           ╭─ ◈ addressed ───────────────────────────────╮│
+├──────────────────────────────────────┤│           │ Derive takes the rows now.                  ││
+│ origin/main                  a1b2c3d ││           ╰───⏎ line · x resolve · space fold · e edit ─╯│
+│ Generation                         2 ││           │ ╭─ response ────────────────────────────────╮│
+│ Reviewed                         2/7 ││           ╰─│ It does, and hands them back in tree      ││
+│ Comments                         1/6 ││             │ order.                                    ││
+│ Changes                   6  +10 -3 ││             ╰───────────────────────────────────────────╯│
+╰──────────────────────────────────────╯╰────────────────────────────────────────────────────31/34─╯
+j/k move · n/N unread · }/{ hunk · ctrl+d/u page · r/R read · c comment · s reload · ? help · q quit

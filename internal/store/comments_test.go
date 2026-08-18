@@ -115,7 +115,7 @@ func TestOnlyTheOpenCommentsOfOneGenerationAreCarried(t *testing.T) {
 
 	closed := comment(t, db, s, first, "resolved-here", 11)
 	if _, _, err := db.FreezeComment(t.Context(), closed.ID,
-		store.CommentOpen, store.CommentResolved, epoch); err != nil {
+		store.CommentOpen, store.CommentResolved, nil, epoch); err != nil {
 		t.Fatalf("resolving the comment: %v", err)
 	}
 
@@ -278,7 +278,7 @@ func TestFreezingACommentRecordsWhereItWas(t *testing.T) {
 
 	later := epoch.Add(time.Hour)
 	frozen, won, err := db.FreezeComment(t.Context(), c.ID,
-		store.CommentOpen, store.CommentAddressed, later)
+		store.CommentOpen, store.CommentAddressed, nil, later)
 	if err != nil {
 		t.Fatalf("addressing the comment: %v", err)
 	}
@@ -328,7 +328,7 @@ func TestFreezingRecordsTheAnchorTheRowHasNow(t *testing.T) {
 
 	// c is the read the caller started from, and says a.go:4.
 	frozen, won, err := db.FreezeComment(t.Context(), c.ID,
-		store.CommentOpen, store.CommentResolved, epoch.Add(time.Hour))
+		store.CommentOpen, store.CommentResolved, nil, epoch.Add(time.Hour))
 	if err != nil || !won {
 		t.Fatalf("resolving the comment: won = %v, err = %v", won, err)
 	}
@@ -348,13 +348,13 @@ func TestFreezingAgainstAStateThatMovedChangesNothing(t *testing.T) {
 	g := holding(t, db, s, "one")
 	c := comment(t, db, s, g, "raced", 4)
 
-	_, won, err := db.FreezeComment(t.Context(), c.ID, store.CommentOpen, store.CommentResolved, epoch)
+	_, won, err := db.FreezeComment(t.Context(), c.ID, store.CommentOpen, store.CommentResolved, nil, epoch)
 	if err != nil || !won {
 		t.Fatalf("resolving the comment: won = %v, err = %v", won, err)
 	}
 
 	later := epoch.Add(time.Hour)
-	_, won, err = db.FreezeComment(t.Context(), c.ID, store.CommentOpen, store.CommentAddressed, later)
+	_, won, err = db.FreezeComment(t.Context(), c.ID, store.CommentOpen, store.CommentAddressed, nil, later)
 	if err != nil {
 		t.Fatalf("addressing the comment: %v", err)
 	}
@@ -386,14 +386,14 @@ func TestACommentStateOutsideTheVocabularyIsRefused(t *testing.T) {
 	} {
 		c := comment(t, db, s, g, string(state), 4)
 		if _, _, err := db.FreezeComment(t.Context(), c.ID,
-			store.CommentOpen, state, epoch); err != nil {
+			store.CommentOpen, state, nil, epoch); err != nil {
 			t.Errorf("the state %q was refused: %v", state, err)
 		}
 	}
 
 	c := comment(t, db, s, g, "outside", 4)
 	if _, _, err := db.FreezeComment(t.Context(), c.ID,
-		store.CommentOpen, store.CommentState("done"), epoch); err == nil {
+		store.CommentOpen, store.CommentState("done"), nil, epoch); err == nil {
 		t.Error("a state outside the vocabulary should be refused")
 	}
 }
@@ -534,3 +534,38 @@ func TestARefreshCarriesPastACommentThatHasGone(t *testing.T) {
 		t.Fatalf("carrying past a comment that has gone: %v", err)
 	}
 }
+
+// ptr is the response a freeze names. Nil is a transition leaving the row's own
+// answer alone, so a caller writing one has to hand over an address.
+func ptr(s string) *string { return &s }
+
+func TestAResponseLandsInTheSameWriteAsTheState(t *testing.T) {
+	db := open(t)
+	s := session(t, db, "answered")
+	g := holding(t, db, s, "one")
+	c := comment(t, db, s, g, "why is this here", 4)
+
+	if c.Response != "" {
+		t.Fatalf("a fresh comment has no response, got %q", c.Response)
+	}
+
+	frozen, won, err := db.FreezeComment(t.Context(), c.ID,
+		store.CommentOpen, store.CommentAddressed, ptr("the retry loop needs it"), epoch.Add(time.Hour))
+	if err != nil || !won {
+		t.Fatalf("addressing the comment: won = %v, err = %v", won, err)
+	}
+	if frozen.Response != "the retry loop needs it" {
+		t.Errorf("the response came back as %q", frozen.Response)
+	}
+
+	read, found, err := db.Comment(t.Context(), c.ID)
+	if err != nil || !found {
+		t.Fatalf("reading the comment back: found = %v, err = %v", found, err)
+	}
+	if read.Response != "the retry loop needs it" {
+		t.Errorf("the response was not stored, got %q", read.Response)
+	}
+}
+
+// A resolve names no response, so the one an address left has to survive it. The
+// alternative is reading it and writing it back, which loses an edit that landed

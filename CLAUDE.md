@@ -215,7 +215,7 @@ never accepted and lost. All the git work is done before that transaction opens,
 which it can be because nothing the translation needs is a row.
 
 Rewriting a comment and deleting one name no generation, and each has its own
-reason. A body is true at every generation, and the columns a refresh carries an
+reason. Words are true at every generation, and the columns a refresh carries an
 anchor through are the ones an edit leaves alone. A delete takes the row, so
 there is no anchor left to go stale and a refresh translating one that has gone
 moves nothing and carries on.
@@ -252,6 +252,38 @@ that is not a cut is widen the scope, and that leaves every stored range
 translating cleanly.
 
 Deletion-only hunks have no head-side lines and anchor to base-side ranges.
+
+`address` carries the words that back the claim, on `comments.response`. The
+state says the work was done and the response is what a reader confirms it
+against; without one the only way to check is to re-read the code, which is the
+work the state was meant to save. Half a queue is change requests where the diff
+is the response, so the words are optional and a bare `address` is the verb it
+always was. The other half are questions, and a sentence is all they wanted.
+
+Response and not answer, because answer implies a question and half of these are
+change requests. The state stays `addressed`: the state is the claim and the
+response is what backs it, and two things keep two words.
+
+One response and not a thread. A comment stops moving when it is addressed, so the
+exchange is one round: the reader asks, the agent answers, the reader resolves or
+writes a new comment. A second `address` is refused by the state gate it always
+was.
+
+`--body` is the words of the thing the command names, on every command that takes
+one: the comment on `comment`, the response on `address`, the comment again on
+`edit`. One word and one column, so an invocation reused against the wrong verb
+is a refusal rather than a write to the wrong half.
+
+`edit` does not reach the response. It is the reader's verb over the reader's
+words, and one id naming two voices is how the agent's get rewritten by a reader
+fixing their own typo, or the reader's get rewritten by an agent. The tool has no
+identity to enforce that with, so what it does instead is refuse to make the
+wrong write easy. A response stands as it was written.
+
+The response lands in the same swap as the state, so nothing can be addressed
+with the words lost. Every other transition passes no response at all rather than
+reading one and writing it back, which would clobber a write that landed in
+between. A refresh carries neither: they are words, not an anchor.
 
 A comment moves while it is open, and stops the moment it is addressed, resolved
 or orphaned. Its row then stays at the generation it stopped at and records where
@@ -372,9 +404,22 @@ and mean different things, so they cannot share a shape, and their colours run
 opposite ways: a hunk is accent once it is done, a comment is accent while it
 still wants you. Orphaned leaves the family, being a loss and not a stage.
 
-A settled card folds to one row and keeps its box. Without the box it is a line
-of grey text in a column of diff, which is what the diff's own notes look like.
-Its footer names the direction the key goes rather than the state it is in.
+A response draws as its own box hanging off the card on a rail, two columns in
+and two columns narrower, zen-octo's reply exactly. A box says the words below it
+are somebody else's; a change of weight inside one border says only that whoever
+was talking trailed off. It carries no footer, having no key of its own.
+
+Neither the box nor the rail ever lights. A lit border says a key reaches here,
+and nothing reaches a response: no cursor stops on it, and `x`, `e` and `D` all
+act on the card. Lighting it with the card would promise a stop that never
+arrives. The elbow is always `╰─` and never a tee, there being one response. A
+pane with no room for a second border draws the card whole and drops the box
+rather than shrinking both.
+
+A settled card folds to one row and keeps its box, and takes its response with it.
+Without the box it is a line of grey text in a column of diff, which is what the
+diff's own notes look like, and a box still hanging off one row says the card is
+open. Its footer names the direction the key goes rather than the state it is in.
 
 `x` is named in the lit card's own footer rather than on the status bar, because
 it reaches one row on the screen and that row is where a reader looks for it. A
@@ -390,12 +435,13 @@ write is a record of nothing. `D` acts at once, the capital doing the whole of
 the thing the way `R` and `U` do, and a card narrow enough to drop hints drops
 these two first, the overlay being where the rest of the keymap lives anyway.
 
-An edit is the body alone. The anchor never moves, so a comment on the wrong
-lines is a delete and a new one rather than a rewrite, which would be a second
-remap path with none of the translation rules behind it. The box `e` opens is
-the card itself: same border, same indent, same place, holding what it said. A
-delete is a real delete rather than a state, which would have to be filtered out
-of every count, every ring and every export forever.
+An edit is the body alone, the response being the agent's words and no business
+of the reader's verb. The anchor never moves either, so a comment on the wrong lines
+is a delete and a new one rather than a rewrite, which would be a second remap
+path with none of the translation rules behind it. The box `e` opens is the card
+itself: same border, same indent, same place, holding what it said. A delete is a
+real delete rather than a state, which would have to be filtered out of every
+count, every ring and every export forever.
 
 An empty body is a discard from `c`, because nothing was typed. From `e` it
 writes nothing and the bar says so: wiping a box is not saving a comment, and it

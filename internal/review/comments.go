@@ -193,25 +193,37 @@ func byTreeOrder(rows []store.Comment) []store.Comment {
 	return rows
 }
 
-// AddressComment is the agent's verb: a claim that the comment has been handled.
+// AddressComment is the agent's verb: a claim that the comment has been handled,
+// and the response that backs it.
 //
 // Only an open comment can be addressed. Nothing here reaches resolved, because
 // the claim and the confirmation are different facts and a queue that let one
 // stand for the other would be worth nothing.
-func (s *Session) AddressComment(ctx context.Context, id string) (store.Comment, error) {
-	return s.freeze(ctx, id, store.CommentAddressed, store.CommentOpen)
+//
+// The response is optional. Half a queue is change requests where the diff is
+// the response, and demanding a sentence there gets "done" typed into every one.
+func (s *Session) AddressComment(ctx context.Context, id, response string) (store.Comment, error) {
+	// Whitespace alone is no response. Leading indent somebody meant is kept, the
+	// way a body's is.
+	if strings.TrimSpace(response) == "" {
+		response = ""
+	}
+	return s.freeze(ctx, id, store.CommentAddressed, &response, store.CommentOpen)
 }
 
 // ResolveComment is the reader's verb, and it closes anything that is not
 // already closed. An orphaned comment is resolved the same way: the code it was
 // about is gone, and saying so is the reader's call.
 func (s *Session) ResolveComment(ctx context.Context, id string) (store.Comment, error) {
-	return s.freeze(ctx, id, store.CommentResolved,
+	return s.freeze(ctx, id, store.CommentResolved, nil,
 		store.CommentOpen, store.CommentAddressed, store.CommentOrphaned)
 }
 
 // EditComment rewrites what a comment says, in any state: a typo in a resolved
 // one is still a typo. The anchor never moves, so re-scoping is delete and write.
+//
+// The body and nothing else. A response is the agent's words, and the reader's
+// verb reaching them is how the wrong half gets rewritten.
 func (s *Session) EditComment(ctx context.Context, id, body string) (store.Comment, error) {
 	if err := checkBody(body); err != nil {
 		return store.Comment{}, err
@@ -266,6 +278,7 @@ func (s *Session) freeze(
 	ctx context.Context,
 	id string,
 	to store.CommentState,
+	response *string,
 	from ...store.CommentState,
 ) (store.Comment, error) {
 	for range freezeAttempts {
@@ -282,7 +295,7 @@ func (s *Session) freeze(
 		}
 
 		now := time.Now().UTC().Truncate(time.Second)
-		frozen, won, err := s.db.FreezeComment(ctx, id, c.State, to, now)
+		frozen, won, err := s.db.FreezeComment(ctx, id, c.State, to, response, now)
 		if err != nil {
 			return store.Comment{}, err
 		}

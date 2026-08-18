@@ -69,14 +69,47 @@ func newComment(opts *options) *cobra.Command {
 	return cmd
 }
 
+// newAddress is the one state verb that takes words, because the state is a
+// claim and the words are what back it.
 func newAddress(opts *options) *cobra.Command {
-	return newVerb(opts, "address", "Record that a comment has been handled",
-		"Record that a comment has been handled.\n\n"+
-			"This is the agent's verb. It stops the comment moving and says the work\n"+
-			"was done; it does not close it, because the claim and the confirmation\n"+
-			"are different facts and a queue letting one stand for the other is worth\n"+
-			"nothing.",
-		func(s *review.Session) mover { return s.AddressComment })
+	var text string
+
+	cmd := &cobra.Command{
+		Use:   "address <id>",
+		Short: "Record that a comment has been handled, and say how",
+		Long: "Record that a comment has been handled, and say how.\n\n" +
+			"This is the agent's verb. It stops the comment moving and says the work\n" +
+			"was done; it does not close it, because the claim and the confirmation\n" +
+			"are different facts and a queue letting one stand for the other is worth\n" +
+			"nothing.\n\n" +
+			"The answer is what the reader confirms against. It is optional, because\n" +
+			"half a queue is change requests where the diff is the answer, and the\n" +
+			"other half are questions a diff does not answer at all.",
+		SilenceUsage: true,
+		Args:         cobra.ExactArgs(1),
+
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := refuseBase(cmd); err != nil {
+				return err
+			}
+
+			// Read before the database is opened, for the reason runComment gives.
+			written, err := body(cmd, text, "answer")
+			if err != nil {
+				return err
+			}
+
+			return runVerb(cmd, opts, args[0], func(s *review.Session) mover {
+				return func(ctx context.Context, id string) (store.Comment, error) {
+					return s.AddressComment(ctx, id, written)
+				}
+			})
+		},
+	}
+
+	cmd.Flags().StringVar(&text, "body", "", "what the answer says, or - to read it from stdin")
+
+	return cmd
 }
 
 func newResolve(opts *options) *cobra.Command {
@@ -108,7 +141,8 @@ func newEdit(opts *options) *cobra.Command {
 		Short: "Rewrite what a comment says",
 		Long: "Rewrite what a comment says.\n\n" +
 			"The body and nothing else. The anchor never moves, so a comment on the\n" +
-			"wrong lines is a delete and a new one rather than an edit.",
+			"wrong lines is a delete and a new one rather than an edit. An answer is\n" +
+			"the agent's words and this verb does not reach them.",
 		SilenceUsage: true,
 		Args:         cobra.ExactArgs(1),
 

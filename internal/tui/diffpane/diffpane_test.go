@@ -822,6 +822,124 @@ func TestACardHangsUnderTheLineItAnswers(t *testing.T) {
 	}
 }
 
+// TestAResponseHangsOffTheCardOnARail. A box says the words below are not the
+// reader's, where a change of weight inside one border says only that somebody
+// trailed off.
+func TestAResponseHangsOffTheCardOnARail(t *testing.T) {
+	got := rows(t, cards(t, twoHunks, 76, 60))
+
+	at := -1
+	for i, row := range got {
+		if strings.Contains(row, "\u25c8 addressed") {
+			at = i
+		}
+	}
+	if at < 0 {
+		t.Fatalf("no card is addressed:\n%s", strings.Join(got, "\n"))
+	}
+
+	// The card's own two borders and its one row of body, then the rail: down
+	// past the box's top border, into the elbow on its first row of words.
+	for _, want := range []struct {
+		row  int
+		text string
+	}{
+		{at + 3, "\u2502 \u256d\u2500 response"},
+		{at + 4, "\u2570\u2500\u2502 It does, and hands them back in tree order."},
+		{at + 5, "  \u2570\u2500"},
+	} {
+		if want.row >= len(got) {
+			t.Fatalf("the pane stopped at row %d, before the box:\n%s", len(got), strings.Join(got, "\n"))
+		}
+		if !strings.Contains(got[want.row], want.text) {
+			t.Errorf("row %d reads %q, want it to hold %q", want.row, got[want.row], want.text)
+		}
+	}
+}
+
+// TestTheResponseBoxIsTwoColumnsInsideTheCard. The rail is drawn in the gap, so
+// a box the card's own width has nowhere to hang from.
+func TestTheResponseBoxIsTwoColumnsInsideTheCard(t *testing.T) {
+	got := rows(t, cards(t, twoHunks, 76, 60))
+
+	// Measured in cells, not bytes: the rail's own glyphs are three bytes each.
+	corner := func(row string) int { return lipgloss.Width(row[:strings.Index(row, "\u256d")]) }
+
+	card, box := -1, -1
+	for _, row := range got {
+		if strings.Contains(row, "\u25c8 addressed") {
+			card = corner(row)
+		}
+		if card >= 0 && strings.Contains(row, "\u256d\u2500 response") {
+			box = corner(row)
+			break
+		}
+	}
+	if card < 0 || box < 0 {
+		t.Fatalf("the card or its response did not draw:\n%s", strings.Join(got, "\n"))
+	}
+	if box-card != 2 {
+		t.Errorf("the box starts %d columns in, want 2", box-card)
+	}
+}
+
+// TestTheResponseBoxNeverLights. A lit border says a key reaches here, and
+// nothing reaches a response: no cursor stops on it and there is nothing to do
+// on it. A stripped frame cannot see a colour, so this reads the escapes.
+func TestTheResponseBoxNeverLights(t *testing.T) {
+	m := cards(t, twoHunks, 76, 60)
+	accent := params(t, lipgloss.NewStyle().Foreground(theme.RosePineMoon.Accent))
+
+	for range 60 {
+		m = press(t, m, down)
+
+		flat, raw := rows(t, m), strings.Split(m.View(), "\n")
+		for i, row := range flat {
+			// The addressed card is the one with a box under it, and the row is
+			// its footer, which only a lit card draws.
+			if !strings.Contains(row, "x resolve") || i+1 >= len(flat) {
+				continue
+			}
+			if !strings.Contains(flat[i+1], "╭─ response") {
+				continue
+			}
+
+			if !strings.Contains(raw[i], accent) {
+				t.Fatalf("the card is not lit, so this proves nothing:\n%s", joined(t, m))
+			}
+			if strings.Contains(raw[i+1], accent) {
+				t.Errorf("the response box took the accent under the cursor:\n%s", joined(t, m))
+			}
+			return
+		}
+	}
+	t.Fatal("the cursor never landed on the addressed card")
+}
+
+// TestACommentWithNoResponseDrawsNoBox. Every state but addressed reaches the
+// card with nothing to say, and an empty box claims words it has none of.
+func TestACommentWithNoResponseDrawsNoBox(t *testing.T) {
+	got := joined(t, commented(t, "README.md", 76, 30,
+		testchangeset.Comment("aaaaaaaaaaaa", "README.md", 0, 0, "Does this still read right?")))
+
+	if strings.Contains(got, "response") {
+		t.Errorf("a comment with no response drew a box for it:\n%s", got)
+	}
+}
+
+// TestAFoldedCardTakesItsResponseWithIt. One row is what folding means, and a
+// box still hanging off it says the card is open.
+func TestAFoldedCardTakesItsResponseWithIt(t *testing.T) {
+	settled := testchangeset.Responded(
+		testchangeset.In(testchangeset.Comment("aaaaaaaaaaaa", "README.md", 1, 1, "Does this read right?"),
+			store.CommentResolved), "It reads fine now.")
+
+	got := joined(t, commented(t, "README.md", 76, 30, settled))
+	if strings.Contains(got, "\u256d\u2500 response") {
+		t.Errorf("a folded card kept its response box:\n%s", got)
+	}
+}
+
 // TestARangeCardSaysWhereItStarted. It hangs under the last line of the run, and
 // nothing on that row can say the run began two lines above.
 func TestARangeCardSaysWhereItStarted(t *testing.T) {
@@ -936,14 +1054,19 @@ func TestEveryCardRowIsExactlyThePane(t *testing.T) {
 
 // TestTheScrollCounterCountsCardRows. add appends one entry per call and every
 // offset assumes row equals line, so one multi-line push and the counter lies.
+//
+// The pane is deep enough to draw every row, because the ceiling is what the
+// pane drew and a counter over a clipped view proves nothing.
 func TestTheScrollCounterCountsCardRows(t *testing.T) {
-	plain := commented(t, twoHunks, 76, 30).Scroll().Total
-	withCards := cards(t, twoHunks, 76, 30).Scroll().Total
+	const deep = 60
+
+	plain := commented(t, twoHunks, 76, deep).Scroll().Total
+	withCards := cards(t, twoHunks, 76, deep).Scroll().Total
 
 	if withCards <= plain {
 		t.Fatalf("the counter reads %d with cards and %d without", withCards, plain)
 	}
-	if want := len(rows(t, cards(t, twoHunks, 76, 30))); withCards > want {
+	if want := len(rows(t, cards(t, twoHunks, 76, deep))); withCards > want {
 		t.Errorf("the counter reads %d over a pane of %d rows", withCards, want)
 	}
 }

@@ -10,7 +10,7 @@ import (
 
 // The report is what somebody still has to answer, so a resolved comment is not
 // in it and everything else is: an orphan included, because the code moving
-// under a comment is not an answer to it.
+// under a comment is not a response to it.
 func TestTheExportCarriesEverythingUnresolved(t *testing.T) {
 	f, ids := queue(t)
 
@@ -101,7 +101,7 @@ func TestTheExportSaysWhenTheLinesHaveMoved(t *testing.T) {
 }
 
 // A session with nothing built yet has nothing to count and says so, rather than
-// reporting zero of zero as though that were an answer.
+// reporting zero of zero as though that were a response.
 func TestTheExportSaysWhenThereIsNoGeneration(t *testing.T) {
 	f := edited(t)
 
@@ -147,4 +147,16 @@ func TestTheExportedReportIsTheContract(t *testing.T) {
 
 	subs := append(commentSubs(w), [2]string{w.Base.SHA[:7], "<sha>"})
 	golden.Compare(t, "export", []byte(scrub(out, w.wireHeader, subs...)))
+}
+
+// A paste lands in front of somebody who cannot open the repository, so the
+// words backing a claim have to travel with it.
+func TestTheExportCarriesTheResponse(t *testing.T) {
+	f, _ := queue(t)
+
+	out := f.mustRun("export")
+
+	if !strings.Contains(out, "> it moved into the store package") {
+		t.Errorf("the report drops the response behind an addressed comment:\n%s", out)
+	}
 }

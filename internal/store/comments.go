@@ -55,6 +55,11 @@ type Comment struct {
 	Body  string
 	State CommentState
 
+	// Response is what an address left behind, and empty when it left none. It is
+	// the agent's words where Body is the reader's, and it freezes with the state
+	// because it is the claim that state stands for.
+	Response string
+
 	// AnchorBlob is the file's blob at the generation the comment was written
 	// against: the exact bytes it was about, immune to every rename and held
 	// alive by the session ref. It is empty on a side the file has no blob on.
@@ -87,7 +92,7 @@ type CommentMove struct {
 const commentColumns = `
 	id, session_id, generation_id, created_generation_id,
 	path, side, start_line, end_line, scope, body, state,
-	anchor_blob, last_path, last_line, created_at, updated_at`
+	anchor_blob, last_path, last_line, created_at, updated_at, response`
 
 // AddComment writes one comment.
 //
@@ -116,12 +121,12 @@ func (db *DB) AddComment(ctx context.Context, c Comment) (err error) {
 
 	const q = `
 		INSERT INTO comments (` + commentColumns + `)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	_, err = tx.ExecContext(ctx, q,
 		c.ID, c.SessionID, c.GenerationID, c.CreatedGenerationID,
 		c.Path, string(c.Side), c.Start, c.End, string(c.Scope), c.Body, string(c.State),
-		c.AnchorBlob, c.LastPath, c.LastLine, stamp(c.CreatedAt), stamp(c.UpdatedAt),
+		c.AnchorBlob, c.LastPath, c.LastLine, stamp(c.CreatedAt), stamp(c.UpdatedAt), c.Response,
 	)
 	if err != nil {
 		return fmt.Errorf("writing the comment on %s: %w", c.Path, err)
@@ -221,19 +226,26 @@ func (db *DB) Comment(ctx context.Context, id string) (Comment, bool, error) {
 // is not, which is another instance having got there first: without the swap the
 // decision and the write are two statements, and a resolve landing between them
 // would be overwritten by an address that was refused the moment it was read.
+//
+// A nil response leaves the one on the row alone, which is what every transition
+// but an address wants. Reading it and writing it back instead would clobber a
+// write that landed between the read and this swap.
 func (db *DB) FreezeComment(
 	ctx context.Context,
 	id string,
 	was, state CommentState,
+	response *string,
 	now time.Time,
 ) (Comment, bool, error) {
 	const q = `
 		UPDATE comments
-		SET state = ?, last_path = path, last_line = start_line, updated_at = ?
+		SET state = ?, response = COALESCE(?, response),
+		    last_path = path, last_line = start_line, updated_at = ?
 		WHERE id = ? AND state = ?
 		RETURNING ` + commentColumns
 
-	c, err := scanComment(db.handle.QueryRowContext(ctx, q, string(state), stamp(now), id, string(was)))
+	c, err := scanComment(db.handle.QueryRowContext(ctx, q,
+		string(state), response, stamp(now), id, string(was)))
 	if errors.Is(err, sql.ErrNoRows) {
 		return Comment{}, false, nil
 	}
@@ -245,6 +257,9 @@ func (db *DB) FreezeComment(
 
 // EditComment rewrites a body and stamps the row. It returns the row as it
 // landed, and false when that session holds no comment under the id.
+//
+// The response is not reachable here. It is the agent's words and the reader's
+// verb, and one id naming both is how the wrong one gets rewritten.
 func (db *DB) EditComment(
 	ctx context.Context,
 	id, sessionID, body string,
@@ -319,7 +334,7 @@ func scanComment(s scanner) (Comment, error) {
 	err := s.Scan(
 		&c.ID, &c.SessionID, &c.GenerationID, &c.CreatedGenerationID,
 		&c.Path, &c.Side, &c.Start, &c.End, &c.Scope, &c.Body, &c.State,
-		&c.AnchorBlob, &c.LastPath, &c.LastLine, &created, &updated,
+		&c.AnchorBlob, &c.LastPath, &c.LastLine, &created, &updated, &c.Response,
 	)
 	if err != nil {
 		return Comment{}, err

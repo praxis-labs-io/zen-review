@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// The body is the whole of an edit, and the answer is the comment as it now
+// The body is the whole of an edit, and the response is the comment as it now
 // stands so a script does not need a second command to read it back.
 func TestEditRewritesTheBodyAndLeavesTheAnchor(t *testing.T) {
 	f := clean(t)
@@ -110,5 +110,72 @@ func TestAnUnknownIdIsRefusedByEditAndDelete(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// The state is a claim and the response is what a reader confirms it against. An
+// address with no words leaves nothing to confirm but the code itself.
+func TestAddressCarriesTheResponse(t *testing.T) {
+	f := clean(t)
+	id := f.comment("code.txt", "--lines", "3", "--body", "why is this here")
+
+	w, _ := f.decodeComments("address", id, "--body", "the retry loop needs it first")
+
+	got := only(t, w)
+	if got.Response != "the retry loop needs it first" {
+		t.Errorf("response = %q, want what was passed", got.Response)
+	}
+	if got.Body != "why is this here" {
+		t.Errorf("body = %q, want the reader's words left alone", got.Body)
+	}
+	if got.State != "addressed" {
+		t.Errorf("state = %q, want addressed", got.State)
+	}
+}
+
+// Half a queue is change requests where the diff is the response, so the flag is
+// optional and the verb is the one it always was without it.
+func TestAddressStillTakesNoWordsAtAll(t *testing.T) {
+	f := clean(t)
+	id := f.comment("code.txt", "--lines", "3", "--body", "cap this")
+
+	w, _ := f.decodeComments("address", id)
+
+	got := only(t, w)
+	if got.Response != "" {
+		t.Errorf("response = %q, want none", got.Response)
+	}
+	if got.State != "addressed" {
+		t.Errorf("state = %q, want addressed", got.State)
+	}
+}
+
+// A response arrives on stdin the way a body does, because an agent writing one
+// is holding prose with newlines in it.
+func TestAResponseCanArriveOnStdin(t *testing.T) {
+	f := clean(t)
+	id := f.comment("code.txt", "--lines", "3", "--body", "why")
+
+	f.stdin = strings.NewReader("the first reason\n\nand the second\n")
+	w, _ := f.decodeComments("address", id, "--body", "-")
+
+	want := "the first reason\n\nand the second"
+	if got := only(t, w); got.Response != want {
+		t.Errorf("response = %q, want %q", got.Response, want)
+	}
+}
+
+// The elbow is the one cue saying the words below are the agent's. A response
+// opening on a blank line would spend it on nothing and print with none at all.
+func TestAResponseOpeningOnABlankLineKeepsItsElbow(t *testing.T) {
+	f := clean(t)
+	id := f.comment("code.txt", "--lines", "3", "--body", "why")
+
+	f.stdin = strings.NewReader("\nthe response starts here\n")
+	f.mustRun("address", id, "--body", "-")
+
+	out := f.mustRun("comments")
+	if !strings.Contains(out, "╰─ the response starts here") {
+		t.Errorf("the response printed with no elbow:\n%s", out)
 	}
 }

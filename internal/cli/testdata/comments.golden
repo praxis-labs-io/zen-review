@@ -27,6 +27,7 @@
       "end": 3,
       "state": "orphaned",
       "body": "about the line that goes",
+      "response": "",
       "createdAt": "<time>",
       "updatedAt": "<time>"
     },
@@ -39,6 +40,7 @@
       "end": 30,
       "state": "open",
       "body": "still open",
+      "response": "",
       "createdAt": "<time>",
       "updatedAt": "<time>"
     },
@@ -51,6 +53,7 @@
       "end": 0,
       "state": "resolved",
       "body": "the whole file",
+      "response": "",
       "createdAt": "<time>",
       "updatedAt": "<time>"
     },
@@ -63,6 +66,7 @@
       "end": 1,
       "state": "addressed",
       "body": "why did this go",
+      "response": "it moved into the store package",
       "createdAt": "<time>",
       "updatedAt": "<time>"
     }
