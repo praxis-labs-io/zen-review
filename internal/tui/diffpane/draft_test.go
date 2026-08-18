@@ -100,7 +100,9 @@ func TestClosingTheBoxLeavesTheCursorOnTheCode(t *testing.T) {
 // TestABoxRefusesAPaneWithNoRoomForIt. Every key goes into it while it is up,
 // so one that cannot be drawn is a reader typing into nothing.
 func TestABoxRefusesAPaneWithNoRoomForIt(t *testing.T) {
-	for _, tt := range []struct{ width, height int }{{18, 20}, {70, 4}} {
+	// The heights are the ones capBox would clamp under the box's own floor,
+	// which is a pane taking a box it can only give two rows to.
+	for _, tt := range []struct{ width, height int }{{18, 20}, {70, 4}, {70, 6}, {70, 7}} {
 		m := commented(t, twoHunks, tt.width, tt.height)
 		m.Select(store.SideHead, 13)
 

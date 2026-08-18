@@ -205,7 +205,10 @@ func (m Model) drafting(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.note = notice{text: "still writing"}
 				return m, nil
 			}
-			return m, m.save(m.diff.Draft())
+			// Called before the return, for the reason the resize is: m is written
+			// through by save, and the order against it is the spec's to choose.
+			cmd := m.save(m.diff.Draft())
+			return m, cmd
 		}
 	}
 

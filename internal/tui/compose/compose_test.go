@@ -66,3 +66,15 @@ func TestAClosedBoxDrawsNothing(t *testing.T) {
 		t.Errorf("the discarded body is still there: %q", got)
 	}
 }
+
+// TestTheCursorStaysInsideTheFrame. A box on a frame with no room for its own
+// chrome would put the terminal's cursor off the screen, where it parks anywhere.
+func TestTheCursorStaysInsideTheFrame(t *testing.T) {
+	m := compose.New(theme.RosePineMoon)
+	m.SetSize(2, 2)
+	m.Open("Comment on a.go:1", "hi")
+
+	if c := m.TypingAt(); c != nil {
+		t.Errorf("the cursor is at %d,%d on a 2x2 frame", c.X, c.Y)
+	}
+}

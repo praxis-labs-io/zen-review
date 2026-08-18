@@ -70,6 +70,32 @@ func (m Model) cardOf(i int) *card {
 	return nil
 }
 
+// LeaveCard takes the cursor off whatever card it is on and onto the nearest
+// code, above by preference. It is where a delete leaves the reader.
+func (m *Model) LeaveCard() {
+	c := m.cardOf(m.cursor)
+	if c == nil {
+		return
+	}
+
+	// The card that went is gone from the rows, so the cursor is left on the one
+	// that slid up into them, and the next press of the key takes that.
+	for i := c.at - 1; i >= 0; i-- {
+		if m.rows[i].card < 0 {
+			m.point(i)
+			m.reveal()
+			return
+		}
+	}
+	for i := c.end(); i < len(m.rows); i++ {
+		if m.rows[i].card < 0 {
+			m.point(i)
+			m.reveal()
+			return
+		}
+	}
+}
+
 // folds is whether a comment draws folded: settled by default, and flipped by
 // whatever the reader last pressed space on.
 func (m Model) folds(c store.Comment) bool {

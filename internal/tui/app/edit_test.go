@@ -308,3 +308,19 @@ func TestARefusalReadsFromTheRightOfTheBar(t *testing.T) {
 		t.Errorf("the bar reads %q, want the box's keys still on it", bar)
 	}
 }
+
+// TestASecondDeleteTakesNothing. The card that went leaves its rows to the next
+// one, and D writes at once with no undo behind it.
+func TestASecondDeleteTakesNothing(t *testing.T) {
+	first := testchangeset.Comment("aaaaaaaaaaaa", "internal/review/state.go", 13, 13, "the first one")
+	second := testchangeset.Comment("bbbbbbbbbbbb", "internal/review/state.go", 13, 13, "the second one")
+
+	s := commented(t, 100, 24, first, second)
+	s.resolving(second)
+	s.press("]", "D", "D")
+
+	want := "DeleteComment aaaaaaaaaaaa gen=2"
+	if got := s.calls(); len(got) != 1 || got[0] != want {
+		t.Errorf("the writes were %v, want the one the reader aimed at", got)
+	}
+}

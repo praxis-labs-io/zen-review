@@ -38,7 +38,10 @@ type draft struct {
 // nobody can see still holds every key, so the caller puts it somewhere else.
 func (m Model) FitsBox() bool {
 	_, width := m.cardBox()
-	return m.file != nil && width >= cardMin && m.height >= draftRows+2
+
+	// The rows capBox reserves as well as the box's own floor. A pane that took
+	// one and then clamped it under that floor would draw two rows to type in.
+	return m.file != nil && width >= cardMin && m.height >= draftRows+4
 }
 
 // Compose opens a box where a new comment will hang, and false for a pane with
@@ -183,8 +186,8 @@ func (m *Model) grew() {
 // line it hangs under, and the heading pinned over that. Past there it scrolls.
 func (m *Model) capBox() {
 	// Here rather than as the textarea's MaxHeight, which is also a limit on how
-	// many lines may be typed at all.
-	if room := max(m.height-4, 1); m.draft.area.Height() > room {
+	// many lines may be typed at all. FitsBox is what keeps this off the floor.
+	if room := max(m.height-4, draftRows); m.draft.area.Height() > room {
 		m.draft.area.SetHeight(room)
 	}
 }

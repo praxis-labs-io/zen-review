@@ -128,6 +128,12 @@ func (m Model) TypingAt() *tea.Cursor {
 	w, h := lipgloss.Size(m.View())
 	c.X += max(0, (m.width-w)/2) + 2
 	c.Y += max(0, (m.height-h)/2) + 1
+
+	// A frame with no room for the chrome puts it off the screen, and a cursor
+	// there is one the terminal parks wherever it likes.
+	if c.X >= m.width || c.Y >= m.height {
+		return nil
+	}
 	return c
 }
 

@@ -140,7 +140,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.resize(msg.Width, msg.Height)
-		return m, m.crossOver()
+
+		// Called before the return rather than in it: the order of a plain operand
+		// against a call beside it is the spec's to choose, not ours.
+		cmd := m.crossOver()
+		return m, cmd
 
 	case tree.OpenMsg:
 		m.setFocus(focusDiff)
@@ -195,6 +199,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case deletedMsg:
 		m.busy = false
 		m.apply(msg.r)
+
+		// Off the card the cursor is restored onto, which is the next one sliding
+		// up into the rows the deleted one had. D writes at once and cannot be undone.
+		m.diff.LeaveCard()
 		m.note = notice{text: "comment deleted"}
 		return m, nil
 
@@ -460,7 +468,8 @@ func (m Model) typing(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 		// Which box is up. c and e hold what they were pointed at, C holds nothing.
 		if m.pending.Path != "" || m.editing != "" {
-			return m, m.save(m.compose.Value())
+			cmd := m.save(m.compose.Value())
+			return m, cmd
 		}
 
 		cmd := m.saveNote(m.compose.Value())
