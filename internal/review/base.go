@@ -62,9 +62,8 @@ func (s *Session) Candidates(ctx context.Context) (BaseCandidates, error) {
 
 	offered := make([]git.Branch, 0, len(branches))
 	for _, b := range branches {
-		// A branch measured against itself has no answer worth rendering, and
-		// neither has another tip standing exactly where HEAD does.
-		if b.Name == head.Branch || (b.SHA == head.SHA && b.Name != s.base.Ref) {
+		// A branch measured against itself has no answer worth rendering.
+		if b.Name == head.Branch {
 			continue
 		}
 		offered = append(offered, b)
@@ -350,7 +349,7 @@ func (s *Session) stack(ctx context.Context, head git.Head, detected string) ([]
 		// The active base is kept wherever its tip is: it is where the session
 		// measures from already, so dropping it would take the way back.
 		active := b.Name == s.base.Ref
-		if b.Name == head.Branch || (!active && (b.SHA == head.SHA || !mainline[b.SHA])) {
+		if b.Name == head.Branch || (!active && !mainline[b.SHA]) {
 			continue
 		}
 		offered = append(offered, b)
@@ -366,6 +365,12 @@ func (s *Session) rank(ctx context.Context, head git.Head, branches []git.Branch
 		ahead, err := s.repo.Ahead(ctx, b.SHA, head.SHA)
 		if err != nil {
 			return nil, err
+		}
+
+		// Nothing back is nothing to read: a tip at HEAD or above it takes the
+		// merge base to HEAD. The base itself stays, to say where the session is.
+		if ahead == 0 && b.Name != s.base.Ref {
+			continue
 		}
 		candidates = append(candidates, Candidate{Branch: b.Name, SHA: b.SHA, Ahead: ahead})
 	}

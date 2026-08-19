@@ -241,6 +241,28 @@ func TestCandidatesKeepABaseMergedIntoTheBranch(t *testing.T) {
 	}
 }
 
+// TestCandidatesDropABranchWithNothingBehindHEAD. A branch stacked on this one
+// takes the merge base to HEAD, which is the review with its commits gone.
+func TestCandidatesDropABranchWithNothingBehindHEAD(t *testing.T) {
+	f := branched(t)
+	f.Git("checkout", "-q", "-b", "ahead")
+	f.commit("stacked on the feature")
+	f.Git("checkout", "-q", "feature")
+
+	s := f.mustOpen("origin/main")
+	got, err := s.Candidates(t.Context())
+	if err != nil {
+		t.Fatalf("listing candidates: %v", err)
+	}
+
+	if named(got.Local, "ahead") {
+		t.Errorf("local = %v, want the branch above HEAD left out", got.Local)
+	}
+	if !named(got.Local, "main") {
+		t.Errorf("local = %v, want main", got.Local)
+	}
+}
+
 // TestCandidatesDropTheBranchEvenWhenItIsTheBase. A session stored on its own
 // branch is an empty review, and offering the branch again is no way out.
 func TestCandidatesDropTheBranchEvenWhenItIsTheBase(t *testing.T) {
