@@ -1,8 +1,8 @@
 package diffpane
 
 import (
-	"github.com/zen-review/zen-review/internal/review"
-	"github.com/zen-review/zen-review/internal/store"
+	"github.com/praxis-labs-io/zen-review/internal/review"
+	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
 // Selecting is whether v has a range open, which is what the status bar reads to

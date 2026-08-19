@@ -4,8 +4,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/zen-review/zen-review/internal/diff"
-	"github.com/zen-review/zen-review/internal/review"
+	"github.com/praxis-labs-io/zen-review/internal/diff"
+	"github.com/praxis-labs-io/zen-review/internal/review"
 )
 
 // The patches below are what a generation-to-generation diff looks like for one

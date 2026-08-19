@@ -14,13 +14,13 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/zen-review/zen-review/internal/review"
-	"github.com/zen-review/zen-review/internal/store"
-	"github.com/zen-review/zen-review/internal/tui/comp"
-	"github.com/zen-review/zen-review/internal/tui/compose"
-	"github.com/zen-review/zen-review/internal/tui/diffpane"
-	"github.com/zen-review/zen-review/internal/tui/theme"
-	"github.com/zen-review/zen-review/internal/tui/tree"
+	"github.com/praxis-labs-io/zen-review/internal/review"
+	"github.com/praxis-labs-io/zen-review/internal/store"
+	"github.com/praxis-labs-io/zen-review/internal/tui/comp"
+	"github.com/praxis-labs-io/zen-review/internal/tui/compose"
+	"github.com/praxis-labs-io/zen-review/internal/tui/diffpane"
+	"github.com/praxis-labs-io/zen-review/internal/tui/theme"
+	"github.com/praxis-labs-io/zen-review/internal/tui/tree"
 )
 
 // focus is the pane the keys are pointed at.

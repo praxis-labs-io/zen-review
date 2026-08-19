@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/zen-review/zen-review/internal/diff"
+	"github.com/praxis-labs-io/zen-review/internal/diff"
 )
 
 func fixture(t *testing.T, name string) []byte {

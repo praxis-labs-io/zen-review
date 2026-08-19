@@ -4,10 +4,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zen-review/zen-review/internal/golden"
-	"github.com/zen-review/zen-review/internal/tui/paint"
-	"github.com/zen-review/zen-review/internal/tui/syntax"
-	"github.com/zen-review/zen-review/internal/tui/theme"
+	"github.com/praxis-labs-io/zen-review/internal/golden"
+	"github.com/praxis-labs-io/zen-review/internal/tui/paint"
+	"github.com/praxis-labs-io/zen-review/internal/tui/syntax"
+	"github.com/praxis-labs-io/zen-review/internal/tui/theme"
 )
 
 // These goldens keep their escapes, where the frame ones are stripped: what a

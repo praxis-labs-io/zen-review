@@ -19,8 +19,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/zen-review/zen-review/internal/git"
-	"github.com/zen-review/zen-review/internal/store"
+	"github.com/praxis-labs-io/zen-review/internal/git"
+	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
 // Options is what the caller knows that the session does not.

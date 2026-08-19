@@ -9,11 +9,11 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/zen-review/zen-review/internal/review"
-	"github.com/zen-review/zen-review/internal/store"
-	"github.com/zen-review/zen-review/internal/testchangeset"
-	"github.com/zen-review/zen-review/internal/tui/app"
-	"github.com/zen-review/zen-review/internal/tui/theme"
+	"github.com/praxis-labs-io/zen-review/internal/review"
+	"github.com/praxis-labs-io/zen-review/internal/store"
+	"github.com/praxis-labs-io/zen-review/internal/testchangeset"
+	"github.com/praxis-labs-io/zen-review/internal/tui/app"
+	"github.com/praxis-labs-io/zen-review/internal/tui/theme"
 )
 
 // screen is a model with the runtime's job done by hand: a command a model

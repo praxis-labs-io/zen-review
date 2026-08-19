@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/zen-review/zen-review/internal/diff"
-	"github.com/zen-review/zen-review/internal/store"
+	"github.com/praxis-labs-io/zen-review/internal/diff"
+	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
 // carry is how the previous generation's review state reaches the one being

@@ -11,9 +11,9 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
-	"github.com/zen-review/zen-review/internal/review"
-	"github.com/zen-review/zen-review/internal/tui/app"
-	"github.com/zen-review/zen-review/internal/tui/theme"
+	"github.com/praxis-labs-io/zen-review/internal/review"
+	"github.com/praxis-labs-io/zen-review/internal/tui/app"
+	"github.com/praxis-labs-io/zen-review/internal/tui/theme"
 )
 
 // runRoot is a bare zen-review: the reader on a terminal, the printed

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zen-review/zen-review/internal/review"
-	"github.com/zen-review/zen-review/internal/store"
+	"github.com/praxis-labs-io/zen-review/internal/review"
+	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
 // numbered is a file whose every line names itself, so a diff of two of them

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zen-review/zen-review/internal/diff"
+	"github.com/praxis-labs-io/zen-review/internal/diff"
 )
 
 // These tests are inside the package because what they check has no public

@@ -8,8 +8,8 @@ import (
 
 	"charm.land/lipgloss/v2"
 
-	"github.com/zen-review/zen-review/internal/tui/syntax"
-	"github.com/zen-review/zen-review/internal/tui/theme"
+	"github.com/praxis-labs-io/zen-review/internal/tui/syntax"
+	"github.com/praxis-labs-io/zen-review/internal/tui/theme"
 )
 
 func colorizer(t *testing.T) syntax.Syntax {

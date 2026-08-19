@@ -3,7 +3,7 @@ package review_test
 import (
 	"testing"
 
-	"github.com/zen-review/zen-review/internal/review"
+	"github.com/praxis-labs-io/zen-review/internal/review"
 )
 
 // summary is the note a session reads back, or the test that failed reading it.

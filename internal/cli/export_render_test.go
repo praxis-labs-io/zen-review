@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zen-review/zen-review/internal/review"
-	"github.com/zen-review/zen-review/internal/store"
+	"github.com/praxis-labs-io/zen-review/internal/review"
+	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
 // The lines under the heading are what a paste has to carry: it lands in front

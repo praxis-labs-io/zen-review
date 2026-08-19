@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zen-review/zen-review/internal/review"
-	"github.com/zen-review/zen-review/internal/testchangeset"
+	"github.com/praxis-labs-io/zen-review/internal/review"
+	"github.com/praxis-labs-io/zen-review/internal/testchangeset"
 )
 
 // read is the badge a heading wears once the hunk under it has been read.

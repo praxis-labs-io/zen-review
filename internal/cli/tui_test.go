@@ -4,8 +4,8 @@ import (
 	"io"
 	"testing"
 
-	"github.com/zen-review/zen-review/internal/review"
-	"github.com/zen-review/zen-review/internal/testrepo"
+	"github.com/praxis-labs-io/zen-review/internal/review"
+	"github.com/praxis-labs-io/zen-review/internal/testrepo"
 )
 
 // TestInteractive. A pipe and a CI runner get the printed changeset, because a

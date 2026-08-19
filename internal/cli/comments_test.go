@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zen-review/zen-review/internal/cli"
+	"github.com/praxis-labs-io/zen-review/internal/cli"
 )
 
 // The listing is in the order a reader reads: by file, then down the file.

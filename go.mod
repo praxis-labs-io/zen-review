@@ -1,4 +1,4 @@
-module github.com/zen-review/zen-review
+module github.com/praxis-labs-io/zen-review
 
 go 1.26.4
 

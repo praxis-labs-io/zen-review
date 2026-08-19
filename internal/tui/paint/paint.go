@@ -9,8 +9,8 @@ import (
 
 	"charm.land/lipgloss/v2"
 
-	"github.com/zen-review/zen-review/internal/tui/syntax"
-	"github.com/zen-review/zen-review/internal/tui/theme"
+	"github.com/praxis-labs-io/zen-review/internal/tui/syntax"
+	"github.com/praxis-labs-io/zen-review/internal/tui/theme"
 )
 
 // defaultTabWidth is what a tab expands to when a Painter names no width. A raw

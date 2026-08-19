@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zen-review/zen-review/internal/diff"
-	"github.com/zen-review/zen-review/internal/golden"
+	"github.com/praxis-labs-io/zen-review/internal/diff"
+	"github.com/praxis-labs-io/zen-review/internal/golden"
 )
 
 // Every input under testdata is real git output, captured by

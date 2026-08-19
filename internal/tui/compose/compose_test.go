@@ -6,8 +6,8 @@ import (
 
 	"charm.land/lipgloss/v2"
 
-	"github.com/zen-review/zen-review/internal/tui/compose"
-	"github.com/zen-review/zen-review/internal/tui/theme"
+	"github.com/praxis-labs-io/zen-review/internal/tui/compose"
+	"github.com/praxis-labs-io/zen-review/internal/tui/theme"
 )
 
 // TestTheBoxNeverOutgrowsTheFrame. Over clips what does not fit, and a clipped

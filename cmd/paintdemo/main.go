@@ -9,9 +9,9 @@ import (
 
 	"charm.land/lipgloss/v2"
 
-	"github.com/zen-review/zen-review/internal/tui/paint"
-	"github.com/zen-review/zen-review/internal/tui/syntax"
-	"github.com/zen-review/zen-review/internal/tui/theme"
+	"github.com/praxis-labs-io/zen-review/internal/tui/paint"
+	"github.com/praxis-labs-io/zen-review/internal/tui/syntax"
+	"github.com/praxis-labs-io/zen-review/internal/tui/theme"
 )
 
 // width is a pane narrow enough that one row overflows it. A truncating change

@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zen-review/zen-review/internal/store"
-	"github.com/zen-review/zen-review/internal/testchangeset"
+	"github.com/praxis-labs-io/zen-review/internal/store"
+	"github.com/praxis-labs-io/zen-review/internal/testchangeset"
 )
 
 // answered is the same comment settled, which is what the engine hands back

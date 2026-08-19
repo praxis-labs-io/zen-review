@@ -4,7 +4,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/zen-review/zen-review/internal/review"
+	"github.com/praxis-labs-io/zen-review/internal/review"
 )
 
 // node is one row of the tree before it is flattened: a directory holding
