@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/zen-review/zen-review/internal/store"
+	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
 // NoCommentError means this session holds no comment under that id.

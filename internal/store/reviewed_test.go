@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zen-review/zen-review/internal/diff"
-	"github.com/zen-review/zen-review/internal/store"
+	"github.com/praxis-labs-io/zen-review/internal/diff"
+	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
 // generation is a session and one generation to hang ranges off.

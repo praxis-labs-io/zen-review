@@ -3,7 +3,7 @@ package app
 import (
 	"charm.land/bubbles/v2/key"
 
-	"github.com/zen-review/zen-review/internal/tui/comp"
+	"github.com/praxis-labs-io/zen-review/internal/tui/comp"
 )
 
 // KeyMap is what the root answers to, whichever pane has focus.

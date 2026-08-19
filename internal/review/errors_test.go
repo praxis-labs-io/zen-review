@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zen-review/zen-review/internal/review"
+	"github.com/praxis-labs-io/zen-review/internal/review"
 )
 
 // Every one of these reaches a terminal through fang, which renders an error

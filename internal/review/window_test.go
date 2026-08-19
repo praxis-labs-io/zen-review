@@ -5,9 +5,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/zen-review/zen-review/internal/git"
-	"github.com/zen-review/zen-review/internal/review"
-	"github.com/zen-review/zen-review/internal/store"
+	"github.com/praxis-labs-io/zen-review/internal/git"
+	"github.com/praxis-labs-io/zen-review/internal/review"
+	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
 // A write committed while a refresh is mid-flight used to be accepted and then

@@ -9,8 +9,8 @@ import (
 
 	"github.com/charmbracelet/fang"
 
-	"github.com/zen-review/zen-review/internal/cli"
-	"github.com/zen-review/zen-review/internal/version"
+	"github.com/praxis-labs-io/zen-review/internal/cli"
+	"github.com/praxis-labs-io/zen-review/internal/version"
 )
 
 func main() {

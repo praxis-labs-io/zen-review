@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zen-review/zen-review/internal/testchangeset"
+	"github.com/praxis-labs-io/zen-review/internal/testchangeset"
 )
 
 // TestRIgnoresASelection. v scopes a comment, not a mark: the unit of review is

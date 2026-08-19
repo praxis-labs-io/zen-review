@@ -4,8 +4,8 @@ import (
 	"context"
 	"slices"
 
-	"github.com/zen-review/zen-review/internal/diff"
-	"github.com/zen-review/zen-review/internal/store"
+	"github.com/praxis-labs-io/zen-review/internal/diff"
+	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
 // State is how much of a hunk or a file has been read.

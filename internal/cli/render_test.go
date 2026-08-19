@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zen-review/zen-review/internal/diff"
-	"github.com/zen-review/zen-review/internal/review"
+	"github.com/praxis-labs-io/zen-review/internal/diff"
+	"github.com/praxis-labs-io/zen-review/internal/review"
 )
 
 // These run inside the package and over literals, with no repository behind

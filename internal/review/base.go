@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/zen-review/zen-review/internal/git"
+	"github.com/praxis-labs-io/zen-review/internal/git"
 )
 
 // headRef is the bottom of the ladder: nothing above HEAD to measure from, so

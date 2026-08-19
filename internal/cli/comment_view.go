@@ -10,8 +10,8 @@ import (
 
 	"github.com/charmbracelet/x/term"
 
-	"github.com/zen-review/zen-review/internal/store"
-	"github.com/zen-review/zen-review/internal/tui/comp"
+	"github.com/praxis-labs-io/zen-review/internal/store"
+	"github.com/praxis-labs-io/zen-review/internal/tui/comp"
 )
 
 // commentsView is the session with comments on it, which is what all four

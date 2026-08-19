@@ -8,12 +8,12 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/zen-review/zen-review/internal/review"
-	"github.com/zen-review/zen-review/internal/store"
-	"github.com/zen-review/zen-review/internal/testchangeset"
-	"github.com/zen-review/zen-review/internal/tui/diffpane"
-	"github.com/zen-review/zen-review/internal/tui/syntax"
-	"github.com/zen-review/zen-review/internal/tui/theme"
+	"github.com/praxis-labs-io/zen-review/internal/review"
+	"github.com/praxis-labs-io/zen-review/internal/store"
+	"github.com/praxis-labs-io/zen-review/internal/testchangeset"
+	"github.com/praxis-labs-io/zen-review/internal/tui/diffpane"
+	"github.com/praxis-labs-io/zen-review/internal/tui/syntax"
+	"github.com/praxis-labs-io/zen-review/internal/tui/theme"
 )
 
 // mark is the caret the pane puts on the heading the ring is on, written as an

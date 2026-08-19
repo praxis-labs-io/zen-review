@@ -8,9 +8,9 @@ import (
 	"slices"
 	"time"
 
-	"github.com/zen-review/zen-review/internal/diff"
-	"github.com/zen-review/zen-review/internal/git"
-	"github.com/zen-review/zen-review/internal/store"
+	"github.com/praxis-labs-io/zen-review/internal/diff"
+	"github.com/praxis-labs-io/zen-review/internal/git"
+	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
 // refPrefix is where a session's generation chain lives. Under refs/ rather

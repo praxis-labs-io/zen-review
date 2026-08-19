@@ -36,7 +36,7 @@ folding and scroll. Keys are a convention written down in both `CLAUDE.md`
 files, not shared code, so the two tools feel the same without either being
 hostage to the other's release cycle.
 
-**zen-review v0.1** (`github.com/zen-review/zen-review`) is this spec.
+**zen-review v0.1** (`github.com/praxis-labs-io/zen-review`) is this spec.
 
 **The ZenTerm rip-out** deletes the native Swift viewer, roughly 5.3k lines,
 and replaces it with a keybinding that opens zen-review in a pane. Its own

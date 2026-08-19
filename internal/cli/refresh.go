@@ -6,8 +6,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/zen-review/zen-review/internal/git"
-	"github.com/zen-review/zen-review/internal/review"
+	"github.com/praxis-labs-io/zen-review/internal/git"
+	"github.com/praxis-labs-io/zen-review/internal/review"
 )
 
 func newRefresh(opts *options) *cobra.Command {

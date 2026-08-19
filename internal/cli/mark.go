@@ -9,8 +9,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/zen-review/zen-review/internal/review"
-	"github.com/zen-review/zen-review/internal/store"
+	"github.com/praxis-labs-io/zen-review/internal/review"
+	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
 // aim is which of the three ways of naming a target was used. It is settled in

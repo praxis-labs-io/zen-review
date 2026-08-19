@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zen-review/zen-review/internal/diff"
-	"github.com/zen-review/zen-review/internal/review"
+	"github.com/praxis-labs-io/zen-review/internal/diff"
+	"github.com/praxis-labs-io/zen-review/internal/review"
 )
 
 // TestDeriveOrdersTheFilesTheWayATreeReads over the shapes the rule has to

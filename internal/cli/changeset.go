@@ -6,9 +6,9 @@ import (
 	"io"
 	"strings"
 
-	"github.com/zen-review/zen-review/internal/diff"
-	"github.com/zen-review/zen-review/internal/review"
-	"github.com/zen-review/zen-review/internal/store"
+	"github.com/praxis-labs-io/zen-review/internal/diff"
+	"github.com/praxis-labs-io/zen-review/internal/review"
+	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
 // render writes the changeset with the review on it: a row per file, and under

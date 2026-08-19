@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zen-review/zen-review/internal/diff"
-	"github.com/zen-review/zen-review/internal/store"
+	"github.com/praxis-labs-io/zen-review/internal/diff"
+	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
 // holding is one generation holding a.go, which is what a comment needs

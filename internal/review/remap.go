@@ -5,7 +5,7 @@ import (
 	"math"
 	"slices"
 
-	"github.com/zen-review/zen-review/internal/diff"
+	"github.com/praxis-labs-io/zen-review/internal/diff"
 )
 
 // Range is a closed interval of lines on one side of a file, and the unit both

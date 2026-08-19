@@ -1,8 +1,8 @@
 package app
 
 import (
-	"github.com/zen-review/zen-review/internal/review"
-	"github.com/zen-review/zen-review/internal/store"
+	"github.com/praxis-labs-io/zen-review/internal/review"
+	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
 // stop is one thing the ring lands on: a hunk, or a whole file that has none.

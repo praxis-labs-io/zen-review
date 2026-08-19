@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zen-review/zen-review/internal/version"
+	"github.com/praxis-labs-io/zen-review/internal/version"
 )
 
 // Outside a repository is the one startup that still fails: there is nothing to

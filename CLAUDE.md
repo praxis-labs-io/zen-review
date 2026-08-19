@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-Drew's local code review engine, at `zen-review/zen-review` (`origin`). A review
+Drew's local code review engine, at `praxis-labs-io/zen-review` (`origin`). A review
 engine with a TUI attached, not a diff viewer with review features bolted on.
 
 It answers one question a diff viewer cannot: which of these machine-generated
@@ -31,6 +31,8 @@ The installed binary is built from here to `~/.local/bin/zen-review`; **rebuild 
 ```sh
 make install
 ```
+
+The repo moved to the `praxis-labs-io` org on 2026-08-18, so the module path is `github.com/praxis-labs-io/zen-review`. The repo stays internal, and there is no release and no Homebrew tap; `make install` is the only install. The emptied `zen-review` org is held to keep the name.
 
 Anything published under Drew's name (PR bodies, issues, README) must be shown to him word-for-word before pushing. His voice: terse, considerate, stoic, no strong adverbs, no em-dashes.
 

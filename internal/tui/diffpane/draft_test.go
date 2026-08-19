@@ -6,9 +6,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/zen-review/zen-review/internal/store"
-	"github.com/zen-review/zen-review/internal/testchangeset"
-	"github.com/zen-review/zen-review/internal/tui/diffpane"
+	"github.com/praxis-labs-io/zen-review/internal/store"
+	"github.com/praxis-labs-io/zen-review/internal/testchangeset"
+	"github.com/praxis-labs-io/zen-review/internal/tui/diffpane"
 )
 
 // composing is a pane with the box open on the fixture's mixed hunk, over the

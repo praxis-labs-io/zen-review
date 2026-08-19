@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/zen-review/zen-review/internal/store"
+	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
 // writes is every write that names a generation, so a case below runs each of

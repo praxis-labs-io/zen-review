@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/zen-review/zen-review/internal/review"
+	"github.com/praxis-labs-io/zen-review/internal/review"
 )
 
 func newFiles(opts *options) *cobra.Command {

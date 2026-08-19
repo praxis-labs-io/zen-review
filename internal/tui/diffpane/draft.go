@@ -7,8 +7,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"github.com/zen-review/zen-review/internal/store"
-	"github.com/zen-review/zen-review/internal/tui/comp"
+	"github.com/praxis-labs-io/zen-review/internal/store"
+	"github.com/praxis-labs-io/zen-review/internal/tui/comp"
 )
 
 // draftID names the card being typed into. A stored comment's id is twelve hex

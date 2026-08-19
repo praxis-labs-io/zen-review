@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zen-review/zen-review/internal/diff"
-	"github.com/zen-review/zen-review/internal/store"
+	"github.com/praxis-labs-io/zen-review/internal/diff"
+	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
 // epoch is the one time every fixture is written at. The package holds no clock,

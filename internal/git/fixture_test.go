@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/zen-review/zen-review/internal/testrepo"
+	"github.com/praxis-labs-io/zen-review/internal/testrepo"
 )
 
 func TestMain(m *testing.M) { os.Exit(testrepo.Main(m)) }

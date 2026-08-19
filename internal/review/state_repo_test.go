@@ -3,8 +3,8 @@ package review_test
 import (
 	"testing"
 
-	"github.com/zen-review/zen-review/internal/review"
-	"github.com/zen-review/zen-review/internal/store"
+	"github.com/praxis-labs-io/zen-review/internal/review"
+	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
 // read marks a hunk by the name the changeset lists it under, which is what a

@@ -12,8 +12,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/zen-review/zen-review/internal/review"
-	"github.com/zen-review/zen-review/internal/version"
+	"github.com/praxis-labs-io/zen-review/internal/review"
+	"github.com/praxis-labs-io/zen-review/internal/version"
 )
 
 // options are the flags every command shares. They are persistent on the root,

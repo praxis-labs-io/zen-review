@@ -10,9 +10,9 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/zen-review/zen-review/internal/testchangeset"
-	"github.com/zen-review/zen-review/internal/tui/theme"
-	"github.com/zen-review/zen-review/internal/tui/tree"
+	"github.com/praxis-labs-io/zen-review/internal/testchangeset"
+	"github.com/praxis-labs-io/zen-review/internal/tui/theme"
+	"github.com/praxis-labs-io/zen-review/internal/tui/tree"
 )
 
 func pane(t *testing.T, width, height int) tree.Model {

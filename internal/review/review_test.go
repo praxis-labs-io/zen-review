@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zen-review/zen-review/internal/diff"
-	"github.com/zen-review/zen-review/internal/review"
-	"github.com/zen-review/zen-review/internal/store"
-	"github.com/zen-review/zen-review/internal/testrepo"
+	"github.com/praxis-labs-io/zen-review/internal/diff"
+	"github.com/praxis-labs-io/zen-review/internal/review"
+	"github.com/praxis-labs-io/zen-review/internal/store"
+	"github.com/praxis-labs-io/zen-review/internal/testrepo"
 )
 
 func TestMain(m *testing.M) { os.Exit(testrepo.Main(m)) }
