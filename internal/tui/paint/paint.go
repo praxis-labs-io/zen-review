@@ -172,21 +172,14 @@ func slot(glyph string, base, on lipgloss.Style) string {
 	return on.Render(g) + base.Render(strings.Repeat(" ", markerSlot-lipgloss.Width(g)))
 }
 
-// ExpandTabs puts width spaces in place of every tab, 0 or less taking the
-// default. A raw tab is a variable number of cells and breaks the columns after.
-func ExpandTabs(text string, width int) string {
-	if width <= 0 {
-		width = defaultTabWidth
-	}
-	return strings.ReplaceAll(text, "\t", strings.Repeat(" ", width))
-}
-
 // code renders one row's tokens over the row's own style. Each takes only a
 // foreground, so whatever is behind the row survives all the way across.
 func (p Painter) code(tokens []syntax.Token, base lipgloss.Style) string {
+	tab := strings.Repeat(" ", p.tabWidth())
+
 	var b strings.Builder
 	for _, t := range tokens {
-		text := ExpandTabs(t.Text, p.tabWidth())
+		text := strings.ReplaceAll(t.Text, "\t", tab)
 		if t.Color == nil {
 			b.WriteString(base.Render(text))
 			continue

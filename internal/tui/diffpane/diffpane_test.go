@@ -1601,3 +1601,17 @@ func TestABlankLineInABlockStillFills(t *testing.T) {
 	}
 	t.Fatalf("the block did not draw:\n%s", joined(t, m))
 }
+
+// The footer's count and the rows drawn come off the same slice. Chroma drops a
+// trailing blank line, so a block ending in one used to offer more and show all.
+func TestABlockEndingInABlankStillCountsIt(t *testing.T) {
+	m := replacing(t, 76, 60, "one", "two", "three", "")
+
+	got := joined(t, m)
+	if !strings.Contains(got, "… 1 more") {
+		t.Errorf("a four line block drew no count:\n%s", got)
+	}
+	if strings.Contains(got, "> less") {
+		t.Errorf("the footer says the block is open when a row is held back:\n%s", got)
+	}
+}

@@ -3,6 +3,7 @@ package review_test
 import (
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/praxis-labs-io/zen-review/internal/review"
 	"github.com/praxis-labs-io/zen-review/internal/store"
@@ -283,4 +284,44 @@ func TestALineRewrittenUnderAnInsertCarriesItsBlock(t *testing.T) {
 
 	got, held := f.replaced(s, g, c.ID)
 	assertBlock(t, got, held, []string{"line 10"})
+}
+
+// A blob the repository has lost is one comment without its evidence, not a
+// failed call. The diffs used to run first, so the bad object took the listing.
+func TestAnAnchorBlobThatHasGoneLosesOnlyItsOwnBlock(t *testing.T) {
+	f, s, _, c := commented(t)
+	f.address(s, c.ID, "turned it round")
+
+	f.Write("code.txt", numbered(1, 9)+"line 10 rewritten\n"+numbered(11, 20))
+	g := f.refresh(s)
+
+	// A comment anchored to an object nothing can resolve, which is what a
+	// generation somebody pruned leaves behind.
+	gone := store.Comment{
+		ID:                  "aaaaaaaaaaaa",
+		SessionID:           s.ID(),
+		GenerationID:        g.ID,
+		CreatedGenerationID: g.ID,
+		Path:                "code.txt",
+		Side:                store.SideHead,
+		LineRange:           store.LineRange{Start: 1, End: 1},
+		CreatedRange:        store.LineRange{Start: 1, End: 1},
+		Scope:               store.ScopeLine,
+		Body:                "written against bytes that have gone",
+		State:               store.CommentAddressed,
+		Response:            "done",
+		AnchorBlob:          "0123456789012345678901234567890123456789",
+		CreatedAt:           time.Now().UTC(),
+		UpdatedAt:           time.Now().UTC(),
+	}
+	if err := f.db().AddComment(f.t.Context(), gone); err != nil {
+		t.Fatalf("writing the comment with no bytes behind it: %v", err)
+	}
+
+	if got, held := f.replaced(s, g, gone.ID); held {
+		t.Errorf("block = %v, want none where the bytes cannot be read", got)
+	}
+	if _, held := f.replaced(s, g, c.ID); !held {
+		t.Error("the other comment lost its block to the one that could not be read")
+	}
 }

@@ -38,18 +38,23 @@ func (s *Session) Replaced(ctx context.Context, g Generation, comments []store.C
 		return nil, fmt.Errorf("reading what the responses replaced: %w", err)
 	}
 
-	moved, err := s.moves(ctx, want, live)
+	// A comment whose anchor blob has gone is dropped before any diff runs. The
+	// pair would name an object git cannot read, and fail a call Blobs tolerated.
+	held := make([]store.Comment, 0, len(want))
+	for _, c := range want {
+		if _, ok := blobs[c.AnchorBlob]; ok {
+			held = append(held, c)
+		}
+	}
+
+	moved, err := s.moves(ctx, held, live)
 	if err != nil {
 		return nil, err
 	}
 
-	out := make(map[string][]string, len(want))
-	for _, c := range want {
-		was, held := blobs[c.AnchorBlob]
-		if !held {
-			continue
-		}
-		old := slice(text(was), c.CreatedRange)
+	out := make(map[string][]string, len(held))
+	for _, c := range held {
+		old := slice(text(blobs[c.AnchorBlob]), c.CreatedRange)
 		if len(old) == 0 {
 			continue
 		}

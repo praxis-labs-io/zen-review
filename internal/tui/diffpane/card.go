@@ -153,7 +153,12 @@ func (m *Model) replacedTokens(c store.Comment) [][]syntax.Token {
 	for i, line := range block {
 		safe[i] = comp.Code(line)
 	}
-	return m.syntax.Lines(c.Path, strings.Join(safe, "\n"))
+
+	// Sized to the block rather than to what came back. Chroma drops a trailing
+	// blank line, and the count the footer offers is taken off this slice.
+	out := make([][]syntax.Token, len(block))
+	copy(out, m.syntax.Lines(c.Path, strings.Join(safe, "\n")))
+	return out
 }
 
 // drawCard is a comment as its rows, unlit and lit. A pane with no width yet
