@@ -44,8 +44,8 @@ type BaseCandidates struct {
 	Remote []Candidate
 }
 
-// Candidates is every local branch, nearest first, plus the active base where
-// that is a remote one. Every other revision is reached by naming it.
+// Candidates is every local branch, nearest first, plus the remote rows worth
+// keeping. Every other revision is reached by naming it.
 func (s *Session) Candidates(ctx context.Context) (BaseCandidates, error) {
 	head, err := s.repo.Head(ctx)
 	if err != nil {
@@ -74,21 +74,36 @@ func (s *Session) Candidates(ctx context.Context) (BaseCandidates, error) {
 		return BaseCandidates{}, err
 	}
 
-	active, err := s.activeRemote(ctx)
+	offeredRemotes, err := s.remotes(ctx)
 	if err != nil {
 		return BaseCandidates{}, err
 	}
-	remotes, err := s.rank(ctx, head, active)
+	remotes, err := s.rank(ctx, head, offeredRemotes)
 	if err != nil {
 		return BaseCandidates{}, err
 	}
 	return BaseCandidates{Local: locals, Remote: remotes}, nil
 }
 
-// activeRemote is the remote-tracking branch the session measures from, and no
-// other: every remote shares a merge base with HEAD, so all of them is no list.
-func (s *Session) activeRemote(ctx context.Context) ([]git.Branch, error) {
-	if s.base.Ref == "" || s.base.Ref == headRef {
+// remotes are the two remote-tracking branches worth a row: the base the session
+// measures from, and the default branch detection prefers. Every remote shares a
+// merge base with HEAD, so all of them is no list.
+func (s *Session) remotes(ctx context.Context) ([]git.Branch, error) {
+	wanted := make([]string, 0, 2)
+	if s.base.Ref != "" && s.base.Ref != headRef {
+		wanted = append(wanted, s.base.Ref)
+	}
+
+	// A local main goes stale within a day of nobody checking it out, which is
+	// why detection prefers this one. Hiding it invites the branch beside it.
+	def, err := s.repo.DefaultRemoteBranch(ctx)
+	if err != nil && !errors.Is(err, git.ErrNoDefaultBranch) {
+		return nil, err
+	}
+	if def != "" && !slices.Contains(wanted, def) {
+		wanted = append(wanted, def)
+	}
+	if len(wanted) == 0 {
 		return nil, nil
 	}
 
@@ -96,12 +111,16 @@ func (s *Session) activeRemote(ctx context.Context) ([]git.Branch, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// A dangling origin/HEAD names a branch that is gone, and one gone is one
+	// nothing here lists.
+	var offered []git.Branch
 	for _, b := range branches {
-		if b.Name == s.base.Ref {
-			return []git.Branch{b}, nil
+		if slices.Contains(wanted, b.Name) {
+			offered = append(offered, b)
 		}
 	}
-	return nil, nil
+	return offered, nil
 }
 
 // resolveBase settles what the changeset is measured from: the flag, then what

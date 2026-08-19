@@ -210,12 +210,19 @@ would cost the session its base and every range measured from it. So the stored
 ref stands, the tag stands with it on every run until the ref resolves again,
 and `--base` and `b` are how it is corrected.
 
-`b` lists every local branch, nearest first, plus the active base where that is
-a remote one. Locals are what a stack is built from. Every remote shares a merge
-base with HEAD, so keeping them is 295 rows on a real checkout, and the branch
-HEAD is on is left out because measuring it against itself is an empty review. A
-first-parent walk was the old rule and it hid a base that had been merged in,
-which is what bringing a branch up to date does.
+`b` lists every local branch, nearest first, plus two remote rows: the base the
+session measures from, and whatever `origin/HEAD` names. Locals are what a stack
+is built from, and the remote default earns its row for the reason detection
+prefers it, a local `main` nobody checks out being a day stale. Every other
+remote shares a merge base with HEAD, so keeping them is 295 rows on a real
+checkout. A first-parent walk was the old rule and it hid a base that had been
+merged in, which is what bringing a branch up to date does.
+
+Nothing with nothing behind HEAD is offered. The branch HEAD is on measures
+against itself, and a branch stacked on top of it takes the merge base to HEAD,
+so both give a review with every commit gone. The count is what says so, and the
+active base is the one row kept at zero, to say where the session measures
+from.
 
 What the list leaves out, the box takes by name. Enter on a query nothing
 matched hands the raw string to `SetBase`, the same call `--base` makes, so a

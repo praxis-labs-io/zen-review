@@ -241,6 +241,27 @@ func TestCandidatesKeepABaseMergedIntoTheBranch(t *testing.T) {
 	}
 }
 
+// TestCandidatesOfferTheRemoteDefaultBesideTheBase. Detection prefers it because
+// a local main goes stale, so a picker hiding it offers the stale one instead.
+func TestCandidatesOfferTheRemoteDefaultBesideTheBase(t *testing.T) {
+	f := branched(t)
+	f.Git("checkout", "-q", "-b", "stacked")
+	f.commit("on top of the feature")
+
+	s := f.mustOpen("feature")
+	got, err := s.Candidates(t.Context())
+	if err != nil {
+		t.Fatalf("listing candidates: %v", err)
+	}
+
+	if !named(got.Remote, "origin/main") {
+		t.Errorf("remote = %v, want origin/main beside a base that is not one", got.Remote)
+	}
+	if !named(got.Local, "feature") {
+		t.Errorf("local = %v, want the base it does measure from", got.Local)
+	}
+}
+
 // TestCandidatesDropABranchWithNothingBehindHEAD. A branch stacked on this one
 // takes the merge base to HEAD, which is the review with its commits gone.
 func TestCandidatesDropABranchWithNothingBehindHEAD(t *testing.T) {
