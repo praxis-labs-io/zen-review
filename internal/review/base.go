@@ -37,16 +37,15 @@ type Candidate struct {
 	Ahead int
 }
 
-// BaseCandidates are the local and remote-tracking branches HEAD sits on top
-// of. The two groups stay separate because the same name and commit can exist
-// in both and mean different things to the reader.
+// BaseCandidates are the branches the picker offers. The groups stay apart
+// because one name can exist in both and mean different things.
 type BaseCandidates struct {
 	Local  []Candidate
 	Remote []Candidate
 }
 
-// Candidates lists branches on HEAD's first-parent ancestry, nearest first.
-// At HEAD, only the current branch and active base remain as escape paths.
+// Candidates is every local branch, nearest first, plus the active base where
+// that is a remote one. Every other revision is reached by naming it.
 func (s *Session) Candidates(ctx context.Context) (BaseCandidates, error) {
 	head, err := s.repo.Head(ctx)
 	if err != nil {
@@ -56,33 +55,54 @@ func (s *Session) Candidates(ctx context.Context) (BaseCandidates, error) {
 		return BaseCandidates{}, nil
 	}
 
-	chain, err := s.repo.FirstParents(ctx, "", head.SHA)
-	if err != nil {
-		return BaseCandidates{}, err
-	}
-	mainline := make(map[string]bool, len(chain))
-	for _, sha := range chain {
-		mainline[sha] = true
-	}
-
-	local, err := s.repo.LocalBranches(ctx)
-	if err != nil {
-		return BaseCandidates{}, err
-	}
-	remote, err := s.repo.RemoteBranches(ctx)
+	branches, err := s.repo.LocalBranches(ctx)
 	if err != nil {
 		return BaseCandidates{}, err
 	}
 
-	locals, err := s.candidates(ctx, head, mainline, local, false)
+	offered := make([]git.Branch, 0, len(branches))
+	for _, b := range branches {
+		// A branch measured against itself has no answer worth rendering, and
+		// neither has another tip standing exactly where HEAD does.
+		if b.Name == head.Branch || (b.SHA == head.SHA && b.Name != s.base.Ref) {
+			continue
+		}
+		offered = append(offered, b)
+	}
+
+	locals, err := s.rank(ctx, head, offered)
 	if err != nil {
 		return BaseCandidates{}, err
 	}
-	remotes, err := s.candidates(ctx, head, mainline, remote, false)
+
+	active, err := s.activeRemote(ctx)
+	if err != nil {
+		return BaseCandidates{}, err
+	}
+	remotes, err := s.rank(ctx, head, active)
 	if err != nil {
 		return BaseCandidates{}, err
 	}
 	return BaseCandidates{Local: locals, Remote: remotes}, nil
+}
+
+// activeRemote is the remote-tracking branch the session measures from, and no
+// other: every remote shares a merge base with HEAD, so all of them is no list.
+func (s *Session) activeRemote(ctx context.Context) ([]git.Branch, error) {
+	if s.base.Ref == "" || s.base.Ref == headRef {
+		return nil, nil
+	}
+
+	branches, err := s.repo.RemoteBranches(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, b := range branches {
+		if b.Name == s.base.Ref {
+			return []git.Branch{b}, nil
+		}
+	}
+	return nil, nil
 }
 
 // resolveBase settles what the changeset is measured from: the flag, then what
@@ -325,25 +345,24 @@ func (s *Session) stack(ctx context.Context, head git.Head, detected string) ([]
 		return nil, err
 	}
 
-	return s.candidates(ctx, head, mainline, branches, true)
-}
-
-func (s *Session) candidates(
-	ctx context.Context,
-	head git.Head,
-	mainline map[string]bool,
-	branches []git.Branch,
-	excludeCurrent bool,
-) ([]Candidate, error) {
-	var candidates []Candidate
+	offered := make([]git.Branch, 0, len(branches))
 	for _, b := range branches {
-		current := b.Name == head.Branch
+		// The active base is kept wherever its tip is: it is where the session
+		// measures from already, so dropping it would take the way back.
 		active := b.Name == s.base.Ref
-		atHead := b.SHA == head.SHA && b.Name != s.base.Ref && (excludeCurrent || !current)
-		if (excludeCurrent && current) || atHead || (!active && !mainline[b.SHA]) {
+		if b.Name == head.Branch || (!active && (b.SHA == head.SHA || !mainline[b.SHA])) {
 			continue
 		}
+		offered = append(offered, b)
+	}
+	return s.rank(ctx, head, offered)
+}
 
+// rank costs each branch its distance from HEAD and sorts nearest first: of two
+// branches HEAD sits on, the one fewer commits back is the one it came from.
+func (s *Session) rank(ctx context.Context, head git.Head, branches []git.Branch) ([]Candidate, error) {
+	var candidates []Candidate
+	for _, b := range branches {
 		ahead, err := s.repo.Ahead(ctx, b.SHA, head.SHA)
 		if err != nil {
 			return nil, err
@@ -351,9 +370,8 @@ func (s *Session) candidates(
 		candidates = append(candidates, Candidate{Branch: b.Name, SHA: b.SHA, Ahead: ahead})
 	}
 
-	// Nearest first: of two branches HEAD sits on, the one fewer commits back is
-	// the one it was branched from. Ties break on name, so the order a reader
-	// sees does not depend on how git happened to list the refs.
+	// Ties break on name, so the order a reader sees does not depend on how git
+	// happened to list the refs.
 	slices.SortFunc(candidates, func(a, b Candidate) int {
 		if a.Ahead != b.Ahead {
 			return a.Ahead - b.Ahead

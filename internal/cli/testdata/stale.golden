@@ -56,13 +56,7 @@
     "deletions": 2
   },
   "candidates": {
-    "local": [
-      {
-        "ref": "feature",
-        "sha": "<sha>",
-        "ahead": 0
-      }
-    ],
+    "local": [],
     "remote": [
       {
         "ref": "origin/main",

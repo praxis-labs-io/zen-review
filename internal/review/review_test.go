@@ -169,7 +169,9 @@ func TestAStackedBranchTakesTheNearestBranchUnderIt(t *testing.T) {
 	}
 }
 
-func TestCandidatesGroupEveryFirstParentBranchNearestFirst(t *testing.T) {
+// TestCandidatesAreEveryLocalBranchAndTheActiveBase. Every remote shares a merge
+// base with HEAD, so keeping them is 295 rows on a real checkout.
+func TestCandidatesAreEveryLocalBranchAndTheActiveBase(t *testing.T) {
 	f := newFixture(t)
 	main := f.commit("main")
 	f.TrackOrigin("main")
@@ -180,28 +182,89 @@ func TestCandidatesGroupEveryFirstParentBranchNearestFirst(t *testing.T) {
 	f.commit("child")
 	f.Git("branch", "merged", main)
 
-	s := f.mustOpen("")
+	s := f.mustOpen("origin/main")
 	got, err := s.Candidates(t.Context())
 	if err != nil {
 		t.Fatalf("listing candidates: %v", err)
 	}
 
+	// child is the branch HEAD is on, and measuring it against itself is an
+	// empty review. upstream/parent is a remote nobody is measuring from.
 	wantLocal := []review.Candidate{
-		{Branch: "child", SHA: f.Git("rev-parse", "child"), Ahead: 0},
 		{Branch: "parent", SHA: parent, Ahead: 1},
 		{Branch: "main", SHA: main, Ahead: 2},
 		{Branch: "merged", SHA: main, Ahead: 2},
 	}
-	wantRemote := []review.Candidate{
-		{Branch: "upstream/parent", SHA: parent, Ahead: 1},
-		{Branch: "origin/main", SHA: main, Ahead: 2},
-	}
+	wantRemote := []review.Candidate{{Branch: "origin/main", SHA: main, Ahead: 2}}
 	if !slices.Equal(got.Local, wantLocal) {
 		t.Errorf("local = %v, want %v", got.Local, wantLocal)
 	}
 	if !slices.Equal(got.Remote, wantRemote) {
 		t.Errorf("remote = %v, want %v", got.Remote, wantRemote)
 	}
+}
+
+// TestCandidatesKeepABaseMergedIntoTheBranch. A merge puts what it brought in on
+// a second parent, where the first-parent walk that used to run cannot see it.
+func TestCandidatesKeepABaseMergedIntoTheBranch(t *testing.T) {
+	f := newFixture(t)
+	f.Write("a.txt", "one\n")
+	f.Commit("first")
+	f.TrackOrigin("main")
+
+	f.Git("checkout", "-q", "-b", "feature")
+	f.Write("feature.txt", "the branch's own work\n")
+	f.Commit("on the feature branch")
+
+	f.Git("checkout", "-q", "main")
+	f.Write("upstream.txt", "landed while we were working\n")
+	upstream := f.Commit("upstream")
+	f.TrackOrigin("main")
+	f.Git("checkout", "-q", "feature")
+	f.Git("merge", "-q", "--no-ff", "-m", "merge origin/main", "main")
+
+	if chain := f.Git("rev-list", "--first-parent", "HEAD"); strings.Contains(chain, upstream) {
+		t.Fatal("origin/main is on the first-parent chain, so this proves nothing")
+	}
+
+	s := f.mustOpen("origin/main")
+	got, err := s.Candidates(t.Context())
+	if err != nil {
+		t.Fatalf("listing candidates: %v", err)
+	}
+
+	if !named(got.Remote, "origin/main") {
+		t.Errorf("remote = %v, want the base it was just brought up to date with", got.Remote)
+	}
+	if !named(got.Local, "main") {
+		t.Errorf("local = %v, want main", got.Local)
+	}
+}
+
+// TestCandidatesDropTheBranchEvenWhenItIsTheBase. A session stored on its own
+// branch is an empty review, and offering the branch again is no way out.
+func TestCandidatesDropTheBranchEvenWhenItIsTheBase(t *testing.T) {
+	f := branched(t)
+	s := f.mustOpen("feature")
+	if s.Base().Ref != "feature" {
+		t.Fatalf("base = %+v, want the branch as its own base", s.Base())
+	}
+
+	got, err := s.Candidates(t.Context())
+	if err != nil {
+		t.Fatalf("listing candidates: %v", err)
+	}
+
+	if named(got.Local, "feature") {
+		t.Errorf("local = %v, want the branch itself left out", got.Local)
+	}
+	if !named(got.Local, "main") {
+		t.Errorf("local = %v, want main to escape to", got.Local)
+	}
+}
+
+func named(candidates []review.Candidate, branch string) bool {
+	return slices.ContainsFunc(candidates, func(c review.Candidate) bool { return c.Branch == branch })
 }
 
 func TestCandidatesKeepAnActiveBaseWhoseTipMovedAway(t *testing.T) {
@@ -217,9 +280,7 @@ func TestCandidatesKeepAnActiveBaseWhoseTipMovedAway(t *testing.T) {
 	if err != nil {
 		t.Fatalf("listing candidates: %v", err)
 	}
-	if !slices.ContainsFunc(got.Remote, func(candidate review.Candidate) bool {
-		return candidate.Branch == "origin/main"
-	}) {
+	if !named(got.Remote, "origin/main") {
 		t.Errorf("remote candidates = %v, want the active origin/main", got.Remote)
 	}
 }

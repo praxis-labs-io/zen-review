@@ -365,13 +365,45 @@ func TestTheBasePickerCanCancelAndChooseNothing(t *testing.T) {
 		t.Errorf("choosing the current base did not close without writing")
 	}
 
-	s.press("b", "x")
-	if frame := s.frame(); !strings.Contains(frame, "No matching branches") {
-		t.Errorf("picker has no empty result:\n%s", frame)
-	}
-	s.press("enter", "esc")
+	s.press("b", "x", "esc")
 	if len(s.src.wrote) != 0 {
 		t.Errorf("writes = %v, want none", s.src.wrote)
+	}
+}
+
+// TestTheBasePickerTakesARefNobodyListed. The list is local branches, so tags,
+// shas and the other 291 remotes are reached by naming one.
+func TestTheBasePickerTakesARefNobodyListed(t *testing.T) {
+	s := open(t, 100, 20)
+	s.src.candidates = review.BaseCandidates{
+		Local: []review.Candidate{{Branch: "parent", Ahead: 1}},
+	}
+
+	s.press("b", "H", "E", "A", "D", "~", "5")
+	if frame := s.frame(); !strings.Contains(frame, "no branch matches, enter takes it as a ref") {
+		t.Errorf("the box does not say what enter will do with it:\n%s", frame)
+	}
+
+	s.press("enter")
+	if got := s.src.wrote; len(got) != 1 || got[0] != "SetBase HEAD~5" {
+		t.Errorf("writes = %v, want SetBase HEAD~5", got)
+	}
+}
+
+// TestTheBasePickerClearsALastRefsFailure, because a sentence about the ref
+// before it reads as an answer to the one being typed now.
+func TestTheBasePickerClearsALastRefsFailure(t *testing.T) {
+	s := open(t, 100, 20)
+	s.src.candidates = review.BaseCandidates{
+		Local: []review.Candidate{{Branch: "parent", Ahead: 1}},
+	}
+	s.press("b")
+	s.src.wroteErr = errors.New("the branch moved")
+	s.press("enter")
+
+	s.press("p")
+	if frame := s.frame(); strings.Contains(frame, "the branch moved") {
+		t.Errorf("the failed ref's sentence outlived it:\n%s", frame)
 	}
 }
 
@@ -406,7 +438,7 @@ func TestZBOwnsTheBAtTheRoot(t *testing.T) {
 	if s.src.baseReads != 0 {
 		t.Errorf("base reads = %d, want zb routed to the diff pane", s.src.baseReads)
 	}
-	if strings.Contains(s.frame(), "search branches") {
+	if strings.Contains(s.frame(), "branch or revision") {
 		t.Errorf("zb opened the base picker:\n%s", s.frame())
 	}
 }

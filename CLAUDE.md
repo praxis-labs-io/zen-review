@@ -208,7 +208,21 @@ a guess, so keeping it would hold after the repository moved past it, and
 clearing what was chosen would lose what to go back to: one mistyped `--base`
 would cost the session its base and every range measured from it. So the stored
 ref stands, the tag stands with it on every run until the ref resolves again,
-and `--base` is how it is corrected until `b` exists.
+and `--base` and `b` are how it is corrected.
+
+`b` lists every local branch, nearest first, plus the active base where that is
+a remote one. Locals are what a stack is built from. Every remote shares a merge
+base with HEAD, so keeping them is 295 rows on a real checkout, and the branch
+HEAD is on is left out because measuring it against itself is an empty review. A
+first-parent walk was the old rule and it hid a base that had been merged in,
+which is what bringing a branch up to date does.
+
+What the list leaves out, the box takes by name. Enter on a query nothing
+matched hands the raw string to `SetBase`, the same call `--base` makes, so a
+tag, a sha, `HEAD~5` and the other 291 remotes stay reachable by typing. A ref
+that does not resolve is a sentence in the modal rather than a fall through to
+detection: a session already has a base worth keeping, where `--base` is
+answering a reader who has nothing open yet.
 
 ### Sessions and generations
 
