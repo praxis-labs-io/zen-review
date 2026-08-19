@@ -472,3 +472,23 @@ func fgSeq(c color.Color) string {
 	r, g, b, _ := c.RGBA()
 	return fmt.Sprintf("38;2;%d;%d;%d", r>>8, g>>8, b>>8)
 }
+
+func TestExpandTabsTakesTheDefaultForAWidthOfNothing(t *testing.T) {
+	const line = "\tif x {\n"
+
+	for _, tt := range []struct {
+		name  string
+		width int
+		want  string
+	}{
+		{"default", 0, "    if x {\n"},
+		{"negative", -2, "    if x {\n"},
+		{"two", 2, "  if x {\n"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := paint.ExpandTabs(line, tt.width); got != tt.want {
+				t.Errorf("ExpandTabs(%q, %d) = %q, want %q", line, tt.width, got, tt.want)
+			}
+		})
+	}
+}

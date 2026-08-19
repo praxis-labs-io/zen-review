@@ -74,6 +74,10 @@ type invocation struct {
 	// `add --ignore-errors` names every file it skipped and still writes a
 	// usable index, which is the one command where the two arrive together.
 	allowStderr bool
+
+	// stdin is what the command reads. `cat-file --batch` takes its work list
+	// there and nowhere else.
+	stdin []byte
 }
 
 // result is what a git call produced. stderr is kept because a command that
@@ -101,6 +105,9 @@ func runIn(ctx context.Context, dir string, in invocation, args ...string) (resu
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = dir
 	cmd.Env = append(env(), in.extra...)
+	if in.stdin != nil {
+		cmd.Stdin = bytes.NewReader(in.stdin)
+	}
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout

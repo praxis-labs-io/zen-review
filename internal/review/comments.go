@@ -130,6 +130,10 @@ func (s *Session) AddComment(ctx context.Context, g Generation, n Note) (store.C
 		return store.Comment{}, err
 	}
 
+	// The live range and the creation range start equal. Only the first ever
+	// moves; the second is what slices AnchorBlob a dozen generations later.
+	at := store.LineRange{Start: n.Range.Start, End: n.Range.End}
+
 	now := time.Now().UTC().Truncate(time.Second)
 	c := store.Comment{
 		ID:                  id,
@@ -138,11 +142,12 @@ func (s *Session) AddComment(ctx context.Context, g Generation, n Note) (store.C
 		CreatedGenerationID: g.ID,
 		Path:                path,
 		Side:                n.Side,
-		LineRange:           store.LineRange{Start: n.Range.Start, End: n.Range.End},
+		LineRange:           at,
 		Scope:               n.Scope,
 		Body:                n.Body,
 		State:               store.CommentOpen,
 		AnchorBlob:          blob,
+		CreatedRange:        at,
 		CreatedAt:           now,
 		UpdatedAt:           now,
 	}

@@ -65,6 +65,10 @@ type Comment struct {
 	// alive by the session ref. It is empty on a side the file has no blob on.
 	AnchorBlob string
 
+	// CreatedRange is where the anchor sat in those bytes, LineRange having moved
+	// on. It is 0:0 on a file comment and on a row older than the column.
+	CreatedRange LineRange
+
 	// LastPath and LastLine are where the anchor was when the comment stopped
 	// moving, so a reader is told where a frozen one lived without knowing which
 	// generation it is pinned to. Both are empty until it stops.
@@ -92,7 +96,8 @@ type CommentMove struct {
 const commentColumns = `
 	id, session_id, generation_id, created_generation_id,
 	path, side, start_line, end_line, scope, body, state,
-	anchor_blob, last_path, last_line, created_at, updated_at, response`
+	anchor_blob, last_path, last_line, created_at, updated_at, response,
+	created_start_line, created_end_line`
 
 // AddComment writes one comment.
 //
@@ -121,12 +126,13 @@ func (db *DB) AddComment(ctx context.Context, c Comment) (err error) {
 
 	const q = `
 		INSERT INTO comments (` + commentColumns + `)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	_, err = tx.ExecContext(ctx, q,
 		c.ID, c.SessionID, c.GenerationID, c.CreatedGenerationID,
 		c.Path, string(c.Side), c.Start, c.End, string(c.Scope), c.Body, string(c.State),
 		c.AnchorBlob, c.LastPath, c.LastLine, stamp(c.CreatedAt), stamp(c.UpdatedAt), c.Response,
+		c.CreatedRange.Start, c.CreatedRange.End,
 	)
 	if err != nil {
 		return fmt.Errorf("writing the comment on %s: %w", c.Path, err)
@@ -335,6 +341,7 @@ func scanComment(s scanner) (Comment, error) {
 		&c.ID, &c.SessionID, &c.GenerationID, &c.CreatedGenerationID,
 		&c.Path, &c.Side, &c.Start, &c.End, &c.Scope, &c.Body, &c.State,
 		&c.AnchorBlob, &c.LastPath, &c.LastLine, &created, &updated, &c.Response,
+		&c.CreatedRange.Start, &c.CreatedRange.End,
 	)
 	if err != nil {
 		return Comment{}, err

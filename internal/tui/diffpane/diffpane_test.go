@@ -38,7 +38,7 @@ func commented(t *testing.T, path string, width, height int, comments ...store.C
 	c := testchangeset.Nested(t)
 	m := diffpane.New(theme.RosePineMoon)
 	m.SetSize(width, height)
-	m.SetFile(fileAt(t, c, path), comments, 2)
+	m.SetFile(fileAt(t, c, path), comments, nil, 2)
 	return m
 }
 
@@ -167,7 +167,7 @@ func TestSourceCannotWriteToTheTerminal(t *testing.T) {
 	c := testchangeset.Derive(t, patch)
 	m := diffpane.New(theme.RosePineMoon)
 	m.SetSize(60, 4)
-	m.SetFile(&c.Files[0], nil, 2)
+	m.SetFile(&c.Files[0], nil, nil, 2)
 
 	got := joined(t, m)
 	if !strings.Contains(got, `const shout = "red?"`) {
@@ -193,7 +193,7 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 	c := testchangeset.Derive(t, patch)
 	m := diffpane.New(theme.RosePineMoon)
 	m.SetSize(60, 6)
-	m.SetFile(&c.Files[0], nil, 2)
+	m.SetFile(&c.Files[0], nil, nil, 2)
 
 	got := rows(t, m)
 	if !strings.Contains(got[1], "− package eof") {
@@ -241,7 +241,7 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 	c := testchangeset.Derive(t, patch)
 	m := diffpane.New(theme.RosePineMoon)
 	m.SetSize(60, 4)
-	m.SetFile(&c.Files[0], nil, 2)
+	m.SetFile(&c.Files[0], nil, nil, 2)
 
 	want := lipgloss.NewStyle().
 		Background(theme.RosePineMoon.RemovedBackground).
@@ -321,7 +321,7 @@ func TestChangingFileTakesTheReaderToTheTop(t *testing.T) {
 	m := pane(t, twoHunks, 60, 4)
 	m = press(t, m, down, down)
 
-	m.SetFile(fileAt(t, c, "README.md"), nil, 2)
+	m.SetFile(fileAt(t, c, "README.md"), nil, nil, 2)
 	if got := rows(t, m)[0]; !strings.Contains(got, "@@ -1,3 +1,3 @@") {
 		t.Errorf("the new file opened part-way down: %q", got)
 	}
@@ -343,7 +343,7 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 	c := testchangeset.Derive(t, patch)
 	m := diffpane.New(theme.RosePineMoon)
 	m.SetSize(60, 4)
-	m.SetFile(&c.Files[0], nil, 2)
+	m.SetFile(&c.Files[0], nil, nil, 2)
 
 	// The hunk's last line is 99, so two columns hold it. paint.HunkHeader
 	// indents to gutter*2+5, which is 9 at a gutter of 2 and 11 at 3.
@@ -446,7 +446,7 @@ func TestTheFirstSizingScrollsToTheCursor(t *testing.T) {
 	// Sized after the cursor is set, the way the root builds it: New, then the
 	// terminal says how big it is.
 	m := diffpane.New(theme.RosePineMoon)
-	m.SetFile(fileAt(t, c, twoHunks), nil, 2)
+	m.SetFile(fileAt(t, c, twoHunks), nil, nil, 2)
 	m.Select(store.SideHead, 124)
 	m.SetSize(60, 8)
 
@@ -777,7 +777,7 @@ func TestRestorePutsTheCursorBackWithTheWindow(t *testing.T) {
 
 	// What a reload of the same bytes does: the file back in the pane, the
 	// cursor on the heading, then the reader's own place handed back.
-	m.SetFile(fileAt(t, c, twoHunks), nil, 2)
+	m.SetFile(fileAt(t, c, twoHunks), nil, nil, 2)
 	m.Select(store.SideHead, 13)
 	m.Restore(at, off)
 
@@ -1185,7 +1185,7 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 
 	m := diffpane.New(theme.RosePineMoon)
 	m.SetSize(76, 10)
-	m.SetFile(&c.Files[0], []store.Comment{old}, 2)
+	m.SetFile(&c.Files[0], []store.Comment{old}, nil, 2)
 
 	got := joined(t, m)
 	if !strings.Contains(got, "python is gone") {
@@ -1219,7 +1219,7 @@ func TestACommentFrozenAtAnOlderGenerationDrawsWhereItPointed(t *testing.T) {
 	c := testchangeset.Nested(t)
 	m := diffpane.New(theme.RosePineMoon)
 	m.SetSize(76, 30)
-	m.SetFile(fileAt(t, c, twoHunks), []store.Comment{stale}, 2)
+	m.SetFile(fileAt(t, c, twoHunks), []store.Comment{stale}, nil, 2)
 
 	if got := joined(t, m); !strings.Contains(got, "was line 13") {
 		t.Errorf("the frozen comment drew as though it still pointed at line 13:\n%s", got)
@@ -1236,7 +1236,7 @@ func TestACommentFrozenAtThisGenerationStaysWhereItIs(t *testing.T) {
 	c := testchangeset.Nested(t)
 	m := diffpane.New(theme.RosePineMoon)
 	m.SetSize(76, 30)
-	m.SetFile(fileAt(t, c, twoHunks), []store.Comment{settled}, 2)
+	m.SetFile(fileAt(t, c, twoHunks), []store.Comment{settled}, nil, 2)
 
 	if got := joined(t, m); strings.Contains(got, "was line") {
 		t.Errorf("a comment frozen at the generation on screen drew as a stray:\n%s", got)
@@ -1394,4 +1394,210 @@ func TestAOneRowPaneKeepsTheCursorOverThePin(t *testing.T) {
 				i+1, joined(t, m))
 		}
 	}
+}
+
+// respondedCard is the fixture's addressed comment, which is the one a block
+// hangs under.
+const respondedCard = "dddddddddddd"
+
+// replacing is the fixture's cards with the code one response replaced.
+func replacing(t *testing.T, width, height int, block ...string) diffpane.Model {
+	t.Helper()
+	return blocked(t, testchangeset.NestedComments(), width, height, block...)
+}
+
+// blocked is any set of comments with a block on the responded card.
+func blocked(t *testing.T, comments []store.Comment, width, height int, block ...string) diffpane.Model {
+	t.Helper()
+
+	c := testchangeset.Nested(t)
+	m := diffpane.New(theme.RosePineMoon)
+	m.SetSize(width, height)
+	m.SetFile(fileAt(t, c, twoHunks), comments, map[string][]string{respondedCard: block}, 2)
+	return m
+}
+
+// TestAResponseCarriesTheCodeItReplaced. The words say what was done and the
+// block is what a reader confirms them against.
+func TestAResponseCarriesTheCodeItReplaced(t *testing.T) {
+	got := rows(t, replacing(t, 76, 60, "files := d.Files()", "sort.Strings(files)"))
+
+	at := -1
+	for i, row := range got {
+		if strings.Contains(row, "It does, and hands them back in tree order.") {
+			at = i
+		}
+	}
+	if at < 0 {
+		t.Fatalf("the response drew no words:\n%s", strings.Join(got, "\n"))
+	}
+
+	// A blank row between the words and the code, so the two do not read as one
+	// paragraph, then the block in the order it was handed over.
+	for _, want := range []struct {
+		row  int
+		text string
+	}{
+		{at + 2, "files := d.Files()"},
+		{at + 3, "sort.Strings(files)"},
+	} {
+		if want.row >= len(got) {
+			t.Fatalf("the pane stopped at row %d, before the block:\n%s", len(got), strings.Join(got, "\n"))
+		}
+		if !strings.Contains(got[want.row], want.text) {
+			t.Errorf("row %d reads %q, want it to hold %q", want.row, got[want.row], want.text)
+		}
+	}
+}
+
+// TestABlockIsTruncatedUntilTheKeyIsPressed. On a queue of answered comments the
+// whole of every rewrite is the pane, so a card opens with enough to recognise.
+func TestABlockIsTruncatedUntilTheKeyIsPressed(t *testing.T) {
+	block := []string{"one", "two", "three", "four", "five"}
+	got := joined(t, replacing(t, 76, 60, block...))
+
+	for _, want := range block[:3] {
+		if !strings.Contains(got, want) {
+			t.Errorf("the block dropped %q, want the first three:\n%s", want, got)
+		}
+	}
+	for _, gone := range block[3:] {
+		if strings.Contains(got, gone) {
+			t.Errorf("the block drew %q, want it behind the key:\n%s", gone, got)
+		}
+	}
+	if !strings.Contains(got, "… 2 more") {
+		t.Errorf("the block dropped two lines without saying so:\n%s", got)
+	}
+}
+
+// TestExpandDrawsTheWholeBlock. The key behind it is the root's, the way the
+// card's other verbs are; what the pane owns is the card's size.
+func TestExpandDrawsTheWholeBlock(t *testing.T) {
+	block := []string{"one", "two", "three", "four", "five"}
+	m := replacing(t, 76, 60, block...)
+
+	// Walk onto the card, which is what the key acts through.
+	for range 60 {
+		if id, ok := m.Comment(); ok && id == respondedCard {
+			break
+		}
+		m = press(t, m, down)
+	}
+	if id, ok := m.Comment(); !ok || id != respondedCard {
+		t.Fatalf("the cursor never reached the answered card")
+	}
+
+	m.Expand()
+	got := joined(t, m)
+	for _, want := range block {
+		if !strings.Contains(got, want) {
+			t.Errorf("the expanded block dropped %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "… 2 more") {
+		t.Errorf("the expanded block still counts what it is not hiding:\n%s", got)
+	}
+	if !strings.Contains(got, "> less") {
+		t.Errorf("the footer still offers more:\n%s", got)
+	}
+
+	m.Expand()
+	if got := joined(t, m); !strings.Contains(got, "… 2 more") {
+		t.Errorf("a second call does not put the block back:\n%s", got)
+	}
+}
+
+// TestABareAddressGrowsABoxForTheBlock. The code is the whole of what a bare
+// address has to say, and a box is what says the contents are the agent's.
+func TestABareAddressGrowsABoxForTheBlock(t *testing.T) {
+	bare := testchangeset.In(
+		testchangeset.Comment(respondedCard, twoHunks, 126, 126, "Derive takes the rows now."),
+		store.CommentAddressed)
+
+	got := joined(t, blocked(t, []store.Comment{bare}, 76, 40, "files := d.Files()"))
+	if !strings.Contains(got, "╭─ response") {
+		t.Errorf("a bare address drew no box for the block:\n%s", got)
+	}
+	if !strings.Contains(got, "files := d.Files()") {
+		t.Errorf("the box drew no block:\n%s", got)
+	}
+}
+
+// TestAFoldedCardTakesItsBlockWithIt. One row is what folding means, and the
+// block goes with the box that holds it.
+func TestAFoldedCardTakesItsBlockWithIt(t *testing.T) {
+	settled := testchangeset.Responded(
+		testchangeset.In(testchangeset.Comment(respondedCard, twoHunks, 126, 126, "Derive takes the rows now."),
+			store.CommentResolved), "It does.")
+
+	got := joined(t, blocked(t, []store.Comment{settled}, 76, 40, "files := d.Files()"))
+	if strings.Contains(got, "files := d.Files()") {
+		t.Errorf("a folded card kept its block:\n%s", got)
+	}
+}
+
+// TestABlockStaysInsideTheBox. A raw tab is a variable number of cells and a
+// line wider than the box would take the border off the rows it runs through.
+func TestABlockStaysInsideTheBox(t *testing.T) {
+	long := strings.Repeat("wide", 40)
+	m := replacing(t, 76, 60, "\tif x {", long)
+
+	for _, row := range rows(t, m) {
+		if got := lipgloss.Width(row); got > 76 {
+			t.Errorf("a row is %d cells wide, want no more than 76: %q", got, row)
+		}
+	}
+
+	got := joined(t, m)
+	if !strings.Contains(got, "    if x {") {
+		t.Errorf("the tab was not expanded:\n%s", got)
+	}
+	if strings.Contains(got, long) {
+		t.Errorf("the long line ran past the border rather than being clipped:\n%s", got)
+	}
+}
+
+// TestTheBlockIsPaintedAsTheRemovalsItIs. A stripped frame cannot see a colour,
+// so the tint is asserted against the theme beside the golden that holds the row.
+func TestTheBlockIsPaintedAsTheRemovalsItIs(t *testing.T) {
+	m := replacing(t, 76, 60, "files := d.Files()")
+	removed := params(t, lipgloss.NewStyle().Background(theme.RosePineMoon.RemovedBackground))
+
+	for i, row := range rows(t, m) {
+		if !strings.Contains(row, "files := d.Files()") {
+			continue
+		}
+		if !strings.Contains(row, "−") {
+			t.Errorf("the block row carries no removal marker: %q", row)
+		}
+		if raw := strings.Split(m.View(), "\n")[i]; !strings.Contains(raw, removed) {
+			t.Errorf("the block row is not painted on the removed tint: %q", raw)
+		}
+		return
+	}
+	t.Fatalf("the block did not draw:\n%s", joined(t, m))
+}
+
+// A blank line inside a block is a removed blank line. It still takes a full
+// row of tint, or the block reads as two blocks with a hole between them.
+func TestABlankLineInABlockStillFills(t *testing.T) {
+	m := replacing(t, 76, 60, "type cutter struct {", "", "}")
+	removed := params(t, lipgloss.NewStyle().Background(theme.RosePineMoon.RemovedBackground))
+
+	flat, raw := rows(t, m), strings.Split(m.View(), "\n")
+	for i, row := range flat {
+		if !strings.Contains(row, "type cutter struct {") {
+			continue
+		}
+		if !strings.Contains(raw[i+1], removed) {
+			t.Errorf("the blank row lost the tint: %q", raw[i+1])
+		}
+		if got := lipgloss.Width(flat[i+1]); got != lipgloss.Width(flat[i]) {
+			t.Errorf("the blank row is %d cells and the one above is %d, want them level",
+				got, lipgloss.Width(flat[i]))
+		}
+		return
+	}
+	t.Fatalf("the block did not draw:\n%s", joined(t, m))
 }

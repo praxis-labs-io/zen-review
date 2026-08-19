@@ -132,6 +132,11 @@ type Model struct {
 	cards  []card
 	folded map[string]bool
 
+	// replaced is the code each answered comment was written against, by id.
+	// expanded is the cards showing all of it rather than the opening few lines.
+	replaced map[string][]string
+	expanded map[string]bool
+
 	// gen is the generation the file is measured in. A comment anchored to an
 	// older one froze there and its line numbers name code that has since moved.
 	gen int64
@@ -216,8 +221,8 @@ func New(t theme.Theme) Model {
 // A nil file empties the pane, which is what a changeset with nothing in it
 // looks like. The cursor comes with the file, from Select: the root decides
 // which hunk it lands on and this pane never guesses.
-func (m *Model) SetFile(f *review.File, comments []store.Comment, at int64) {
-	m.file, m.comments, m.gen, m.offset = f, comments, at, 0
+func (m *Model) SetFile(f *review.File, comments []store.Comment, replaced map[string][]string, at int64) {
+	m.file, m.comments, m.replaced, m.gen, m.offset = f, comments, replaced, at, 0
 	m.anchor = place{seq: -1}
 	m.layout()
 }
@@ -720,6 +725,23 @@ func (m *Model) fold() {
 		m.folded = make(map[string]bool)
 	}
 	m.folded[c.id] = !m.folded[c.id]
+
+	m.relayout(place{comment: c.id, seq: -1})
+	m.reveal()
+}
+
+// Expand shows the whole block or puts it back to the lines a card opens with,
+// rebuilding the rows the way folding does. The root calls it: the key is its.
+func (m *Model) Expand() {
+	c := m.cardOf(m.cursor)
+	if c == nil {
+		return
+	}
+
+	if m.expanded == nil {
+		m.expanded = make(map[string]bool)
+	}
+	m.expanded[c.id] = !m.expanded[c.id]
 
 	m.relayout(place{comment: c.id, seq: -1})
 	m.reveal()

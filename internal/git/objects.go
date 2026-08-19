@@ -1,12 +1,15 @@
 package git
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -204,6 +207,71 @@ func (r *Repo) Tree(ctx context.Context, commit string) (string, error) {
 		return "", fmt.Errorf("resolving the tree of %s: %w", commit, err)
 	}
 	return trim(out), nil
+}
+
+// Blobs reads several blobs in one git process, keyed by sha. A sha the
+// repository does not have, or that names anything else, is left out.
+func (r *Repo) Blobs(ctx context.Context, shas []string) (map[string][]byte, error) {
+	seen := make(map[string]bool, len(shas))
+	want := make([]string, 0, len(shas))
+	for _, sha := range shas {
+		if sha == "" || seen[sha] {
+			continue
+		}
+		seen[sha] = true
+		want = append(want, sha)
+	}
+	if len(want) == 0 {
+		return map[string][]byte{}, nil
+	}
+
+	in := invocation{stdin: []byte(strings.Join(want, "\n") + "\n")}
+	res, err := runIn(ctx, r.root, in, "cat-file", "--batch")
+	if err != nil {
+		return nil, fmt.Errorf("reading %d blobs: %w", len(want), err)
+	}
+	blobs, err := batched(res.stdout, len(want))
+	if err != nil {
+		return nil, fmt.Errorf("reading %d blobs: %w", len(want), err)
+	}
+	return blobs, nil
+}
+
+// batched reads `cat-file --batch`: a header per sha, then the bytes it sized.
+// Two words is the miss; the size is checked, or a short read swaps two blobs.
+func batched(out []byte, want int) (map[string][]byte, error) {
+	blobs := make(map[string][]byte, want)
+	for len(out) > 0 {
+		nl := bytes.IndexByte(out, '\n')
+		if nl < 0 {
+			return nil, fmt.Errorf("a header with no newline after it: %q", out)
+		}
+		header := string(out[:nl])
+		out = out[nl+1:]
+
+		f := strings.Fields(header)
+		switch {
+		case len(f) == 2:
+			continue
+		case len(f) != 3:
+			return nil, fmt.Errorf("%q is neither an object nor a miss", header)
+		}
+
+		size, err := strconv.Atoi(f[2])
+		if err != nil {
+			return nil, fmt.Errorf("%s is sized %q: %w", f[0], f[2], err)
+		}
+		if size < 0 || size+1 > len(out) {
+			return nil, fmt.Errorf("%s is sized %d and %d bytes followed it", f[0], size, len(out))
+		}
+		// Read past anything else the way a miss is skipped: a gitlink's sha names
+		// a commit, and one this repository happens to hold is not the file.
+		if f[1] == "blob" {
+			blobs[f[0]] = out[:size]
+		}
+		out = out[size+1:]
+	}
+	return blobs, nil
 }
 
 // hasCommits says whether HEAD resolves. --quiet exits 1 for a repository whose

@@ -129,7 +129,7 @@ func (m *Model) land(s stop) {
 	m.tree.Select(s.path)
 
 	if s.path != m.diff.Path() {
-		m.diff.SetFile(m.fileAt(s.path), m.comments, m.gen.ID)
+		m.diff.SetFile(m.fileAt(s.path), m.comments, m.replaced, m.gen.ID)
 	}
 	m.diff.Select(s.side, s.line)
 }
@@ -195,7 +195,7 @@ func (m *Model) landComment(c store.Comment) {
 	}
 
 	if f.Diff.Path != m.diff.Path() {
-		m.diff.SetFile(f, m.comments, m.gen.ID)
+		m.diff.SetFile(f, m.comments, m.replaced, m.gen.ID)
 	}
 	m.tree.Select(f.Diff.Path)
 	m.diff.SelectComment(c.ID)

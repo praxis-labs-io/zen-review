@@ -120,3 +120,21 @@ func TestGoldenHunkHeaderBadged(t *testing.T) {
 		Fill:   theme.RosePineMoon.SelectedBackground,
 	}, paint.Gutter(1235), 40))
 }
+
+// A body row: the marker and the tint with no number columns, filled to the
+// width so the block it belongs to has a straight edge on both sides.
+func TestGoldenBody(t *testing.T) {
+	compare(t, "body_removed", painter().Body(paint.Line{
+		Kind:   paint.Removed,
+		Tokens: tokens(),
+	}, 30))
+}
+
+// A body row too long for the room it has, which is what a card two borders deep
+// gives a line of source.
+func TestGoldenBodyClipped(t *testing.T) {
+	compare(t, "body_clipped", painter().Body(paint.Line{
+		Kind:   paint.Removed,
+		Tokens: tokens(),
+	}, 10))
+}

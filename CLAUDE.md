@@ -336,7 +336,9 @@ comment being lost, so the anchor clamps to what survived where a range would be
 cut into the pieces either side. A file comment is the exception and takes the
 range rule: it names the file, so it follows a rename and is lost when the bytes
 move. `anchor_blob` is written once, at creation, and is the bytes the comment
-was about at the generation `created_generation_id` names.
+was about at the generation `created_generation_id` names. `created_start_line`
+and `created_end_line` are where in those bytes, written with it and never moved,
+because the live range has gone on without them.
 
 ### Storage
 
@@ -377,6 +379,7 @@ v esc                    range selection for c, j/k extend. esc or v cancels
 C                        session summary note
 x                        resolve a comment
 e D                      rewrite a comment, delete one
+>                        the rest of the code a response replaced
 enter                    tree: open file. comment: jump to its line
 ctrl+s esc               in the composer: save, discard
 
@@ -446,17 +449,58 @@ and two columns narrower, zen-octo's reply exactly. A box says the words below i
 are somebody else's; a change of weight inside one border says only that whoever
 was talking trailed off. It carries no footer, having no key of its own.
 
+Under the words it carries the code they replaced: the lines the comment was
+written against, where the changeset has since taken them. The words say the work
+was done and this is what a reader confirms them against, which is the same job
+`response` does one level up. The before only, because the after is the diff the
+card hangs in, so the two read as a pair without either being drawn twice.
+
+It is painted as the removals it is, the diff's own `−` and `RemovedBackground`
+run to the edge of the box. Muted prose was the first answer and it read as a
+trailing fragment of the response rather than as code.
+
+Whether the lines went is the translation the remap runs, not the two sides read
+at the same numbers. An anchor stops moving when the comment is answered, so a
+positional read calls every line inserted above it a rewrite, and the block then
+shows code that is still there word for word one row down. The blob the comment
+was written against is diffed against the file's blob now, the creation range
+goes through `Translate`, and a range that comes back whole took nothing.
+
+It comes out of the same act as the words, so a bare `address` grows the box to
+hold it alone. Nothing is asserted before the agent answers, so an open comment
+has none however far the code moved under it. A bare `address` the reader then
+resolves loses its block: nothing on the row records that it passed through
+addressed, and a resolved card folds by default anyway.
+
+`anchor_blob` is the bytes and `created_start_line` is where in them, written
+together at creation and left alone by every refresh that moves the anchor. A
+comment that travelled before it was answered would otherwise slice its own blob
+by lines it never had. One diff per pair of blobs, so a file's comments cost one
+call between them rather than one each.
+
+A file comment gets none. It names the file rather than any region of it, and the
+whole of the old file is not a block. Neither does a hunk somebody marked read and
+an agent then rewrote: `r` asserts nothing about the code, so there is no claim to
+confirm, and `changed after review` already says it moved.
+
+Three lines, then `>` for the rest. It is the card's size and not the response's,
+which takes no keys at all. The key is named in the card's own footer and not in
+the help overlay, the way `esc` is named on the status bar: it does something only
+on a card holding a block, and the overlay draws to the frame's last line at
+sixteen rows with no row to give.
+
 Neither the box nor the rail ever lights. A lit border says a key reaches here,
-and nothing reaches a response: no cursor stops on it, and `x`, `e` and `D` all
-act on the card. Lighting it with the card would promise a stop that never
+and nothing reaches a response: no cursor stops on it, and `x`, `e`, `D` and `>`
+all act on the card. Lighting it with the card would promise a stop that never
 arrives. The elbow is always `╰─` and never a tee, there being one response. A
 pane with no room for a second border draws the card whole and drops the box
 rather than shrinking both.
 
-A settled card folds to one row and keeps its box, and takes its response with it.
-Without the box it is a line of grey text in a column of diff, which is what the
-diff's own notes look like, and a box still hanging off one row says the card is
-open. Its footer names the direction the key goes rather than the state it is in.
+A settled card folds to one row and keeps its box, and takes its response and the
+block with it. Without the box it is a line of grey text in a column of diff,
+which is what the diff's own notes look like, and a box still hanging off one row
+says the card is open. Its footer names the direction the key goes rather than the
+state it is in.
 
 `x` is named in the lit card's own footer rather than on the status bar, because
 it reaches one row on the screen and that row is where a reader looks for it. A

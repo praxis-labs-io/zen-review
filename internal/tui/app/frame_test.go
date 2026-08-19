@@ -162,6 +162,25 @@ func commented(t *testing.T, width, height int, comments ...store.Comment) *scre
 	return with(t, "zen-review", testchangeset.Nested(t), comments, "", width, height)
 }
 
+// replacing opens the reader over the fixture with the code one answered comment
+// was written against, which is what the block on a card draws from.
+func replacing(t *testing.T, width, height int, block ...string) *screen {
+	t.Helper()
+
+	r := app.Reload{
+		Base:       review.Base{Ref: "origin/main", SHA: "a1b2c3d4e5f67890"},
+		Generation: review.Generation{ID: 2, Seq: 2},
+		Changeset:  testchangeset.Nested(t),
+		Comments:   testchangeset.NestedComments(),
+		Replaced:   map[string][]string{respondedCard: block},
+	}
+
+	src := &source{at: r}
+	s := &screen{t: t, m: app.New(theme.RosePineMoon, src, "zen-review", r), src: src}
+	s.send(tea.WindowSizeMsg{Width: width, Height: height})
+	return s
+}
+
 // noting opens the reader on a session that already has a note, which is what a
 // session resumed days later looks like and what C opens over.
 func noting(t *testing.T, summary string, width, height int) *screen {

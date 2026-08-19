@@ -198,6 +198,11 @@ func (r *reloader) at(g review.Generation) (app.Reload, error) {
 		return app.Reload{}, err
 	}
 
+	replaced, err := r.s.Replaced(r.ctx, g, comments)
+	if err != nil {
+		return app.Reload{}, err
+	}
+
 	// Read here rather than held from open, so a note another instance wrote
 	// reaches the composer instead of being overwritten by what it opened with.
 	summary, err := r.s.Summary(r.ctx)
@@ -210,6 +215,7 @@ func (r *reloader) at(g review.Generation) (app.Reload, error) {
 		Generation: g,
 		Changeset:  c,
 		Comments:   comments,
+		Replaced:   replaced,
 		Summary:    summary,
 	}, nil
 }

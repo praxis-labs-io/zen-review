@@ -94,6 +94,9 @@ func TestGoldenFrames(t *testing.T) {
 	}
 }
 
+// respondedCard is the fixture's addressed comment, the one a block hangs under.
+const respondedCard = "dddddddddddd"
+
 // TestTheRespondedCardGoldenFrame. The card renders against the pane, and the
 // pane clips what overruns it without a mark, so the rail and the second border
 // have to be measured inside the frame that holds them rather than beside it.
@@ -102,6 +105,26 @@ func TestTheRespondedCardGoldenFrame(t *testing.T) {
 	s.press("]", "]", "]", "]")
 
 	golden.Compare(t, "responded", []byte(s.frame()+"\n"))
+}
+
+// TestTheReplacedBlockGoldenFrame. The block truncates inside the response box,
+// three borders and a rail deep, which is where a width mistake shows.
+func TestTheReplacedBlockGoldenFrame(t *testing.T) {
+	s := replacing(t, 100, 24,
+		"\tfiles := d.Files()", "sort.Strings(files)", "return files", "// unreachable")
+	s.press("]", "]", "]", "]")
+
+	golden.Compare(t, "replaced", []byte(s.frame()+"\n"))
+}
+
+// TestTheExpandedBlockGoldenFrame is the same card with the key pressed: every
+// line, and a footer offering to put them back.
+func TestTheExpandedBlockGoldenFrame(t *testing.T) {
+	s := replacing(t, 100, 24,
+		"\tfiles := d.Files()", "sort.Strings(files)", "return files", "// unreachable")
+	s.press("]", "]", "]", "]", ">")
+
+	golden.Compare(t, "expanded", []byte(s.frame()+"\n"))
 }
 
 // TestTheFrameIsExactlyTheTerminal is the clipping proof the goldens cannot

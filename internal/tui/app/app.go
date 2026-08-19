@@ -50,6 +50,10 @@ type Model struct {
 	// changeset was derived at. The diff pane draws the ones on the file it holds.
 	comments []store.Comment
 
+	// replaced is the code each answered comment was written against, by comment
+	// id. Only the cards read it, and only where the bytes moved.
+	replaced map[string][]string
+
 	// summary is the session note. Nothing draws it: C opens the composer over
 	// it, and the report is where it is read back.
 	summary string
@@ -106,6 +110,7 @@ func New(t theme.Theme, src Source, repo string, r Reload) Model {
 		gen:       r.Generation,
 		changeset: r.Changeset,
 		comments:  r.Comments,
+		replaced:  r.Replaced,
 		summary:   r.Summary,
 		tree:      tree.New(t, r.Changeset),
 		diff:      diffpane.New(t),
@@ -433,6 +438,13 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
+	// The card's own size and nothing the engine holds, so it neither waits on a
+	// reload nor raises a notice. A press with no card under it does nothing.
+	if key.Matches(msg, m.keys.Expand) {
+		m.diff.Expand()
+		return m, nil
+	}
+
 	if key.Matches(msg, m.keys.Delete) {
 		id, on := m.diff.Comment()
 		if !on {
@@ -646,7 +658,7 @@ func (m *Model) syncDiff() {
 		return
 	}
 
-	m.diff.SetFile(m.fileAt(path), m.comments, m.gen.ID)
+	m.diff.SetFile(m.fileAt(path), m.comments, m.replaced, m.gen.ID)
 	if s, ok := m.firstOf(path); ok {
 		m.cursor = s
 		m.diff.Select(s.side, s.line)

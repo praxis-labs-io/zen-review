@@ -32,6 +32,7 @@ type KeyMap struct {
 	Resolve key.Binding
 	Edit    key.Binding
 	Delete  key.Binding
+	Expand  key.Binding
 	Note    key.Binding
 
 	Reload key.Binding
@@ -85,6 +86,10 @@ func NewKeyMap() KeyMap {
 		// once: the capital does the whole of the thing, the way R and U do.
 		Edit:   key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit comment")),
 		Delete: key.NewBinding(key.WithKeys("D"), key.WithHelp("D", "delete comment")),
+
+		// > reaches the card from either pane, the way x, e and D do. No help of
+		// its own: the card's footer names it, and the overlay has no row to give.
+		Expand: key.NewBinding(key.WithKeys(">")),
 
 		Note: key.NewBinding(key.WithKeys("C"), key.WithHelp("C", "note")),
 
