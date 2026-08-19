@@ -35,7 +35,7 @@ type basePicker struct {
 func newBasePicker(t theme.Theme) basePicker {
 	input := textinput.New()
 	input.Prompt = "/ "
-	input.Placeholder = "search branches"
+	input.Placeholder = "branch or revision"
 	styles := input.Styles()
 	styles.Focused.Text = lipgloss.NewStyle().Foreground(t.Text)
 	styles.Focused.Placeholder = lipgloss.NewStyle().Foreground(t.Muted)
@@ -68,11 +68,14 @@ func (p *basePicker) close() {
 
 func (p basePicker) active() bool { return p.opened }
 
+// choice is the row under the cursor, or what was typed where nothing matched.
+// SetBase takes any revision, so the box names one rather than filtering a list.
 func (p basePicker) choice() (string, bool) {
-	if p.selected < 0 || p.selected >= len(p.shown) {
-		return "", false
+	if p.selected >= 0 && p.selected < len(p.shown) {
+		return p.shown[p.selected].candidate.Branch, true
 	}
-	return p.shown[p.selected].candidate.Branch, true
+	ref := strings.TrimSpace(p.input.Value())
+	return ref, ref != ""
 }
 
 func (p *basePicker) update(msg tea.Msg) tea.Cmd {
@@ -105,6 +108,9 @@ func (p *basePicker) filter() {
 		}
 	}
 	p.selected, p.offset = 0, 0
+
+	// The sentence belonged to the ref that failed, and this is a different one.
+	p.err = ""
 }
 
 func (p *basePicker) move(by int) {
@@ -126,7 +132,7 @@ func (p basePicker) view(width, height int) string {
 	rows := []string{p.input.View(), ""}
 
 	if len(p.shown) == 0 {
-		rows = append(rows, lipgloss.NewStyle().Foreground(p.theme.Muted).Render("No matching branches"))
+		rows = append(rows, lipgloss.NewStyle().Foreground(p.theme.Muted).Render(p.empty()))
 	} else {
 		end := min(p.offset+pickerRows, len(p.shown))
 		group := ""
@@ -144,8 +150,17 @@ func (p basePicker) view(width, height int) string {
 		rows = append(rows, "", lipgloss.NewStyle().Foreground(p.theme.Error).Render(comp.Safe(p.err)))
 	}
 	rows = append(rows, "", lipgloss.NewStyle().Foreground(p.theme.Subtle).
-		Render("↑/↓ move  enter select  esc cancel"))
+		Render("↑/↓ move  enter use  esc cancel"))
 	return comp.Modal(p.theme, "Base", strings.Join(rows, "\n"), width, height)
+}
+
+// empty says what enter will do with what is in the box, which is the only
+// thing left to say once no branch matches it.
+func (p basePicker) empty() string {
+	if strings.TrimSpace(p.input.Value()) == "" {
+		return "no branches to offer"
+	}
+	return "no branch matches, enter takes it as a ref"
 }
 
 func (p basePicker) row(option baseOption, selected bool, width int) string {
