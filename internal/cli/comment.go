@@ -280,7 +280,12 @@ func runComment(cmd *cobra.Command, opts *options, n *note, path string) (err er
 	if err != nil {
 		return err
 	}
-	return emit(cmd.OutOrStdout(), one(cmd, s, st, written), opts.asJSON)
+
+	v, err := one(ctx, cmd, opts, s, st, written)
+	if err != nil {
+		return err
+	}
+	return emit(cmd.OutOrStdout(), v, opts.asJSON)
 }
 
 func runVerb(cmd *cobra.Command, opts *options, id string, verb func(*review.Session) mover) (err error) {
@@ -303,17 +308,52 @@ func runVerb(cmd *cobra.Command, opts *options, id string, verb func(*review.Ses
 	if err != nil {
 		return err
 	}
-	return emit(cmd.OutOrStdout(), one(cmd, s, st, c), opts.asJSON)
+
+	v, err := one(ctx, cmd, opts, s, st, c)
+	if err != nil {
+		return err
+	}
+	return emit(cmd.OutOrStdout(), v, opts.asJSON)
 }
 
 // one is the answer a write gives: the comment it wrote, in the shape the
 // listing prints, so --json hands back the id the next command takes.
-func one(cmd *cobra.Command, s *review.Session, st review.Status, c store.Comment) commentsView {
+func one(
+	ctx context.Context,
+	cmd *cobra.Command,
+	opts *options,
+	s *review.Session,
+	st review.Status,
+	c store.Comment,
+) (commentsView, error) {
+	comments := []store.Comment{c}
+
+	replaced, err := replacedFor(ctx, opts, s, st, comments)
+	if err != nil {
+		return commentsView{}, err
+	}
+
 	return commentsView{
 		header:   statusHeader(s, st),
-		Comments: []store.Comment{c},
+		Comments: comments,
+		Replaced: replaced,
 		Width:    screen(cmd.OutOrStdout()),
+	}, nil
+}
+
+// replacedFor is the code each answered comment was written against, and nil on
+// a session with no generation, which has no file to read the lines from.
+func replacedFor(
+	ctx context.Context,
+	opts *options,
+	s *review.Session,
+	st review.Status,
+	comments []store.Comment,
+) (map[string][]string, error) {
+	if !opts.asJSON || !st.Exists {
+		return nil, nil
 	}
+	return s.Replaced(ctx, st.Generation, comments)
 }
 
 // resolve turns the flags into the note the engine takes.

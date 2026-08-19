@@ -10,6 +10,7 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/store"
 	"github.com/praxis-labs-io/zen-review/internal/tui/comp"
 	"github.com/praxis-labs-io/zen-review/internal/tui/paint"
+	"github.com/praxis-labs-io/zen-review/internal/tui/syntax"
 )
 
 // The comment states as glyphs: a diamond, where a hunk's badge is a circle.
@@ -40,6 +41,10 @@ const cardGutter = 1
 // noWords stands in for a body that has none. The engine refuses an empty one,
 // so this is the card saying the row is not a rendering fault.
 const noWords = "no words"
+
+// replacedShown is how much of the block a card draws before the key takes over.
+// Enough to recognise the lines, short enough that a queue still scrolls.
+const replacedShown = 3
 
 // responseRail is the gutter the response's box hangs in. The rail is drawn in
 // it, so the box is that much narrower and that much further in.
@@ -126,7 +131,7 @@ func (m Model) cardBox() (int, int) {
 // addCard renders one comment into rows and records where they landed. The rows
 // carry the drawn text; the card carries both drawings and is what lands.
 func (m *Model) addCard(c store.Comment, hunk, anchor int) {
-	plain, lit := m.drawCard(c, anchor >= 0)
+	plain, lit := m.drawCard(c, m.replacedTokens(c), anchor >= 0)
 
 	at, which := len(m.rows), len(m.cards)
 	m.cards = append(m.cards, card{id: c.ID, at: at, anchor: anchor, plain: plain, lit: lit})
@@ -136,9 +141,29 @@ func (m *Model) addCard(c store.Comment, hunk, anchor int) {
 	}
 }
 
+// replacedTokens is the block a card carries, highlighted as one body so the
+// lexer holds its state across the lines the way it does down a file.
+func (m *Model) replacedTokens(c store.Comment) [][]syntax.Token {
+	block := m.replaced[c.ID]
+	if len(block) == 0 {
+		return nil
+	}
+
+	safe := make([]string, len(block))
+	for i, line := range block {
+		safe[i] = comp.Code(line)
+	}
+
+	// Sized to the block rather than to what came back. Chroma drops a trailing
+	// blank line, and the count the footer offers is taken off this slice.
+	out := make([][]syntax.Token, len(block))
+	copy(out, m.syntax.Lines(c.Path, strings.Join(safe, "\n")))
+	return out
+}
+
 // drawCard is a comment as its rows, unlit and lit. A pane with no width yet
 // gets one blank row, and the first resize gives the card its real height.
-func (m Model) drawCard(c store.Comment, placed bool) ([]string, []string) {
+func (m Model) drawCard(c store.Comment, block [][]syntax.Token, placed bool) ([]string, []string) {
 	if m.width <= 0 {
 		return []string{""}, []string{""}
 	}
@@ -186,7 +211,7 @@ func (m Model) drawCard(c store.Comment, placed bool) ([]string, []string) {
 	// and a box hanging off it says the card is open. One drawing serves both:
 	// the response has no lit form.
 	if !folded {
-		box := m.responseBox(c, width)
+		box := m.responseBox(c, block, width)
 		plain = append(plain, box...)
 		lit = append(lit, box...)
 	}
@@ -222,20 +247,22 @@ func (m Model) boxBody(words string, width int) []string {
 	return out
 }
 
-// responseBox is what an address left behind, as its own box hanging off the
-// card on a rail. It is nil for a comment with no response and for a pane with
-// no room for a second border, where the card is left whole rather than shrunk.
-//
-// Neither it nor the rail ever lights. A lit border says a key reaches here, and
-// nothing reaches a response: it takes no cursor and there is nothing to do on
-// it. Lighting it with the card would promise a stop that never arrives.
-func (m Model) responseBox(c store.Comment, width int) []string {
+// responseBox is what an address left behind, on a rail: the words and the code
+// they replaced. Nil for a comment with neither, and it never lights.
+func (m Model) responseBox(c store.Comment, block [][]syntax.Token, width int) []string {
 	inner := width - responseRail
-	if c.Response == "" || inner < cardMin {
+	if (c.Response == "" && len(block) == 0) || inner < cardMin {
 		return nil
 	}
 
 	body := m.boxBody(c.Response, inner)
+	if code := m.replacedBody(block, inner, m.expanded[c.ID]); len(code) > 0 {
+		if len(body) > 0 {
+			body = append(body, "")
+		}
+		body = append(body, code...)
+	}
+
 	box := comp.NewPane(m.theme).Label(" "+m.subtle().Render("response")+" ").
 		Size(inner, len(body)+2)
 
@@ -252,6 +279,30 @@ func (m Model) responseBox(c store.Comment, width int) []string {
 		}
 	}
 	return rows
+}
+
+// replacedBody is the code the response replaced, painted as the removals it is:
+// the diff's own marker and tint, so the eye pairs it with the rows above.
+func (m Model) replacedBody(block [][]syntax.Token, width int, expanded bool) []string {
+	shown := block
+	if !expanded && len(block) > replacedShown {
+		shown = block[:replacedShown]
+	}
+
+	// The full inner width, so the tint runs border to border. A row that stopped
+	// where the code does would read as ragged rather than as a block.
+	out := make([]string, 0, len(shown)+1)
+	for _, tokens := range shown {
+		out = append(out, m.painter.Body(paint.Line{Kind: paint.Removed, Tokens: tokens}, max(width-2, 1)))
+	}
+
+	if rest := len(block) - len(shown); rest > 0 {
+		room := max(width-2-2*cardGutter, 1)
+		muted := lipgloss.NewStyle().Foreground(m.theme.Muted)
+		more := "… " + strconv.Itoa(rest) + " more"
+		out = append(out, strings.Repeat(" ", cardGutter)+comp.Clip(muted.Render(more), room, muted))
+	}
+	return out
 }
 
 // foldedBody is a settled card's one row: the mark saying it is folded, and
@@ -357,9 +408,22 @@ func (m Model) cardHints(c store.Comment, width int, placed, folded bool) string
 		word = "space open"
 	}
 
-	// Last, so a card too narrow for all five keeps the three it had. They reach a
-	// comment in any state: a typo in a resolved one is still a typo.
-	parts := []string{word, "e edit", "D delete"}
+	parts := []string{word}
+
+	// Offered only where the block has something left to show, and naming the
+	// direction the key goes the way the fold hint does.
+	if !folded && len(m.replaced[c.ID]) > replacedShown {
+		hint := "> more"
+		if m.expanded[c.ID] {
+			hint = "> less"
+		}
+		parts = append(parts, hint)
+	}
+
+	// Last, so a card too narrow for all of them keeps the three it had. They
+	// reach a comment in any state: a typo in a resolved one is still a typo.
+	parts = append(parts, "e edit", "D delete")
+
 	if c.State != store.CommentResolved {
 		parts = append([]string{"x resolve"}, parts...)
 	}

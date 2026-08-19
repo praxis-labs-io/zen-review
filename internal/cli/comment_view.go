@@ -22,6 +22,10 @@ type commentsView struct {
 
 	Comments []store.Comment
 
+	// Replaced is the code each answered comment was written against, by comment
+	// id, and holds only the ones whose bytes have moved since.
+	Replaced map[string][]string
+
 	// filter is what the listing was asked for, and nil on the three commands
 	// that write one comment. A listing counts what it found and says so when it
 	// found nothing; a write has its one row and neither question applies.
@@ -201,6 +205,10 @@ type commentJSON struct {
 	// Response is what an address left behind, and empty when it left none.
 	Response string `json:"response"`
 
+	// Replaced is the lines the response replaced, and null where nothing moved
+	// or nothing has answered yet.
+	Replaced []string `json:"replaced"`
+
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
@@ -236,6 +244,7 @@ func commentsPayloadOf(v commentsView) commentsPayload {
 			State:     c.State,
 			Body:      c.Body,
 			Response:  c.Response,
+			Replaced:  v.Replaced[c.ID],
 			CreatedAt: c.CreatedAt,
 			UpdatedAt: c.UpdatedAt,
 		})

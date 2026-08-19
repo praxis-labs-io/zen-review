@@ -30,6 +30,10 @@ type Reload struct {
 	// have to be one generation, or a card hangs under a line that has moved.
 	Comments []store.Comment
 
+	// Replaced is the code each answered comment was written against, by comment
+	// id. It rides with the comments, being read at the same generation.
+	Replaced map[string][]string
+
 	// Summary is the session note, which C opens over. It rides along rather
 	// than being read off the session, which a command would race.
 	Summary string
@@ -209,10 +213,10 @@ func (m *Model) apply(r Reload) (stop, drift, bool) {
 	at, was := m.diff.Cursor(), m.diff.Scroll().Offset
 	moved := r.Generation.ID != m.gen.ID
 
-	m.base, m.gen, m.changeset, m.comments = r.Base, r.Generation, r.Changeset, r.Comments
+	m.base, m.gen, m.changeset, m.comments, m.replaced = r.Base, r.Generation, r.Changeset, r.Comments, r.Replaced
 	m.summary = r.Summary
 	m.tree.SetChangeset(m.changeset)
-	m.diff.SetFile(nil, nil, 0)
+	m.diff.SetFile(nil, nil, nil, 0)
 
 	m.cursor = stop{}
 	s, d, ok := m.landing(k)

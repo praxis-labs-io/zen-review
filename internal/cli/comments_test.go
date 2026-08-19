@@ -397,3 +397,42 @@ func placed(w commentWire) []string {
 	}
 	return out
 }
+
+// The wire carries what the card draws: the lines the response replaced, so a
+// hook parsing the queue can see the evidence and not only the claim.
+func TestTheWireCarriesWhatAResponseReplaced(t *testing.T) {
+	f := spread(t)
+	f.mustRun("refresh")
+
+	id := f.comment("code.txt", "--lines", "3", "--body", "this reads backwards")
+	f.mustRun("address", id, "--body", "turned it round")
+
+	f.Write("code.txt", numbered(1, 2)+"line 3 turned round\n"+numbered(4, 29)+"line 30 changed\n"+numbered(31, 40))
+	f.mustRun("refresh")
+
+	w, _ := f.decodeComments("comments")
+	if len(w.Comments) != 1 {
+		t.Fatalf("comments = %d, want the one that was written", len(w.Comments))
+	}
+
+	got := w.Comments[0].Replaced
+	if want := []string{"line 3 changed"}; !slices.Equal(got, want) {
+		t.Errorf("replaced = %v, want %v", got, want)
+	}
+}
+
+// Nothing has answered it, so there is nothing it replaced and the field says so
+// rather than standing in for the code that is still there.
+func TestAnOpenCommentCarriesNothingOnTheWire(t *testing.T) {
+	f := spread(t)
+	f.mustRun("refresh")
+	f.comment("code.txt", "--lines", "3", "--body", "this reads backwards")
+
+	f.Write("code.txt", numbered(1, 2)+"line 3 turned round\n"+numbered(4, 29)+"line 30 changed\n"+numbered(31, 40))
+	f.mustRun("refresh")
+
+	w, _ := f.decodeComments("comments")
+	if got := w.Comments[0].Replaced; got != nil {
+		t.Errorf("replaced = %v, want nothing on a comment nobody has answered", got)
+	}
+}

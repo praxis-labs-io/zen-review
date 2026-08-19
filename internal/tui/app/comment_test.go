@@ -538,3 +538,19 @@ func TestTheRingLandsOnACardBelowATallHunk(t *testing.T) {
 		t.Errorf("the card the ring landed on is off the window:\n%s", got)
 	}
 }
+
+// The key reaches the card the cursor is on from either pane, the way x, e and D
+// do. The tree wants the letter for nothing, so nothing is gained by gating it.
+func TestExpandReachesTheCardFromTheTree(t *testing.T) {
+	s := replacing(t, 100, 24, "one", "two", "three", "four")
+	s.press("]", "]", "]", "]")
+
+	if got := s.frame(); !strings.Contains(got, "… 1 more") {
+		t.Fatalf("the block is not truncated, so this proves nothing:\n%s", got)
+	}
+
+	s.press("h", ">")
+	if got := s.frame(); !strings.Contains(got, "four") {
+		t.Errorf("> did not reach the card from the tree pane:\n%s", got)
+	}
+}

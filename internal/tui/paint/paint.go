@@ -47,15 +47,7 @@ type Painter struct {
 // Line paints one row: two numbers, the marker, and highlighted source over the
 // change's tint, cell by cell to the full width and clipped rather than wrapped.
 func (p Painter) Line(l Line, gutter, width int) string {
-	marker, c := " ", p.Theme.Subtle
-	var tint color.Color
-
-	switch l.Kind {
-	case Added:
-		marker, c, tint = "+", p.Theme.Success, p.Theme.AddedBackground
-	case Removed:
-		marker, c, tint = "−", p.Theme.Error, p.Theme.RemovedBackground
-	}
+	marker, c, tint := p.weight(l.Kind)
 	if l.Fill != nil {
 		tint = l.Fill
 	}
@@ -85,6 +77,34 @@ func (p Painter) Line(l Line, gutter, width int) string {
 		row += base.Render(strings.Repeat(" ", width-w))
 	}
 	return row
+}
+
+// Body paints a line with its marker and tint and no number columns, for a
+// caller hanging code where a gutter would be numbering another file.
+func (p Painter) Body(l Line, width int) string {
+	marker, c, tint := p.weight(l.Kind)
+	base := background(lipgloss.NewStyle(), tint)
+
+	row := base.Render(" ") + base.Foreground(c).Render(marker) + base.Render(" ") +
+		p.code(l.Tokens, base)
+
+	if w := lipgloss.Width(row); w > width {
+		return Clip(row, width, base.Foreground(p.Theme.Subtle))
+	} else if tint != nil {
+		row += base.Render(strings.Repeat(" ", width-w))
+	}
+	return row
+}
+
+// weight is the marker, foreground and tint one kind of line is painted in.
+func (p Painter) weight(k Kind) (string, color.Color, color.Color) {
+	switch k {
+	case Added:
+		return "+", p.Theme.Success, p.Theme.AddedBackground
+	case Removed:
+		return "−", p.Theme.Error, p.Theme.RemovedBackground
+	}
+	return " ", p.Theme.Subtle, nil
 }
 
 // Header is the @@ line ready to paint.

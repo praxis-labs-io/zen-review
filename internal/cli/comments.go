@@ -95,9 +95,17 @@ func listComments(cmd *cobra.Command, opts *options, f *filter) (_ bool, err err
 		return false, err
 	}
 
+	shown := f.apply(all)
+
+	replaced, err := replacedFor(ctx, opts, s, st, shown)
+	if err != nil {
+		return false, err
+	}
+
 	v := commentsView{
 		header:   statusHeader(s, st),
-		Comments: f.apply(all),
+		Comments: shown,
+		Replaced: replaced,
 		filter:   f,
 		Width:    screen(cmd.OutOrStdout()),
 	}

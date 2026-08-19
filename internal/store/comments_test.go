@@ -40,6 +40,7 @@ func comment(t *testing.T, db *store.DB, s store.Session, g store.Generation, id
 		Body:                "this reads backwards",
 		State:               store.CommentOpen,
 		AnchorBlob:          "h1",
+		CreatedRange:        store.LineRange{Start: line, End: line},
 		CreatedAt:           epoch,
 		UpdatedAt:           epoch,
 	}
@@ -66,6 +67,7 @@ func TestACommentRoundTrips(t *testing.T) {
 		Body:                "this reads backwards\nand the second line survives too",
 		State:               store.CommentOrphaned,
 		AnchorBlob:          "b1",
+		CreatedRange:        store.LineRange{Start: 2, End: 7},
 		LastPath:            "old.go",
 		LastLine:            4,
 		CreatedAt:           epoch,
@@ -195,6 +197,11 @@ func TestACarriedAnchorMovesOntoTheNewGeneration(t *testing.T) {
 	// which costs the column the only thing it says.
 	if !got.UpdatedAt.Equal(epoch) {
 		t.Errorf("updatedAt = %s, want the carry to have left it at %s", got.UpdatedAt, epoch)
+	}
+	// The blob and the range that slices it are one fact. Moving the range would
+	// leave the blob sliced by lines it never had.
+	if got.CreatedRange != (store.LineRange{Start: 4, End: 4}) || got.AnchorBlob != "h1" {
+		t.Errorf("created = %s %+v, want the carry to have left both alone", got.AnchorBlob, got.CreatedRange)
 	}
 }
 

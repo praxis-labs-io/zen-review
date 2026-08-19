@@ -1,0 +1,24 @@
+╭─[1]─Zen Review───────────────────────╮╭─[2]─internal/review/state.go─────────────────────────────╮
+│                                      ││       ●  @@ -120,5 +120,7 @@ func (s *Session) Changese…│
+│  assets                             ││ 123 123       }                                          │
+│   ○ logo.png                  binary ││     124 +     // Ranges are read off the generation.     │
+│  docs/superpowers/specs             ││     125 +     // Never off the working tree.             │
+│   ● design.md                  +3 -0 ││           ╭─ ◇ open · lines 124-125 ────────────────────╮│
+│  internal                           ││           │ These two say the same thing twice. Cut the ││
+│    cli                              ││           │ second.                                     ││
+│     ○ render.go                +1 -1 ││           ╰─────────────────────────────────────────────╯│
+│    review                           ││ 124 126       return Derive(files, rows), nil            │
+│     ⊙ state.go                 +3 -1 ││           ╭─ ◈ addressed ───────────────────────────────╮│
+│    tui/diffpane                     ││           │ Derive takes the rows now.                  ││
+│     ○ painting_the_unified_ro… +2 -0 ││           ╰───⏎ line · x resolve · space fold · > more ─╯│
+│ ○ README.md                    +1 -1 ││           │ ╭─ response ────────────────────────────────╮│
+│                                      ││           ╰─│ It does, and hands them back in tree      ││
+│                                      ││             │ order.                                    ││
+├──────────────────────────────────────┤│             │                                           ││
+│ origin/main                  a1b2c3d ││             │ −     files := d.Files()                  ││
+│ Generation                         2 ││             │ − sort.Strings(files)                     ││
+│ Reviewed                         2/7 ││             │ − return files                            ││
+│ Comments                         1/6 ││             │ … 1 more                                  ││
+│ Changes                   6  +10 -3 ││             ╰───────────────────────────────────────────╯│
+╰──────────────────────────────────────╯╰────────────────────────────────────────────────────36/39─╯
+j/k move · n/N unread · }/{ hunk · ctrl+d/u page · r/R read · c comment · s reload · ? help · q quit

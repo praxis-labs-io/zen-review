@@ -241,7 +241,8 @@ type commentEntry struct {
 	State string `json:"state"`
 	Body  string `json:"body"`
 
-	Response string `json:"response"`
+	Response string   `json:"response"`
+	Replaced []string `json:"replaced"`
 
 	CreatedAt string `json:"createdAt"`
 	UpdatedAt string `json:"updatedAt"`

@@ -285,7 +285,7 @@ func TestTheRootMovingTheCursorClearsTheSelection(t *testing.T) {
 	}{
 		{"a hunk", func(m *diffpane.Model) { m.Select(store.SideHead, 124) }},
 		{"a comment", func(m *diffpane.Model) { m.SelectComment("bbbbbbbbbbbb") }},
-		{"a file", func(m *diffpane.Model) { m.SetFile(nil, nil, 2) }},
+		{"a file", func(m *diffpane.Model) { m.SetFile(nil, nil, nil, 2) }},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			m := press(t, atFirstHunk(t, card), sel, down, down)

@@ -646,3 +646,85 @@ func TestAGenerationSurvivesGarbageCollection(t *testing.T) {
 		t.Errorf("fsck complains after the collection:\n%s", out)
 	}
 }
+
+func TestBlobsReadsEveryShaInOneCall(t *testing.T) {
+	f := newFixture(t)
+	f.Write("a.txt", "one\ntwo\n")
+	f.Write("b.txt", "")
+	f.Commit("two files")
+
+	a := strings.TrimSpace(f.Git("rev-parse", "HEAD:a.txt"))
+	b := strings.TrimSpace(f.Git("rev-parse", "HEAD:b.txt"))
+
+	blobs, err := f.open().Blobs(t.Context(), []string{a, b, a})
+	if err != nil {
+		t.Fatalf("reading two blobs: %v", err)
+	}
+	if got := string(blobs[a]); got != "one\ntwo\n" {
+		t.Errorf("a.txt = %q, want its contents", got)
+	}
+	if got, ok := blobs[b]; !ok || len(got) != 0 {
+		t.Errorf("b.txt = %q, %v, want an empty blob that is present", got, ok)
+	}
+	if len(blobs) != 2 {
+		t.Errorf("read %d blobs, want the repeated sha asked about once", len(blobs))
+	}
+}
+
+// A sha that has gone is left out rather than failing the call, so a caller
+// showing what it can keeps the rest of the answer.
+func TestBlobsLeavesOutWhatTheRepositoryDoesNotHave(t *testing.T) {
+	f := newFixture(t)
+	f.Write("a.txt", "one\n")
+	f.Commit("one file")
+
+	a := strings.TrimSpace(f.Git("rev-parse", "HEAD:a.txt"))
+	gone := "0123456789012345678901234567890123456789"
+
+	blobs, err := f.open().Blobs(t.Context(), []string{a, gone})
+	if err != nil {
+		t.Fatalf("reading past a missing sha: %v", err)
+	}
+	if _, ok := blobs[gone]; ok {
+		t.Errorf("the missing sha came back, want it left out")
+	}
+	if got := string(blobs[a]); got != "one\n" {
+		t.Errorf("a.txt = %q, want it read past the miss", got)
+	}
+}
+
+// A gitlink's sha names a commit, and a superproject that happens to hold that
+// commit resolves it. It is not the file's bytes, so it is left out too.
+func TestBlobsLeavesOutAShaThatIsNotABlob(t *testing.T) {
+	f := newFixture(t)
+	f.Write("a.txt", "one\n")
+	f.Commit("one file")
+
+	a := strings.TrimSpace(f.Git("rev-parse", "HEAD:a.txt"))
+	commit := strings.TrimSpace(f.Git("rev-parse", "HEAD"))
+
+	blobs, err := f.open().Blobs(t.Context(), []string{commit, a})
+	if err != nil {
+		t.Fatalf("reading past a commit sha: %v", err)
+	}
+	if _, ok := blobs[commit]; ok {
+		t.Errorf("the commit came back as a blob, want it left out")
+	}
+	if got := string(blobs[a]); got != "one\n" {
+		t.Errorf("a.txt = %q, want it read past the commit", got)
+	}
+}
+
+func TestBlobsRunsNoGitForNothing(t *testing.T) {
+	f := newFixture(t)
+	f.Write("a.txt", "one\n")
+	f.Commit("one file")
+
+	blobs, err := f.open().Blobs(t.Context(), []string{"", ""})
+	if err != nil {
+		t.Fatalf("asking about nothing: %v", err)
+	}
+	if len(blobs) != 0 {
+		t.Errorf("got %d blobs, want none", len(blobs))
+	}
+}
