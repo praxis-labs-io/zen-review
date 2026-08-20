@@ -44,15 +44,15 @@ func CodeColumn(gutter int) int {
 	return gutter*2 + 5
 }
 
+// HalfColumn is where the source starts in a Half, past its one number column
+// and the marker. It is CodeColumn for a side-by-side row.
+func HalfColumn(gutter int) int {
+	return gutter + 4
+}
+
 // markerSlot is the marker and the space after it. A two-cell marker eats that
 // space rather than pushing a heading's text past CodeColumn.
 const markerSlot = 2
-
-// markerColumn is where + and − sit, which is the two columns before the code.
-// A heading's own marker goes there so the two line up.
-func markerColumn(gutter int) int {
-	return CodeColumn(gutter) - markerSlot
-}
 
 // number right-aligns a line number, or holds the column open on the side a line
 // does not belong to.

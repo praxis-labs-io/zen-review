@@ -326,11 +326,27 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// h and l step, and the diff pane in two columns has one more place to step
+	// to. A pane that took the key keeps the focus it already had.
 	switch {
+	case key.Matches(msg, m.keys.Tree):
+		m.setFocus(focusTree)
+		return m, nil
+	case key.Matches(msg, m.keys.Diff):
+		m.setFocus(focusDiff)
+		return m, nil
 	case key.Matches(msg, m.keys.Left):
+		if m.focus == focusDiff && m.diff.Column(store.SideBase) {
+			m.syncCursor()
+			return m, nil
+		}
 		m.setFocus(focusTree)
 		return m, nil
 	case key.Matches(msg, m.keys.Right):
+		if m.focus == focusDiff && m.diff.Column(store.SideHead) {
+			m.syncCursor()
+			return m, nil
+		}
 		m.setFocus(focusDiff)
 		return m, nil
 	}
@@ -442,6 +458,15 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// reload nor raises a notice. A press with no card under it does nothing.
 	if key.Matches(msg, m.keys.Expand) {
 		m.diff.Expand()
+		return m, nil
+	}
+
+	// A fact about the frame rather than a failure, so it is not a bad notice.
+	if key.Matches(msg, m.keys.Split) {
+		if short := m.diff.ToggleSplit(); short > 0 {
+			m.note = notice{text: fmt.Sprintf("side-by-side needs %d more columns in the pane", short)}
+		}
+		m.syncCursor()
 		return m, nil
 	}
 

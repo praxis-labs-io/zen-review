@@ -1,5 +1,5 @@
 ╭─[1]─Zen Review─────────────────╮╭─[2]─internal/revie…╮
-│     ○ render.go          +1 -1 ││       ○  @@ -10,5…│
+│     ○ render.go          +1 -1 ││▌      ○  @@ -10,5…│
 │    review                     ││  10  10   // State…│
 │     ⊙ state.go           +3 -1 ││  11  11   type Sta…│
 │    tui/diffpane               ││  12  12   const (  │

@@ -36,6 +36,10 @@ type Line struct {
 	// Fill beats the kind's tint, nil uses it. A cursor, a selection and a
 	// reviewed tint are the caller's state and all have to win.
 	Fill color.Color
+
+	// Bar paints the leading cell, and nil leaves it blank. A tint says a row is
+	// lit and a bar says where it starts, which is what an eye follows.
+	Bar color.Color
 }
 
 // Painter paints rows from one theme.
@@ -64,7 +68,7 @@ func (p Painter) Line(l Line, gutter, width int) string {
 		oldNum = kind
 	}
 
-	row := base.Render(" ") +
+	row := lead(l.Bar, base) +
 		oldNum.Render(number(l.Old, gutter)) + base.Render(" ") +
 		newNum.Render(number(l.New, gutter)) + base.Render(" ") +
 		kind.Render(marker) + base.Render(" ") + p.code(l.Tokens, base)
@@ -91,6 +95,36 @@ func (p Painter) Body(l Line, width int) string {
 	if w := lipgloss.Width(row); w > width {
 		return Clip(row, width, base.Foreground(p.Theme.Subtle))
 	} else if tint != nil {
+		row += base.Render(strings.Repeat(" ", width-w))
+	}
+	return row
+}
+
+// Half paints one column of a side-by-side row. A half carries one number, so
+// whichever of Old and New is set shows, and a zero Line paints a blank column.
+func (p Painter) Half(l Line, gutter, width int) string {
+	marker, c, tint := p.weight(l.Kind)
+	if l.Fill != nil {
+		tint = l.Fill
+	}
+
+	base := background(lipgloss.NewStyle(), tint)
+	kind := base.Foreground(c)
+
+	num := base.Foreground(p.Theme.Subtle)
+	if l.Kind != Context {
+		num = kind
+	}
+
+	row := lead(l.Bar, base) + num.Render(number(max(l.Old, l.New), gutter)) +
+		base.Render(" ") + kind.Render(marker) + base.Render(" ") +
+		p.code(l.Tokens, base)
+
+	if w := lipgloss.Width(row); w > width {
+		return Clip(row, width, base.Foreground(p.Theme.Subtle))
+	} else if w < width {
+		// Padded whether or not it is tinted, where Line leaves that to the pane.
+		// A short half puts the column beside it out of step.
 		row += base.Render(strings.Repeat(" ", width-w))
 	}
 	return row
@@ -130,11 +164,14 @@ type Header struct {
 	// Fill is the row's background, and nil paints none. It is the caller's
 	// state the same way Line.Fill is.
 	Fill color.Color
+
+	// Bar is the leading cell the same way Line.Bar is.
+	Bar color.Color
 }
 
-// HunkHeader is the @@ line, indented to the code column so it sits over the
-// source it introduces. A fill runs its background out to the full width.
-func (p Painter) HunkHeader(h Header, gutter, width int) string {
+// HunkHeader is the @@ line, indented to code so it sits over the source it
+// introduces: CodeColumn for a unified row, HalfColumn for a side-by-side one.
+func (p Painter) HunkHeader(h Header, code, width int) string {
 	base := background(lipgloss.NewStyle(), h.Fill)
 	accent := base.Foreground(p.Theme.Accent)
 
@@ -150,7 +187,7 @@ func (p Painter) HunkHeader(h Header, gutter, width int) string {
 		badge = base.Foreground(h.BadgeColor)
 	}
 
-	row := base.Render(strings.Repeat(" ", markerColumn(gutter)-markerSlot)) +
+	row := lead(h.Bar, base) + base.Render(strings.Repeat(" ", max(0, code-2*markerSlot-1))) +
 		slot(h.Badge, base, badge) + slot(h.Marker, base, text) +
 		text.Render(h.Text)
 
@@ -160,6 +197,18 @@ func (p Painter) HunkHeader(h Header, gutter, width int) string {
 		row += base.Render(strings.Repeat(" ", width-w))
 	}
 	return row
+}
+
+// barGlyph marks the row the cursor is on. It goes in the leading cell every row
+// already holds open, so a row gains no width by being the one under the cursor.
+const barGlyph = "▌"
+
+// lead is a row's first cell: the bar, or the blank every other row keeps there.
+func lead(bar color.Color, base lipgloss.Style) string {
+	if bar == nil {
+		return base.Render(" ")
+	}
+	return base.Foreground(bar).Render(barGlyph)
 }
 
 // slot renders one glyph in a fixed pair of columns, blank when there is none.

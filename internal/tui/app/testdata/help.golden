@@ -6,10 +6,10 @@
 │   ● desi│ G      bottom                 tab       next file          enter open        │         │
 │  intern│ ctrl+d diff half page down    shift+tab previous file      s     reload      │         │
 │    cli │ ctrl+u diff half page up      r         mark read          b     change base │         │
-├─────────│ ]/[    comment                R         mark file          C     note        │         │
-│ origin/m│                               u/U       unmark             ?     help        │         │
-│ Generati│                               c         comment            q     quit        │         │
-│ Reviewed│                               x         resolve comment                      │         │
+├─────────│ ]/[    comment                R         mark file          |     split view  │         │
+│ origin/m│                               u/U       unmark             C     note        │         │
+│ Generati│                               c         comment            ?     help        │         │
+│ Reviewed│                               x         resolve comment    q     quit        │         │
 │ Comments│                               e/D       edit, delete                         │         │
 │ Changes ╰──────────────────────────────────────────────────────────────────────────────╯         │
 ╰──────────────────────────────────────╯╰──────────────────────────────────────────────────────────╯

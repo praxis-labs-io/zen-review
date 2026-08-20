@@ -4,10 +4,10 @@
 │   ○ logo.│ k      up                     N         previous unread    l/2 diff pane   │          │
 │  docs/su│ g      top                    }/{       hunk               s   reload      │          │
 │   ● desig│ G      bottom                 tab       next file          b   change base │          │
-│  interna│ ctrl+d diff half page down    shift+tab previous file      C   note        │          │
-│    cli  │ ctrl+u diff half page up      r         mark read          ?   help        │          │
-├──────────│ ]/[    comment                R         mark file          q   quit        │          │
-│ origin/ma│ z      place cursor: z/t/b    u/U       unmark                             │          │
+│  interna│ ctrl+d diff half page down    shift+tab previous file      |   split view  │          │
+│    cli  │ ctrl+u diff half page up      r         mark read          C   note        │          │
+├──────────│ ]/[    comment                R         mark file          ?   help        │          │
+│ origin/ma│ z      place cursor: z/t/b    u/U       unmark             q   quit        │          │
 │ Generatio│ v      select lines           c         comment                            │          │
 │ Reviewed │ space  fold comment           x         resolve comment                    │          │
 │ Comments │ enter  go to its line         e/D       edit, delete                       │          │

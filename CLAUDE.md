@@ -363,8 +363,8 @@ without either being hostage to the other's release cycle.
 j k g G                  movement
 zz zt zb                 put the cursor mid, top or bottom of the pane
 ctrl+u ctrl+d            page the diff, from either pane
-h l                      tree pane / diff pane
-1 2                      the same two, by the badge in the pane's border
+h l                      tree pane / diff pane, and the columns of a split one
+1 2                      the two panes, by the badge in the pane's border
 } {                      the ring: next / prev hunk
 space                    fold / unfold: a tree directory, a comment card
 tab shift+tab            next / prev file
@@ -395,6 +395,54 @@ s                        reload
 until the count reaches zero. `r` advances after marking, so `r r r r` walks the
 whole thing.
 
+`|` puts the two sides in two columns. A run of removals pairs against the run of
+additions after it, one row each, and the shorter side draws a blank rather than
+shifting up, which would put the two columns out of step for the rest of the
+file. Context takes both. One gutter serves both halves, so the rule between them
+sits centre.
+
+It is what the reader asked for and not always what they get. Under a minimum of
+source per column the two halves clip away more than they show, so the key
+refuses and the bar says how many columns short the pane is. A terminal shrinking
+under a split pane falls back to unified and keeps the answer, so widening brings
+it back without a second press.
+
+The cursor is in one column, and only that column lights. Lighting the row across
+both leaves a reader on a rewritten line with nothing saying which side the next
+key takes, and the rule between them stays dark or the lit block runs a cell past
+its column.
+
+`h` and `l` step into it. They already mean move left and right between things on
+screen, and a split pane is one more thing to step to: `h` from the head column
+goes to the base, and again to the tree; `l` walks back. The pane keeps the column
+it was left in, so returning to it moves nothing, and it starts on the head. A
+pane drawing one column has nowhere to step and gives the focus up on the first
+press, as it always did.
+
+`1` and `2` stay a jump, because a badge drawn in a border names the frame it is
+drawn in, and there are two frames whatever the mode.
+
+One cursor and not one per column. The rows are paired, so the two halves of a row
+are the same change and stepping between them is the comparison being made. Two
+cursors could point at unrelated lines and a side-switch would throw the window,
+which is vimdiff's shape and vimdiff has two real buffers to hang it on.
+
+`j` and `k` skip a row the focused column has no line on. Walking the head column
+of a deletion-only block therefore steps over it, which is honest: there is no head
+there to read, and `h` is where those lines live. A run reaching the end of the
+file turns the cursor back rather than stranding it on a blank.
+
+The same step off the end of a hunk turns back inside it. A column step is one
+row across and not a move between hunks, and `r` takes the hunk the cursor is in,
+so carrying it over the boundary would mark the hunk the reader just left.
+
+A comment and a selection scope to the focused column, which is the whole point:
+a removal with its replacement beside it can be commented on alone. A mark does
+not, `r` taking the hunk and writing every side at once as it always has.
+
+The mode lasts the run and nothing stores it. A default belongs with the reader's
+other preferences, not in the session the review is kept in.
+
 `v` scopes a comment and nothing else. The unit of review is the hunk, so `r`
 over a selection marks the hunk and advances, the same press it always was. The
 engine can mark lines and `review --lines` reaches it, but from the reader it
@@ -420,6 +468,10 @@ A comment anchors to the head wherever the lines it covers have one, and to the
 base only when they have none, which is a selection of removals. The head is the
 code the next agent rewrites; a mark writes every side at once and a comment
 cannot. The box says which side it took, because base numbers read as head ones.
+
+Side-by-side is where that rule steps aside: a row there names one column, the one
+the cursor is in, so the reader picks rather than the rule. Unified has no column
+to pick, so it keeps the rule.
 
 A hunk is the block a paragraph motion moves by, so `}` and `{` step it. Vim's
 own diff mode says `]c` and `[c`, and the bracket pair is spoken for. Nothing in
@@ -593,6 +645,17 @@ Six divergences from zen-octo, all deliberate:
 The diff pane opens focused on the first unreviewed hunk. zen-octo's
 conversation opens unfocused because the reader came to read; you came here to
 burn a review down.
+
+The row the cursor is on carries a bar in its leading cell, in accent. The tint
+alone is a change of shade a reader loses on a page of them, and the cell is one
+every row already holds open, so nothing shifts as the cursor passes. The fill is
+shared with a selection and the bar is not, which is what says where the next key
+moves from inside one.
+
+Side-by-side puts it at the focused column's own edge rather than the pane's, so
+it marks the column as well as the row. A heading takes it at the pane edge,
+belonging to neither column. A comment card does not: its border already lights,
+and a second mark on one block says nothing the first did not.
 
 `j` and `k` move a row cursor rather than the window, and a hunk heading pins to
 the top row once it scrolls off, so the lines up there are never unlabelled. The

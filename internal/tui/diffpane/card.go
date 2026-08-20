@@ -121,7 +121,7 @@ func (m Model) folds(c store.Comment) bool {
 // cardBox is where a card starts and how wide it is. It hangs at the column the
 // code starts in, and gives that up rather than shrink past what a border needs.
 func (m Model) cardBox() (int, int) {
-	at := min(paint.CodeColumn(m.gutter), max(m.width-cardMin, 0))
+	at := min(m.codeColumn(), max(m.width-cardMin, 0))
 
 	// It stops at what prose reads at, where the code beside it runs the whole
 	// pane. A wide box around one column of words reads as a fault, not a card.

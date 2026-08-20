@@ -35,7 +35,15 @@ type hunk struct {
 	Cursor bool
 	Badged bool
 	Rows   []row
+
+	// Pairs is the rows the side-by-side half of the demo draws, written out
+	// rather than computed: the pane owns that arrangement and this only shows it.
+	Pairs []pair
 }
+
+// pair is the rows one side-by-side row draws, by index into a hunk's own, and
+// -1 for a column with no line.
+type pair struct{ left, right int }
 
 // Two hunks, four-digit numbers in the second. One gutter serves a whole file,
 // so a demo that never leaves two digits proves nothing about the alignment.
@@ -58,6 +66,9 @@ var hunks = []hunk{
 			{Kind: paint.Added, New: 48, Text: "\treturn clipTo(row, width, p.faint())"},
 			{Kind: paint.Context, Old: 48, New: 49, Text: "}"},
 		},
+		Pairs: []pair{
+			{0, 0}, {1, 2}, {3, 4}, {5, 5}, {6, 7}, {8, 8}, {9, 10}, {-1, 11}, {12, 12},
+		},
 	},
 	{
 		Header: "@@ -1229,3 +1230,3 @@ func Gutter(widest int) int",
@@ -68,6 +79,7 @@ var hunks = []hunk{
 			{Kind: paint.Added, New: 1231, Text: "\treturn max(gutterMin, len(strconv.Itoa(widest)))"},
 			{Kind: paint.Context, Old: 1231, New: 1232, Text: "}"},
 		},
+		Pairs: []pair{{0, 0}, {1, 2}, {3, 3}},
 	},
 }
 
@@ -81,6 +93,7 @@ func main() {
 
 	p := paint.Painter{Theme: t}
 	gutter := paint.Gutter(widest())
+	half := (width - 1) / 2
 
 	// Each side whole and the two apart: a lexer carries state across lines, and
 	// run together it reads a file holding both halves of every change.
@@ -90,25 +103,65 @@ func main() {
 	out := []string{lipgloss.NewStyle().Foreground(t.Subtle).
 		Render(fmt.Sprintf("theme %s, pane %d columns, gutter %d", t.Name, width, gutter))}
 
-	oldAt, newAt := 0, 0
-	for _, h := range hunks {
-		head := paint.Header{Text: h.Header}
-		if h.Cursor {
-			head.Marker, head.Fill = "▸", t.SelectedBackground
-		}
-		head.Badge, head.BadgeColor = "○", t.Subtle
-		if h.Badged {
-			head.Badge, head.BadgeColor = "●", t.Accent
-		}
-		out = append(out, p.HunkHeader(head, gutter, width))
+	lines := painted(t, oldSide, newSide)
 
+	at := 0
+	for _, h := range hunks {
+		out = append(out, p.HunkHeader(header(t, h), paint.CodeColumn(gutter), width))
+		for range h.Rows {
+			out = append(out, p.Line(lines[at], gutter, width))
+			at++
+		}
+	}
+
+	// The same rows side by side, where the painter has half the columns and two
+	// chances to lose a cell. A blank half faces a change with no pair.
+	out = append(out, "", lipgloss.NewStyle().Foreground(t.Subtle).
+		Render(fmt.Sprintf("side by side, %d columns each", half)))
+
+	at = 0
+	for _, h := range hunks {
+		out = append(out, p.HunkHeader(header(t, h), paint.HalfColumn(gutter), width))
+
+		rule := lipgloss.NewStyle().Foreground(t.Muted)
+		for _, pr := range h.Pairs {
+			l, r := blank(lines, at, pr.left), blank(lines, at, pr.right)
+			l.New, r.Old = 0, 0
+			out = append(out, p.Half(l, gutter, half)+rule.Render("│")+p.Half(r, gutter, width-half-1))
+		}
+		at += len(h.Rows)
+	}
+
+	fmt.Println(strings.Join(out, "\n"))
+}
+
+// header is one hunk's @@ line, the cursor and the state glyph on it.
+func header(t theme.Theme, h hunk) paint.Header {
+	head := paint.Header{Text: h.Header}
+	if h.Cursor {
+		head.Marker, head.Fill, head.Bar = "▸", t.SelectedBackground, t.Accent
+	}
+
+	head.Badge, head.BadgeColor = "○", t.Subtle
+	if h.Badged {
+		head.Badge, head.BadgeColor = "●", t.Accent
+	}
+	return head
+}
+
+// painted is every canned row as a paint.Line, in file order. A context line
+// takes its colour from the new side and advances both.
+func painted(t theme.Theme, oldSide, newSide [][]syntax.Token) []paint.Line {
+	var out []paint.Line
+	oldAt, newAt := 0, 0
+
+	for _, h := range hunks {
 		for _, r := range h.Rows {
 			l := paint.Line{Kind: r.Kind, Old: r.Old, New: r.New}
 			if r.Cursor {
-				l.Fill = t.SelectedBackground
+				l.Fill, l.Bar = t.SelectedBackground, t.Accent
 			}
 
-			// A context line takes its color from the new side, and advances both.
 			switch r.Kind {
 			case paint.Removed:
 				l.Tokens = nth(oldSide, oldAt)
@@ -121,12 +174,18 @@ func main() {
 				oldAt++
 				newAt++
 			}
-
-			out = append(out, p.Line(l, gutter, width))
+			out = append(out, l)
 		}
 	}
+	return out
+}
 
-	fmt.Println(strings.Join(out, "\n"))
+// blank is the line at an index, and a zero one for a column with none.
+func blank(lines []paint.Line, base, i int) paint.Line {
+	if i < 0 {
+		return paint.Line{}
+	}
+	return lines[base+i]
 }
 
 // source is one side of the diff as a file, context lines included. A side

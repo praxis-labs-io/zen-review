@@ -4,7 +4,7 @@
 │  internal                           ││      13 +     Unreviewed State = "unreviewed"            │
 │    cli                              ││  14  14       Partial    State = "partial"               │
 │     ○ render.go                +1 -1 ││                                                          │
-│    review                           ││       ●  @@ -120,5 +120,7 @@ func (s *Session) Changese…│
+│    review                           ││▌      ●  @@ -120,5 +120,7 @@ func (s *Session) Changese…│
 │     ⊙ state.go                 +3 -1 ││ 120 120       rows, err := s.db.ReviewedRanges(ctx, g.ID)│
 ├──────────────────────────────────────┤│ 121 121       if err != nil {                            │
 │ origin/main                  a1b2c3d ││ 122 122           return Changeset{}, err                │

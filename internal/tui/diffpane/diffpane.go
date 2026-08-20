@@ -151,6 +151,12 @@ type Model struct {
 	// landing clears it, so a ring key between the two does not arm the next.
 	waiting bool
 
+	// split is what the reader asked for, not what they are getting: a pane too
+	// narrow draws unified until it is widened, and splitting is the one to read.
+	// side is the column the cursor is in, which only side-by-side has.
+	split bool
+	side  store.Side
+
 	// anchor is where v was pressed, held as a place rather than a row: a card's
 	// height moves with the width, and every row after it renumbers.
 	anchor place
@@ -189,6 +195,10 @@ type row struct {
 	// The blank between two hunks goes to the one above it, so this never falls.
 	hunk int
 
+	// right is the head column of a side-by-side row, line being the base one. A
+	// zero value is the blank facing a change the other side has no pair for.
+	right paint.Line
+
 	// card is the comment this row is part of, indexing m.cards, and -1 on every
 	// other row.
 	card int
@@ -212,6 +222,7 @@ func New(t theme.Theme) Model {
 		painter: paint.Painter{Theme: t},
 		syntax:  s,
 		cursor:  -1,
+		side:    store.SideHead,
 		anchor:  place{seq: -1},
 	}
 }
@@ -373,14 +384,14 @@ func (m *Model) moveTo(i int) {
 	}
 	i = max(0, min(i, len(m.rows)-1))
 
-	// The blank between two hunks is the pane's own spacing rather than a line
-	// of the file, so the cursor steps over it the way it was already going.
-	if m.blank(i) {
+	// The blank between two hunks says nothing, and a column with no line on this
+	// row has nothing to scope, so the cursor goes on the way it was already going.
+	if !m.reachable(i) {
 		by := 1
 		if i < m.cursor {
 			by = -1
 		}
-		i = max(0, min(i+by, len(m.rows)-1))
+		i = m.seek(i, by)
 	}
 
 	// A card is one block and one stop. Walking its border and its prose a row
@@ -486,12 +497,22 @@ func (m Model) render(i int) (string, lipgloss.Style) {
 		fill = m.theme.SelectedBackground
 	}
 
+	// The bar is the cursor's alone, where the fill is shared with a selection.
+	// Inside one it is the only thing saying which row the next key moves from.
+	var bar color.Color
+	if i == m.cursor {
+		bar = m.theme.Accent
+	}
+
 	switch r.kind {
 	case headRow:
-		return m.painter.HunkHeader(m.header(r.hunk, fill), m.gutter, m.width), lipgloss.NewStyle()
+		return m.painter.HunkHeader(m.header(r.hunk, fill, bar), m.codeColumn(), m.width), lipgloss.NewStyle()
 	case codeRow:
+		if m.splitting() {
+			return m.halves(r, fill, bar), lipgloss.NewStyle()
+		}
 		l := r.line
-		l.Fill = fill
+		l.Fill, l.Bar = fill, bar
 		return m.painter.Line(l, m.gutter, m.width), lipgloss.NewStyle()
 	case cardRow:
 		// A card is one block, so a cursor anywhere in it lights the whole thing.
@@ -514,10 +535,10 @@ func (m Model) render(i int) (string, lipgloss.Style) {
 
 // header is one hunk's @@ line. The caret says which hunk a mark would take, and
 // runs the length of the hunk; the fill is only ever the row the reader is on.
-func (m Model) header(i int, fill color.Color) paint.Header {
+func (m Model) header(i int, fill, bar color.Color) paint.Header {
 	h := m.file.Hunks[i]
 
-	head := paint.Header{Text: comp.Safe(h.Diff.Header), Fill: fill}
+	head := paint.Header{Text: comp.Safe(h.Diff.Header), Fill: fill, Bar: bar}
 	head.Badge, head.BadgeColor = m.badge(h.State)
 	if i == m.hunkAt(m.cursor) {
 		head.Marker = cursorGlyph
@@ -624,6 +645,7 @@ func (m Model) fits(at int) bool {
 func (m *Model) SetSize(width, height int) {
 	first := m.width == 0 && m.height == 0
 	was := m.placeOf(m.cursor)
+	mode := m.splitting()
 
 	m.width, m.height = width, height
 
@@ -633,7 +655,14 @@ func (m *Model) SetSize(width, height int) {
 		m.draft.area.SetWidth(m.draftWidth())
 		m.capBox()
 	}
-	m.relayout(was)
+
+	// A resize across the minimum changes the mode under the reader, and the two
+	// modes do not number their rows the same. remode carries the line instead.
+	if m.splitting() != mode {
+		m.remode()
+	} else {
+		m.relayout(was)
+	}
 	m.reveal()
 
 	if first {
@@ -821,12 +850,14 @@ func (m *Model) layout() {
 	// goes and how far up the ring scrolls. The card hangs under its last.
 	first := make(map[string]int, len(mine))
 
-	seen, seq := 0, 0
+	base, seq := 0, 0
 	add := func(r row) {
 		r.card, r.seq = -1, seq
 		seq++
 		m.rows = append(m.rows, r)
 	}
+
+	split := m.splitting()
 
 	for i, h := range m.file.Hunks {
 		if i > 0 {
@@ -836,44 +867,44 @@ func (m *Model) layout() {
 		m.headAt = append(m.headAt, len(m.rows))
 		add(row{kind: headRow, hunk: i})
 
-		for _, l := range h.Diff.Lines {
-			add(row{kind: codeRow, hunk: i, line: paint.Line{
-				Kind:   kindOf(l.Kind),
-				Old:    l.Old,
-				New:    l.New,
-				Tokens: tokens[seen],
-			}})
+		for _, p := range pairs(h.Diff.Lines, split) {
+			add(m.code(h.Diff.Lines, p, tokens[base:], i, split))
 			at := len(m.rows) - 1
-			seen++
 
 			// It hangs under the line it was written about. Without it a file that
 			// lost its trailing newline shows two rows of the same text.
-			if l.NoEOL {
+			if eol(h.Diff.Lines, p) {
 				add(row{kind: noteRow, hunk: i, note: `\ No newline at end of file`})
 			}
 
 			// A card hangs under the last line of what it answers, so that code is
 			// above it and stays on screen when the ring lands on the card.
-			for j, c := range mine {
-				if !m.live(c) {
-					continue
-				}
-				if _, seen := first[c.ID]; !seen && on(c, l, c.Start) {
-					first[c.ID] = at
-				}
-				if !placed[j] && on(c, l, c.End) {
-					placed[j] = true
+			for _, k := range sides(p) {
+				l := h.Diff.Lines[k]
 
-					// A range whose first line the diff does not show anchors to its
-					// last, which is the row the card is already hanging under.
-					anchor, ok := first[c.ID]
-					if !ok {
-						anchor = at
+				for j, c := range mine {
+					if !m.live(c) {
+						continue
 					}
-					m.addCard(c, i, anchor)
+					if _, seen := first[c.ID]; !seen && on(c, l, c.Start) {
+						first[c.ID] = at
+					}
+					if !placed[j] && on(c, l, c.End) {
+						placed[j] = true
+
+						// A range whose first line the diff does not show anchors to its
+						// last, which is the row the card is already hanging under.
+						anchor, ok := first[c.ID]
+						if !ok {
+							anchor = at
+						}
+						m.addCard(c, i, anchor)
+					}
 				}
 			}
 		}
+
+		base += len(h.Diff.Lines)
 	}
 
 	if len(m.file.Hunks) == 0 {

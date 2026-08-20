@@ -482,16 +482,25 @@ func filledRows(t *testing.T, m diffpane.Model) []string {
 	return out
 }
 
+// content is a row past its leading cell, which is where the cursor's bar goes.
+// A window that has not moved draws the same rows whatever the cursor marks.
+func content(row string) string {
+	if r := []rune(row); len(r) > 0 {
+		return string(r[1:])
+	}
+	return row
+}
+
 // TestJMovesTheCursorAndNotTheWindow, while the row it lands on is on screen. A
 // pane that scrolls on every j takes the reader off the line they are reading.
 func TestJMovesTheCursorAndNotTheWindow(t *testing.T) {
 	m := pane(t, twoHunks, 60, 8)
 	m.Select(store.SideHead, 13)
 
-	before := rows(t, m)[0]
+	before := content(rows(t, m)[0])
 	m = press(t, m, down, down)
 
-	if after := rows(t, m)[0]; after != before {
+	if after := content(rows(t, m)[0]); after != before {
 		t.Errorf("j scrolled the window from %q to %q", before, after)
 	}
 	if want := strings.TrimRight(rows(t, m)[2], " "); filled(t, m) != want {

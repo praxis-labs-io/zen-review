@@ -84,6 +84,14 @@ func TestGoldenFrames(t *testing.T) {
 		// Two rows shorter than the tree has rows, so the pane has to scroll
 		// rather than run off the status bar.
 		{"short", 100, 8, []string{"h", "G"}},
+
+		// The fixture's two-hunk file holds both side-by-side shapes: a removal
+		// paired against its replacement, and an addition with a blank facing it.
+		{"split", 120, 16, []string{"n", "n", "|"}},
+
+		// The same press at a width two halves do not fit in. The bar says how
+		// many columns short it is and the pane is left unified.
+		{"split-narrow", 100, 16, []string{"n", "n", "|"}},
 	}
 
 	for _, tt := range tests {
@@ -1453,4 +1461,100 @@ func TestTheFallbackTagDoesNotReadAsAFactOnTheBar(t *testing.T) {
 	if strings.Contains(bar, "HEAD · uncommitted") {
 		t.Errorf("bar = %q, want the tag not to read as its own fact", bar)
 	}
+}
+
+// TestHStepsTheColumnBeforeItLeavesTheDiffPane. h is a step and the diff pane in
+// two columns has one more place to step to, where 1 and 2 stay a jump.
+func TestHStepsTheColumnBeforeItLeavesTheDiffPane(t *testing.T) {
+	s := open(t, 120, 16).press("n", "n", "|")
+	if !strings.Contains(s.raw(), seam(false)) {
+		t.Fatal("the diff pane does not have the focus to begin with")
+	}
+
+	// The cursor opens in the head column, so the first h goes to the base and
+	// the pane keeps the focus.
+	s.press("h")
+	if !strings.Contains(s.raw(), seam(false)) {
+		t.Error("h left the diff pane instead of stepping into the base column")
+	}
+
+	// Nowhere further left inside the pane, so the second h gives the focus up.
+	s.press("h")
+	if !strings.Contains(s.raw(), seam(true)) {
+		t.Error("a second h did not hand the focus to the tree")
+	}
+
+	// l comes back into the pane, and a second l steps to the head column.
+	s.press("l")
+	if !strings.Contains(s.raw(), seam(false)) {
+		t.Fatal("l did not come back to the diff pane")
+	}
+	s.press("l")
+	if !strings.Contains(s.raw(), seam(false)) {
+		t.Error("l stepping to the head column gave the focus away")
+	}
+}
+
+// TestTheBadgeIsAJumpNotAStep. 1 names the tree frame whatever column the
+// cursor is in, or the badge stops meaning what it is drawn beside.
+func TestTheBadgeIsAJumpNotAStep(t *testing.T) {
+	s := open(t, 120, 16).press("n", "n", "|")
+
+	s.press("1")
+	if !strings.Contains(s.raw(), seam(true)) {
+		t.Error("1 stepped a column instead of jumping to the tree")
+	}
+
+	s.press("2")
+	if !strings.Contains(s.raw(), seam(false)) {
+		t.Error("2 did not jump to the diff pane")
+	}
+}
+
+// TestAUnifiedPaneStillGivesTheFocusUpOnTheFirstH. The column step exists only
+// while two are drawn, and h is one key everywhere else.
+func TestAUnifiedPaneStillGivesTheFocusUpOnTheFirstH(t *testing.T) {
+	s := open(t, 120, 16).press("n", "n")
+
+	s.press("h")
+	if !strings.Contains(s.raw(), seam(true)) {
+		t.Error("h did not hand the focus to the tree in a unified pane")
+	}
+}
+
+// TestTheToggleLeavesTheCursorWhereTheCaretIs. r acts on the caret's hunk, and a
+// toggle that moved the cursor off it would mark a hunk nobody is looking at.
+func TestTheToggleLeavesTheCursorWhereTheCaretIs(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, ringPatch), 120, 16)
+
+	// The pane opens on a heading, and the ring key moves to the next one, which
+	// is the row a toggle used to lose.
+	s.press("}")
+	if got := barred(t, s); !strings.Contains(got, "@@ -10,0 +11,1 @@") {
+		t.Fatalf("the cursor is on %q, want a.go's second hunk heading", got)
+	}
+
+	s.press("|")
+	if got := barred(t, s); !strings.Contains(got, "@@ -10,0 +11,1 @@") {
+		t.Errorf("the toggle took the cursor to %q, want a.go's second hunk", got)
+	}
+
+	s.press("r")
+	want := []string{"MarkHunk a.go head:11 gen=2"}
+	if got := s.calls(); !equal(got, want) {
+		t.Errorf("r wrote %v, want %v", got, want)
+	}
+}
+
+// barred is the row the cursor is on, which the diff pane marks with a bar in
+// the row's leading cell.
+func barred(t *testing.T, s *screen) string {
+	t.Helper()
+
+	for _, line := range strings.Split(s.frame(), "\n") {
+		if strings.Contains(line, "▌") {
+			return line
+		}
+	}
+	return ""
 }
