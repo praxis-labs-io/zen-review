@@ -19,12 +19,11 @@ const splitCodeMin = 28
 // between them saying where one ends.
 const splitRule = "│"
 
-// Split is whether the reader asked for side-by-side. A pane too narrow to draw
-// it keeps the answer and draws unified, so widening brings it back.
-func (m Model) Split() bool { return m.split }
-
 // ToggleSplit turns side-by-side on or off, and returns how many columns short
 // the pane is when it refuses. Turning it off always takes.
+//
+// A pane too narrow keeps the answer and draws unified, so widening brings it
+// back without a second press.
 func (m *Model) ToggleSplit() int {
 	if !m.split {
 		if short := m.splitShort(); short > 0 {
@@ -48,6 +47,77 @@ func (m Model) splitShort() int {
 // splitting is whether the pane draws side-by-side, which takes both the
 // reader's answer and the width to honour it.
 func (m Model) splitting() bool { return m.split && m.splitShort() == 0 }
+
+// scope is the column the cursor is in, which a comment and a selection are read
+// on. Empty is a unified row, which names both.
+func (m Model) scope() store.Side {
+	if !m.splitting() {
+		return ""
+	}
+	return m.side
+}
+
+// NextColumn moves the cursor into the head column, and PrevColumn back into the
+// base. Both report whether they took the key: only a split pane has anywhere to go.
+func (m *Model) NextColumn() bool { return m.toSide(store.SideHead) }
+
+// PrevColumn is NextColumn the other way, which is what h does inside the pane.
+func (m *Model) PrevColumn() bool { return m.toSide(store.SideBase) }
+
+// toSide lights the other column and brings the cursor onto a row that has a
+// line in it. A pane already there has not taken the key and lets focus move on.
+func (m *Model) toSide(to store.Side) bool {
+	if !m.splitting() || m.side == to {
+		return false
+	}
+
+	m.side = to
+	if m.cursor >= 0 {
+		m.moveTo(m.cursor)
+	}
+	m.repaintAll()
+	return true
+}
+
+// has is whether a half carries a line. A blank one has no number on either
+// field, which no real line does.
+func has(l paint.Line) bool { return l.Old != 0 || l.New != 0 }
+
+// focused is the half the cursor is in, and the whole row when unified.
+func (m Model) focused(r row) paint.Line {
+	if m.scope() == store.SideBase {
+		return r.line
+	}
+	return r.right
+}
+
+// reachable is whether the cursor can sit on a row: not the blank between two
+// hunks, and not a column this row has no line in.
+func (m Model) reachable(i int) bool {
+	if i < 0 || i >= len(m.rows) || m.blank(i) {
+		return false
+	}
+	if m.scope() == "" || m.rows[i].kind != codeRow {
+		return true
+	}
+	return has(m.focused(m.rows[i]))
+}
+
+// seek is the first row from i in a direction the cursor can sit on. A run
+// reaching the end of the file turns back, rather than stranding it on a blank.
+func (m Model) seek(from, by int) int {
+	for i := from; i >= 0 && i < len(m.rows); i += by {
+		if m.reachable(i) {
+			return i
+		}
+	}
+	for i := from; i >= 0 && i < len(m.rows); i -= by {
+		if m.reachable(i) {
+			return i
+		}
+	}
+	return from
+}
 
 // columns is the width of each side-by-side column, the rule between them taken
 // off the pane first. An odd cell goes to the head, that being the side read.
@@ -160,17 +230,21 @@ func eol(lines []diff.Line, p pair) bool {
 }
 
 // halves is one side-by-side row: the two columns and the rule between them.
+//
+// Only the column the cursor is in takes the fill. Lighting both would leave a
+// reader on a rewritten line with nothing saying which side the next key takes.
+// The rule never lights either, or the lit block runs a cell past its column.
 func (m Model) halves(r row, fill color.Color) string {
 	left, right := m.columns()
 
 	l, rt := r.line, r.right
-	l.Fill, rt.Fill = fill, fill
-
-	rule := lipgloss.NewStyle().Foreground(m.theme.Muted)
-	if fill != nil {
-		rule = rule.Background(fill)
+	if m.side == store.SideBase {
+		l.Fill = fill
+	} else {
+		rt.Fill = fill
 	}
 
+	rule := lipgloss.NewStyle().Foreground(m.theme.Muted)
 	return m.painter.Half(l, m.gutter, left) + rule.Render(splitRule) +
 		m.painter.Half(rt, m.gutter, right)
 }
@@ -191,17 +265,27 @@ func (m *Model) remode() {
 	if at < 0 && had && len(m.rows) > 0 {
 		at = 0
 	}
-	m.point(at)
+
+	// moveTo rather than point: the mode it lands in may have no line for that
+	// row in the column the cursor is in.
+	if at < 0 {
+		m.point(-1)
+		return
+	}
+	m.moveTo(at)
 }
 
 // at is the side and line the row at i names, and 0 for a row naming none. The
-// head first, which is the side a mark and a comment take.
+// column the cursor is in, so a toggle puts it back on the line it was reading.
 func (m Model) at(i int) (store.Side, int) {
 	if i < 0 || i >= len(m.rows) || m.rows[i].kind != codeRow {
 		return "", 0
 	}
 
 	r := m.rows[i]
+	if m.scope() == store.SideBase {
+		return store.SideBase, r.line.Old
+	}
 	if n := max(r.line.New, r.right.New); n != 0 {
 		return store.SideHead, n
 	}

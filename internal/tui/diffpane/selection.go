@@ -16,7 +16,7 @@ func (m Model) Selected() ([]review.Anchor, bool) {
 	if !ok {
 		return nil, false
 	}
-	return anchorsOver(m.rows[lo : hi+1])
+	return anchorsOver(m.rows[lo:hi+1], m.scope())
 }
 
 // Line is the anchors the cursor's own row names, and false on a row that is
@@ -25,21 +25,27 @@ func (m Model) Line() ([]review.Anchor, bool) {
 	if m.cursor < 0 || m.cursor >= len(m.rows) {
 		return nil, false
 	}
-	return anchorsOver(m.rows[m.cursor : m.cursor+1])
+	return anchorsOver(m.rows[m.cursor:m.cursor+1], m.scope())
 }
 
 // anchorsOver is the lines a run of rows names, one span per side and the head
-// first. Both columns of a side-by-side row feed the same two spans.
-func anchorsOver(rows []row) ([]review.Anchor, bool) {
+// first. An empty side is a unified row, which names both at once.
+func anchorsOver(rows []row, side store.Side) ([]review.Anchor, bool) {
 	var head, base review.Range
 	for i := range rows {
 		if rows[i].kind != codeRow {
 			continue
 		}
-		head = grow(head, rows[i].line.New)
-		base = grow(base, rows[i].line.Old)
-		head = grow(head, rows[i].right.New)
-		base = grow(base, rows[i].right.Old)
+
+		switch side {
+		case store.SideBase:
+			base = grow(base, rows[i].line.Old)
+		case store.SideHead:
+			head = grow(head, rows[i].right.New)
+		default:
+			head = grow(head, rows[i].line.New)
+			base = grow(base, rows[i].line.Old)
+		}
 	}
 
 	var out []review.Anchor
@@ -82,7 +88,8 @@ func (m Model) span() (int, int, bool) {
 }
 
 // inSelection is whether a row draws filled. Only code fills: a heading, the
-// blank between two hunks and a comment card are not lines anything marks.
+// blank between two hunks and a comment card are not lines anything marks. A
+// row the focused column has no line on still fills, so the run reads unbroken.
 func (m Model) inSelection(i int) bool {
 	lo, hi, ok := m.span()
 	return ok && i >= lo && i <= hi && m.rows[i].kind == codeRow

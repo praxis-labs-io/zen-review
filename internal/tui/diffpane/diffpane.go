@@ -153,7 +153,9 @@ type Model struct {
 
 	// split is what the reader asked for, not what they are getting: a pane too
 	// narrow draws unified until it is widened, and splitting is the one to read.
+	// side is the column the cursor is in, which only side-by-side has.
 	split bool
+	side  store.Side
 
 	// anchor is where v was pressed, held as a place rather than a row: a card's
 	// height moves with the width, and every row after it renumbers.
@@ -220,6 +222,7 @@ func New(t theme.Theme) Model {
 		painter: paint.Painter{Theme: t},
 		syntax:  s,
 		cursor:  -1,
+		side:    store.SideHead,
 		anchor:  place{seq: -1},
 	}
 }
@@ -381,14 +384,14 @@ func (m *Model) moveTo(i int) {
 	}
 	i = max(0, min(i, len(m.rows)-1))
 
-	// The blank between two hunks is the pane's own spacing rather than a line
-	// of the file, so the cursor steps over it the way it was already going.
-	if m.blank(i) {
+	// The blank between two hunks says nothing, and a column with no line on this
+	// row has nothing to scope, so the cursor goes on the way it was already going.
+	if !m.reachable(i) {
 		by := 1
 		if i < m.cursor {
 			by = -1
 		}
-		i = max(0, min(i+by, len(m.rows)-1))
+		i = m.seek(i, by)
 	}
 
 	// A card is one block and one stop. Walking its border and its prose a row

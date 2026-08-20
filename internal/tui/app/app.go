@@ -326,11 +326,25 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// h and l step, and the diff pane in two columns has one more place to step
+	// to. A pane that took the key keeps the focus it already had.
 	switch {
+	case key.Matches(msg, m.keys.Tree):
+		m.setFocus(focusTree)
+		return m, nil
+	case key.Matches(msg, m.keys.Diff):
+		m.setFocus(focusDiff)
+		return m, nil
 	case key.Matches(msg, m.keys.Left):
+		if m.focus == focusDiff && m.diff.PrevColumn() {
+			return m, nil
+		}
 		m.setFocus(focusTree)
 		return m, nil
 	case key.Matches(msg, m.keys.Right):
+		if m.focus == focusDiff && m.diff.NextColumn() {
+			return m, nil
+		}
 		m.setFocus(focusDiff)
 		return m, nil
 	}

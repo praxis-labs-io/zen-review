@@ -41,6 +41,8 @@ type KeyMap struct {
 
 	Left  key.Binding
 	Right key.Binding
+	Tree  key.Binding
+	Diff  key.Binding
 	Help  key.Binding
 	Close key.Binding
 	Quit  key.Binding
@@ -102,11 +104,12 @@ func NewKeyMap() KeyMap {
 		// either pane and never waits on a reload.
 		Split: key.NewBinding(key.WithKeys("|"), key.WithHelp("|", "split view")),
 
-		// The digits are the badges the panes carry in their borders. They join
-		// the bindings that already move focus rather than being declared beside
-		// them, so the help lists one entry per pane.
-		Left:  key.NewBinding(key.WithKeys("h", "left", "1"), key.WithHelp("h/1", "tree pane")),
-		Right: key.NewBinding(key.WithKeys("l", "right", "2"), key.WithHelp("l/2", "diff pane")),
+		// The digits are the badges the panes carry in their borders, and their own
+		// bindings because a badge is a jump to a frame where h and l are a step.
+		Left:  key.NewBinding(key.WithKeys("h", "left")),
+		Right: key.NewBinding(key.WithKeys("l", "right")),
+		Tree:  key.NewBinding(key.WithKeys("1")),
+		Diff:  key.NewBinding(key.WithKeys("2")),
 		Help:  key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 		Close: key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "close help")),
 		Quit:  key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
@@ -212,7 +215,10 @@ func (m Model) wayOut() []key.Binding {
 // FullHelp is the overlay, in three columns: a fourth clips against the eighty
 // cells it fits in. Its bindings come off the pane that would match them.
 func (m Model) FullHelp() [][]key.Binding {
-	panes := []key.Binding{m.keys.Left, m.keys.Right}
+	panes := []key.Binding{
+		comp.Pair(m.keys.Left, m.keys.Tree, "h/1", "tree pane"),
+		comp.Pair(m.keys.Right, m.keys.Diff, "l/2", "diff pane"),
+	}
 
 	// The diff pane adds nothing to the pane column: everything it answers to is
 	// movement. The tree has keys of its own.

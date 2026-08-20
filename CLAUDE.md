@@ -363,8 +363,8 @@ without either being hostage to the other's release cycle.
 j k g G                  movement
 zz zt zb                 put the cursor mid, top or bottom of the pane
 ctrl+u ctrl+d            page the diff, from either pane
-h l                      tree pane / diff pane
-1 2                      the same two, by the badge in the pane's border
+h l                      tree pane / diff pane, and the columns of a split one
+1 2                      the two panes, by the badge in the pane's border
 } {                      the ring: next / prev hunk
 space                    fold / unfold: a tree directory, a comment card
 tab shift+tab            next / prev file
@@ -407,11 +407,34 @@ refuses and the bar says how many columns short the pane is. A terminal shrinkin
 under a split pane falls back to unified and keeps the answer, so widening brings
 it back without a second press.
 
-Nothing takes a side. A row names both, and the anchor rule below picks the head
-where the lines have one, so a mark and a comment need no branch between the two
-modes. The cost is that a removal with an addition beside it cannot be scoped
-alone, which is what unified is one press away for. A deletion-only hunk has no
-head side to begin with, so its rows stay left-only and still anchor base.
+The cursor is in one column, and only that column lights. Lighting the row across
+both leaves a reader on a rewritten line with nothing saying which side the next
+key takes, and the rule between them stays dark or the lit block runs a cell past
+its column.
+
+`h` and `l` step into it. They already mean move left and right between things on
+screen, and a split pane is one more thing to step to: `h` from the head column
+goes to the base, and again to the tree; `l` walks back. The pane keeps the column
+it was left in, so returning to it moves nothing, and it starts on the head. A
+pane drawing one column has nowhere to step and gives the focus up on the first
+press, as it always did.
+
+`1` and `2` stay a jump, because a badge drawn in a border names the frame it is
+drawn in, and there are two frames whatever the mode.
+
+One cursor and not one per column. The rows are paired, so the two halves of a row
+are the same change and stepping between them is the comparison being made. Two
+cursors could point at unrelated lines and a side-switch would throw the window,
+which is vimdiff's shape and vimdiff has two real buffers to hang it on.
+
+`j` and `k` skip a row the focused column has no line on. Walking the head column
+of a deletion-only block therefore steps over it, which is honest: there is no head
+there to read, and `h` is where those lines live. A run reaching the end of the
+file turns the cursor back rather than stranding it on a blank.
+
+A comment and a selection scope to the focused column, which is the whole point:
+a removal with its replacement beside it can be commented on alone. A mark does
+not, `r` taking the hunk and writing every side at once as it always has.
 
 The mode lasts the run and nothing stores it. A default belongs with the reader's
 other preferences, not in the session the review is kept in.
@@ -441,6 +464,10 @@ A comment anchors to the head wherever the lines it covers have one, and to the
 base only when they have none, which is a selection of removals. The head is the
 code the next agent rewrites; a mark writes every side at once and a comment
 cannot. The box says which side it took, because base numbers read as head ones.
+
+Side-by-side is where that rule steps aside: a row there names one column, the one
+the cursor is in, so the reader picks rather than the rule. Unified has no column
+to pick, so it keeps the rule.
 
 A hunk is the block a paragraph motion moves by, so `}` and `{` step it. Vim's
 own diff mode says `]c` and `[c`, and the bracket pair is spoken for. Nothing in

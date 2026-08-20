@@ -23,6 +23,13 @@ var selectKey = tea.KeyPressMsg{Code: 'v', Text: "v"}
 // numbers, which is what the minimum is measured against.
 const splitWide = 80
 
+// splitting is whether the pane is drawing two columns, which is the rule it
+// draws between them and nothing the model has to be asked for.
+func splitting(t *testing.T, m diffpane.Model) bool {
+	t.Helper()
+	return strings.Contains(strings.Join(rows(t, m), "\n"), splitRule)
+}
+
 // split is a pane already in side-by-side, and fails the test if it refused.
 func split(t *testing.T, path string, width, height int) diffpane.Model {
 	t.Helper()
@@ -31,19 +38,22 @@ func split(t *testing.T, path string, width, height int) diffpane.Model {
 	if short := m.ToggleSplit(); short > 0 {
 		t.Fatalf("the pane refused side-by-side at width %d, %d columns short", width, short)
 	}
-	if !m.Split() {
-		t.Fatal("the pane took the toggle and did not turn it on")
+	if !splitting(t, m) {
+		t.Fatal("the pane took the toggle and drew one column")
 	}
 	return m
 }
 
-// onto walks the cursor down to a row, which is how a reader reaches one. The
-// pane opens with no cursor, so the first press lands on row zero.
+// onto walks the cursor down to a row, which is how a reader reaches one. It
+// counts landings rather than presses: a column with no line on a row is skipped.
 func onto(t *testing.T, m diffpane.Model, want int) diffpane.Model {
 	t.Helper()
 
-	for range want + 1 {
-		m = press(t, m, down)
+	for m.Cursor() < want {
+		was := m.Cursor()
+		if m = press(t, m, down); m.Cursor() <= was {
+			break
+		}
 	}
 	if m.Cursor() != want {
 		t.Fatalf("the cursor is on row %d, want %d", m.Cursor(), want)
@@ -155,6 +165,11 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 		t.Fatalf("refused side-by-side, %d columns short", short)
 	}
 
+	// Removals live in the base column, and the head has nothing on those rows.
+	if !m.PrevColumn() {
+		t.Fatal("the pane would not go into the base column")
+	}
+
 	// The heading, one context line, then the two removals.
 	m = onto(t, m, 2)
 	m = press(t, m, selectKey, down)
@@ -168,28 +183,6 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 	}
 	if got[0].Range.Start != 2 || got[0].Range.End != 3 {
 		t.Errorf("anchor covers %d..%d, want the two removed lines 2..3", got[0].Range.Start, got[0].Range.End)
-	}
-}
-
-// A row names both sides, so a selection over a rewrite anchors the head the way
-// the rule already had it: head wherever the lines it covers have one.
-func TestAPairedRowAnchorsTheHead(t *testing.T) {
-	m := split(t, twoHunks, splitWide, 16)
-
-	at := paired(t, m)
-	if at < 0 {
-		t.Fatalf("no row pairs a removal against an addition:\n%s", strings.Join(rows(t, m), "\n"))
-	}
-
-	m = onto(t, m, at)
-	m = press(t, m, selectKey)
-
-	got, ok := m.Selected()
-	if !ok {
-		t.Fatal("the selection names nothing")
-	}
-	if got[0].Side != store.SideHead {
-		t.Fatalf("want the head anchor first, got %+v", got)
 	}
 }
 
@@ -235,29 +228,28 @@ func TestANarrowPaneRefusesAndAWiderOneRelents(t *testing.T) {
 	if short := m.ToggleSplit(); short <= 0 {
 		t.Fatal("a forty-column pane took side-by-side")
 	}
-	if m.Split() {
-		t.Error("a refused toggle turned the mode on anyway")
+	if splitting(t, m) {
+		t.Error("a refused toggle drew two columns anyway")
 	}
 
 	m.SetSize(splitWide, 16)
 	if short := m.ToggleSplit(); short > 0 {
 		t.Fatalf("the widened pane still refused, %d columns short", short)
 	}
-
-	if !strings.Contains(strings.Join(rows(t, m), "\n"), splitRule) {
+	if !splitting(t, m) {
 		t.Errorf("no rule between the columns:\n%s", strings.Join(rows(t, m), "\n"))
 	}
 
-	// Back under the minimum. The answer stands and the rows go unified, which is
-	// one number column more and no rule.
+	// Back under the minimum and out again, with no key pressed between. The rows
+	// go unified and the answer stands, which is the second widening proving it.
 	m.SetSize(40, 16)
-	if !m.Split() {
-		t.Error("shrinking under the minimum cleared the reader's answer")
+	if splitting(t, m) {
+		t.Errorf("still two columns at forty:\n%s", strings.Join(rows(t, m), "\n"))
 	}
-	for i, row := range rows(t, m) {
-		if strings.Contains(row, splitRule) {
-			t.Errorf("row %d still draws a rule at forty columns: %q", i, row)
-		}
+
+	m.SetSize(splitWide, 16)
+	if !splitting(t, m) {
+		t.Error("widening did not bring side-by-side back, so the answer was lost")
 	}
 }
 
@@ -300,5 +292,174 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 	}
 	if !facing {
 		t.Errorf("the second block did not pair:\n%s", strings.Join(rows(t, m), "\n"))
+	}
+}
+
+// The lit half is the only thing saying which side the next key takes, so a
+// cursor lighting both would leave a reader on a rewrite with no way to know.
+func TestOnlyTheFocusedColumnLights(t *testing.T) {
+	m := split(t, twoHunks, splitWide, 16)
+
+	at := paired(t, m)
+	if at < 0 {
+		t.Fatalf("no paired row:\n%s", strings.Join(rows(t, m), "\n"))
+	}
+	m = onto(t, m, at)
+
+	fill := params(t, lipgloss.NewStyle().Background(theme.RosePineMoon.SelectedBackground))
+	lit := func() (string, string) {
+		t.Helper()
+		row := strings.Split(m.View(), "\n")[at]
+		left, right, ok := strings.Cut(row, splitRule)
+		if !ok {
+			t.Fatalf("no rule in the cursor's row: %q", row)
+		}
+		return left, right
+	}
+
+	left, right := lit()
+	if strings.Contains(left, fill) {
+		t.Error("the base column lights with the cursor in the head")
+	}
+	if !strings.Contains(right, fill) {
+		t.Error("the head column does not light with the cursor in it")
+	}
+
+	if !m.PrevColumn() {
+		t.Fatal("the pane would not go into the base column")
+	}
+	left, right = lit()
+	if !strings.Contains(left, fill) {
+		t.Error("the base column does not light with the cursor in it")
+	}
+	if strings.Contains(right, fill) {
+		t.Error("the head column lights with the cursor in the base")
+	}
+}
+
+// The point of a side: a comment on a removal that has an addition beside it,
+// which the head-first rule alone can never reach.
+func TestTheFocusedColumnScopesTheAnchor(t *testing.T) {
+	m := split(t, twoHunks, splitWide, 16)
+
+	at := paired(t, m)
+	if at < 0 {
+		t.Fatalf("no paired row:\n%s", strings.Join(rows(t, m), "\n"))
+	}
+	m = onto(t, m, at)
+
+	head, ok := m.Line()
+	if !ok {
+		t.Fatal("the head column names nothing on a paired row")
+	}
+	if len(head) != 1 || head[0].Side != store.SideHead {
+		t.Fatalf("want the head alone, got %+v", head)
+	}
+
+	if !m.PrevColumn() {
+		t.Fatal("the pane would not go into the base column")
+	}
+	base, ok := m.Line()
+	if !ok {
+		t.Fatal("the base column names nothing on a paired row")
+	}
+	if len(base) != 1 || base[0].Side != store.SideBase {
+		t.Fatalf("want the base alone, got %+v", base)
+	}
+}
+
+// A unified pane names both sides off one row, which is the rule every mode but
+// side-by-side answers to. The side only exists while two columns are drawn.
+func TestAUnifiedRowStillNamesBothSides(t *testing.T) {
+	m := pane(t, twoHunks, splitWide, 16)
+
+	// The hunk heading, then its first context line.
+	m = onto(t, m, 1)
+	got, ok := m.Line()
+	if !ok {
+		t.Fatal("the row names nothing")
+	}
+	if len(got) != 2 {
+		t.Errorf("want both sides off a context row, got %+v", got)
+	}
+}
+
+// A column with no line on a row has nothing to scope, so the cursor goes on
+// rather than sitting somewhere c would have to refuse.
+func TestTheCursorSkipsARowItsColumnHasNoLineOn(t *testing.T) {
+	const patch = `diff --git a/skip.go b/skip.go
+index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1b039aafb 100644
+--- a/skip.go
++++ b/skip.go
+@@ -1,2 +1,4 @@
+ package skip
+-const a = 1
++const a = 2
++const b = 3
++const c = 4
+`
+
+	c := testchangeset.Derive(t, patch)
+	m := diffpane.New(theme.RosePineMoon)
+	m.SetSize(splitWide, 10)
+	m.SetFile(&c.Files[0], nil, nil, 2)
+	if short := m.ToggleSplit(); short > 0 {
+		t.Fatalf("refused side-by-side, %d columns short", short)
+	}
+	if !m.PrevColumn() {
+		t.Fatal("the pane would not go into the base column")
+	}
+
+	// Row 2 is the only removal, and rows 3 and 4 are additions facing a blank.
+	m = onto(t, m, 2)
+
+	// Nothing below has a base line, so j turns back rather than landing on one.
+	m = press(t, m, down)
+	if got := m.Cursor(); got != 2 {
+		t.Errorf("the cursor moved to row %d over rows the base column has no line on", got)
+	}
+
+	// The head column has all three, and the cursor walks them.
+	if !m.NextColumn() {
+		t.Fatal("the pane would not go into the head column")
+	}
+	m = press(t, m, down)
+	if got := m.Cursor(); got != 3 {
+		t.Errorf("the cursor is on row %d, want the next addition at 3", got)
+	}
+}
+
+// Changing column on a row the new one has no line on moves the cursor to one it
+// does, so the pane is never focused somewhere it cannot act.
+func TestChangingColumnBringsTheCursorWithIt(t *testing.T) {
+	m := split(t, twoHunks, splitWide, 16)
+
+	// The fixture's second hunk adds two lines with nothing to face them, which
+	// is a row the base column has no line on.
+	at := -1
+	for i, row := range rows(t, m) {
+		if half, _, _ := strings.Cut(row, splitRule); strings.TrimSpace(half) == "" && strings.Contains(row, "+") {
+			at = i
+			break
+		}
+	}
+	if at < 0 {
+		t.Fatalf("no head-only row:\n%s", strings.Join(rows(t, m), "\n"))
+	}
+
+	m = onto(t, m, at)
+	if !m.PrevColumn() {
+		t.Fatal("the pane would not go into the base column")
+	}
+	if m.Cursor() == at {
+		t.Fatalf("the cursor stayed on row %d, which the base column has no line on", at)
+	}
+
+	got, ok := m.Line()
+	if !ok {
+		t.Fatal("the cursor landed on a row naming nothing")
+	}
+	if got[0].Side != store.SideBase {
+		t.Errorf("the cursor landed on %+v, want a row with a base line", got[0])
 	}
 }
