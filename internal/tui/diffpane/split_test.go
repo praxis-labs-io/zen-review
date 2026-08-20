@@ -463,3 +463,54 @@ func TestChangingColumnBringsTheCursorWithIt(t *testing.T) {
 		t.Errorf("the cursor landed on %+v, want a row with a base line", got[0])
 	}
 }
+
+// barGlyph is the cursor's bar as the pane draws it, in the leading cell.
+const barGlyph = "▌"
+
+// The fill is shared with a selection, so inside one the bar is the only thing
+// saying which row the next key moves from.
+func TestOnlyTheCursorRowCarriesTheBar(t *testing.T) {
+	m := pane(t, twoHunks, 60, 10)
+	m.Select(store.SideHead, 13)
+	m = press(t, m, down, selectKey, down, down)
+
+	if lit := filled(t, m); len(lit) < 2 {
+		t.Fatalf("the selection covers %d rows, want a run of them", len(lit))
+	}
+
+	var barred []int
+	for i, row := range rows(t, m) {
+		if strings.HasPrefix(row, barGlyph) {
+			barred = append(barred, i)
+		}
+	}
+	if len(barred) != 1 {
+		t.Errorf("%d rows carry the bar, want the cursor's alone: %v", len(barred), barred)
+	}
+	if len(barred) == 1 && barred[0] != m.Cursor() {
+		t.Errorf("the bar is on row %d and the cursor on %d", barred[0], m.Cursor())
+	}
+}
+
+// The bar marks the column as well as the row, so it moves to the head half's
+// leading cell rather than staying at the pane's edge.
+func TestTheBarSitsInTheFocusedColumn(t *testing.T) {
+	m := split(t, twoHunks, splitWide, 16)
+	m = onto(t, m, paired(t, m))
+
+	head := rows(t, m)[m.Cursor()]
+	if strings.HasPrefix(head, barGlyph) {
+		t.Errorf("the bar is at the pane edge with the cursor in the head column: %q", head)
+	}
+	if left, right, _ := strings.Cut(head, splitRule); !strings.HasPrefix(right, barGlyph) || strings.Contains(left, barGlyph) {
+		t.Errorf("the bar is not at the head column's edge: %q", head)
+	}
+
+	if !m.PrevColumn() {
+		t.Fatal("the pane would not go into the base column")
+	}
+	base := rows(t, m)[m.Cursor()]
+	if !strings.HasPrefix(base, barGlyph) {
+		t.Errorf("the bar is not at the base column's edge: %q", base)
+	}
+}

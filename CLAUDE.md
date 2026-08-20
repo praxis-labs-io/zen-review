@@ -642,6 +642,17 @@ The diff pane opens focused on the first unreviewed hunk. zen-octo's
 conversation opens unfocused because the reader came to read; you came here to
 burn a review down.
 
+The row the cursor is on carries a bar in its leading cell, in accent. The tint
+alone is a change of shade a reader loses on a page of them, and the cell is one
+every row already holds open, so nothing shifts as the cursor passes. The fill is
+shared with a selection and the bar is not, which is what says where the next key
+moves from inside one.
+
+Side-by-side puts it at the focused column's own edge rather than the pane's, so
+it marks the column as well as the row. A heading takes it at the pane edge,
+belonging to neither column. A comment card does not: its border already lights,
+and a second mark on one block says nothing the first did not.
+
 `j` and `k` move a row cursor rather than the window, and a hunk heading pins to
 the top row once it scrolls off, so the lines up there are never unlabelled. The
 pin follows the window and not the cursor, because a heading names the lines

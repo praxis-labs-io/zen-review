@@ -234,14 +234,14 @@ func eol(lines []diff.Line, p pair) bool {
 // Only the column the cursor is in takes the fill. Lighting both would leave a
 // reader on a rewritten line with nothing saying which side the next key takes.
 // The rule never lights either, or the lit block runs a cell past its column.
-func (m Model) halves(r row, fill color.Color) string {
+func (m Model) halves(r row, fill, bar color.Color) string {
 	left, right := m.columns()
 
 	l, rt := r.line, r.right
 	if m.side == store.SideBase {
-		l.Fill = fill
+		l.Fill, l.Bar = fill, bar
 	} else {
-		rt.Fill = fill
+		rt.Fill, rt.Bar = fill, bar
 	}
 
 	rule := lipgloss.NewStyle().Foreground(m.theme.Muted)

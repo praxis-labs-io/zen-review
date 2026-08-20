@@ -546,3 +546,37 @@ func TestAHalfShowsWhicheverNumberItCarries(t *testing.T) {
 		})
 	}
 }
+
+// The bar goes in the leading cell rather than in front of it, or every row the
+// cursor touches would shift a column as it passed.
+func TestABarredRowIsNoWiderAndShiftsNothing(t *testing.T) {
+	p := paint.Painter{Theme: theme.RosePineMoon}
+	line := paint.Line{Kind: paint.Added, New: 12, Tokens: []syntax.Token{{Text: "n = 4"}}}
+
+	barred := line
+	barred.Bar = theme.RosePineMoon.Accent
+
+	for _, tt := range []struct {
+		name       string
+		plain, bar string
+	}{
+		{"line", xansi.Strip(p.Line(line, 3, 40)), xansi.Strip(p.Line(barred, 3, 40))},
+		{"half", xansi.Strip(p.Half(line, 3, 26)), xansi.Strip(p.Half(barred, 3, 26))},
+		{
+			"header",
+			xansi.Strip(p.HunkHeader(paint.Header{Text: "@@ -1,2 +1,3 @@"}, paint.CodeColumn(3), 40)),
+			xansi.Strip(p.HunkHeader(paint.Header{
+				Text: "@@ -1,2 +1,3 @@", Bar: theme.RosePineMoon.Accent,
+			}, paint.CodeColumn(3), 40)),
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if lipgloss.Width(tt.plain) != lipgloss.Width(tt.bar) {
+				t.Errorf("barred row is %d cells, plain is %d", lipgloss.Width(tt.bar), lipgloss.Width(tt.plain))
+			}
+			if tt.plain[1:] != tt.bar[len("▌"):] {
+				t.Errorf("the bar shifted the row:\n plain %q\n bar   %q", tt.plain, tt.bar)
+			}
+		})
+	}
+}

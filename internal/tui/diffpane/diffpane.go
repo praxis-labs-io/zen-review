@@ -497,15 +497,22 @@ func (m Model) render(i int) (string, lipgloss.Style) {
 		fill = m.theme.SelectedBackground
 	}
 
+	// The bar is the cursor's alone, where the fill is shared with a selection.
+	// Inside one it is the only thing saying which row the next key moves from.
+	var bar color.Color
+	if i == m.cursor {
+		bar = m.theme.Accent
+	}
+
 	switch r.kind {
 	case headRow:
-		return m.painter.HunkHeader(m.header(r.hunk, fill), m.codeColumn(), m.width), lipgloss.NewStyle()
+		return m.painter.HunkHeader(m.header(r.hunk, fill, bar), m.codeColumn(), m.width), lipgloss.NewStyle()
 	case codeRow:
 		if m.splitting() {
-			return m.halves(r, fill), lipgloss.NewStyle()
+			return m.halves(r, fill, bar), lipgloss.NewStyle()
 		}
 		l := r.line
-		l.Fill = fill
+		l.Fill, l.Bar = fill, bar
 		return m.painter.Line(l, m.gutter, m.width), lipgloss.NewStyle()
 	case cardRow:
 		// A card is one block, so a cursor anywhere in it lights the whole thing.
@@ -528,10 +535,10 @@ func (m Model) render(i int) (string, lipgloss.Style) {
 
 // header is one hunk's @@ line. The caret says which hunk a mark would take, and
 // runs the length of the hunk; the fill is only ever the row the reader is on.
-func (m Model) header(i int, fill color.Color) paint.Header {
+func (m Model) header(i int, fill, bar color.Color) paint.Header {
 	h := m.file.Hunks[i]
 
-	head := paint.Header{Text: comp.Safe(h.Diff.Header), Fill: fill}
+	head := paint.Header{Text: comp.Safe(h.Diff.Header), Fill: fill, Bar: bar}
 	head.Badge, head.BadgeColor = m.badge(h.State)
 	if i == m.hunkAt(m.cursor) {
 		head.Marker = cursorGlyph

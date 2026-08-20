@@ -170,3 +170,29 @@ func TestGoldenHalves(t *testing.T) {
 		})
 	}
 }
+
+// The cursor's bar takes the leading cell every row already holds open, so the
+// row it is on is no wider than the rows above and below it.
+func TestGoldenBarred(t *testing.T) {
+	compare(t, "line_barred", painter().Line(paint.Line{
+		Kind: paint.Added, New: 120, Tokens: tokens(),
+		Fill: theme.RosePineMoon.SelectedBackground,
+		Bar:  theme.RosePineMoon.Accent,
+	}, 3, 40))
+}
+
+func TestGoldenHalfBarred(t *testing.T) {
+	compare(t, "half_barred", painter().Half(paint.Line{
+		Kind: paint.Added, New: 120, Tokens: tokens(),
+		Fill: theme.RosePineMoon.SelectedBackground,
+		Bar:  theme.RosePineMoon.Accent,
+	}, 3, 26))
+}
+
+func TestGoldenHeaderBarred(t *testing.T) {
+	compare(t, "hunk_header_barred", painter().HunkHeader(paint.Header{
+		Text: "@@ -11,4 +12,6 @@ func Paint()", Badge: "○",
+		Fill: theme.RosePineMoon.SelectedBackground,
+		Bar:  theme.RosePineMoon.Accent,
+	}, paint.CodeColumn(3), 40))
+}

@@ -1,5 +1,5 @@
 ╭─[1]─Zen Review───────────────────────────╮╭─[2]─internal/review/state.go─────────────────────────────────────────────╮
-│  docs/superpowers/specs                 ││   ○  @@ -10,5 +10,5 @@ package review                                   │
+│  docs/superpowers/specs                 ││▌  ○  @@ -10,5 +10,5 @@ package review                                   │
 │   ● design.md                      +3 -0 ││  10   // State is how much of a hu…│  10   // State is how much of a hun…│
 │  internal                               ││  11   type State string            │  11   type State string             │
 │    cli                                  ││  12   const (                      │  12   const (                       │

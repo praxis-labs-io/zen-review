@@ -2,7 +2,7 @@
 │  docs/superpowers/specs             ││       ○  @@ -10,5 +10,5 @@ package review               │
 │   ● design.md                  +3 -0 ││  10  10   // State is how much of a hunk or a file has b…│
 │  internal                           ││  11  11   type State string                              │
-│    cli                              ││  12  12   const (                                        │
+│    cli                              ││▌ 12  12   const (                                        │
 │     ○ render.go                +1 -1 ││  13     −     Unreviewed State = "unread"                │
 │    review                           ││      13 +     Unreviewed State = "unreviewed"            │
 │     ⊙ state.go                 +3 -1 ││  14  14       Partial    State = "partial"               │

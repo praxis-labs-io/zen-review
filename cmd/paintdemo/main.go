@@ -127,7 +127,7 @@ func main() {
 func header(t theme.Theme, h hunk) paint.Header {
 	head := paint.Header{Text: h.Header}
 	if h.Cursor {
-		head.Marker, head.Fill = "▸", t.SelectedBackground
+		head.Marker, head.Fill, head.Bar = "▸", t.SelectedBackground, t.Accent
 	}
 
 	head.Badge, head.BadgeColor = "○", t.Subtle
@@ -147,7 +147,7 @@ func painted(t theme.Theme, oldSide, newSide [][]syntax.Token) []paint.Line {
 		for _, r := range h.Rows {
 			l := paint.Line{Kind: r.Kind, Old: r.Old, New: r.New}
 			if r.Cursor {
-				l.Fill = t.SelectedBackground
+				l.Fill, l.Bar = t.SelectedBackground, t.Accent
 			}
 
 			switch r.Kind {
