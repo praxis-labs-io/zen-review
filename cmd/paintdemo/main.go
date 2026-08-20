@@ -35,7 +35,15 @@ type hunk struct {
 	Cursor bool
 	Badged bool
 	Rows   []row
+
+	// Pairs is the rows the side-by-side half of the demo draws, written out
+	// rather than computed: the pane owns that arrangement and this only shows it.
+	Pairs []pair
 }
+
+// pair is the rows one side-by-side row draws, by index into a hunk's own, and
+// -1 for a column with no line.
+type pair struct{ left, right int }
 
 // Two hunks, four-digit numbers in the second. One gutter serves a whole file,
 // so a demo that never leaves two digits proves nothing about the alignment.
@@ -58,6 +66,9 @@ var hunks = []hunk{
 			{Kind: paint.Added, New: 48, Text: "\treturn clipTo(row, width, p.faint())"},
 			{Kind: paint.Context, Old: 48, New: 49, Text: "}"},
 		},
+		Pairs: []pair{
+			{0, 0}, {1, 2}, {3, 4}, {5, 5}, {6, 7}, {8, 8}, {9, 10}, {-1, 11}, {12, 12},
+		},
 	},
 	{
 		Header: "@@ -1229,3 +1230,3 @@ func Gutter(widest int) int",
@@ -68,6 +79,7 @@ var hunks = []hunk{
 			{Kind: paint.Added, New: 1231, Text: "\treturn max(gutterMin, len(strconv.Itoa(widest)))"},
 			{Kind: paint.Context, Old: 1231, New: 1232, Text: "}"},
 		},
+		Pairs: []pair{{0, 0}, {1, 2}, {3, 3}},
 	},
 }
 
@@ -112,7 +124,7 @@ func main() {
 		out = append(out, p.HunkHeader(header(t, h), paint.HalfColumn(gutter), width))
 
 		rule := lipgloss.NewStyle().Foreground(t.Muted)
-		for _, pr := range pairs(h.Rows) {
+		for _, pr := range h.Pairs {
 			l, r := blank(lines, at, pr.left), blank(lines, at, pr.right)
 			l.New, r.Old = 0, 0
 			out = append(out, p.Half(l, gutter, half)+rule.Render("│")+p.Half(r, gutter, width-half-1))
@@ -165,46 +177,6 @@ func painted(t theme.Theme, oldSide, newSide [][]syntax.Token) []paint.Line {
 			out = append(out, l)
 		}
 	}
-	return out
-}
-
-// pair is the rows one side-by-side row draws, by index into a hunk's own, and
-// -1 for a column with no line.
-type pair struct{ left, right int }
-
-// pairs puts a run of removals against the additions after it. The pane has its
-// own copy of this; here it only has to arrange the canned rows.
-func pairs(rows []row) []pair {
-	var out []pair
-	var rem, add []int
-
-	flush := func() {
-		for i := range max(len(rem), len(add)) {
-			p := pair{left: -1, right: -1}
-			if i < len(rem) {
-				p.left = rem[i]
-			}
-			if i < len(add) {
-				p.right = add[i]
-			}
-			out = append(out, p)
-		}
-		rem, add = nil, nil
-	}
-
-	for i, r := range rows {
-		switch r.Kind {
-		case paint.Removed:
-			rem = append(rem, i)
-		case paint.Added:
-			add = append(add, i)
-		default:
-			flush()
-			out = append(out, pair{left: i, right: i})
-		}
-	}
-	flush()
-
 	return out
 }
 

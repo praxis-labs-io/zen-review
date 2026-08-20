@@ -166,7 +166,7 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 	}
 
 	// Removals live in the base column, and the head has nothing on those rows.
-	if !m.PrevColumn() {
+	if !m.Column(store.SideBase) {
 		t.Fatal("the pane would not go into the base column")
 	}
 
@@ -325,7 +325,7 @@ func TestOnlyTheFocusedColumnLights(t *testing.T) {
 		t.Error("the head column does not light with the cursor in it")
 	}
 
-	if !m.PrevColumn() {
+	if !m.Column(store.SideBase) {
 		t.Fatal("the pane would not go into the base column")
 	}
 	left, right = lit()
@@ -356,7 +356,7 @@ func TestTheFocusedColumnScopesTheAnchor(t *testing.T) {
 		t.Fatalf("want the head alone, got %+v", head)
 	}
 
-	if !m.PrevColumn() {
+	if !m.Column(store.SideBase) {
 		t.Fatal("the pane would not go into the base column")
 	}
 	base, ok := m.Line()
@@ -406,7 +406,7 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 	if short := m.ToggleSplit(); short > 0 {
 		t.Fatalf("refused side-by-side, %d columns short", short)
 	}
-	if !m.PrevColumn() {
+	if !m.Column(store.SideBase) {
 		t.Fatal("the pane would not go into the base column")
 	}
 
@@ -420,7 +420,7 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 	}
 
 	// The head column has all three, and the cursor walks them.
-	if !m.NextColumn() {
+	if !m.Column(store.SideHead) {
 		t.Fatal("the pane would not go into the head column")
 	}
 	m = press(t, m, down)
@@ -448,7 +448,7 @@ func TestChangingColumnBringsTheCursorWithIt(t *testing.T) {
 	}
 
 	m = onto(t, m, at)
-	if !m.PrevColumn() {
+	if !m.Column(store.SideBase) {
 		t.Fatal("the pane would not go into the base column")
 	}
 	if m.Cursor() == at {
@@ -506,11 +506,73 @@ func TestTheBarSitsInTheFocusedColumn(t *testing.T) {
 		t.Errorf("the bar is not at the head column's edge: %q", head)
 	}
 
-	if !m.PrevColumn() {
+	if !m.Column(store.SideBase) {
 		t.Fatal("the pane would not go into the base column")
 	}
 	base := rows(t, m)[m.Cursor()]
 	if !strings.HasPrefix(base, barGlyph) {
 		t.Errorf("the bar is not at the base column's edge: %q", base)
+	}
+}
+
+// The pane opens on a heading, so a toggle pressed there is the common case. A
+// heading names no line, and the cursor used to fall to the top of the file.
+func TestTheToggleFromAHeadingKeepsTheHunk(t *testing.T) {
+	f := fileAt(t, testchangeset.Nested(t), twoHunks)
+	side, line := f.Hunks[1].Name()
+
+	m := pane(t, twoHunks, splitWide, 16)
+	m.Select(side, line)
+	if _, at, ok := m.Hunk(); !ok || at != line {
+		t.Fatal("the cursor is not on the second hunk's heading to begin with")
+	}
+
+	if short := m.ToggleSplit(); short > 0 {
+		t.Fatalf("refused side-by-side, %d columns short", short)
+	}
+	if _, at, ok := m.Hunk(); !ok || at != line {
+		t.Errorf("the toggle left the cursor on the hunk at %d, want %d", at, line)
+	}
+}
+
+// h and l step between columns. A hunk ending in unpaired additions has no base
+// line to seek forward to, and the step used to leave the hunk r marks.
+func TestAColumnStepStaysInTheHunk(t *testing.T) {
+	const patch = `diff --git a/two.go b/two.go
+index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1b039aafb 100644
+--- a/two.go
++++ b/two.go
+@@ -1,2 +1,3 @@
+ package two
+-const a = 1
++const a = 2
++const b = 3
+@@ -10,2 +11,2 @@
+ func f() {
+-	return 1
++	return 2
+`
+
+	c := testchangeset.Derive(t, patch)
+	m := diffpane.New(theme.RosePineMoon)
+	m.SetSize(splitWide, 16)
+	m.SetFile(&c.Files[0], nil, nil, 2)
+	if short := m.ToggleSplit(); short > 0 {
+		t.Fatalf("refused side-by-side, %d columns short", short)
+	}
+
+	// The heading, the context line, the paired rewrite, then the addition with
+	// nothing facing it, which is the last row of the hunk.
+	m = onto(t, m, 3)
+	_, was, ok := m.Hunk()
+	if !ok {
+		t.Fatal("the cursor is in no hunk to begin with")
+	}
+
+	if !m.Column(store.SideBase) {
+		t.Fatal("the pane would not go into the base column")
+	}
+	if _, at, ok := m.Hunk(); !ok || at != was {
+		t.Errorf("h took the cursor to the hunk at %d, want %d", at, was)
 	}
 }

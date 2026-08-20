@@ -1521,3 +1521,40 @@ func TestAUnifiedPaneStillGivesTheFocusUpOnTheFirstH(t *testing.T) {
 		t.Error("h did not hand the focus to the tree in a unified pane")
 	}
 }
+
+// TestTheToggleLeavesTheCursorWhereTheCaretIs. r acts on the caret's hunk, and a
+// toggle that moved the cursor off it would mark a hunk nobody is looking at.
+func TestTheToggleLeavesTheCursorWhereTheCaretIs(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, ringPatch), 120, 16)
+
+	// The pane opens on a heading, and the ring key moves to the next one, which
+	// is the row a toggle used to lose.
+	s.press("}")
+	if got := barred(t, s); !strings.Contains(got, "@@ -10,0 +11,1 @@") {
+		t.Fatalf("the cursor is on %q, want a.go's second hunk heading", got)
+	}
+
+	s.press("|")
+	if got := barred(t, s); !strings.Contains(got, "@@ -10,0 +11,1 @@") {
+		t.Errorf("the toggle took the cursor to %q, want a.go's second hunk", got)
+	}
+
+	s.press("r")
+	want := []string{"MarkHunk a.go head:11 gen=2"}
+	if got := s.calls(); !equal(got, want) {
+		t.Errorf("r wrote %v, want %v", got, want)
+	}
+}
+
+// barred is the row the cursor is on, which the diff pane marks with a bar in
+// the row's leading cell.
+func barred(t *testing.T, s *screen) string {
+	t.Helper()
+
+	for _, line := range strings.Split(s.frame(), "\n") {
+		if strings.Contains(line, "▌") {
+			return line
+		}
+	}
+	return ""
+}

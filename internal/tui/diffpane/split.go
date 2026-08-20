@@ -57,38 +57,28 @@ func (m Model) scope() store.Side {
 	return m.side
 }
 
-// NextColumn moves the cursor into the head column, and PrevColumn back into the
-// base. Both report whether they took the key: only a split pane has anywhere to go.
-func (m *Model) NextColumn() bool { return m.toSide(store.SideHead) }
-
-// PrevColumn is NextColumn the other way, which is what h does inside the pane.
-func (m *Model) PrevColumn() bool { return m.toSide(store.SideBase) }
-
-// toSide lights the other column and brings the cursor onto a row that has a
-// line in it. A pane already there has not taken the key and lets focus move on.
-func (m *Model) toSide(to store.Side) bool {
+// Column lights the named column and brings the cursor onto a row with a line
+// in it. Only a split pane not already there takes the key.
+func (m *Model) Column(to store.Side) bool {
 	if !m.splitting() || m.side == to {
 		return false
 	}
 
 	m.side = to
 	if m.cursor >= 0 {
-		m.moveTo(m.cursor)
+		// A column step crosses one row and not the hunk, so a seek off the end of
+		// it turns back rather than landing on the next hunk's heading.
+		hunk := m.hunkAt(m.cursor)
+		at := m.seek(m.cursor, 1)
+		if m.hunkAt(at) != hunk {
+			if back := m.seek(m.cursor, -1); m.hunkAt(back) == hunk {
+				at = back
+			}
+		}
+		m.moveTo(at)
 	}
 	m.repaintAll()
 	return true
-}
-
-// has is whether a half carries a line. A blank one has no number on either
-// field, which no real line does.
-func has(l paint.Line) bool { return l.Old != 0 || l.New != 0 }
-
-// focused is the half the cursor is in, and the whole row when unified.
-func (m Model) focused(r row) paint.Line {
-	if m.scope() == store.SideBase {
-		return r.line
-	}
-	return r.right
 }
 
 // reachable is whether the cursor can sit on a row: not the blank between two
@@ -100,7 +90,13 @@ func (m Model) reachable(i int) bool {
 	if m.scope() == "" || m.rows[i].kind != codeRow {
 		return true
 	}
-	return has(m.focused(m.rows[i]))
+
+	// A blank half carries no number on either field, which no real line does.
+	l := m.rows[i].right
+	if m.scope() == store.SideBase {
+		l = m.rows[i].line
+	}
+	return l.Old != 0 || l.New != 0
 }
 
 // seek is the first row from i in a direction the cursor can sit on. A run
@@ -254,6 +250,7 @@ func (m Model) halves(r row, fill, bar color.Color) string {
 func (m *Model) remode() {
 	had := m.cursor >= 0
 	was := m.placeOf(m.cursor)
+	hunk := m.hunkAt(m.cursor)
 	side, line := m.at(m.cursor)
 
 	m.layout()
@@ -261,6 +258,12 @@ func (m *Model) remode() {
 	at := m.rowOf(side, line)
 	if was.comment != "" {
 		at = m.rowAt(was)
+	}
+
+	// A heading and a note name no line, so the cursor keeps the hunk it was in
+	// rather than falling to the top of the file.
+	if at < 0 && hunk >= 0 && hunk < len(m.headAt) {
+		at = m.headAt[hunk]
 	}
 	if at < 0 && had && len(m.rows) > 0 {
 		at = 0
@@ -289,7 +292,7 @@ func (m Model) at(i int) (store.Side, int) {
 	if n := max(r.line.New, r.right.New); n != 0 {
 		return store.SideHead, n
 	}
-	return store.SideBase, max(r.line.Old, r.right.Old)
+	return store.SideBase, r.line.Old
 }
 
 // rowOf is the row naming a line on a side, and -1 for one this layout has not
@@ -307,7 +310,7 @@ func (m Model) rowOf(side store.Side, line int) int {
 		if side == store.SideHead && (r.line.New == line || r.right.New == line) {
 			return i
 		}
-		if side == store.SideBase && (r.line.Old == line || r.right.Old == line) {
+		if side == store.SideBase && r.line.Old == line {
 			return i
 		}
 	}

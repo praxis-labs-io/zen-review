@@ -432,6 +432,10 @@ of a deletion-only block therefore steps over it, which is honest: there is no h
 there to read, and `h` is where those lines live. A run reaching the end of the
 file turns the cursor back rather than stranding it on a blank.
 
+The same step off the end of a hunk turns back inside it. A column step is one
+row across and not a move between hunks, and `r` takes the hunk the cursor is in,
+so carrying it over the boundary would mark the hunk the reader just left.
+
 A comment and a selection scope to the focused column, which is the whole point:
 a removal with its replacement beside it can be commented on alone. A mark does
 not, `r` taking the hunk and writing every side at once as it always has.

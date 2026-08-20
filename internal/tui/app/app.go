@@ -336,13 +336,15 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.setFocus(focusDiff)
 		return m, nil
 	case key.Matches(msg, m.keys.Left):
-		if m.focus == focusDiff && m.diff.PrevColumn() {
+		if m.focus == focusDiff && m.diff.Column(store.SideBase) {
+			m.syncCursor()
 			return m, nil
 		}
 		m.setFocus(focusTree)
 		return m, nil
 	case key.Matches(msg, m.keys.Right):
-		if m.focus == focusDiff && m.diff.NextColumn() {
+		if m.focus == focusDiff && m.diff.Column(store.SideHead) {
+			m.syncCursor()
 			return m, nil
 		}
 		m.setFocus(focusDiff)
@@ -462,8 +464,9 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// A fact about the frame rather than a failure, so it is not a bad notice.
 	if key.Matches(msg, m.keys.Split) {
 		if short := m.diff.ToggleSplit(); short > 0 {
-			m.note = notice{text: fmt.Sprintf("side-by-side needs %d more columns", short)}
+			m.note = notice{text: fmt.Sprintf("side-by-side needs %d more columns in the pane", short)}
 		}
+		m.syncCursor()
 		return m, nil
 	}
 

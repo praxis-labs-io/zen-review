@@ -13,4 +13,4 @@
 │ Comments                         0/0 ││ 122 122           return Changeset{}, err                │
 │ Changes                   6  +10 -3 ││ 123 123       }                                          │
 ╰──────────────────────────────────────╯╰────────────────────────────────────────────────────13/16─╯
-j/k move · n/N unread · }/{ hunk · ? help · q quit                side-by-side needs 13 more columns
+j/k move · n/N unread · }/{ hunk · ? help · q quit    side-by-side needs 13 more columns in the pane
