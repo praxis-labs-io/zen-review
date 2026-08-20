@@ -256,7 +256,7 @@ func TestTheHunkHeaderStartsAtTheCodeColumn(t *testing.T) {
 			for _, widest := range []int{9, 120, 4210} {
 				gutter := paint.Gutter(widest)
 				header := xansi.Strip(p.HunkHeader(
-					paint.Header{Text: "@@ -1,2 +1,3 @@", Marker: marker, Badge: badge}, gutter, 60))
+					paint.Header{Text: "@@ -1,2 +1,3 @@", Marker: marker, Badge: badge}, paint.CodeColumn(gutter), 60))
 				indent := lipgloss.Width(header[:strings.Index(header, "@@")])
 
 				if want := codeColumn(t, p, gutter); indent != want {
@@ -276,14 +276,14 @@ func TestABadgeTakesItsOwnColour(t *testing.T) {
 
 	// The text is already accent, so subtle appearing at all is the badge and
 	// nothing else. That is what makes either direction here worth asserting.
-	plain := p.HunkHeader(paint.Header{Text: "@@ -1,2 +1,3 @@", Badge: "○"}, gutter, 60)
+	plain := p.HunkHeader(paint.Header{Text: "@@ -1,2 +1,3 @@", Badge: "○"}, paint.CodeColumn(gutter), 60)
 	if strings.Contains(plain, fgSeq(theme.RosePineMoon.Subtle)) {
 		t.Errorf("a badge with no colour took one anyway: %q", plain)
 	}
 
 	own := p.HunkHeader(paint.Header{
 		Text: "@@ -1,2 +1,3 @@", Badge: "○", BadgeColor: theme.RosePineMoon.Subtle,
-	}, gutter, 60)
+	}, paint.CodeColumn(gutter), 60)
 	if !strings.Contains(own, fgSeq(theme.RosePineMoon.Subtle)) {
 		t.Errorf("the badge does not carry its own colour: %q", own)
 	}
@@ -298,7 +298,7 @@ func TestAHeaderTakesItsOwnTextColour(t *testing.T) {
 	p := paint.Painter{Theme: theme.RosePineMoon}
 	gutter := paint.Gutter(9)
 
-	plain := p.HunkHeader(paint.Header{Text: "@@ -1,2 +1,3 @@", Marker: "\u25b8"}, gutter, 60)
+	plain := p.HunkHeader(paint.Header{Text: "@@ -1,2 +1,3 @@", Marker: "\u25b8"}, paint.CodeColumn(gutter), 60)
 	if !strings.Contains(plain, fgSeq(theme.RosePineMoon.Accent)) {
 		t.Errorf("a header with no colour of its own is not accent: %q", plain)
 	}
@@ -307,7 +307,7 @@ func TestAHeaderTakesItsOwnTextColour(t *testing.T) {
 	// things disagreeing about whether the reader is here.
 	own := p.HunkHeader(paint.Header{
 		Text: "@@ -1,2 +1,3 @@", Marker: "\u25b8", TextColor: theme.RosePineMoon.Muted,
-	}, gutter, 60)
+	}, paint.CodeColumn(gutter), 60)
 	if strings.Contains(own, fgSeq(theme.RosePineMoon.Accent)) {
 		t.Errorf("a dimmed header still paints accent somewhere: %q", own)
 	}
@@ -327,7 +327,7 @@ func TestABadgeSitsLeftOfTheMarker(t *testing.T) {
 	for _, widest := range []int{9, 120, 4210} {
 		gutter := paint.Gutter(widest)
 		header := xansi.Strip(p.HunkHeader(
-			paint.Header{Text: "@@ -1,2 +1,3 @@", Marker: "▸", Badge: "●"}, gutter, 60))
+			paint.Header{Text: "@@ -1,2 +1,3 @@", Marker: "▸", Badge: "●"}, paint.CodeColumn(gutter), 60))
 
 		badge, mark := strings.Index(header, "●"), strings.Index(header, "▸")
 		if badge < 0 || mark < 0 {
@@ -351,7 +351,7 @@ func TestAHeadersMarkerSitsInTheMarkerColumn(t *testing.T) {
 
 	for _, widest := range []int{9, 120, 4210} {
 		gutter := paint.Gutter(widest)
-		header := xansi.Strip(p.HunkHeader(paint.Header{Text: "@@ -1,2 +1,3 @@", Marker: "▸"}, gutter, 60))
+		header := xansi.Strip(p.HunkHeader(paint.Header{Text: "@@ -1,2 +1,3 @@", Marker: "▸"}, paint.CodeColumn(gutter), 60))
 
 		at := lipgloss.Width(header[:strings.Index(header, "▸")])
 		if want := markerColumn(t, p, paint.Line{Kind: paint.Added, New: 1}, gutter); at != want {
@@ -366,7 +366,7 @@ func TestAFilledHeaderIsPaintedToTheFullWidth(t *testing.T) {
 	p := paint.Painter{Theme: theme.RosePineMoon}
 	header := p.HunkHeader(paint.Header{
 		Text: "@@ -11,4 +12,6 @@", Fill: theme.RosePineMoon.SelectedBackground,
-	}, 2, 40)
+	}, paint.CodeColumn(2), 40)
 
 	if got := lipgloss.Width(header); got != 40 {
 		t.Errorf("header width = %d, want the full 40", got)
@@ -381,7 +381,7 @@ func TestAFilledHeaderIsPaintedToTheFullWidth(t *testing.T) {
 func TestAHeaderWithNoFillIsLeftShort(t *testing.T) {
 	p := paint.Painter{Theme: theme.RosePineMoon}
 
-	if got := lipgloss.Width(p.HunkHeader(paint.Header{Text: "@@ -11,4 +12,6 @@"}, 2, 40)); got >= 40 {
+	if got := lipgloss.Width(p.HunkHeader(paint.Header{Text: "@@ -11,4 +12,6 @@"}, paint.CodeColumn(2), 40)); got >= 40 {
 		t.Errorf("header width = %d, want it to stop at the text", got)
 	}
 }
@@ -404,7 +404,7 @@ func codeColumn(t *testing.T, p paint.Painter, gutter int) int {
 
 func TestAHunkHeaderWiderThanThePaneIsClipped(t *testing.T) {
 	p := paint.Painter{Theme: theme.RosePineMoon}
-	header := p.HunkHeader(paint.Header{Text: "@@ -1,200 +1,240 @@ func AVeryLongEnclosingSymbolName()"}, 2, 24)
+	header := p.HunkHeader(paint.Header{Text: "@@ -1,200 +1,240 @@ func AVeryLongEnclosingSymbolName()"}, paint.CodeColumn(2), 24)
 
 	if got := lipgloss.Width(header); got != 24 {
 		t.Errorf("header width = %d, want 24", got)
@@ -422,7 +422,7 @@ func TestAFilledHeaderWiderThanThePaneKeepsItsFillToTheEdge(t *testing.T) {
 		Text:   "@@ -1,200 +1,240 @@ func AVeryLongEnclosingSymbolName()",
 		Marker: "▸",
 		Fill:   theme.RosePineMoon.SelectedBackground,
-	}, 2, 24)
+	}, paint.CodeColumn(2), 24)
 
 	if got := lipgloss.Width(header); got != 24 {
 		t.Errorf("header width = %d, want 24", got)
@@ -471,4 +471,78 @@ func bgSeq(c color.Color) string {
 func fgSeq(c color.Color) string {
 	r, g, b, _ := c.RGBA()
 	return fmt.Sprintf("38;2;%d;%d;%d", r>>8, g>>8, b>>8)
+}
+
+// A short half puts the column beside it out of step, so it fills whether or not
+// it has a tint to run out. That is the one place Half departs from Line.
+func TestAHalfFillsItsWidthWithOrWithoutATint(t *testing.T) {
+	p := paint.Painter{Theme: theme.RosePineMoon}
+
+	tests := []struct {
+		name string
+		line paint.Line
+	}{
+		{"added", paint.Line{Kind: paint.Added, New: 12}},
+		{"removed", paint.Line{Kind: paint.Removed, Old: 11}},
+		{"context", paint.Line{Kind: paint.Context, New: 12}},
+		{"blank", paint.Line{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.line.Tokens = []syntax.Token{{Text: "n = 4"}}
+			for width := 12; width <= 30; width++ {
+				if got := lipgloss.Width(p.Half(tt.line, 3, width)); got != width {
+					t.Errorf("half width = %d, want %d", got, width)
+				}
+			}
+		})
+	}
+}
+
+// A caller lays two halves against each other and indents a heading to the same
+// column, so the number it is handed has to be where Half puts the source.
+func TestHalfColumnIsWhereTheSourceStarts(t *testing.T) {
+	p := paint.Painter{Theme: theme.RosePineMoon}
+	const code = "n = 4"
+
+	for _, widest := range []int{9, 120, 4210, 42100} {
+		gutter := paint.Gutter(widest)
+		half := xansi.Strip(p.Half(paint.Line{
+			Kind: paint.Added, New: widest, Tokens: []syntax.Token{{Text: code}},
+		}, gutter, 60))
+
+		i := strings.Index(half, code)
+		if i < 0 {
+			t.Fatalf("gutter %d: no source in %q", gutter, half)
+		}
+		if at := lipgloss.Width(half[:i]); at != paint.HalfColumn(gutter) {
+			t.Errorf("gutter %d: the source starts at column %d, HalfColumn says %d",
+				gutter, at, paint.HalfColumn(gutter))
+		}
+	}
+}
+
+// A half carries one number and Half has to find it whichever field it landed in,
+// a removal numbering the base and an addition the head.
+func TestAHalfShowsWhicheverNumberItCarries(t *testing.T) {
+	p := paint.Painter{Theme: theme.RosePineMoon}
+
+	tests := []struct {
+		name string
+		line paint.Line
+		want string
+	}{
+		{"removal numbers the base", paint.Line{Kind: paint.Removed, Old: 119}, "119"},
+		{"addition numbers the head", paint.Line{Kind: paint.Added, New: 120}, "120"},
+		{"context takes the side it was given", paint.Line{Kind: paint.Context, New: 120}, "120"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := xansi.Strip(p.Half(tt.line, 3, 20)); !strings.Contains(got, tt.want) {
+				t.Errorf("half = %q, want the number %s in it", got, tt.want)
+			}
+		})
+	}
 }

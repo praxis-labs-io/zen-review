@@ -29,7 +29,7 @@ func (m Model) Line() ([]review.Anchor, bool) {
 }
 
 // anchorsOver is the lines a run of rows names, one span per side and the head
-// first.
+// first. Both columns of a side-by-side row feed the same two spans.
 func anchorsOver(rows []row) ([]review.Anchor, bool) {
 	var head, base review.Range
 	for i := range rows {
@@ -38,6 +38,8 @@ func anchorsOver(rows []row) ([]review.Anchor, bool) {
 		}
 		head = grow(head, rows[i].line.New)
 		base = grow(base, rows[i].line.Old)
+		head = grow(head, rows[i].right.New)
+		base = grow(base, rows[i].right.Old)
 	}
 
 	var out []review.Anchor

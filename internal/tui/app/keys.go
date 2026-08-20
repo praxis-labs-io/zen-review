@@ -37,6 +37,7 @@ type KeyMap struct {
 
 	Reload key.Binding
 	Base   key.Binding
+	Split  key.Binding
 
 	Left  key.Binding
 	Right key.Binding
@@ -96,6 +97,10 @@ func NewKeyMap() KeyMap {
 		// These session actions reach past the screen to the repository.
 		Reload: key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "reload")),
 		Base:   key.NewBinding(key.WithKeys("b"), key.WithHelp("b", "change base")),
+
+		// A rendering choice and nothing the engine holds, so it answers from
+		// either pane and never waits on a reload.
+		Split: key.NewBinding(key.WithKeys("|"), key.WithHelp("|", "split view")),
 
 		// The digits are the badges the panes carry in their borders. They join
 		// the bindings that already move focus rather than being declared beside
@@ -172,6 +177,7 @@ func (m Model) paneKeys() []key.Binding {
 		m.keys.Base,
 		comp.Pair(m.keys.NextComment, m.keys.PrevComment, "]/[", "comment"),
 		comp.Pair(m.keys.NextFile, m.keys.PrevFile, "tab", "file"),
+		m.keys.Split,
 	)
 }
 
@@ -238,6 +244,6 @@ func (m Model) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		movement,
 		append(m.ringKeys(), verbs...),
-		append(panes, m.keys.Reload, m.keys.Base, m.keys.Note, m.keys.Help, m.keys.Quit),
+		append(panes, m.keys.Reload, m.keys.Base, m.keys.Split, m.keys.Note, m.keys.Help, m.keys.Quit),
 	}
 }

@@ -84,6 +84,14 @@ func TestGoldenFrames(t *testing.T) {
 		// Two rows shorter than the tree has rows, so the pane has to scroll
 		// rather than run off the status bar.
 		{"short", 100, 8, []string{"h", "G"}},
+
+		// The fixture's two-hunk file holds both side-by-side shapes: a removal
+		// paired against its replacement, and an addition with a blank facing it.
+		{"split", 120, 16, []string{"n", "n", "|"}},
+
+		// The same press at a width two halves do not fit in. The bar says how
+		// many columns short it is and the pane is left unified.
+		{"split-narrow", 100, 16, []string{"n", "n", "|"}},
 	}
 
 	for _, tt := range tests {

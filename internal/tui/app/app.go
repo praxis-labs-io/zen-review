@@ -445,6 +445,14 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// A fact about the frame rather than a failure, so it is not a bad notice.
+	if key.Matches(msg, m.keys.Split) {
+		if short := m.diff.ToggleSplit(); short > 0 {
+			m.note = notice{text: fmt.Sprintf("side-by-side needs %d more columns", short)}
+		}
+		return m, nil
+	}
+
 	if key.Matches(msg, m.keys.Delete) {
 		id, on := m.diff.Comment()
 		if !on {

@@ -81,6 +81,7 @@ func main() {
 
 	p := paint.Painter{Theme: t}
 	gutter := paint.Gutter(widest())
+	half := (width - 1) / 2
 
 	// Each side whole and the two apart: a lexer carries state across lines, and
 	// run together it reads a file holding both halves of every change.
@@ -90,25 +91,65 @@ func main() {
 	out := []string{lipgloss.NewStyle().Foreground(t.Subtle).
 		Render(fmt.Sprintf("theme %s, pane %d columns, gutter %d", t.Name, width, gutter))}
 
-	oldAt, newAt := 0, 0
-	for _, h := range hunks {
-		head := paint.Header{Text: h.Header}
-		if h.Cursor {
-			head.Marker, head.Fill = "▸", t.SelectedBackground
-		}
-		head.Badge, head.BadgeColor = "○", t.Subtle
-		if h.Badged {
-			head.Badge, head.BadgeColor = "●", t.Accent
-		}
-		out = append(out, p.HunkHeader(head, gutter, width))
+	lines := painted(t, oldSide, newSide)
 
+	at := 0
+	for _, h := range hunks {
+		out = append(out, p.HunkHeader(header(t, h), paint.CodeColumn(gutter), width))
+		for range h.Rows {
+			out = append(out, p.Line(lines[at], gutter, width))
+			at++
+		}
+	}
+
+	// The same rows side by side, where the painter has half the columns and two
+	// chances to lose a cell. A blank half faces a change with no pair.
+	out = append(out, "", lipgloss.NewStyle().Foreground(t.Subtle).
+		Render(fmt.Sprintf("side by side, %d columns each", half)))
+
+	at = 0
+	for _, h := range hunks {
+		out = append(out, p.HunkHeader(header(t, h), paint.HalfColumn(gutter), width))
+
+		rule := lipgloss.NewStyle().Foreground(t.Muted)
+		for _, pr := range pairs(h.Rows) {
+			l, r := blank(lines, at, pr.left), blank(lines, at, pr.right)
+			l.New, r.Old = 0, 0
+			out = append(out, p.Half(l, gutter, half)+rule.Render("│")+p.Half(r, gutter, width-half-1))
+		}
+		at += len(h.Rows)
+	}
+
+	fmt.Println(strings.Join(out, "\n"))
+}
+
+// header is one hunk's @@ line, the cursor and the state glyph on it.
+func header(t theme.Theme, h hunk) paint.Header {
+	head := paint.Header{Text: h.Header}
+	if h.Cursor {
+		head.Marker, head.Fill = "▸", t.SelectedBackground
+	}
+
+	head.Badge, head.BadgeColor = "○", t.Subtle
+	if h.Badged {
+		head.Badge, head.BadgeColor = "●", t.Accent
+	}
+	return head
+}
+
+// painted is every canned row as a paint.Line, in file order. A context line
+// takes its colour from the new side and advances both.
+func painted(t theme.Theme, oldSide, newSide [][]syntax.Token) []paint.Line {
+	var out []paint.Line
+	oldAt, newAt := 0, 0
+
+	for _, h := range hunks {
 		for _, r := range h.Rows {
 			l := paint.Line{Kind: r.Kind, Old: r.Old, New: r.New}
 			if r.Cursor {
 				l.Fill = t.SelectedBackground
 			}
 
-			// A context line takes its color from the new side, and advances both.
 			switch r.Kind {
 			case paint.Removed:
 				l.Tokens = nth(oldSide, oldAt)
@@ -121,12 +162,58 @@ func main() {
 				oldAt++
 				newAt++
 			}
-
-			out = append(out, p.Line(l, gutter, width))
+			out = append(out, l)
 		}
 	}
+	return out
+}
 
-	fmt.Println(strings.Join(out, "\n"))
+// pair is the rows one side-by-side row draws, by index into a hunk's own, and
+// -1 for a column with no line.
+type pair struct{ left, right int }
+
+// pairs puts a run of removals against the additions after it. The pane has its
+// own copy of this; here it only has to arrange the canned rows.
+func pairs(rows []row) []pair {
+	var out []pair
+	var rem, add []int
+
+	flush := func() {
+		for i := range max(len(rem), len(add)) {
+			p := pair{left: -1, right: -1}
+			if i < len(rem) {
+				p.left = rem[i]
+			}
+			if i < len(add) {
+				p.right = add[i]
+			}
+			out = append(out, p)
+		}
+		rem, add = nil, nil
+	}
+
+	for i, r := range rows {
+		switch r.Kind {
+		case paint.Removed:
+			rem = append(rem, i)
+		case paint.Added:
+			add = append(add, i)
+		default:
+			flush()
+			out = append(out, pair{left: i, right: i})
+		}
+	}
+	flush()
+
+	return out
+}
+
+// blank is the line at an index, and a zero one for a column with none.
+func blank(lines []paint.Line, base, i int) paint.Line {
+	if i < 0 {
+		return paint.Line{}
+	}
+	return lines[base+i]
 }
 
 // source is one side of the diff as a file, context lines included. A side

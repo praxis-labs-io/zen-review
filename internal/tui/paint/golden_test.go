@@ -98,7 +98,7 @@ func TestGoldenOneSided(t *testing.T) {
 }
 
 func TestGoldenHunkHeader(t *testing.T) {
-	compare(t, "hunk_header", painter().HunkHeader(paint.Header{Text: "@@ -11,4 +12,6 @@ func Paint()"}, paint.Gutter(1235), 40))
+	compare(t, "hunk_header", painter().HunkHeader(paint.Header{Text: "@@ -11,4 +12,6 @@ func Paint()"}, paint.CodeColumn(paint.Gutter(1235)), 40))
 }
 
 // The heading a cursor is on: filled to the edge, with the mark in the column
@@ -108,7 +108,7 @@ func TestGoldenHunkHeaderMarked(t *testing.T) {
 		Text:   "@@ -11,4 +12,6 @@ func Paint()",
 		Marker: "▸",
 		Fill:   theme.RosePineMoon.SelectedBackground,
-	}, paint.Gutter(1235), 40))
+	}, paint.CodeColumn(paint.Gutter(1235)), 40))
 }
 
 // Both glyphs at once, which is a cursor on a heading that carries a state.
@@ -118,7 +118,7 @@ func TestGoldenHunkHeaderBadged(t *testing.T) {
 		Marker: "▸",
 		Badge:  "●",
 		Fill:   theme.RosePineMoon.SelectedBackground,
-	}, paint.Gutter(1235), 40))
+	}, paint.CodeColumn(paint.Gutter(1235)), 40))
 }
 
 // A body row: the marker and the tint with no number columns, filled to the
@@ -137,4 +137,36 @@ func TestGoldenBodyClipped(t *testing.T) {
 		Kind:   paint.Removed,
 		Tokens: tokens(),
 	}, 10))
+}
+
+// A half is one column of a side-by-side row: one number, the marker and the
+// code, padded to the width whether or not it is tinted.
+func TestGoldenHalves(t *testing.T) {
+	tests := []struct {
+		name   string
+		line   paint.Line
+		gutter int
+		width  int
+	}{
+		{"half_added", paint.Line{Kind: paint.Added, New: 120, Tokens: tokens()}, 3, 26},
+		{"half_removed", paint.Line{Kind: paint.Removed, Old: 119, Tokens: tokens()}, 3, 26},
+		{"half_context", paint.Line{Kind: paint.Context, New: 120, Tokens: tokens()}, 3, 26},
+
+		// The blank facing a change the other side has no pair for. It carries no
+		// number, no marker and no tint, and still holds its column open.
+		{"half_blank", paint.Line{}, 3, 26},
+
+		{"half_clipped", paint.Line{Kind: paint.Added, New: 120, Tokens: tokens()}, 3, 14},
+		{"half_wide_gutter", paint.Line{Kind: paint.Added, New: 42100, Tokens: tokens()}, 5, 26},
+		{"half_filled", paint.Line{
+			Kind: paint.Context, New: 120, Tokens: tokens(),
+			Fill: theme.RosePineMoon.SelectedBackground,
+		}, 3, 26},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			compare(t, tt.name, painter().Half(tt.line, tt.gutter, tt.width))
+		})
+	}
 }

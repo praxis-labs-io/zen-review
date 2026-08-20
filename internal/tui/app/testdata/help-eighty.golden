@@ -6,10 +6,10 @@
 ││ k      up                     N         previous unread    l/2 diff pane   ││
 ││ g      top                    }/{       hunk               s   reload      ││
 ││ G      bottom                 tab       next file          b   change base ││
-││ ctrl+d diff half page down    shift+tab previous file      C   note        ││
-││ ctrl+u diff half page up      r         mark read          ?   help        ││
-││ ]/[    comment                R         mark file          q   quit        ││
-││ z      place cursor: z/t/b    u/U       unmark                             ││
+││ ctrl+d diff half page down    shift+tab previous file      |   split view  ││
+││ ctrl+u diff half page up      r         mark read          C   note        ││
+││ ]/[    comment                R         mark file          ?   help        ││
+││ z      place cursor: z/t/b    u/U       unmark             q   quit        ││
 ├│ v      select lines           c         comment                            ││
 ││ space  fold comment           x         resolve comment                    ││
 ││ enter  go to its line         e/D       edit, delete                       ││

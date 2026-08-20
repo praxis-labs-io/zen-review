@@ -395,6 +395,27 @@ s                        reload
 until the count reaches zero. `r` advances after marking, so `r r r r` walks the
 whole thing.
 
+`|` puts the two sides in two columns. A run of removals pairs against the run of
+additions after it, one row each, and the shorter side draws a blank rather than
+shifting up, which would put the two columns out of step for the rest of the
+file. Context takes both. One gutter serves both halves, so the rule between them
+sits centre.
+
+It is what the reader asked for and not always what they get. Under a minimum of
+source per column the two halves clip away more than they show, so the key
+refuses and the bar says how many columns short the pane is. A terminal shrinking
+under a split pane falls back to unified and keeps the answer, so widening brings
+it back without a second press.
+
+Nothing takes a side. A row names both, and the anchor rule below picks the head
+where the lines have one, so a mark and a comment need no branch between the two
+modes. The cost is that a removal with an addition beside it cannot be scoped
+alone, which is what unified is one press away for. A deletion-only hunk has no
+head side to begin with, so its rows stay left-only and still anchor base.
+
+The mode lasts the run and nothing stores it. A default belongs with the reader's
+other preferences, not in the session the review is kept in.
+
 `v` scopes a comment and nothing else. The unit of review is the hunk, so `r`
 over a selection marks the hunk and advances, the same press it always was. The
 engine can mark lines and `review --lines` reaches it, but from the reader it

@@ -151,6 +151,10 @@ type Model struct {
 	// landing clears it, so a ring key between the two does not arm the next.
 	waiting bool
 
+	// split is what the reader asked for, not what they are getting: a pane too
+	// narrow draws unified until it is widened, and splitting is the one to read.
+	split bool
+
 	// anchor is where v was pressed, held as a place rather than a row: a card's
 	// height moves with the width, and every row after it renumbers.
 	anchor place
@@ -188,6 +192,10 @@ type row struct {
 	// hunk is the one this row belongs to, and -1 for a row outside every one.
 	// The blank between two hunks goes to the one above it, so this never falls.
 	hunk int
+
+	// right is the head column of a side-by-side row, line being the base one. A
+	// zero value is the blank facing a change the other side has no pair for.
+	right paint.Line
 
 	// card is the comment this row is part of, indexing m.cards, and -1 on every
 	// other row.
@@ -488,8 +496,11 @@ func (m Model) render(i int) (string, lipgloss.Style) {
 
 	switch r.kind {
 	case headRow:
-		return m.painter.HunkHeader(m.header(r.hunk, fill), m.gutter, m.width), lipgloss.NewStyle()
+		return m.painter.HunkHeader(m.header(r.hunk, fill), m.codeColumn(), m.width), lipgloss.NewStyle()
 	case codeRow:
+		if m.splitting() {
+			return m.halves(r, fill), lipgloss.NewStyle()
+		}
 		l := r.line
 		l.Fill = fill
 		return m.painter.Line(l, m.gutter, m.width), lipgloss.NewStyle()
@@ -624,6 +635,7 @@ func (m Model) fits(at int) bool {
 func (m *Model) SetSize(width, height int) {
 	first := m.width == 0 && m.height == 0
 	was := m.placeOf(m.cursor)
+	mode := m.splitting()
 
 	m.width, m.height = width, height
 
@@ -633,7 +645,14 @@ func (m *Model) SetSize(width, height int) {
 		m.draft.area.SetWidth(m.draftWidth())
 		m.capBox()
 	}
-	m.relayout(was)
+
+	// A resize across the minimum changes the mode under the reader, and the two
+	// modes do not number their rows the same. remode carries the line instead.
+	if m.splitting() != mode {
+		m.remode()
+	} else {
+		m.relayout(was)
+	}
 	m.reveal()
 
 	if first {
@@ -821,12 +840,14 @@ func (m *Model) layout() {
 	// goes and how far up the ring scrolls. The card hangs under its last.
 	first := make(map[string]int, len(mine))
 
-	seen, seq := 0, 0
+	base, seq := 0, 0
 	add := func(r row) {
 		r.card, r.seq = -1, seq
 		seq++
 		m.rows = append(m.rows, r)
 	}
+
+	split := m.splitting()
 
 	for i, h := range m.file.Hunks {
 		if i > 0 {
@@ -836,44 +857,44 @@ func (m *Model) layout() {
 		m.headAt = append(m.headAt, len(m.rows))
 		add(row{kind: headRow, hunk: i})
 
-		for _, l := range h.Diff.Lines {
-			add(row{kind: codeRow, hunk: i, line: paint.Line{
-				Kind:   kindOf(l.Kind),
-				Old:    l.Old,
-				New:    l.New,
-				Tokens: tokens[seen],
-			}})
+		for _, p := range pairs(h.Diff.Lines, split) {
+			add(m.code(h.Diff.Lines, p, tokens[base:], i, split))
 			at := len(m.rows) - 1
-			seen++
 
 			// It hangs under the line it was written about. Without it a file that
 			// lost its trailing newline shows two rows of the same text.
-			if l.NoEOL {
+			if eol(h.Diff.Lines, p) {
 				add(row{kind: noteRow, hunk: i, note: `\ No newline at end of file`})
 			}
 
 			// A card hangs under the last line of what it answers, so that code is
 			// above it and stays on screen when the ring lands on the card.
-			for j, c := range mine {
-				if !m.live(c) {
-					continue
-				}
-				if _, seen := first[c.ID]; !seen && on(c, l, c.Start) {
-					first[c.ID] = at
-				}
-				if !placed[j] && on(c, l, c.End) {
-					placed[j] = true
+			for _, k := range sides(p) {
+				l := h.Diff.Lines[k]
 
-					// A range whose first line the diff does not show anchors to its
-					// last, which is the row the card is already hanging under.
-					anchor, ok := first[c.ID]
-					if !ok {
-						anchor = at
+				for j, c := range mine {
+					if !m.live(c) {
+						continue
 					}
-					m.addCard(c, i, anchor)
+					if _, seen := first[c.ID]; !seen && on(c, l, c.Start) {
+						first[c.ID] = at
+					}
+					if !placed[j] && on(c, l, c.End) {
+						placed[j] = true
+
+						// A range whose first line the diff does not show anchors to its
+						// last, which is the row the card is already hanging under.
+						anchor, ok := first[c.ID]
+						if !ok {
+							anchor = at
+						}
+						m.addCard(c, i, anchor)
+					}
 				}
 			}
 		}
+
+		base += len(h.Diff.Lines)
 	}
 
 	if len(m.file.Hunks) == 0 {
