@@ -8,8 +8,9 @@ already read. So a review here is not a mark on a hunk. It is a set of line
 ranges carried through every new version of the changeset, and a range the
 rewrite destroyed is a range that comes back unread.
 
-The commands are in [the CLI reference](cli.md), and the reader's keys in
-[the keymap](keys.md).
+The commands are in [the CLI reference](cli.md), the reader's keys in
+[the keymap](keys.md), and how to install it in
+[install](install.md).
 
 ## One changeset
 

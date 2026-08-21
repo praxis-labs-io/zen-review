@@ -3,8 +3,9 @@
 Every question the reader can answer, the CLI answers with no terminal attached.
 `zen-review <command> --help` prints the short form of this page.
 
-The concepts behind it are in [the guide](guide.md), and the reader's keys in
-[the keymap](keys.md).
+The concepts behind it are in [the guide](guide.md), the reader's keys in
+[the keymap](keys.md), and the loop an agent runs in
+[driving zen-review from an agent](agents.md).
 
 ```sh
 zen-review [--base <ref>] [--json]
