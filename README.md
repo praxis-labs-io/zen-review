@@ -36,8 +36,11 @@ at.
 curl -fsSL https://raw.githubusercontent.com/praxis-labs-io/zen-review/main/install.sh | sh
 ```
 
-Downloads the binary for macOS or Linux, on arm64 or amd64. Anything else builds
-from source, which needs Go 1.26 or newer.
+Downloads the binary for macOS or Linux, on arm64 or amd64. On anything else:
+
+```sh
+go install github.com/praxis-labs-io/zen-review/cmd/zen-review@latest
+```
 
 Or from a clone, which is what you want if you intend to change anything:
 

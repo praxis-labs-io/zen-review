@@ -6,8 +6,8 @@
 - **A Nerd Font**, for the tree's folder and file glyphs. Without one the tree
   draws boxes where those glyphs go. Nothing else on screen asks anything of
   your font, and the layout holds either way.
-- **Go 1.26.4 or newer**, only for a source build. The released binaries need
-  nothing but git.
+- **Go 1.26.4 or newer**, only if you are building it yourself. The released
+  binaries need nothing but git.
 
 Releases carry macOS and Linux on arm64 and amd64. Everything is pure Go, so
 there is no libc to match.
@@ -19,10 +19,17 @@ curl -fsSL https://raw.githubusercontent.com/praxis-labs-io/zen-review/main/inst
 ```
 
 It downloads the binary for your platform and puts it in `~/.local/bin`. On a
-platform with no release binary it clones and builds instead, which is the one
-path that needs Go.
+platform the releases do not carry, it says so and points you at Go:
 
-`INSTALL_DIR` overrides where it lands, and `VERSION` pins a release:
+```sh
+go install github.com/praxis-labs-io/zen-review/cmd/zen-review@latest
+```
+
+That builds for whatever you are on. It reports `dev` rather than a version,
+being a build and not a release.
+
+`INSTALL_DIR` overrides where the installer puts things, and `VERSION` pins a
+release:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/praxis-labs-io/zen-review/main/install.sh | INSTALL_DIR=/usr/local/bin sh
