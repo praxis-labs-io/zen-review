@@ -243,283 +243,52 @@ silently is not saved.
 
 ## Keys
 
-The keymap is shared with zen-octo by convention, written down in both
-`CLAUDE.md` files rather than in shared code, so the two tools feel the same
-without either being hostage to the other's release cycle.
+The keymap is shared with zen-octo by convention, so the two tools feel the same
+without either being hostage to the other's release cycle. Every key and what it
+does is in [docs/keys.md](docs/keys.md), and zen-octo keeps its own copy. What
+follows is what the code has to keep true.
 
-```
-j k g G                  movement
-zz zt zb                 put the cursor mid, top or bottom of the pane
-ctrl+u ctrl+d            page the diff, from either pane
-h l                      tree pane / diff pane, and the columns of a split one
-1 2                      the two panes, by the badge in the pane's border
-} {                      the ring: next / prev hunk
-space                    fold / unfold: a tree directory, a comment card
-tab shift+tab            next / prev file
-n N                      next / prev unreviewed hunk
-] [                      next / prev unresolved comment
-
-r                        mark hunk reviewed, advance to next unreviewed
-R                        mark whole file reviewed
-u U                      take either back
-c                        comment on the selection, the row, the hunk or the file
-v esc                    range selection for c, j/k extend. esc or v cancels
-C                        session summary note
-x                        resolve a comment
-e D                      rewrite a comment, delete one
->                        the rest of the code a response replaced
-enter                    tree: open file. comment: jump to its line
-ctrl+s esc               in the composer: save, discard
-
-p                        full-file preview
-|                        unified / side-by-side
-/                        filter the tree
-b                        change the base
-s                        reload
-? q ctrl+c               help, quit, quit from anywhere
-```
-
-`n` is the one that matters. A review is a burn-down and `n` is the key held
-until the count reaches zero. `r` advances after marking, so `r r r r` walks the
-whole thing.
-
-`|` puts the two sides in two columns. A run of removals pairs against the run of
-additions after it, one row each, and the shorter side draws a blank rather than
-shifting up, which would put the two columns out of step for the rest of the
-file. Context takes both. One gutter serves both halves, so the rule between them
-sits centre.
-
-It is what the reader asked for and not always what they get. Under a minimum of
-source per column the two halves clip away more than they show, so the key
-refuses and the bar says how many columns short the pane is. A terminal shrinking
-under a split pane falls back to unified and keeps the answer, so widening brings
-it back without a second press.
-
-The cursor is in one column, and only that column lights. Lighting the row across
-both leaves a reader on a rewritten line with nothing saying which side the next
-key takes, and the rule between them stays dark or the lit block runs a cell past
-its column.
-
-`h` and `l` step into it. They already mean move left and right between things on
-screen, and a split pane is one more thing to step to: `h` from the head column
-goes to the base, and again to the tree; `l` walks back. The pane keeps the column
-it was left in, so returning to it moves nothing, and it starts on the head. A
-pane drawing one column has nowhere to step and gives the focus up on the first
-press, as it always did.
-
-`1` and `2` stay a jump, because a badge drawn in a border names the frame it is
-drawn in, and there are two frames whatever the mode.
-
-One cursor and not one per column. The rows are paired, so the two halves of a row
-are the same change and stepping between them is the comparison being made. Two
-cursors could point at unrelated lines and a side-switch would throw the window,
-which is vimdiff's shape and vimdiff has two real buffers to hang it on.
-
-`j` and `k` skip a row the focused column has no line on. Walking the head column
-of a deletion-only block therefore steps over it, which is honest: there is no head
-there to read, and `h` is where those lines live. A run reaching the end of the
-file turns the cursor back rather than stranding it on a blank.
-
-The same step off the end of a hunk turns back inside it. A column step is one
-row across and not a move between hunks, and `r` takes the hunk the cursor is in,
-so carrying it over the boundary would mark the hunk the reader just left.
-
-A comment and a selection scope to the focused column, which is the whole point:
-a removal with its replacement beside it can be commented on alone. A mark does
-not, `r` taking the hunk and writing every side at once as it always has.
-
-The mode lasts the run and nothing stores it. A default belongs with the reader's
-other preferences, not in the session the review is kept in.
-
-`v` scopes a comment and nothing else. The unit of review is the hunk, so `r`
-over a selection marks the hunk and advances, the same press it always was. The
-engine can mark lines and `review --lines` reaches it, but from the reader it
-buys nothing: `n` stops on a partial hunk as well as an unread one, so a
-part-marked hunk is handed back whole anyway, and re-reading four lines is
-cheaper than a badge nobody can read the extent of.
-
-A selection may cross a hunk, so `j` and `ctrl+d` keep working as they do
-everywhere else. Only code fills: a heading, the blank between two hunks and a
-comment card are not lines anything is written against.
-
-`esc` is named on the status bar while a selection is up and nowhere else, the
-way `x` is named in a card's own footer. It reaches one state of the program,
-and that is where a reader looks for it. It answers from either pane, because
-the selection stays lit while the reader walks the tree.
-
-`c` scopes to what is under the cursor and takes the first of these it finds: a
-selection, the code row the cursor is on, the hunk it is in, the file. A
-selection beats the focus the way `esc` does, and the tree focused with nothing
-selected is the file itself, because pointing at a file is what the tree is.
-
-A comment anchors to the head wherever the lines it covers have one, and to the
-base only when they have none, which is a selection of removals. The head is the
-code the next agent rewrites; a mark writes every side at once and a comment
-cannot. The box says which side it took, because base numbers read as head ones.
-
-Side-by-side is where that rule steps aside: a row there names one column, the one
-the cursor is in, so the reader picks rather than the rule. Unified has no column
-to pick, so it keeps the rule.
-
-A hunk is the block a paragraph motion moves by, so `}` and `{` step it. Vim's
-own diff mode says `]c` and `[c`, and the bracket pair is spoken for. Nothing in
-vim moves a whole file in one key, so `tab` is the TUI answer rather than the
-editor one; the tree does the same job by hand.
-
-`]` and `[` walk what is unresolved, the way `n` walks what is unread. A ring
-that stepped through settled work is a ring nobody holds down. A resolved card
-still draws, folded, and `j` still reaches it.
-
-A comment draws as a bordered card indented to the code column, hanging under
-the last line it is about. It is one stop for the cursor rather than one per
-row: `j` steps onto it and the next `j` clears the whole thing.
-
-State is a badge in its top border and focus is the border's colour, because
-four states and one focus cannot share a channel. `◇` open, `◈` addressed, `◆`
-resolved, `✕` orphaned, each beside its own word: the glyph is the glance and
-the word is what scans down a column.
-
-A diamond, where a hunk's badge is a circle. The two ladders sit in one column
-and mean different things, so they cannot share a shape, and their colours run
-opposite ways: a hunk is accent once it is done, a comment is accent while it
-still wants you. Orphaned leaves the family, being a loss and not a stage.
-
-A response draws as its own box hanging off the card on a rail, two columns in
-and two columns narrower, zen-octo's reply exactly. A box says the words below it
-are somebody else's; a change of weight inside one border says only that whoever
-was talking trailed off. It carries no footer, having no key of its own.
-
-Under the words it carries the code they replaced: the lines the comment was
-written against, where the changeset has since taken them. The words say the work
-was done and this is what a reader confirms them against, which is the same job
-`response` does one level up. The before only, because the after is the diff the
-card hangs in, so the two read as a pair without either being drawn twice.
-
-It is painted as the removals it is, the diff's own `−` and `RemovedBackground`
-run to the edge of the box. Muted prose was the first answer and it read as a
-trailing fragment of the response rather than as code.
-
-Whether the lines went is the translation the remap runs, not the two sides read
-at the same numbers. An anchor stops moving when the comment is answered, so a
-positional read calls every line inserted above it a rewrite, and the block then
-shows code that is still there word for word one row down. The blob the comment
-was written against is diffed against the file's blob now, the creation range
-goes through `Translate`, and a range that comes back whole took nothing.
-
-It comes out of the same act as the words, so a bare `address` grows the box to
-hold it alone. Nothing is asserted before the agent answers, so an open comment
-has none however far the code moved under it. A bare `address` the reader then
-resolves loses its block: nothing on the row records that it passed through
-addressed, and a resolved card folds by default anyway.
-
-`anchor_blob` is the bytes and `created_start_line` is where in them, written
-together at creation and left alone by every refresh that moves the anchor. A
-comment that travelled before it was answered would otherwise slice its own blob
-by lines it never had. One diff per pair of blobs, so a file's comments cost one
-call between them rather than one each.
-
-A file comment gets none. It names the file rather than any region of it, and the
-whole of the old file is not a block. Neither does a hunk somebody marked read and
-an agent then rewrote: `r` asserts nothing about the code, so there is no claim to
-confirm, and `changed after review` already says it moved.
-
-Three lines, then `>` for the rest. It is the card's size and not the response's,
-which takes no keys at all. The key is named in the card's own footer and not in
-the help overlay, the way `esc` is named on the status bar: it does something only
-on a card holding a block, and the overlay draws to the frame's last line at
-sixteen rows with no row to give.
-
-Neither the box nor the rail ever lights. A lit border says a key reaches here,
-and nothing reaches a response: no cursor stops on it, and `x`, `e`, `D` and `>`
-all act on the card. Lighting it with the card would promise a stop that never
-arrives. The elbow is always `╰─` and never a tee, there being one response. A
-pane with no room for a second border draws the card whole and drops the box
-rather than shrinking both.
-
-A settled card folds to one row and keeps its box, and takes its response and the
-block with it. Without the box it is a line of grey text in a column of diff,
-which is what the diff's own notes look like, and a box still hanging off one row
-says the card is open. Its footer names the direction the key goes rather than the
-state it is in.
-
-`x` is named in the lit card's own footer rather than on the status bar, because
-it reaches one row on the screen and that row is where a reader looks for it. A
-settled card neither offers it nor takes it: `ResolveComment` refuses a comment
-already resolved, and is right to, because freezing one twice re-records an
-anchor that stopped moving a generation ago. So the key has nothing to do there,
-the way it has nothing to do on a row with no card. An orphan is offered it,
-that being the only thing left anyone can do with a comment whose code is gone.
-
-`e` and `D` are named there too, and nowhere else. Both reach a card in any
-state: a typo in a resolved comment is still a typo, and one nobody meant to
-write is a record of nothing. `D` acts at once, the capital doing the whole of
-the thing the way `R` and `U` do, and a card narrow enough to drop hints drops
-these two first, the overlay being where the rest of the keymap lives anyway.
-
-An edit is the body alone, the response being the agent's words and no business
-of the reader's verb. The anchor never moves either, so a comment on the wrong lines
-is a delete and a new one rather than a rewrite, which would be a second remap
-path with none of the translation rules behind it. The box `e` opens is the card
-itself: same border, same indent, same place, holding what it said. A delete is a
-real delete rather than a state, which would have to be filtered out of every
-count, every ring and every export forever.
-
-An empty body is a discard from `c`, because nothing was typed. From `e` it
-writes nothing and the bar says so: wiping a box is not saving a comment, and it
-is not deleting one either, which is a key of its own rather than a second
-meaning for the save key.
-
-The bar clears on the next press inside a box the way it does outside one. Every
-other line there is one press long, and one that stayed up would be read as an
-answer to a key pressed since.
-
-The composer takes every key while it is up, `q` and `?` included. A note lost
-to the letter `q` cannot be taken back, and one key let out is one more thing to
-hold in mind while typing. `ctrl+c` is the exception, because raw mode sends no
-interrupt and a box that ate it would be the one place in the program with no
-way out but `esc`. `enter` is a newline in prose, so `ctrl+s` saves and `esc`
-discards; nothing else on screen says so, which is why the box carries both in
-its bottom border.
-
-The box grows with what is typed into it rather than scrolling, because a box
-that scrolls hides the sentence still being written. It stops at what the pane
-can draw around it: its two borders, the line it hangs under, and the heading
-pinned over that. Past there it scrolls, having nowhere left to grow.
-
-The cursor in it is the terminal's own, placed by the root through the view. A
-drawn one is a block we paint in a colour of ours over the character it covers,
-and the reader set their cursor up already.
-
-The box comes down when the write lands, not when the key is pressed. A save
-that failed leaves it up holding the words, and so does one the reader typed
-past: the only thing a local transaction can cost is what was typed into it. A
-paste arrives as its own message rather than as keys, so the root routes what is
-not a key press into it too.
-
-`c` types in place and `C` types over the frame, because a comment has a line
-and a session note has none. The box `c` opens is the card it is about to
-become: same border, same indent, hanging under the same line, so the code it is
-about is still on screen above it and the file flows below. It carries the two
-keys in its own footer the way a card carries `x`, and the status bar names them
-and nothing else, `?` and `q` being letters while a body is being typed.
-
-A box nobody can see still holds every key, so where the pane has no room to
-draw one it goes over the frame instead, which is where `C`'s is drawn. A
-terminal shrinking under a reader mid-sentence carries the words across with it.
-`c` is refused only while a reload is in git, which would land under an open box
-and move the lines it was scoped to.
-
-A failed write keeps the box and the words, except the one that committed and
-could not be read back. That box comes down, because what it holds is written
-and saving it again writes a second comment. It is the only write here that
-cannot be retried, which is why the Source names it rather than reporting a
-failure like any other.
-
-The label says only what the card's own position cannot. A card under its line
-needs no line number, because the gutter beside it has one. A range says the run
-it covers, a file comment says so, and a comment the diff has no line for says
-where it used to point and goes to the foot of the file. Dropping that last one
-would lose the only record of what was asked.
+- The heading pin follows the window and not the cursor, because a heading names
+  the lines under it. The pin owns the top line, so the cursor never sits there:
+  a key that would put it on that row opens the window one higher instead.
+  Standing the pin down for the cursor was the first answer and it cost the
+  heading on every paging key.
+- The cursor bar sits in a leading cell every row already holds open, so nothing
+  shifts as the cursor passes. The fill is shared with a selection and the bar is
+  not, which is what says where the next key moves from inside one.
+- A comment card is one stop for the cursor, not one per row.
+- One cursor in side-by-side, never one per column. Two could point at unrelated
+  lines and a side-switch would throw the window.
+- The mode `|` sets lasts the run and nothing stores it. A default belongs with
+  the reader's other preferences, not in the session the review is kept in.
+- The composer takes every key while it is up, `ctrl+c` excepted: raw mode sends
+  no interrupt and a box that ate it would be the one place in the program with
+  no way out but `esc`. A paste arrives as its own message rather than as keys,
+  so the root routes what is not a key press into it too.
+- The cursor in the composer is the terminal's own, placed by the root through
+  the view. A drawn one paints a colour of ours over the character it covers, and
+  the reader set their cursor up already.
+- The box comes down when the write lands, not when the key is pressed. The one
+  exception is the write that committed and could not be read back: that box
+  comes down, because saving it again writes a second comment, and it is why the
+  Source names that failure rather than reporting it like any other.
+- The status bar clears on the next press inside a box the way it does outside
+  one.
+- `x`, `e`, `D` and `>` are named in the card's own footer and never in the help
+  overlay, which draws to the frame's last line at sixteen rows with no row to
+  give. `esc` is named on the status bar while a selection is up.
+- `ResolveComment` refuses a comment already resolved, so a settled card neither
+  offers `x` nor takes it. Freezing one twice re-records an anchor that stopped
+  moving a generation ago.
+- Neither the response box nor its rail ever lights. The elbow is always `╰─` and
+  never a tee, there being one response, and a pane with no room for a second
+  border draws the card whole and drops the box rather than shrinking both.
+- The replaced block is the translation the remap runs, not the two sides read at
+  the same numbers. The blob the comment was written against is diffed against
+  the file's blob now, the creation range goes through `Translate`, and a range
+  that comes back whole took nothing.
+- A delete is a real delete rather than a state, which would have to be filtered
+  out of every count, every ring and every export forever.
 
 Six divergences from zen-octo, all deliberate:
 
@@ -533,34 +302,6 @@ Six divergences from zen-octo, all deliberate:
 The diff pane opens focused on the first unreviewed hunk. zen-octo's
 conversation opens unfocused because the reader came to read; you came here to
 burn a review down.
-
-The row the cursor is on carries a bar in its leading cell, in accent. The tint
-alone is a change of shade a reader loses on a page of them, and the cell is one
-every row already holds open, so nothing shifts as the cursor passes. The fill is
-shared with a selection and the bar is not, which is what says where the next key
-moves from inside one.
-
-Side-by-side puts it at the focused column's own edge rather than the pane's, so
-it marks the column as well as the row. A heading takes it at the pane edge,
-belonging to neither column. A comment card does not: its border already lights,
-and a second mark on one block says nothing the first did not.
-
-`j` and `k` move a row cursor rather than the window, and a hunk heading pins to
-the top row once it scrolls off, so the lines up there are never unlabelled. The
-pin follows the window and not the cursor, because a heading names the lines
-under it, and the next hunk's own heading pushes it out.
-
-The pin owns the top line, so the cursor never sits there: a key that would put
-it on that row opens the window one higher instead, and it lands on the second
-with its heading above it. Standing the pin down for the cursor was the first
-answer and it cost the heading on every paging key.
-
-`ctrl+u` and `ctrl+d` park the cursor mid-window and let the file run past it,
-rather than carrying it at whatever row it happened to be on. The ends are the
-exception and the only place it moves on screen: the window stops at the first
-row and the last, and the cursor goes on alone to the end of the file. Vim
-carries the cursor instead, which reads fine in an editor you are typing in and
-badly in a pane you are only reading.
 
 ## Exit codes
 
