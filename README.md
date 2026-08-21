@@ -32,13 +32,14 @@ at.
 
 ## Install
 
-Needs Go 1.26 or newer and git. The installer builds from source.
-
 ```sh
 curl -fsSL https://raw.githubusercontent.com/praxis-labs-io/zen-review/main/install.sh | sh
 ```
 
-Or from a clone:
+Downloads the binary for macOS or Linux, on arm64 or amd64. Anything else builds
+from source, which needs Go 1.26 or newer.
+
+Or from a clone, which is what you want if you intend to change anything:
 
 ```sh
 git clone https://github.com/praxis-labs-io/zen-review.git

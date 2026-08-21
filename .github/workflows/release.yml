@@ -1,0 +1,98 @@
+# Release workflow for zen-review
+# Builds the binaries for a version tag and cuts the GitHub release from them.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  GO_VERSION: "1.26"
+
+# Nothing here writes. The release job asks for more itself.
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+
+    # Everything is pure Go, so one linux runner cross-compiles every target
+    # and there is no macOS runner in the bill.
+    strategy:
+      matrix:
+        include:
+          - goos: darwin
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Build
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          set -eu
+          version="${GITHUB_REF_NAME#v}"
+          mkdir -p build dist
+          # -trimpath so the archive does not carry the runner's paths, and the
+          # version stamped in here is the only thing that sets it: a plain
+          # go build reports dev.
+          go build -trimpath \
+            -ldflags "-s -w -X github.com/praxis-labs-io/zen-review/internal/version.Version=${version}" \
+            -o build/zen-review ./cmd/zen-review
+          tar -czf "dist/zen-review_${version}_${GOOS}_${GOARCH}.tar.gz" -C build zen-review
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: zen-review_${{ matrix.goos }}_${{ matrix.goarch }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  release:
+    name: Release
+    needs: build
+    runs-on: ubuntu-latest
+
+    # The one job that writes, and only to the release.
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        run: cd dist && sha256sum *.tar.gz > checksums.txt
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # --verify-tag so a workflow triggered by anything but a real tag on
+        # this commit fails rather than inventing one.
+        run: gh release create "$GITHUB_REF_NAME" dist/* --generate-notes --verify-tag

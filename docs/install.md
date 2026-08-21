@@ -2,12 +2,15 @@
 
 ## Requirements
 
-- **Go 1.26.4 or newer.** There is no release artifact yet, so every install
-  path builds from source.
 - **git.** The tool shells out to it for everything it reads.
 - **A Nerd Font**, for the tree's folder and file glyphs. Without one the tree
   draws boxes where those glyphs go. Nothing else on screen asks anything of
   your font, and the layout holds either way.
+- **Go 1.26.4 or newer**, only for a source build. The released binaries need
+  nothing but git.
+
+Releases carry macOS and Linux on arm64 and amd64. Everything is pure Go, so
+there is no libc to match.
 
 ## Install
 
@@ -15,12 +18,19 @@
 curl -fsSL https://raw.githubusercontent.com/praxis-labs-io/zen-review/main/install.sh | sh
 ```
 
-It clones into a temp directory, builds, and puts the binary in `~/.local/bin`.
-`INSTALL_DIR` overrides where it lands:
+It downloads the binary for your platform and puts it in `~/.local/bin`. On a
+platform with no release binary it clones and builds instead, which is the one
+path that needs Go.
+
+`INSTALL_DIR` overrides where it lands, and `VERSION` pins a release:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/praxis-labs-io/zen-review/main/install.sh | INSTALL_DIR=/usr/local/bin sh
+curl -fsSL https://raw.githubusercontent.com/praxis-labs-io/zen-review/main/install.sh | VERSION=v0.1.0 sh
 ```
+
+Every release carries a `checksums.txt` beside the archives if you want to
+verify one before it runs.
 
 From a clone, which is what you want if you intend to change anything:
 
@@ -75,6 +85,6 @@ git pull
 make install
 ```
 
-There is no update check and nothing phones home. `zen-review --version`
-reports `dev` on a source build; the version is stamped in at link time and
-nothing stamps it yet.
+There is no update check and nothing phones home. `zen-review --version` says
+what you are running, and reports `dev` on a source build: the version is
+stamped in at link time, and only the release workflow stamps it.
