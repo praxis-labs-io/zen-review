@@ -39,7 +39,7 @@ running?** If no, the logic is in the wrong package.
 - **`internal/review` is the engine, and the TUI holds none of it.** Every state change is a call into `review`, and `cli` calls the same functions. A behaviour reachable by key and not by subcommand is in the wrong place.
 - **`internal/tui/*` packages never import each other sideways.** Shared widgets live in `internal/tui/comp`.
 - **The visual layer stops at the TUI.** `tui/diffpane` and `tui/comp` import `tui/theme`, `tui/syntax` and `tui/paint`. Nothing below `tui/` imports any of the three.
-- **`tui/paint` imports `tui/theme` and `tui/syntax`, and neither of those imports anything of ours.** `go list -deps ./internal/tui/theme ./internal/tui/syntax` naming anything of ours but those two means the boundary has already broken. They were a separate module for this reason and keep the shape without it.
+- **`tui/paint` imports `tui/theme` and `tui/syntax`, and neither of those imports anything of ours.** `go list -deps ./internal/tui/theme ./internal/tui/syntax` naming anything of ours but those two means the boundary has already broken.
 
 ## State changes
 
