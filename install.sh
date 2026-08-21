@@ -40,13 +40,30 @@ darwin/arm64 | darwin/amd64 | linux/amd64 | linux/arm64) ;;
 	;;
 esac
 
-# The latest release's tag, read out of the API rather than asking for jq.
-tag="${VERSION:-$(
-	curl -fsL "https://api.github.com/repos/$REPO/releases/latest" |
+# The latest release's tag, read out of the API rather than asking for jq. The
+# call and the parse are separate so a rate limit or a proxy is not reported as
+# a repository with no releases in it.
+if [ -n "${VERSION:-}" ]; then
+	tag="$VERSION"
+else
+	# No -f, so an HTTP error comes back as a status to read rather than as a
+	# bare non-zero exit. A repository with no releases, a rate limit and an
+	# unreachable network are three different answers.
+	answer="$(curl -sL -w '\n%{http_code}' "https://api.github.com/repos/$REPO/releases/latest")" ||
+		die "Could not reach the GitHub API to look up the latest release."
+
+	case "$(printf '%s' "$answer" | tail -n 1)" in
+	200) ;;
+	404) die "There is no published release to install yet." ;;
+	403) die "The GitHub API refused the lookup, most likely a rate limit. Retry, or pass VERSION=vX.Y.Z." ;;
+	*) die "The GitHub API answered $(printf '%s' "$answer" | tail -n 1) looking up the latest release." ;;
+	esac
+
+	tag="$(printf '%s' "$answer" |
 		sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' |
-		head -n 1
-)}"
-[ -n "$tag" ] || die "Could not find a release to install. Is there one yet?"
+		head -n 1)"
+	[ -n "$tag" ] || die "Could not read a tag out of the latest release."
+fi
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT INT TERM
@@ -61,6 +78,13 @@ cp "$work/$BINARY" "$INSTALL_DIR/$BINARY"
 chmod 0755 "$INSTALL_DIR/$BINARY"
 
 echo "Installed $INSTALL_DIR/$BINARY"
+
+# A warning and not a refusal. The install worked; it is the first run that
+# will not, and somebody about to install git should not be turned away here.
+if ! command -v git >/dev/null 2>&1; then
+	echo
+	echo "git is not on PATH. zen-review shells out to it for everything it reads."
+fi
 
 case ":$PATH:" in
 *":$INSTALL_DIR:"*) ;;

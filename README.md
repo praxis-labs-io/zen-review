@@ -53,8 +53,9 @@ cd zen-review
 make install
 ```
 
-Both put the binary in `~/.local/bin`. Set `INSTALL_DIR` to put it somewhere
-else. [docs/install.md](docs/install.md) has the requirements, the PATH setup
+The installer and `make install` both put the binary in `~/.local/bin`, and
+`INSTALL_DIR` moves it. `go install` writes to `$(go env GOPATH)/bin` and takes
+neither. [docs/install.md](docs/install.md) has the requirements, the PATH setup
 and how to upgrade.
 
 ## A first review

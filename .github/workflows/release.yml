@@ -16,8 +16,28 @@ permissions:
   contents: read
 
 jobs:
+  # ci.yml runs on main and on pull requests, never on a tag, so without this
+  # a tag on an unmerged commit publishes from code nothing checked.
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Test
+        run: make test
+
   build:
     name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+    needs: test
     runs-on: ubuntu-latest
 
     # Everything is pure Go, so one linux runner cross-compiles every target
@@ -105,7 +125,9 @@ jobs:
           merge-multiple: true
 
       - name: Checksums
-        run: cd dist && sha256sum *.tar.gz > checksums.txt
+        # zen-review_* rather than a list of extensions, so a new archive
+        # format cannot be left out of the checksums by omission.
+        run: cd dist && sha256sum zen-review_* > checksums.txt
 
       - name: Create the release
         env:
