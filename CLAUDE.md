@@ -32,10 +32,6 @@ The installed binary is built from here to `~/.local/bin/zen-review`; **rebuild 
 make install
 ```
 
-The repo moved to the `praxis-labs-io` org on 2026-08-18, so the module path is `github.com/praxis-labs-io/zen-review`. The repo stays internal, and there is no release and no Homebrew tap; `make install` is the only install. The emptied `zen-review` org is held to keep the name.
-
-Anything published under Drew's name (PR bodies, issues, README) must be shown to him word-for-word before pushing. His voice: terse, considerate, stoic, no strong adverbs, no em-dashes.
-
 ## Conventions
 
 @.claude/rules/code-quality.md
@@ -67,20 +63,13 @@ CI pins golangci-lint to match the local brew version (`.github/workflows/ci.yml
 
 ## The visual layer
 
-`tui/theme`, `tui/syntax` and the `tui/paint` diff-line painter. They were a
-separate module, `zen-kit`, until ZNR-60 brought them in.
+`tui/theme` is the palette, `tui/syntax` returns Chroma tokens, and `tui/paint`
+turns a diff line into a row. They hold no model, no state, no layout and no
+keys, and every exported function is pure: same arguments, same string.
 
-The module was meant to keep this tool and zen-octo rendering a diff the same
-way. zen-octo never imported it: ZNO-43 copied `paint` in-tree instead, and
-`theme` and `syntax` drifted in both directions anyway. One consumer does not
-need a second repo, a second CI pin and a tag-and-bump on every colour change.
-zen-octo keeps its own copies and the two move independently now.
-
-They still hold no model, no state, no layout and no keys, and every exported
-function is pure. Pushing any of those in is how they stop being the visual
-layer and start being a second renderer. Folding, scroll, side-by-side layout,
-hunk grouping, the two-sided tokenise split and review state belong to
-`tui/diffpane`.
+Pushing any of those in is how they stop being the visual layer and start being
+a second renderer. Folding, scroll, side-by-side layout, hunk grouping, the
+two-sided tokenise split and review state belong to `tui/diffpane`.
 
 `go run ./cmd/paintdemo` is how a rendering change is judged. It paints a canned
 diff at a width where a row overflows: a hunk header, all three line kinds, a
@@ -104,20 +93,17 @@ charm.land/glamour/v2
 
 Work is tracked in Linear: Praxis Labs workspace, reached through the `linear-zen-review` MCP server declared in `.mcp.json`. Every ticket is the **Zen Review** team (key `ZNR`, tickets `ZNR-###`). Address projects and statuses **by name, never a UUID**; ids don't survive workspace moves.
 
-The **Zen Kit** team (key `ZNK`) is closed. It covered the module ZNR-60 absorbed, and its two open tickets came back as `ZNR`. Nothing new is filed there; the old `ZNK` links stay where they are rather than being renumbered.
-
 The bucket names are shared with other teams, so `save_issue` resolving a bare project name can land on another team's copy and fail the call. Pass the Zen Review project id in that one argument when it does.
 
 ### Projects
 
-Zen Review's five long-running buckets plus the current epic. Every ticket belongs to exactly one:
+Zen Review's five long-running buckets. Every ticket belongs to exactly one:
 
 - **Polish & Bugs**: bugs and rough edges in surfaces that already ship. The dogfood inbox.
 - **Feature Backlog**: net-new capabilities. Ideas live here until promoted.
 - **Performance and Code-Quality**: improves the code, no user-visible change.
 - **Website**: the public site, its copy, its SEO.
 - **Release & Distribution**: how the binary gets from `main` to a user and stays current.
-- **Zen Review v0.1**: the current epic, M0 through M6. An epic is a Linear Project, never a tracking issue. When it closes, follow-ups move to the matching bucket.
 
 ### Tickets
 
@@ -133,11 +119,11 @@ Zen Review's five long-running buckets plus the current epic. Every ticket belon
 
 Feature-complete work ships via the global `ship-feature` skill: `make all` green, push, draft PR, Copilot + `/code-review`, triage with no tech debt, push then mark ready as separate actions. Manual invocation only.
 
-**There is no copy of it in this repo.** Drew's global skills are a symlink into drucial-dots and load in every repo, so a copy here only shadows the real one and drifts behind it, which is what the copy this repo used to carry did. Edit the skill at its source.
+**There is no copy of it in this repo.**
 
 ### Specs
 
-`docs/superpowers/specs/` holds the design docs that shaped a milestone. `docs/` otherwise describes only what is true today. Durable context lives in Linear project descriptions and tickets.
+`docs/specs/` holds the design docs that shaped a milestone. `docs/` otherwise describes only what is true today. Durable context lives in Linear project descriptions and tickets. Specs are deleted as a part of branch cleanup.
 
 ## Architecture
 
@@ -161,8 +147,6 @@ internal/
 ```
 
 The boundaries are in `.claude/rules/code-quality.md` and breaking one is a review-stopper. The short version: the CLI has to be able to answer any question the TUI can.
-
-Note that zen-octo has a `store` package holding in-memory fetch state. Same name, different job: this one is the database.
 
 `Session.Files` and `Derive` both hand the files back in the order a file tree
 reads: directories above the files beside them, by byte within each group. Git's
