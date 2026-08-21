@@ -32,13 +32,20 @@ at.
 
 ## Install
 
-Needs Go 1.26 or newer and git. The installer builds from source.
-
 ```sh
 curl -fsSL https://raw.githubusercontent.com/praxis-labs-io/zen-review/main/install.sh | sh
 ```
 
-Or from a clone:
+Downloads the binary for macOS or Linux, on arm64 or amd64. Windows takes the
+`.zip` off the
+[releases page](https://github.com/praxis-labs-io/zen-review/releases), the
+installer being a POSIX script. On anything else:
+
+```sh
+go install github.com/praxis-labs-io/zen-review/cmd/zen-review@latest
+```
+
+Or from a clone, which is what you want if you intend to change anything:
 
 ```sh
 git clone https://github.com/praxis-labs-io/zen-review.git
@@ -46,8 +53,9 @@ cd zen-review
 make install
 ```
 
-Both put the binary in `~/.local/bin`. Set `INSTALL_DIR` to put it somewhere
-else. [docs/install.md](docs/install.md) has the requirements, the PATH setup
+The installer and `make install` both put the binary in `~/.local/bin`, and
+`INSTALL_DIR` moves it. `go install` writes to `$(go env GOPATH)/bin` and takes
+neither. [docs/install.md](docs/install.md) has the requirements, the PATH setup
 and how to upgrade.
 
 ## A first review
