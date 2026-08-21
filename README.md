@@ -36,7 +36,10 @@ at.
 curl -fsSL https://raw.githubusercontent.com/praxis-labs-io/zen-review/main/install.sh | sh
 ```
 
-Downloads the binary for macOS or Linux, on arm64 or amd64. On anything else:
+Downloads the binary for macOS or Linux, on arm64 or amd64. Windows takes the
+`.zip` off the
+[releases page](https://github.com/praxis-labs-io/zen-review/releases), the
+installer being a POSIX script. On anything else:
 
 ```sh
 go install github.com/praxis-labs-io/zen-review/cmd/zen-review@latest

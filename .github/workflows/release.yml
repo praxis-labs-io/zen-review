@@ -21,7 +21,8 @@ jobs:
     runs-on: ubuntu-latest
 
     # Everything is pure Go, so one linux runner cross-compiles every target
-    # and there is no macOS runner in the bill.
+    # and there is no macOS runner in the bill. The set matches the one CI
+    # builds, windows/arm64 excluded there and so absent here.
     strategy:
       matrix:
         include:
@@ -33,6 +34,8 @@ jobs:
             goarch: amd64
           - goos: linux
             goarch: arm64
+          - goos: windows
+            goarch: amd64
 
     steps:
       - name: Checkout
@@ -52,20 +55,34 @@ jobs:
         run: |
           set -eu
           version="${GITHUB_REF_NAME#v}"
+
+          binary="zen-review"
+          if [ "$GOOS" = "windows" ]; then
+            binary="zen-review.exe"
+          fi
+
           mkdir -p build dist
           # -trimpath so the archive does not carry the runner's paths, and the
           # version stamped in here is the only thing that sets it: a plain
           # go build reports dev.
           go build -trimpath \
             -ldflags "-s -w -X github.com/praxis-labs-io/zen-review/internal/version.Version=${version}" \
-            -o build/zen-review ./cmd/zen-review
-          tar -czf "dist/zen-review_${version}_${GOOS}_${GOARCH}.tar.gz" -C build zen-review
+            -o "build/${binary}" ./cmd/zen-review
+
+          # zip for windows and tar for the rest, each being what that platform
+          # opens without reaching for anything.
+          archive="dist/zen-review_${version}_${GOOS}_${GOARCH}"
+          if [ "$GOOS" = "windows" ]; then
+            (cd build && zip -q "../${archive}.zip" "$binary")
+          else
+            tar -czf "${archive}.tar.gz" -C build "$binary"
+          fi
 
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: zen-review_${{ matrix.goos }}_${{ matrix.goarch }}
-          path: dist/*.tar.gz
+          path: dist/*
           if-no-files-found: error
 
   release:

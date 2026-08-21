@@ -9,8 +9,8 @@
 - **Go 1.26.4 or newer**, only if you are building it yourself. The released
   binaries need nothing but git.
 
-Releases carry macOS and Linux on arm64 and amd64. Everything is pure Go, so
-there is no libc to match.
+Releases carry macOS and Linux on arm64 and amd64, and Windows on amd64.
+Everything is pure Go, so there is no libc to match.
 
 ## Install
 
@@ -18,8 +18,10 @@ there is no libc to match.
 curl -fsSL https://raw.githubusercontent.com/praxis-labs-io/zen-review/main/install.sh | sh
 ```
 
-It downloads the binary for your platform and puts it in `~/.local/bin`. On a
-platform the releases do not carry, it says so and points you at Go:
+It downloads the binary for your platform and puts it in `~/.local/bin`. It is
+a POSIX script, so Windows takes the `.zip` off the
+[releases page](https://github.com/praxis-labs-io/zen-review/releases) instead.
+On a platform no release carries, the script says so and points you at Go:
 
 ```sh
 go install github.com/praxis-labs-io/zen-review/cmd/zen-review@latest
