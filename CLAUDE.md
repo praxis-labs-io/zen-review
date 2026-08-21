@@ -148,6 +148,8 @@ internal/
 
 The boundaries are in `.claude/rules/code-quality.md` and breaking one is a review-stopper. The short version: the CLI has to be able to answer any question the TUI can.
 
+User-facing behaviour lives in `docs/`: [the guide](docs/guide.md) for the base, sessions, generations and comments, and [the CLI reference](docs/cli.md) for every command and flag. What follows here is what the code has to keep true, not what a reader sees. Change one and the other says the wrong thing.
+
 `Session.Files` and `Derive` both hand the files back in the order a file tree
 reads: directories above the files beside them, by byte within each group. Git's
 order is the order it walked the index in, and one ordering from the engine is
@@ -156,179 +158,81 @@ first. Nothing above `review` sorts.
 
 ### The base
 
-Nothing about the base stops the reader opening. The only startup that still
-fails is a directory that is not a repository, because there is nothing there to
-open. A refusal a reader cannot act on from inside the tool is a refusal that
-sends them to the shell to guess.
+How a base is chosen, what the fallback tags mean and how a reader changes one
+is in [docs/guide.md](docs/guide.md). What the code has to keep true:
 
-So detection walks a ladder and always reaches the bottom of it: `origin/HEAD`,
-a local `main` or `master` that is not the branch HEAD is on, then HEAD itself,
-where the changeset is whatever has not been committed. A HEAD with no commit
-under it is measured from the empty tree, and every file reads as new. A branch
-stacked on another local branch takes the branch under it, which is the answer
-the candidate walk was already computing. A ref that stops resolving and one
-that loses the fork point are both a rung to step off.
-
-The rung above bounds the candidate walk, and on a trunk called anything but
-`main` or `master` there is no rung above HEAD to bound it with, so it walks the
-whole first-parent chain instead. On a default branch it does not run at all: a
-tip left behind on that branch's own history is a branch nobody deleted, and
-measuring from it would hide every commit since.
-
-A base nobody asked for wears a tag on `Base.Fallback`, beside the ref in the
-facts and on the CLI's own base line. The tag names what the base is rather than
-what it is not, because the row carrying it already says which ref it is:
-`no remote`, `uncommitted`, `stacked`. The two that name another ref are the two
-a reader cannot see any other way, `not tmp` and `origin/main gone`, where
-something was asked for and not given. The empty tree wears none, its name being
-the whole answer.
-
-It is a standing fact and not a notice, so it does not take the status bar and
-no key clears it. The reason sits to the right of the ref, so the clip a narrow
-pane takes eats the reason and leaves the ref whole.
-
-A fallback writes no ref at all, and never clears the one already stored. It is
-a guess, so keeping it would hold after the repository moved past it, and
-clearing what was chosen would lose what to go back to: one mistyped `--base`
-would cost the session its base and every range measured from it. So the stored
-ref stands, the tag stands with it on every run until the ref resolves again,
-and `--base` and `b` are how it is corrected.
-
-`b` lists every local branch, nearest first, plus two remote rows: the base the
-session measures from, and whatever `origin/HEAD` names. Locals are what a stack
-is built from, and the remote default earns its row for the reason detection
-prefers it, a local `main` nobody checks out being a day stale. Every other
-remote shares a merge base with HEAD, so keeping them is 295 rows on a real
-checkout. A first-parent walk was the old rule and it hid a base that had been
-merged in, which is what bringing a branch up to date does.
-
-Nothing with nothing behind HEAD is offered. The branch HEAD is on measures
-against itself, and a branch stacked on top of it takes the merge base to HEAD,
-so both give a review with every commit gone. The count is what says so, and the
-active base is the one row kept at zero, to say where the session measures
-from.
-
-What the list leaves out, the box takes by name. Enter on a query nothing
-matched hands the raw string to `SetBase`, the same call `--base` makes, so a
-tag, a sha, `HEAD~5` and the other 291 remotes stay reachable by typing. A ref
-that does not resolve is a sentence in the modal rather than a fall through to
-detection: a session already has a base worth keeping, where `--base` is
-answering a reader who has nothing open yet.
+- Detection always reaches the bottom of the ladder. The only startup that fails
+  is a directory that is not a repository. A refusal a reader cannot act on from
+  inside the tool sends them to the shell to guess.
+- The rung above bounds the candidate walk. On a trunk called anything but `main`
+  or `master` there is no rung above HEAD to bound it with, so it walks the whole
+  first-parent chain instead, and on a default branch it does not run at all: a
+  tip left behind on that branch's own history would hide every commit since.
+- `Candidates` is every local branch, not a first-parent walk, which hid a base
+  that had been merged in. Two remote rows earn their place, the session's base
+  and `origin/HEAD`; every other remote shares a merge base with HEAD and would
+  be hundreds of rows. Nothing with nothing behind HEAD is offered.
+- A fallback writes no ref and never clears the one stored. It is a guess, and
+  one mistyped `--base` would otherwise cost the session its base and every range
+  measured from it. The tag on `Base.Fallback` stands until the ref resolves.
+- `SetBase` is the one call. `--base` and the raw string typed into the `b` box
+  both go through it, so a tag, a sha and `HEAD~5` reach the same place a flag
+  does.
+- The tag is a standing fact and not a notice, so it takes no status bar and no
+  key clears it. The reason sits right of the ref, so a narrow pane's clip eats
+  the reason and leaves the ref whole.
 
 ### Sessions and generations
 
-A session is one repo plus one branch, resumable days later. A generation is a
-snapshot of the whole changeset written into git as a real commit under
-`refs/zen-review/sessions/<id>`, so a comment always knows the exact bytes it was
-about and `git gc` cannot take them.
+What a session and a generation are, what survives a rewrite and how a comment
+travels is in [docs/guide.md](docs/guide.md). What the code has to keep true:
 
-A refresh moves the ref before it writes the row, and swaps against the ref's
-own previous value rather than the last `commit_sha` stored. Two instances
-refreshing one session both build, one wins the swap, and the loser writes
-nothing. The other order lets both write rows and leaves the ref pointing at one
-of them.
-
-The row is written in a transaction that reads what it carries from inside
-itself, and every write naming a generation asserts from inside its own that the
-generation is still the latest. A mark, a comment or a state change committed
-while a refresh is in flight therefore moves forward with it or is refused,
-never accepted and lost. All the git work is done before that transaction opens,
-which it can be because nothing the translation needs is a row.
-
-Rewriting a comment and deleting one name no generation, and each has its own
-reason. Words are true at every generation, and the columns a refresh carries an
-anchor through are the ones an edit leaves alone. A delete takes the row, so
-there is no anchor left to go stale and a refresh translating one that has gone
-moves nothing and carries on.
-
-The refresh takes the same assertion. A swap can succeed on a ref read after
-somebody else moved it, and a refresh carrying out of a generation that is no
-longer the tip would drop every write made against the one in between. So it
-refuses, and reports the lost race the swap would have.
-
-The two gates are on different things, and clearing one is no promise about the
-other. A row that does not land therefore takes its commit back off the ref, so
-the loser leaves nothing rather than a generation commit no row names. That
-runs past a cancel, a reader quitting mid-refresh being commoner than two
-instances racing. It gives the ref up to a third instance already past it,
-which is the state a crash there leaves anyway: the next refresh parents on it
-and carries on.
-
-Reviewed state is line ranges, never hunk indices: an agent inserting twenty
-lines above hunk 3 leaves different code wearing the same label. A refresh
-translates them through one diff of the two generation trees, and a range that
-fails to translate disappears.
-
-`changed after review` is the refresh writing down what it took, on
-`gen_files.cut`. It cannot be read back off the coverage: a range the
-translation cut and a range somebody unmarked leave the same coverage behind,
-and only the refresh ran the translation. The record follows a rename through
-the same diff the ranges do, and stands until the file reads reviewed again or
-an unmark settles it, because a refresh only runs when something moved.
-
-A base-side range fails to translate when upstream rewrote the lines whose
-removal somebody read, which is the same fact on the other side, and it is
-recorded under the name the changeset lists the file by. What a base move does
-that is not a cut is widen the scope, and that leaves every stored range
-translating cleanly.
-
-Deletion-only hunks have no head-side lines and anchor to base-side ranges.
-
-`address` carries the words that back the claim, on `comments.response`. The
-state says the work was done and the response is what a reader confirms it
-against; without one the only way to check is to re-read the code, which is the
-work the state was meant to save. Half a queue is change requests where the diff
-is the response, so the words are optional and a bare `address` is the verb it
-always was. The other half are questions, and a sentence is all they wanted.
-
-Response and not answer, because answer implies a question and half of these are
-change requests. The state stays `addressed`: the state is the claim and the
-response is what backs it, and two things keep two words.
-
-One response and not a thread. A comment stops moving when it is addressed, so the
-exchange is one round: the reader asks, the agent answers, the reader resolves or
-writes a new comment. A second `address` is refused by the state gate it always
-was.
-
-`--body` is the words of the thing the command names, on every command that takes
-one: the comment on `comment`, the response on `address`, the comment again on
-`edit`. One word and one column, so an invocation reused against the wrong verb
-is a refusal rather than a write to the wrong half.
-
-`edit` does not reach the response. It is the reader's verb over the reader's
-words, and one id naming two voices is how the agent's get rewritten by a reader
-fixing their own typo, or the reader's get rewritten by an agent. The tool has no
-identity to enforce that with, so what it does instead is refuse to make the
-wrong write easy. A response stands as it was written.
-
-The response lands in the same swap as the state, so nothing can be addressed
-with the words lost. Every other transition passes no response at all rather than
-reading one and writing it back, which would clobber a write that landed in
-between. A refresh carries neither: they are words, not an anchor.
-
-A comment moves while it is open, and stops the moment it is addressed, resolved
-or orphaned. Its row then stays at the generation it stopped at and records where
-the anchor was, so nothing has to know which generation a frozen comment is
-pinned to in order to say where it lived. Only an open comment orphans: one
-already addressed or resolved that loses its anchor was acted on, and the rewrite
-that destroyed it is the acting.
-
-The anchor translation is deliberately more forgiving than the one reviewed
-ranges take. A comment on ten lines is about a region, and an agent rewriting a
-line in the middle of it is usually the comment being acted on rather than the
-comment being lost, so the anchor clamps to what survived where a range would be
-cut into the pieces either side. A file comment is the exception and takes the
-range rule: it names the file, so it follows a rename and is lost when the bytes
-move. `anchor_blob` is written once, at creation, and is the bytes the comment
-was about at the generation `created_generation_id` names. `created_start_line`
-and `created_end_line` are where in those bytes, written with it and never moved,
-because the live range has gone on without them.
+- A refresh moves the ref before it writes the row, and swaps against the ref's
+  own previous value rather than the last `commit_sha` stored. The other order
+  lets two instances both write rows and leaves the ref pointing at one of them.
+- Every write naming a generation asserts from inside its own transaction that
+  the generation is still the latest, the refresh included. A mark, a comment or
+  a state change landing while a refresh is in flight moves forward with it or is
+  refused, never accepted and lost.
+- All the git work is done before that transaction opens, which it can be because
+  nothing the translation needs is a row.
+- The two gates are on different things, so a row that does not land takes its
+  commit back off the ref. The loser leaves nothing rather than a generation
+  commit no row names, and that runs past a cancel: a reader quitting mid-refresh
+  is commoner than two instances racing.
+- `edit` and `delete` name no generation. Words are true at every generation, and
+  a delete leaves no anchor to go stale.
+- Reviewed state is line ranges, never hunk indices. Deletion-only hunks have no
+  head-side lines and anchor to base-side ranges.
+- `changed after review` is on `gen_files.cut` and cannot be read back off the
+  coverage: a range the translation cut and a range somebody unmarked leave the
+  same coverage behind, and only the refresh ran the translation. It follows a
+  rename through the same diff the ranges do.
+- The response is on `comments.response` and lands in the same swap as the state.
+  Every other transition passes no response rather than reading one and writing
+  it back, which would clobber a write that landed in between. A refresh carries
+  neither: they are words, not an anchor.
+- `--body` is the words of the thing the command names, on every command that
+  takes one, so an invocation reused against the wrong verb is a refusal rather
+  than a write to the wrong half. `edit` does not reach the response: the tool
+  has no identity to enforce one voice with, so it refuses to make the wrong
+  write easy.
+- A frozen comment's row stays at the generation it stopped at and records where
+  the anchor was, so nothing has to know which generation it is pinned to in
+  order to say where it lived. Only an open comment orphans.
+- A comment's anchor translation is more forgiving than a reviewed range's: it
+  clamps to what survived, where a range is cut into the pieces either side. A
+  file comment is the exception and takes the range rule.
+- `anchor_blob`, `created_generation_id`, `created_start_line` and
+  `created_end_line` are written once at creation and never moved. A comment that
+  travelled before it was answered would otherwise slice its own blob by lines it
+  never had. One diff per pair of blobs, so a file's comments cost one call
+  between them rather than one each.
 
 ### Storage
 
 `$(git rev-parse --git-common-dir)/zen-review/state.db`, so a worktree and its
-parent checkout share one database and a throwaway worktree does not take the
-review with it. Nothing lands in the working tree.
+parent checkout share one database. Nothing lands in the working tree.
 
 `modernc.org/sqlite`, pure Go: the cgo driver is faster but puts a C toolchain in
 the path of every cross-compile and CI runner, for a few thousand rows. WAL with
