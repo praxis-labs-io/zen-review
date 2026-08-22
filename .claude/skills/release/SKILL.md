@@ -61,9 +61,12 @@ adverbs, no em-dashes.
 
 Structure, as `v0.1.0.md` establishes it:
 
-- `# vX.Y.Z`, then one line saying what this release is.
+- No H1. `gh` titles the release from the tag, so one in the notes repeats it.
+- One line saying what this release is.
 - `## New` / `## Fixed` / `## Changed`, only the ones that apply. Bold lead-in
-  naming the thing, then plain sentences about what changed.
+  naming the thing, then plain sentences about what changed. A first release has
+  no before to differ from, which is why `v0.1.0.md` says `## What it does`
+  instead of all three.
 - `## Install`.
 - `## Known gaps`, where there are any worth naming.
 
@@ -91,8 +94,13 @@ and the build. Run it directly, never through a pipe that swallows the exit code
 
 ## 5. Hand over
 
-Commit the notes to `main`. Doc-only changes go straight to `main` here, and the
-pre-push hook rejects pushes to it, so the commit is yours and the push is his.
+Commit the notes **and phase 2's doc fixes** to `main`. Doc-only changes go
+straight to `main` here, and the pre-push hook rejects pushes to it, so the
+commit is yours and the push is his.
+
+Then confirm the tree is clean again before handing anything over. Phase 1's
+check does not run twice, and a doc fix left uncommitted means the release links
+to the stale page phase 2 existed to correct.
 
 Then give Drew both commands, in this order, with the version named explicitly:
 
@@ -110,6 +118,15 @@ The hook guards `refs/heads/main` only, so the tag pushes without `--no-verify`.
 Never suggest `--no-verify` for either.
 
 Stop here. Do not run them.
+
+**If the tag goes first anyway**, the run fails on the missing notes and re-running
+it fails identically, the tag being fixed to a commit that does not carry them.
+Do not move a published tag. Push the notes to `main`, then cut the release
+against the tag by hand, from the archives the failed run left as artifacts:
+
+```sh
+gh release create vX.Y.Z dist/* --notes-file docs/release-notes/vX.Y.Z.md --verify-tag
+```
 
 ## 6. Verify what published
 
@@ -142,10 +159,10 @@ No Linear status work. Shipped tickets are already Done from their merges.
 - <what a user gets>
 
 **Verification**
-- Assets — <n> of 6
-- Checksum — <matched or not>
-- Installer — <result against the live release>
-- Version — <what the installed binary reports>
+- Assets: <n> of 6
+- Checksum: <matched or not>
+- Installer: <result against the live release>
+- Version: <what the installed binary reports>
 
 **Known gaps**
 - <what shipped unfinished, and where it is tracked>

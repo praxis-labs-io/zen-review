@@ -26,6 +26,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # First, so a tag cut ahead of its notes fails in seconds rather than
+      # after the race suite and five cross-compiles.
+      - name: Check the notes
+        run: |
+          notes="docs/release-notes/${GITHUB_REF_NAME}.md"
+          if [ ! -f "$notes" ]; then
+            echo "No $notes in this tag. Notes are committed to main before the tag is cut." >&2
+            echo "Recover with: gh release create $GITHUB_REF_NAME dist/* --notes-file <path> --verify-tag" >&2
+            exit 1
+          fi
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -129,16 +140,6 @@ jobs:
         # format cannot be left out of the checksums by omission.
         run: cd dist && sha256sum zen-review_* > checksums.txt
 
-      # Named before gh reaches for it, so a tag cut ahead of its notes says
-      # which file is missing rather than failing on an unreadable path.
-      - name: Check the notes
-        run: |
-          notes="docs/release-notes/${GITHUB_REF_NAME}.md"
-          if [ ! -f "$notes" ]; then
-            echo "No $notes in this tag. Notes are committed to main before the tag is cut." >&2
-            exit 1
-          fi
-
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -146,6 +147,9 @@ jobs:
         # this commit fails rather than inventing one. --notes-file rather than
         # --generate-notes: a squash-per-PR history generates a list of every
         # ticket ever merged, which is what v0.1.0 shipped with.
+        #
+        # No --title. Without --generate-notes gh titles the release from the
+        # tag, which is what we want, and an H1 in the notes would repeat it.
         run: |
           gh release create "$GITHUB_REF_NAME" dist/* \
             --notes-file "docs/release-notes/${GITHUB_REF_NAME}.md" \
