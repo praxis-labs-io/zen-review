@@ -109,5 +109,23 @@ Tests ship in the same commit as the behaviour they verify, never a follow-up.
 - Doc-only changes and genuinely trivial fixes skip the PR and go straight to
   `main`. A PR for prose is ceremony.
 
+## Version numbers
+
+Semver, and pre-1.0 while the shape can still move:
+
+- **Minor** carries anything a user would notice. A new key, a changed default, a
+  command that answers differently.
+- **Patch** carries fixes and everything internal.
+- **Major** waits for 1.0.
+
+A published tag is permanent. It cannot be renumbered, and a release cut under
+the wrong number stays wrong, so the version is confirmed before the tag is
+pushed rather than inferred from the range.
+
+Releases are cut with the `release` skill, which curates
+`docs/release-notes/vX.Y.Z.md` and hands the tag command over. The notes file has
+to be on `main` before the tag is cut: the workflow reads it out of the tagged
+commit.
+
 Agent-facing conventions, the project's own history and the reasoning behind the
 design live in [`CLAUDE.md`](../CLAUDE.md).
