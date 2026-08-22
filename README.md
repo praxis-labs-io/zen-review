@@ -100,6 +100,57 @@ the whole thing. `c` writes a comment, `|` splits the diff into two columns, and
 Come back tomorrow and it is where you left it. Let an agent rewrite half of it
 first and the review is still where you left it, minus the parts that moved.
 
+## Reviewing what an agent wrote
+
+This is the loop the tool exists for. You read, the agent answers, and the
+engine keeps track of what that answer moved.
+
+**Read it and say what is wrong.** `c` on a hunk, or from a script:
+
+```sh
+zen-review comment internal/app/image.go --hunk 112 \
+  --body "This slices runes where the value counts cells."
+```
+
+**Hand the queue to the agent.** Everything the reader can answer, the CLI can:
+
+```sh
+zen-review comments --state open --json
+```
+
+Each comment comes back with its id, its file, the side and lines it is anchored
+to, and the body. The agent fixes what it can and says so:
+
+```sh
+zen-review address 2a8359b42163 --body "Switched it to lipgloss.Width."
+```
+
+`address` is the agent's verb. It records that the work was done and it does
+**not** close the comment, because the claim and the confirmation are different
+facts. Closing is yours.
+
+**Gate the agent on the queue.** The exit code is the whole point:
+
+```sh
+zen-review comments --state unresolved --exit-code
+```
+
+`0` nothing open, `1` work waiting, `2` the call failed. A Stop hook reading only
+non-zero cannot tell an open comment from a broken git call, and blocks forever
+on the second.
+
+**Then look at what changed.** `s` rebuilds the changeset. Every reviewed range
+is translated through a diff of the two snapshots: a range that survives moves
+with its code, and a range the rewrite destroyed comes back unread with the file
+marked `changed after review`. Comments travel the same way, and one whose code
+is gone is orphaned rather than silently repointed.
+
+An answered comment then draws the code its answer replaced, which is the first
+screenshot above. The state claims the work was done; the block is what you
+check the claim against without re-reading the file.
+
+[Agents](docs/agents.md) has the whole loop, the JSON shape, and the hook config.
+
 ## Documentation
 
 - [Guide](docs/guide.md) — the base, sessions and generations, what survives a
