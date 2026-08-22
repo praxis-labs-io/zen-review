@@ -12,6 +12,30 @@ as line ranges and carried through every new version of the changeset. A range
 that survives moves with its code; a range the rewrite destroyed comes back
 unread, and the file says it changed after you reviewed it.
 
+![A review in progress: a comment, the agent's response, and the code it replaced](docs/images/comment-and-response.png)
+
+A real session against another repo: 28 files, 66 of 104 hunks read, five
+comments on it and none resolved yet. The tree marks what has been read and what
+has not.
+
+The card under the diff is a comment somebody answered. Hanging off it on a rail
+is the response, and under the words are the lines that response replaced. That
+block is the point: the state claims the work was done, and the code is what you
+confirm the claim against.
+
+The bar down the left of the cursor's row is where the next key acts. `n` walks
+to the next unreviewed hunk, `r` marks the one you are on and advances, and the
+count in the corner is what you are burning down.
+
+![The same changeset side by side, removals against their replacements](docs/images/side-by-side.png)
+
+`|` puts the two sides in two columns. A run of removals pairs against the run
+of additions after it, one row each, and the shorter side draws a blank rather
+than shifting up. The cursor lives in one column and only that column lights,
+so a comment written here is scoped to the side you are reading.
+
+The CLI answers the same questions with no terminal attached:
+
 ```
 base        main (fc8b758)  ·  no remote
 generation  1
