@@ -38,20 +38,31 @@ reports it pushed: a release is not done until the artifacts are verified.
 Then propose the bump. `docs/CONTRIBUTING.md` under "Version numbers" governs
 which, and **get Drew's confirmation before going further.**
 
-## 2. Check the docs that ship with it
+## 2. Check the docs the release makes public
 
-`README.md` and `docs/*.md`, against the range.
+Derive the set rather than reading all seven. `git diff --name-only
+<last-tag>..HEAD` gives the surfaces the range touched, and "Docs that describe
+the code" in `docs/CONTRIBUTING.md` maps each one to the documents that describe
+it. Read those.
 
 This matters more here than at merge time. A doc that is wrong at this moment
 becomes the documentation for a shipped version, and the release page links into
 it.
 
-`docs/install.md` earns the most attention. It names the platforms the release
-carries, the requirements, where the binary lands, and what `--version` reports.
-All four are claims a release makes true or false, and three of them changed in
-the same PR that added the workflow.
+**Then work the other way, from phase 1's user-facing list.** Every entry on it
+has to be findable in a document that says what the code now does. That is the
+check the map cannot make: the map catches a doc whose subject moved, and this
+catches a change that arrived with no doc at all. A change nothing describes is
+either a gap to fill now or work no user sees, and phase 1 already decided it was
+user-facing, so it is usually the first.
 
-Fix what the range made wrong before writing the notes.
+`docs/install.md` earns the most attention of any of them. It names the platforms
+the release carries, the requirements, where the binary lands, and what
+`--version` reports. All four are claims a release makes true or false, and three
+of them changed in the same PR that added the workflow.
+
+Fix what the range made wrong before writing the notes, and report which
+documents were read and which changed. Phase 5 commits them.
 
 ## 3. Curate the notes
 
@@ -159,6 +170,7 @@ No Linear status work. Shipped tickets are already Done from their merges.
 - <what a user gets>
 
 **Verification**
+- Docs: <n> read, <n> updated
 - Assets: <n> of 6
 - Checksum: <matched or not>
 - Installer: <result against the live release>
@@ -169,4 +181,5 @@ No Linear status work. Shipped tickets are already Done from their merges.
 ```
 
 The run is not complete while an asset is missing, a checksum is unmatched, the
-installer is untested against the live release, or the binary reports `dev`.
+installer is untested against the live release, the binary reports `dev`, or a
+user-facing change in the notes has no document describing it.

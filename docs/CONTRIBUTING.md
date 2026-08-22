@@ -109,6 +109,27 @@ Tests ship in the same commit as the behaviour they verify, never a follow-up.
 - Doc-only changes and genuinely trivial fixes skip the PR and go straight to
   `main`. A PR for prose is ceremony.
 
+## Docs that describe the code
+
+Every user-facing surface has a document that describes it, and a change to the
+surface makes that document wrong until somebody moves it. This is the map, and
+it is read at merge time and again before a release:
+
+| Changed | Read |
+| --- | --- |
+| `internal/cli/**` | [`cli.md`](cli.md), [`agents.md`](agents.md) |
+| `internal/tui/**` | [`keys.md`](keys.md) |
+| `internal/review/**`, `internal/store/**` | [`guide.md`](guide.md) |
+| `internal/git/**`, `internal/diff/**` | [`guide.md`](guide.md) |
+| `install.sh`, `Makefile`, `.github/workflows/**` | [`install.md`](install.md), [`README.md`](../README.md) |
+| `.claude/rules/**`, the test conventions | this file |
+
+`git diff --name-only <ref>..HEAD` gives the left column, so the set of documents
+to check is derived rather than remembered.
+
+A change nothing on this map covers is one of two things: a doc gap to fill, or
+work no user sees. Say which rather than leaving it unanswered.
+
 ## Version numbers
 
 Semver, and pre-1.0 while the shape can still move:
