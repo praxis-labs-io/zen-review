@@ -1,12 +1,11 @@
 # Guide
 
-zen-review answers one question a diff viewer cannot: which of these changes
-have you inspected, and are they still the ones you inspected.
+zen-review keeps track of which changes you have read, and tells you when the
+ones you read have since been rewritten.
 
-Agents write code faster than anyone can read it, and they rewrite code you have
-already read. So a review here is not a mark on a hunk. It is a set of line
-ranges carried through every new version of the changeset, and a range the
-rewrite destroyed is a range that comes back unread.
+Agents write code faster than you can read it, and they rewrite code you have
+already read. A review here is a set of line ranges carried through each new
+version of the changeset, and a range the rewrite destroyed comes back unread.
 
 The commands are in [the CLI reference](cli.md), the reader's keys in
 [the keymap](keys.md), and how to install it in
@@ -18,8 +17,8 @@ Bare `zen-review` opens one changeset: the merge base with the base branch,
 through the working tree, untracked files included. With no terminal to open the
 reader on, it prints the changeset instead.
 
-There is no `--staged` and no `--working-tree`. Both would be a second answer to
-what am I looking at.
+It takes no flag to narrow that. One changeset means every stored range measures
+against the same thing on each run.
 
 ## The base
 
@@ -146,8 +145,8 @@ anchor was acted on, and the rewrite that destroyed it is the acting.
 ### Answering and closing
 
 `address` is the agent's verb. It says the work was done and it does not close
-the comment, because the claim and the confirmation are different facts and a
-queue letting one stand for the other is worth nothing. `resolve` is yours, and
+the comment, because the claim and the confirmation are different facts.
+`resolve` is yours, and
 it closes anything not already closed, an orphan included.
 
 `address --body` carries the words that back the claim. They are optional: half a

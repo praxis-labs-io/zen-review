@@ -1,16 +1,25 @@
 # zen-review
 
-Which of these machine-generated changes have I inspected, and are they still
-the ones I inspected?
+A terminal code reviewer that keeps track of what you have read, for people
+reviewing changesets an agent wrote.
 
-A diff viewer cannot answer that. Agents write code faster than anyone can read
-it, and they rewrite code you have already read, so a mark on hunk 3 stops
-meaning anything the moment twenty lines land above it.
+Agents write code faster than you can read it, and they rewrite code you have
+already read. zen-review stores what you have read as line ranges against the
+code itself, and carries those ranges through each new version of the
+changeset. A range that survives moves with its code. A range the rewrite
+destroyed comes back unread, and the file says it changed after you reviewed it.
 
-zen-review is a review engine with a TUI attached. What you have read is stored
-as line ranges and carried through every new version of the changeset. A range
-that survives moves with its code; a range the rewrite destroyed comes back
-unread, and the file says it changed after you reviewed it.
+The ranges travel through a git diff of two committed snapshots. Each generation
+of the changeset is a real commit under `refs/zen-review/sessions/<id>`, so a
+rename, a base that moved, or a force-push that lost the fork point is answered
+by asking git where the lines went. Where git cannot answer, zen-review takes
+the lines back rather than guessing, because guessing they stayed put is how a
+review reports code nobody read as read.
+
+The unit is a line range, so rewriting five lines of a forty-line hunk returns
+five lines unread and leaves the other thirty-five read.
+
+This is v0.1.0, an early release ahead of a launch.
 
 ![A review in progress: a comment, the agent's response, and the code it replaced](docs/images/comment-and-response.png)
 
@@ -34,7 +43,7 @@ of additions after it, one row each, and the shorter side draws a blank rather
 than shifting up. The cursor lives in one column and only that column lights,
 so a comment written here is scoped to the side you are reading.
 
-The CLI answers the same questions with no terminal attached:
+Every question the reader answers, the CLI answers with no terminal attached:
 
 ```
 base        main (fc8b758)  ·  no remote
@@ -50,9 +59,12 @@ M  sum.go   unreviewed  0 of 1  +10 -3
 ```
 
 Bare `zen-review` opens one changeset: the merge base with the base branch,
-through the working tree, untracked files included. There is no `--staged` and
-no `--working-tree`, because both would be a second answer to what am I looking
-at.
+through the working tree, untracked files included. It takes no flag to narrow
+that, so what you are reviewing is the same thing on each run and every stored
+range measures against it.
+
+Two other terminal reviewers cover ground this one does not, and
+[Acknowledgments](#acknowledgments) says which one to reach for.
 
 ## Install
 
@@ -112,7 +124,7 @@ zen-review comment internal/app/image.go --hunk 112 \
   --body "This slices runes where the value counts cells."
 ```
 
-**Hand the queue to the agent.** Everything the reader can answer, the CLI can:
+**Hand the queue to the agent.**
 
 ```sh
 zen-review comments --state open --json
@@ -129,7 +141,8 @@ zen-review address 2a8359b42163 --body "Switched it to lipgloss.Width."
 **not** close the comment, because the claim and the confirmation are different
 facts. Closing is yours.
 
-**Gate the agent on the queue.** The exit code is the whole point:
+**Gate the agent on the queue.** Three exit codes, so a hook can tell a queue
+from a failure:
 
 ```sh
 zen-review comments --state unresolved --exit-code
@@ -142,8 +155,8 @@ on the second.
 **Then look at what changed.** `s` rebuilds the changeset. Every reviewed range
 is translated through a diff of the two snapshots: a range that survives moves
 with its code, and a range the rewrite destroyed comes back unread with the file
-marked `changed after review`. Comments travel the same way, and one whose code
-is gone is orphaned rather than silently repointed.
+marked `changed after review`. Comments travel the same way. A comment whose
+code is gone is orphaned, and it stays on screen in that state.
 
 An answered comment then draws the code its answer replaced, which is the first
 screenshot above. The state claims the work was done; the block is what you
@@ -153,14 +166,52 @@ check the claim against without re-reading the file.
 
 ## Documentation
 
-- [Guide](docs/guide.md) — the base, sessions and generations, what survives a
+- [Guide](docs/guide.md): the base, sessions and generations, what survives a
   rewrite, how comments travel
-- [CLI reference](docs/cli.md) — every command, flag and exit code
-- [Keys](docs/keys.md) — the keymap and what each key does
-- [Install](docs/install.md) — requirements, PATH, upgrading
-- [Agents](docs/agents.md) — driving the tool from a hook or a script
-- [Contributing](docs/CONTRIBUTING.md) — building, testing and the layer
+- [CLI reference](docs/cli.md): every command, flag and exit code
+- [Keys](docs/keys.md): the keymap and what each key does
+- [Install](docs/install.md): requirements, PATH, upgrading
+- [Agents](docs/agents.md): driving the tool from a hook or a script
+- [Contributing](docs/CONTRIBUTING.md): building, testing and the layer
   boundaries
+
+## Acknowledgments
+
+zen-review was written after living in two tools we admire, and it took ideas
+from both.
+
+[hunk](https://github.com/modem-dev/hunk), by
+[Ben Vinegar](https://github.com/benvinegar) at
+[Modem](https://github.com/modem-dev), presents a large changeset better than
+anything else in a terminal: one continuous multi-file stream with a sidebar,
+split and stacked layouts that follow the width, full mouse support, and a watch
+mode that reloads while the agent is still writing. It reads git, jujutsu and
+Sapling with native revsets, installs as your pager or difftool so `git diff`
+opens it, and draws an agent's annotations beside the code they explain. Reach
+for hunk when you want the changeset rendered as well as a terminal can render
+it, or when you are on jujutsu or Sapling.
+
+[tuicr](https://github.com/agavra/tuicr), by
+[Almog Gavra](https://github.com/agavra), modelled code review in a terminal
+rather than diff viewing, and got there first. It opens uncommitted work, a
+commit range, or a remote pull request by number across GitHub, GitLab and
+Bitbucket, over git, jj and mercurial. It carries a complete vim model down to
+visual-mode range comments and a `:` prompt, and `:submit` posts a real review
+with the inline comments landing on the right lines. It tracks what you have
+reviewed and keys that state on content rather than position, so an edit above a
+hunk leaves the hunk marked. zen-review's `r` and its burn-down came from tuicr.
+Reach for tuicr when the review has to land on a pull request, because
+zen-review has no forge integration.
+
+Both are configurable in ways zen-review is not: config files and remappable
+keys, against one theme compiled in here and a fixed keymap.
+
+Neither project shares code with zen-review. The debt is to their ideas.
+
+Themed with [Rose Pine](https://rosepinetheme.com). Rendered by
+[Bubble Tea](https://github.com/charmbracelet/bubbletea) and
+[Lip Gloss](https://github.com/charmbracelet/lipgloss), highlighted by
+[Chroma](https://github.com/alecthomas/chroma).
 
 ## License
 

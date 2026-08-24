@@ -12,7 +12,7 @@ Concepts are in [the guide](guide.md); every flag is in
 zen-review comments --state unresolved --exit-code
 ```
 
-The exit code is the whole point:
+Three codes, so a hook can tell a queue from a failure:
 
 | Code | Means | What a hook does |
 | --- | --- | --- |
