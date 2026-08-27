@@ -74,7 +74,49 @@ two-sided tokenise split and review state belong to `tui/diffpane`.
 `go run ./cmd/paintdemo` is how a rendering change is judged. It paints a canned
 diff at a width where a row overflows: a hunk header, all three line kinds, a
 tab-indented line, a clipped row and a `Fill` row, so a theme change shows
-everything it broke in one screen. A golden file only holds it still.
+everything it broke in one screen. It runs the real derivation, so a light
+terminal and a dark one show different screens. A golden file only holds it
+still.
+
+### The theme
+
+There is one theme and it is derived rather than written down. What the code has
+to keep true:
+
+- The hues are ANSI slots, so they are whatever the reader's terminal maps them
+  to. That is the whole feature, and it survives only as long as a slot reaches
+  the terminal as a slot: flattened to RGB it stops following the palette, which
+  is why a test type-asserts them.
+- **A slot may be painted and must never be blended.** `RGBA()` on a slot is its
+  canonical value and never what the terminal mapped it to, so the two diff
+  tints are a standard-green and standard-red wash over the real background
+  rather than a wash in the reader's own. Reading the true palette would take an
+  OSC 4 query per slot, which is not worth it for a tint.
+- The greys are blends off the reported background for the same reason in
+  reverse. They are structural and only have to stay legible, which a slot
+  cannot promise and a blend off a known background is by construction. Ratios
+  travel toward the reported foreground, which serves a light terminal and a
+  dark one without a second table.
+- The foreground is only usable if it is on the far side of the luma midpoint
+  from the background **and** far enough from it. Far and opposite are two
+  different tests, and a pair failing either is no direction to travel in.
+- `Text` is `lipgloss.NoColor{}`, which writes no sequence at all, so it tracks
+  a terminal the reader recolours mid-session. Its `RGBA()` is black, so
+  anything spelling a colour out for a third party has to special-case it.
+- `Background` is nil and stays nil. The background every shade was derived
+  against is the terminal's own, so painting it would change nothing a reader
+  can see and would cost a translucent terminal its translucency.
+- Nothing answered is not the same as a guess. The three surfaces go nil rather
+  than take a slot: slot 0 is the background on a great many dark palettes, so a
+  selection painted in it is invisible exactly where it was needed. Borders are
+  drawn runes rather than fills and still take one.
+- The query runs in `app.Run`, before Bubble Tea takes the tty, and it drains to
+  the device attributes. Stopping at the last colour leaves them buffered, and
+  the terminal echoes them the moment raw mode ends. The reader is a cancellable
+  one, or the timeout leaves a goroutine parked on the tty eating the first key.
+- Chroma has no ANSI style and `chroma.Colour` is packed RGB, so code is the one
+  thing that cannot follow the palette. `github-dark` and `github` are paired
+  against the background instead.
 
 ## Charm module paths
 

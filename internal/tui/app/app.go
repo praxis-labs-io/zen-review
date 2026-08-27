@@ -9,6 +9,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
@@ -133,7 +134,12 @@ func New(t theme.Theme, src Source, repo string, r Reload) Model {
 // It can return with a reload still in git. Bubble Tea does not wait for a
 // command it started, so a caller holding the session has to before it lets go
 // of it.
-func Run(ctx context.Context, t theme.Theme, src Source, repo string, r Reload) error {
+func Run(ctx context.Context, src Source, repo string, r Reload) error {
+	// Asked here rather than by the caller: the query owns the tty for the
+	// length of a round trip, and it has to have given it back before Bubble
+	// Tea takes it.
+	t := theme.Terminal(theme.Query(os.Stdin, os.Stdout))
+
 	if _, err := tea.NewProgram(New(t, src, repo, r), tea.WithContext(ctx)).Run(); err != nil {
 		return fmt.Errorf("running the reader: %w", err)
 	}

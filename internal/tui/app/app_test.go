@@ -14,7 +14,6 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/review"
 	"github.com/praxis-labs-io/zen-review/internal/store"
 	"github.com/praxis-labs-io/zen-review/internal/testchangeset"
-	"github.com/praxis-labs-io/zen-review/internal/tui/theme"
 )
 
 // code takes the keys to the tree and walks it to the fixture's two-hunk Go
@@ -206,8 +205,8 @@ func TestFocusMovesBetweenThePanes(t *testing.T) {
 // seam is the two corners where the panes meet, the tree's right and the diff
 // pane's left, coloured for whichever holds the keys.
 func seam(treeFocused bool) string {
-	lit := lipgloss.NewStyle().Foreground(theme.RosePineMoon.Accent)
-	dim := lipgloss.NewStyle().Foreground(theme.RosePineMoon.BorderSubtleOrBorder())
+	lit := lipgloss.NewStyle().Foreground(testTheme.Accent)
+	dim := lipgloss.NewStyle().Foreground(testTheme.BorderSubtleOrBorder())
 
 	if treeFocused {
 		return lit.Render("╮") + dim.Render("╭")
@@ -251,9 +250,9 @@ func TestTheCursorIsOnTheRowTheKeysMoved(t *testing.T) {
 func filledTreeRow(t *testing.T, s *screen) string {
 	t.Helper()
 
-	for _, fg := range []color.Color{theme.RosePineMoon.Text, theme.RosePineMoon.Subtle} {
+	for _, fg := range []color.Color{testTheme.Text, testTheme.Subtle} {
 		name := lipgloss.NewStyle().
-			Background(theme.RosePineMoon.SelectedBackground).
+			Background(testTheme.SelectedBackground).
 			Foreground(fg).Bold(true).Render("x")
 		sgr := name[:strings.Index(name, "m")+1]
 
@@ -355,10 +354,12 @@ func TestTheBasePickerFiltersAndSelectsAcrossGroups(t *testing.T) {
 			break
 		}
 	}
-	if !strings.Contains(selected, styleParams(t, lipgloss.NewStyle().Foreground(theme.RosePineMoon.Text))) ||
-		!strings.Contains(selected, styleParams(t, lipgloss.NewStyle().Background(theme.RosePineMoon.SelectedBackground))) ||
+	// The fill and the weight are what say which row is selected. The text on it
+	// is the terminal's own, so there is no foreground escape to look for: a
+	// color of ours over the fill is what would make it unreadable.
+	if !strings.Contains(selected, styleParams(t, lipgloss.NewStyle().Background(testTheme.SelectedBackground))) ||
 		!strings.Contains(selected, ";1m") {
-		t.Errorf("selected base does not use readable text on its fill:\n%s", s.raw())
+		t.Errorf("selected base does not stand on its fill:\n%s", s.raw())
 	}
 
 	s.press("p", "a", "r")
@@ -508,7 +509,7 @@ func TestTheTreeIsHeadedByTheRepository(t *testing.T) {
 // The counts carry their own colours: one grey across the line says how much
 // changed and not which way it went, which is the half a reader scans for.
 func TestTheFactsAreDrawnAndColoured(t *testing.T) {
-	th := theme.RosePineMoon
+	th := testTheme
 	s := open(t, 100, 16)
 
 	// Label against the left edge of the pane, value against the right.
@@ -554,7 +555,7 @@ func TestTheFactsAreDrawnAndColoured(t *testing.T) {
 // TestTheBurnDownWearsItsOwnState. It is the same ladder as the glyphs beside
 // the filenames, so the one number and the whole column agree at a glance.
 func TestTheBurnDownWearsItsOwnState(t *testing.T) {
-	th := theme.RosePineMoon
+	th := testTheme
 
 	// Two hunks in one file, so there is a half-way to be at. They only add, so
 	// each has one anchor and one range covers it: a hunk that also removes has
@@ -988,8 +989,8 @@ func TestTheMarkedHeadingIsFilledAndOneCellWide(t *testing.T) {
 	}
 
 	marked := lipgloss.NewStyle().
-		Background(theme.RosePineMoon.SelectedBackground).
-		Foreground(theme.RosePineMoon.Accent).Render(mark)
+		Background(testTheme.SelectedBackground).
+		Foreground(testTheme.Accent).Render(mark)
 	if !strings.Contains(s.raw(), marked) {
 		t.Error("the heading the ring is on carries no fill")
 	}
@@ -1193,7 +1194,7 @@ func TestTheErrorIsSaidInTheThemesErrorColour(t *testing.T) {
 	s.src.err = errors.New("no")
 	s.press("s")
 
-	want := lipgloss.NewStyle().Foreground(theme.RosePineMoon.Error).Render("no")
+	want := lipgloss.NewStyle().Foreground(testTheme.Error).Render("no")
 	if !strings.Contains(s.raw(), want) {
 		t.Errorf("the failed reload does not wear the error colour:\n%q", s.raw())
 	}

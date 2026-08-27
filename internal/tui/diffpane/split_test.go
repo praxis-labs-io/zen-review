@@ -10,7 +10,6 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/store"
 	"github.com/praxis-labs-io/zen-review/internal/testchangeset"
 	"github.com/praxis-labs-io/zen-review/internal/tui/diffpane"
-	"github.com/praxis-labs-io/zen-review/internal/tui/theme"
 )
 
 // splitRule is the divider the pane draws between the two columns.
@@ -122,7 +121,7 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 `
 
 	c := testchangeset.Derive(t, patch)
-	m := diffpane.New(theme.RosePineMoon)
+	m := diffpane.New(testTheme)
 	m.SetSize(splitWide, 10)
 	m.SetFile(&c.Files[0], nil, nil, 2)
 	if short := m.ToggleSplit(); short > 0 {
@@ -158,7 +157,7 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 `
 
 	c := testchangeset.Derive(t, patch)
-	m := diffpane.New(theme.RosePineMoon)
+	m := diffpane.New(testTheme)
 	m.SetSize(splitWide, 10)
 	m.SetFile(&c.Files[0], nil, nil, 2)
 	if short := m.ToggleSplit(); short > 0 {
@@ -269,7 +268,7 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 `
 
 	c := testchangeset.Derive(t, patch)
-	m := diffpane.New(theme.RosePineMoon)
+	m := diffpane.New(testTheme)
 	m.SetSize(splitWide, 10)
 	m.SetFile(&c.Files[0], nil, nil, 2)
 	if short := m.ToggleSplit(); short > 0 {
@@ -306,7 +305,7 @@ func TestOnlyTheFocusedColumnLights(t *testing.T) {
 	}
 	m = onto(t, m, at)
 
-	fill := params(t, lipgloss.NewStyle().Background(theme.RosePineMoon.SelectedBackground))
+	fill := params(t, lipgloss.NewStyle().Background(testTheme.SelectedBackground))
 	lit := func() (string, string) {
 		t.Helper()
 		row := strings.Split(m.View(), "\n")[at]
@@ -400,7 +399,7 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 `
 
 	c := testchangeset.Derive(t, patch)
-	m := diffpane.New(theme.RosePineMoon)
+	m := diffpane.New(testTheme)
 	m.SetSize(splitWide, 10)
 	m.SetFile(&c.Files[0], nil, nil, 2)
 	if short := m.ToggleSplit(); short > 0 {
@@ -554,7 +553,7 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 `
 
 	c := testchangeset.Derive(t, patch)
-	m := diffpane.New(theme.RosePineMoon)
+	m := diffpane.New(testTheme)
 	m.SetSize(splitWide, 16)
 	m.SetFile(&c.Files[0], nil, nil, 2)
 	if short := m.ToggleSplit(); short > 0 {

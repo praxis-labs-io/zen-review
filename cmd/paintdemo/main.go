@@ -84,7 +84,9 @@ var hunks = []hunk{
 }
 
 func main() {
-	t := theme.RosePineMoon
+	// The real derivation, so the demo shows the theme the reader would get:
+	// run it in a light terminal and a dark one to see both.
+	t := theme.Terminal(theme.Query(os.Stdin, os.Stdout))
 
 	s, ok := syntax.New(t.Syntax)
 	if !ok {
@@ -101,7 +103,7 @@ func main() {
 	newSide := s.Lines("paint.go", source(paint.Added))
 
 	out := []string{lipgloss.NewStyle().Foreground(t.Subtle).
-		Render(fmt.Sprintf("theme %s, pane %d columns, gutter %d", t.Name, width, gutter))}
+		Render(fmt.Sprintf("syntax %s, pane %d columns, gutter %d", t.Syntax, width, gutter))}
 
 	lines := painted(t, oldSide, newSide)
 

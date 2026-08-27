@@ -9,14 +9,13 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/praxis-labs-io/zen-review/internal/tui/syntax"
-	"github.com/praxis-labs-io/zen-review/internal/tui/theme"
 )
 
 func colorizer(t *testing.T) syntax.Syntax {
 	t.Helper()
-	s, ok := syntax.New(theme.RosePineMoon.Syntax)
+	s, ok := syntax.New(testTheme.Syntax)
 	if !ok {
-		t.Fatalf("Chroma does not know %q", theme.RosePineMoon.Syntax)
+		t.Fatalf("Chroma does not know %q", testTheme.Syntax)
 	}
 	return s
 }
@@ -111,7 +110,7 @@ func TestTokensCarryNoEscapeSequencesOfTheirOwn(t *testing.T) {
 // A style's own background would paint over the terminal's, which is what
 // keeps a transparent one transparent.
 func TestABackgroundStaysWithTheCaller(t *testing.T) {
-	base := lipgloss.NewStyle().Background(theme.RosePineMoon.SelectedBackground)
+	base := lipgloss.NewStyle().Background(testTheme.SelectedBackground)
 
 	s := colorizer(t)
 	var b strings.Builder
@@ -123,7 +122,7 @@ func TestABackgroundStaysWithTheCaller(t *testing.T) {
 		b.WriteString(style.Render(tok.Text))
 	}
 
-	r, g, bl, _ := theme.RosePineMoon.SelectedBackground.RGBA()
+	r, g, bl, _ := testTheme.SelectedBackground.RGBA()
 	want := fmt.Sprintf("48;2;%d;%d;%d", r>>8, g>>8, bl>>8)
 	if got := strings.Count(b.String(), want); got < 3 {
 		t.Errorf("the caller's background survives %d runs, want it on every token", got)

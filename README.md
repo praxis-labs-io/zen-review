@@ -204,11 +204,12 @@ Reach for tuicr when the review has to land on a pull request, because
 zen-review has no forge integration.
 
 Both are configurable in ways zen-review is not: config files and remappable
-keys, against one theme compiled in here and a fixed keymap.
+keys, against a theme that follows your terminal without being asked and a fixed
+keymap.
 
 Neither project shares code with zen-review. The debt is to their ideas.
 
-Themed with [Rose Pine](https://rosepinetheme.com). Rendered by
+Drawn in your terminal's own colours. Rendered by
 [Bubble Tea](https://github.com/charmbracelet/bubbletea) and
 [Lip Gloss](https://github.com/charmbracelet/lipgloss), highlighted by
 [Chroma](https://github.com/alecthomas/chroma).
