@@ -11,13 +11,21 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/praxis-labs-io/zen-review/internal/testchangeset"
+	"github.com/praxis-labs-io/zen-review/internal/tui/theme"
 	"github.com/praxis-labs-io/zen-review/internal/tui/tree"
 )
 
 func pane(t *testing.T, width, height int) tree.Model {
 	t.Helper()
+	return themed(t, testTheme, width, height)
+}
 
-	m := tree.New(testTheme, testchangeset.Nested(t))
+// themed opens the pane over a theme of the caller's choosing, which is what the
+// assertions about a terminal that answered nothing drive.
+func themed(t *testing.T, th theme.Theme, width, height int) tree.Model {
+	t.Helper()
+
+	m := tree.New(th, testchangeset.Nested(t))
 	m.SetSize(width, height)
 	m.Focus()
 	return m
@@ -137,20 +145,34 @@ func TestALevelSortsLikeAFileTree(t *testing.T) {
 // TestTheCursorSurvivesATerminalWithoutColour. The row is a filled background,
 // and a terminal that drops colour drops the fill with it: the reader presses j
 // and watches nothing move. Bold is not a colour and comes through.
+//
+// The surface-less theme is the case that matters and the one a fixture built
+// from a reported palette never reaches: a terminal that answered nothing has no
+// SelectedBackground at all, so bold is the whole of the cursor rather than a
+// second signal beside the fill.
 func TestTheCursorSurvivesATerminalWithoutColour(t *testing.T) {
-	th := testTheme
-	m, _ := press(t, pane(t, 32, 20), "j")
+	for _, tc := range []struct {
+		name string
+		th   theme.Theme
+	}{
+		{"palette reported", testTheme},
+		{"nothing answered", theme.Terminal(theme.Surface{})},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m, _ := press(t, themed(t, tc.th, 32, 20), "j")
 
-	on := lipgloss.NewStyle().
-		Background(th.SelectedBackground).Foreground(th.Text).Bold(true).Render("logo.png")
-	off := lipgloss.NewStyle().Foreground(th.Text).Bold(true).Render("README.md")
+			on := lipgloss.NewStyle().
+				Background(tc.th.SelectedBackground).Foreground(tc.th.Text).Bold(true).Render("logo.png")
+			off := lipgloss.NewStyle().Foreground(tc.th.Text).Bold(true).Render("README.md")
 
-	view := m.View()
-	if !strings.Contains(view, on) {
-		t.Errorf("the row under the cursor is not bold, so a terminal without colour shows no cursor")
-	}
-	if strings.Contains(view, off) {
-		t.Errorf("a row the cursor is not on is bold")
+			view := m.View()
+			if !strings.Contains(view, on) {
+				t.Errorf("the row under the cursor is not bold, so a terminal without colour shows no cursor")
+			}
+			if strings.Contains(view, off) {
+				t.Errorf("a row the cursor is not on is bold")
+			}
+		})
 	}
 }
 

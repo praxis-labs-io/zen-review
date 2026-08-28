@@ -13,6 +13,7 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/testchangeset"
 	"github.com/praxis-labs-io/zen-review/internal/tui/diffpane"
 	"github.com/praxis-labs-io/zen-review/internal/tui/syntax"
+	"github.com/praxis-labs-io/zen-review/internal/tui/theme"
 )
 
 // mark is the caret the pane puts on the heading the ring is on, written as an
@@ -1622,4 +1623,50 @@ func TestABlockEndingInABlankStillCountsIt(t *testing.T) {
 	if strings.Contains(got, "> less") {
 		t.Errorf("the footer says the block is open when a row is held back:\n%s", got)
 	}
+}
+
+// A pane too narrow for a box draws the card bare, and the fill is then the only
+// thing that was ever saying which card the cursor is on. A terminal that
+// answered nothing has no fill to give, so the weight has to carry it the way it
+// does in the tree and on the base picker.
+func TestABareCardStandsWithoutAFill(t *testing.T) {
+	const path = "internal/review/state.go"
+
+	c := testchangeset.Nested(t)
+	m := diffpane.New(theme.Terminal(theme.Surface{}))
+
+	// Narrower than the box a card is otherwise drawn in, which is the only
+	// width that reaches the bare form.
+	m.SetSize(18, 20)
+	m.SetFile(fileAt(t, c, path), testchangeset.NestedComments(), nil, 2)
+
+	// The card is one stop for the cursor, so walking the pane is what puts the
+	// cursor on it. Every distinct way its row came out is collected, and the
+	// lit form has to be one of them.
+	seen := map[string]bool{}
+	for range 40 {
+		if row, ok := bareCardRow(m); ok {
+			seen[row] = true
+		}
+		m = press(t, m, down)
+	}
+
+	if len(seen) == 0 {
+		t.Fatalf("the fixture drew no bare card at this width:\n%s", ansi.Strip(m.View()))
+	}
+	if len(seen) == 1 {
+		for row := range seen {
+			t.Errorf("the card is drawn the same whether the cursor is on it or not:\n%q", row)
+		}
+	}
+}
+
+// bareCardRow is the first bare card in the frame, escapes and all.
+func bareCardRow(m diffpane.Model) (string, bool) {
+	for _, row := range strings.Split(m.View(), "\n") {
+		if strings.Contains(ansi.Strip(row), "◇ open") {
+			return row, true
+		}
+	}
+	return "", false
 }

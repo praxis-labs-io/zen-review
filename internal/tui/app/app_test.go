@@ -14,6 +14,7 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/review"
 	"github.com/praxis-labs-io/zen-review/internal/store"
 	"github.com/praxis-labs-io/zen-review/internal/testchangeset"
+	"github.com/praxis-labs-io/zen-review/internal/tui/theme"
 )
 
 // code takes the keys to the tree and walks it to the fixture's two-hunk Go
@@ -384,6 +385,35 @@ func styleParams(t *testing.T, style lipgloss.Style) string {
 		t.Fatalf("style rendered no escape: %q", probe)
 	}
 	return probe[start+1 : end]
+}
+
+// A terminal that answered nothing leaves no SelectedBackground to fill with, so
+// the weight is the whole of the selection. Nothing else on the picker says
+// which row enter would take.
+func TestTheSelectedBaseStandsWithoutAFill(t *testing.T) {
+	s := themed(t, theme.Terminal(theme.Surface{}), 100, 20)
+	s.src.candidates = review.BaseCandidates{
+		Local: []review.Candidate{{Branch: "parent", Ahead: 1}, {Branch: "older", Ahead: 3}},
+	}
+
+	s.press("b")
+
+	var selected, beside string
+	for _, line := range strings.Split(s.raw(), "\n") {
+		switch {
+		case strings.Contains(ansi.Strip(line), "> parent"):
+			selected = line
+		case strings.Contains(ansi.Strip(line), "older"):
+			beside = line
+		}
+	}
+
+	if !strings.Contains(selected, ";1m") && !strings.Contains(selected, "[1m") {
+		t.Errorf("the selected base is not bold, so with no fill nothing marks it:\n%s", s.raw())
+	}
+	if strings.Contains(beside, ";1m") || strings.Contains(beside, "[1m") {
+		t.Errorf("a base the cursor is not on is bold:\n%s", s.raw())
+	}
 }
 
 func TestTheBasePickerCanCancelAndChooseNothing(t *testing.T) {

@@ -13,6 +13,7 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/store"
 	"github.com/praxis-labs-io/zen-review/internal/testchangeset"
 	"github.com/praxis-labs-io/zen-review/internal/tui/app"
+	"github.com/praxis-labs-io/zen-review/internal/tui/theme"
 )
 
 // screen is a model with the runtime's job done by hand: a command a model
@@ -138,6 +139,23 @@ func name(h review.Hunk) string {
 func open(t *testing.T, width, height int) *screen {
 	t.Helper()
 	return named(t, "zen-review", width, height)
+}
+
+// themed opens the reader over a theme of the caller's choosing, which is what
+// the assertions about a terminal that answered nothing drive.
+func themed(t *testing.T, th theme.Theme, width, height int) *screen {
+	t.Helper()
+
+	r := app.Reload{
+		Base:       review.Base{Ref: "origin/main", SHA: "a1b2c3d4e5f67890"},
+		Generation: review.Generation{ID: 2, Seq: 2},
+		Changeset:  testchangeset.Nested(t),
+	}
+
+	src := &source{at: r}
+	s := &screen{t: t, m: app.New(th, src, "zen-review", r), src: src}
+	s.send(tea.WindowSizeMsg{Width: width, Height: height})
+	return s
 }
 
 // named opens the reader on a repository of a given name, for the assertions
