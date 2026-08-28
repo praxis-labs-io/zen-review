@@ -88,15 +88,28 @@ to keep true:
   the terminal as a slot: flattened to RGB it stops following the palette, which
   is why a test type-asserts them.
 - **A slot may be painted and must never be blended.** `RGBA()` on a slot is its
-  canonical value and never what the terminal mapped it to, so the two diff
-  tints are a standard-green and standard-red wash over the real background
-  rather than a wash in the reader's own. Reading the true palette would take an
-  OSC 4 query per slot, which is not worth it for a tint.
+  canonical value and never what the terminal mapped it to, so blending one
+  washes a row in xterm's dark system red rather than in the red beside it in
+  the marker column. This is why slots 1 and 2 are asked for by name: the diff
+  tints are blends, and the tints are the product here. zen-octo writes the same
+  query off as not worth it for a tint, which is right for a PR reader where the
+  tints are decoration. The two OSC 4 requests ride in the write and the read
+  that already run, so the cost is a longer query string and nothing else.
 - The greys are blends off the reported background for the same reason in
   reverse. They are structural and only have to stay legible, which a slot
   cannot promise and a blend off a known background is by construction. Ratios
   travel toward the reported foreground, which serves a light terminal and a
   dark one without a second table.
+- **A filled row is placed at a luma distance, not at a ratio.** A ratio toward
+  a hue the reader chose is not a fixed step: the same fraction that clears one
+  palette's green leaves the row flat against another's. `lift` solves for the
+  distance instead, held between a floor and a ceiling, because the two ends
+  fail in opposite directions — a pale green reaches the distance in a few
+  percent and a few percent of a colour reads grey, while a green sitting at the
+  background's own weight never reaches it at all and keeps its lean instead.
+- A selection is a lift and not a colour, so it travels neutrally. Along the
+  shade axis it took the foreground's tint, which on a palette with a warm or a
+  violet foreground is a colour the reader never chose.
 - The foreground is only usable if it is on the far side of the luma midpoint
   from the background **and** far enough from it. Far and opposite are two
   different tests, and a pair failing either is no direction to travel in.

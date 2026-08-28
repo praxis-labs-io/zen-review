@@ -28,6 +28,13 @@ func collect(in io.Reader, timeout time.Duration) Surface {
 		switch {
 		case ansi.HasOscPrefix(seq):
 			switch pa.Command() {
+			case 4:
+				switch slot, c := paletteColor(pa); slot {
+				case int(slotRed):
+					s.Red = c
+				case int(slotGreen):
+					s.Green = c
+				}
 			case 10:
 				s.Foreground = oscColor(pa)
 			case 11:
@@ -59,6 +66,43 @@ func TestQueryReadsBothReports(t *testing.T) {
 	}
 	if want := "#232136"; hexOf(got.Background) != want {
 		t.Errorf("Background = %s, want %s", hexOf(got.Background), want)
+	}
+}
+
+// The two slots the tints lean on. A tint is a blend, and blending a slot takes
+// its canonical value rather than the one the terminal actually paints, so they
+// are read off the palette instead of assumed.
+func TestQueryReadsThePaletteSlots(t *testing.T) {
+	got := reply(t, "\x1b]4;1;rgb:cccc/2424/1d1d\x1b\\\x1b]4;2;rgb:9898/9797/1a1a\x1b\\\x1b[?62;c")
+
+	if want := "#cc241d"; hexOf(got.Red) != want {
+		t.Errorf("Red = %s, want %s", hexOf(got.Red), want)
+	}
+	if want := "#98971a"; hexOf(got.Green) != want {
+		t.Errorf("Green = %s, want %s", hexOf(got.Green), want)
+	}
+}
+
+// A terminal is free to answer for slots nobody asked about, and one that does
+// must not have its blue land in the field the added tint is derived from.
+func TestQueryIgnoresPaletteSlotsItDidNotAskFor(t *testing.T) {
+	got := reply(t, "\x1b]4;4;rgb:0000/0000/ffff\x1b\\\x1b[?62;c")
+
+	if got.Red != nil || got.Green != nil {
+		t.Errorf("Surface = %+v, want an unasked-for slot to land nowhere", got)
+	}
+}
+
+// The palette is the half most likely to go unanswered: a terminal that reports
+// its background may still say nothing about slot 1. The rest has to survive it.
+func TestQueryTakesTheSurfaceWithoutThePalette(t *testing.T) {
+	got := reply(t, "\x1b]11;rgb:2323/2121/3636\x1b\\\x1b[?62;c")
+
+	if got.Background == nil {
+		t.Error("Background is nil, want the report that did arrive")
+	}
+	if got.Red != nil || got.Green != nil {
+		t.Errorf("Red = %v and Green = %v, want nil when the palette went unanswered", got.Red, got.Green)
 	}
 }
 

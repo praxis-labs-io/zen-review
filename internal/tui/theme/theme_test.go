@@ -12,12 +12,26 @@ import (
 
 var (
 	darkBG  = lipgloss.Color("#232136")
+	darkFG  = lipgloss.Color("#e0def4")
 	lightBG = lipgloss.Color("#faf4ed")
 
 	// The pair a terminal reports. The shades travel toward the foreground, so
 	// most of these assertions need both halves.
-	dark  = theme.Surface{Background: darkBG, Foreground: lipgloss.Color("#e0def4")}
+	dark  = theme.Surface{Background: darkBG, Foreground: darkFG}
 	light = theme.Surface{Background: lightBG, Foreground: lipgloss.Color("#575279")}
+
+	// Real palettes, because a tint now derives from one and the ways they
+	// differ are the cases. The first has a background bluer than its own green,
+	// the second calls olive green, the third is light, and the last leaves
+	// almost no room between its background and its hues.
+	mocha = theme.Surface{Background: lipgloss.Color("#1e1e2e"), Foreground: lipgloss.Color("#cdd6f4"),
+		Red: lipgloss.Color("#f38ba8"), Green: lipgloss.Color("#a6e3a1")}
+	gruvbox = theme.Surface{Background: lipgloss.Color("#282828"), Foreground: lipgloss.Color("#ebdbb2"),
+		Red: lipgloss.Color("#cc241d"), Green: lipgloss.Color("#98971a")}
+	solarizedLight = theme.Surface{Background: lipgloss.Color("#fdf6e3"), Foreground: lipgloss.Color("#657b83"),
+		Red: lipgloss.Color("#dc322f"), Green: lipgloss.Color("#859900")}
+	lowContrast = theme.Surface{Background: lipgloss.Color("#2b2b2b"), Foreground: lipgloss.Color("#8a8a8a"),
+		Red: lipgloss.Color("#5c3030"), Green: lipgloss.Color("#305c30")}
 )
 
 // rgb reads a color the way a terminal will, so a test compares what is painted
@@ -180,18 +194,203 @@ func TestAForegroundTooCloseToTheBackgroundIsRefused(t *testing.T) {
 	}
 }
 
-func TestDiffTintsLeanTheirOwnWay(t *testing.T) {
-	th := theme.Terminal(dark)
-	br, bg, bb := rgb(darkBG)
-
-	ar, ag, ab := rgb(th.AddedBackground)
-	if ag <= bg || ag <= ar || ag <= ab {
-		t.Errorf("AddedBackground = %d,%d,%d over a %d,%d,%d base, want green to lead", ar, ag, ab, br, bg, bb)
+// A tint sits on the line from the background to its hue, near the background
+// end. Which channel comes out largest is the palette's business and not this
+// package's: over a background as blue as Catppuccin's, a wash of a real
+// terminal's green is still bluer than it is green, and it still reads green
+// against the page, which is where a reader sees it. Asserting green led only
+// ever held while the hue was xterm's own pure green.
+func TestATintLiesBetweenTheBackgroundAndItsHue(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		s    theme.Surface
+	}{
+		{"dark", withPalette(dark, "#eb6f92", "#3e8fb0")},
+		{"blue-heavy background", mocha},
+		{"olive hues", gruvbox},
+		{"light", solarizedLight},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			th := theme.Terminal(tc.s)
+			between(t, "AddedBackground", tc.s.Background, th.AddedBackground, tc.s.Green)
+			between(t, "RemovedBackground", tc.s.Background, th.RemovedBackground, tc.s.Red)
+		})
 	}
+}
 
-	rr, rg, rb := rgb(th.RemovedBackground)
-	if rr <= br || rr <= rg || rr <= rb {
-		t.Errorf("RemovedBackground = %d,%d,%d over a %d,%d,%d base, want red to lead", rr, rg, rb, br, bg, bb)
+// between checks a tint never overshoots its hue on any channel and stays the
+// nearer end of the run, which is what keeps the code on it readable.
+func between(t *testing.T, name string, bg, tint, hue color.Color) {
+	t.Helper()
+
+	br, bgr, bb := rgb(bg)
+	tr, tg, tb := rgb(tint)
+	hr, hg, hb := rgb(hue)
+
+	for _, c := range []struct {
+		channel        string
+		base, got, end int
+	}{
+		{"red", br, tr, hr},
+		{"green", bgr, tg, hg},
+		{"blue", bb, tb, hb},
+	} {
+		if c.got < min(c.base, c.end) || c.got > max(c.base, c.end) {
+			t.Errorf("%s %s = %d, want it between the background's %d and the hue's %d",
+				name, c.channel, c.got, c.base, c.end)
+		}
+		if abs(c.got-c.base) > abs(c.got-c.end) {
+			t.Errorf("%s %s = %d, nearer the hue's %d than the background's %d: the code on it goes under",
+				name, c.channel, c.got, c.end, c.base)
+		}
+	}
+}
+
+func abs(n int) int {
+	if n < 0 {
+		return -n
+	}
+	return n
+}
+
+func withPalette(s theme.Surface, red, green string) theme.Surface {
+	s.Red, s.Green = lipgloss.Color(red), lipgloss.Color(green)
+	return s
+}
+
+// The reader's own red and green where the terminal answered for them. Blending
+// a slot takes its canonical value, which is xterm's dark system palette and not
+// what anybody is looking at.
+func TestATintTakesTheReportedHueOverTheSlot(t *testing.T) {
+	reported := theme.Terminal(theme.Surface{Background: darkBG, Foreground: darkFG,
+		Red: lipgloss.Color("#f38ba8"), Green: lipgloss.Color("#a6e3a1")})
+	canonical := theme.Terminal(theme.Surface{Background: darkBG, Foreground: darkFG})
+
+	if reported.AddedBackground == canonical.AddedBackground {
+		t.Error("AddedBackground ignored the reported green, want it derived from the palette")
+	}
+	if reported.RemovedBackground == canonical.RemovedBackground {
+		t.Error("RemovedBackground ignored the reported red, want it derived from the palette")
+	}
+}
+
+// A ratio toward a hue is not a fixed step. The whole reason the lift solves for
+// a distance is that the same fraction that clears one palette's green leaves
+// the row flat against another's, so this is the assertion that has to hold on
+// every surface rather than on the one the theme was eyeballed against.
+func TestATintClearsTheBackgroundOnEverySurface(t *testing.T) {
+	const least = 8
+
+	for _, tc := range []struct {
+		name string
+		s    theme.Surface
+	}{
+		{"blue-heavy background", mocha},
+		{"olive hues", gruvbox},
+		{"light palette", solarizedLight},
+		{"low contrast", lowContrast},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			th := theme.Terminal(tc.s)
+			base := luma(tc.s.Background)
+
+			for _, tint := range []struct {
+				name string
+				c    color.Color
+			}{
+				{"AddedBackground", th.AddedBackground},
+				{"RemovedBackground", th.RemovedBackground},
+				{"SelectedBackground", th.SelectedBackground},
+			} {
+				if got := luma(tint.c) - base; got < least && got > -least {
+					t.Errorf("%s luma = %.1f against a background of %.1f, want it clear by %d",
+						tint.name, luma(tint.c), base, least)
+				}
+			}
+		})
+	}
+}
+
+// The fallback wash cannot clear the background by weight: xterm's system red is
+// darker than a good many backgrounds and no amount of it lifts the row. What it
+// can do is move a long way in colour, which is what a reader sees. So the floor
+// every surface has to meet is a channel distance rather than a luma one.
+func TestATintIsPerceptibleOnEverySurface(t *testing.T) {
+	const least = 10
+
+	for _, tc := range []struct {
+		name string
+		s    theme.Surface
+	}{
+		{"dark", dark},
+		{"light", light},
+		{"blue-heavy background", mocha},
+		{"olive hues", gruvbox},
+		{"light palette", solarizedLight},
+		{"low contrast", lowContrast},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			th := theme.Terminal(tc.s)
+			br, bg, bb := rgb(tc.s.Background)
+
+			for _, tint := range []struct {
+				name string
+				c    color.Color
+			}{
+				{"AddedBackground", th.AddedBackground},
+				{"RemovedBackground", th.RemovedBackground},
+				{"SelectedBackground", th.SelectedBackground},
+			} {
+				r, g, b := rgb(tint.c)
+				if got := max(abs(r-br), abs(g-bg), abs(b-bb)); got < least {
+					t.Errorf("%s is %d,%d,%d over a %d,%d,%d background, no channel moving more than %d",
+						tint.name, r, g, b, br, bg, bb, got)
+				}
+			}
+		})
+	}
+}
+
+// Added and removed have to be tellable apart on their own, since a reader
+// scanning a hunk reads the block before they read the marker in it.
+func TestTheTwoTintsNeverCollapseTogether(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		s    theme.Surface
+	}{
+		{"dark", dark},
+		{"light", light},
+		{"blue-heavy background", mocha},
+		{"olive hues", gruvbox},
+		{"low contrast", lowContrast},
+		{"no palette reported", theme.Surface{Background: darkBG, Foreground: darkFG}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			th := theme.Terminal(tc.s)
+			ar, ag, ab := rgb(th.AddedBackground)
+			rr, rg, rb := rgb(th.RemovedBackground)
+
+			if ar == rr && ag == rg && ab == rb {
+				t.Errorf("both tints are %d,%d,%d, so a changed block cannot say which way it went", ar, ag, ab)
+			}
+		})
+	}
+}
+
+// A selection is a lift off the page and not a colour of its own. Travelling
+// along the shade axis gave it the foreground's tint, which on a palette with a
+// warm or a violet foreground read as a colour the reader never chose.
+func TestTheSelectionIsANeutralLift(t *testing.T) {
+	// A foreground far off neutral, so a fill that followed it would say so.
+	warm := theme.Surface{Background: darkBG, Foreground: lipgloss.Color("#e0c0a0")}
+	th := theme.Terminal(warm)
+
+	br, bg, bb := rgb(darkBG)
+	sr, sg, sb := rgb(th.SelectedBackground)
+
+	dr, dg, db := sr-br, sg-bg, sb-bb
+	if spread := max(dr, dg, db) - min(dr, dg, db); spread > 2 {
+		t.Errorf("SelectedBackground moves %d,%d,%d off the background, want an even lift", dr, dg, db)
 	}
 }
 

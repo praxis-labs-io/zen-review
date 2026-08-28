@@ -1,9 +1,11 @@
 package theme
 
 import (
+	"fmt"
 	"image/color"
 	"io"
 	"os"
+	"strconv"
 	"time"
 
 	uv "github.com/charmbracelet/ultraviolet"
@@ -16,11 +18,23 @@ import (
 // this is paid only by a terminal that replies to none of the three.
 const queryTimeout = 500 * time.Millisecond
 
-// Surface is what the terminal says about itself. Either field is nil where
+// Surface is what the terminal says about itself. Any field is nil where
 // nothing answered, and a theme is derived from whatever did.
 type Surface struct {
 	Background color.Color
 	Foreground color.Color
+
+	// The two slots the diff tints lean on. A tint is a blend, and blending a
+	// slot takes its canonical value rather than the one the reader is looking
+	// at, so these two are asked for by name instead of assumed.
+	Red   color.Color
+	Green color.Color
+}
+
+// requestPalette asks for one of the terminal's own palette slots. x/ansi has
+// the foreground and background requests and not this one.
+func requestPalette(slot int) string {
+	return fmt.Sprintf("\x1b]4;%d;?\x07", slot)
 }
 
 // Query asks the terminal for its background and foreground.
@@ -44,16 +58,28 @@ func Query(in, out *os.File) Surface {
 	}
 	defer term.Restore(in.Fd(), state) //nolint:errcheck
 
+	// The two slots ride along in the same write and the same read: they cost
+	// no second round trip and no second timeout, which is the whole reason
+	// asking for them is worth it where it would not be on its own.
+	//
 	// The device attributes go last and are what ends the read. A terminal
 	// answers them and answers them last, so waiting on them is what tells an
 	// unanswered color query apart from one still arriving.
 	query := ansi.RequestForegroundColor + ansi.RequestBackgroundColor +
+		requestPalette(int(slotRed)) + requestPalette(int(slotGreen)) +
 		ansi.RequestPrimaryDeviceAttributes
 
 	read(in, out, query, queryTimeout, func(seq string, pa *ansi.Parser) bool {
 		switch {
 		case ansi.HasOscPrefix(seq):
 			switch pa.Command() {
+			case 4:
+				switch slot, c := paletteColor(pa); slot {
+				case int(slotRed):
+					s.Red = c
+				case int(slotGreen):
+					s.Green = c
+				}
 			case 10:
 				s.Foreground = oscColor(pa)
 			case 11:
@@ -77,6 +103,23 @@ func oscColor(pa *ansi.Parser) color.Color {
 		return nil
 	}
 	return ansi.XParseColor(spec)
+}
+
+// paletteColor reads the slot and the color out of an OSC 4 reply, whose data
+// is the command, the slot and the color separated by semicolons. The slot is
+// -1 where the reply did not parse, which matches nothing.
+func paletteColor(pa *ansi.Parser) (int, color.Color) {
+	rest := afterSemicolon(string(pa.Data()))
+	spec := afterSemicolon(rest)
+	if spec == "" {
+		return -1, nil
+	}
+
+	slot, err := strconv.Atoi(rest[:len(rest)-len(spec)-1])
+	if err != nil {
+		return -1, nil
+	}
+	return slot, ansi.XParseColor(spec)
 }
 
 func afterSemicolon(data string) string {

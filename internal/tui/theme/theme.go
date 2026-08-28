@@ -104,6 +104,27 @@ const (
 // a hair and is no direction to travel in either.
 const minSeparation = 48
 
+// tintLift and selectionLift are how far off the background a filled row sits,
+// in luma. A distance rather than a ratio, because a ratio toward a hue the
+// reader chose is not a fixed step: the same fraction that lifts a row clear of
+// one palette's green barely moves it against another's.
+const (
+	tintLift      = 16
+	selectionLift = 12
+)
+
+// The ratio a lift toward a hue is held between. The floor is there because a
+// pale green reaches the distance in a few percent, and a few percent of a
+// colour is not a colour: the row lifts and reads grey.
+// The ceiling only ever binds for a hue sitting within a few dozen luma of the
+// background, which is the case where a large fraction of it moves the row's
+// colour a long way and its weight barely at all. So it is loose: what stops a
+// tint burying code is the distance being solved for, not this.
+const (
+	minHueLift = 0.14
+	maxLift    = 0.5
+)
+
 // Terminal derives the theme from what the terminal reported. Either field of
 // the surface is nil where nothing answered.
 func Terminal(s Surface) Theme {
@@ -166,17 +187,65 @@ func Terminal(s Surface) Theme {
 		t.Syntax = SyntaxLight
 	}
 
-	t.SelectedBackground = mix(bg, away, 0.10)
+	// Neutral rather than along the shade axis. A selection is a lift off the
+	// page and not a colour of its own, and travelling toward the foreground
+	// gave it the foreground's tint on every palette that has one.
+	t.SelectedBackground = lift(bg, nil, selectionLift)
 
-	// A slot's RGBA() is the canonical value, never what the terminal mapped it
-	// to, so these two are a standard-green and standard-red wash over the real
-	// background rather than a wash in the reader's own green and red. Painting
-	// a slot follows the palette; blending one cannot. Reading the true palette
-	// would take an OSC 4 query per slot, which is not worth it for a tint.
-	t.AddedBackground = mix(bg, slotGreen, 0.18)
-	t.RemovedBackground = mix(bg, slotRed, 0.18)
+	// The two tints lean on the reader's own red and green where the terminal
+	// answered for them. A slot's RGBA() is its canonical value and never what
+	// the terminal mapped it to, so blending one washes the row in xterm's dark
+	// system red rather than in the red beside it in the marker column.
+	t.AddedBackground = lift(bg, hueOr(s.Green, slotGreen), tintLift)
+	t.RemovedBackground = lift(bg, hueOr(s.Red, slotRed), tintLift)
 
 	return t
+}
+
+// hueOr is a slot as the terminal actually paints it, where it answered for it,
+// and the canonical value where it did not. Blending a slot is otherwise
+// forbidden and this is the one place it happens: a tint has to lean its own way
+// whatever came back, or added and removed are the same wash.
+func hueOr(reported, canonical color.Color) color.Color {
+	if reported != nil {
+		return reported
+	}
+	return canonical
+}
+
+// lift places a color a fixed luma distance off the background, travelling
+// toward hue, or neutrally where there is none.
+//
+// Solving for the distance is what lets one number hold across palettes. The
+// ratio it works out to is small against a bright hue and large against a dark
+// one, where a fixed ratio leaves the row unlifted on every terminal whose green
+// happens to sit near its background.
+func lift(bg, hue color.Color, distance float64) color.Color {
+	// Which way a shade has to move to be seen: brighter on a dark background,
+	// darker on a light one.
+	sign := 1.0
+	if !isDark(bg) {
+		sign = -1
+	}
+
+	if hue == nil {
+		// Neutral is always the full way to white or black, so it always has
+		// the room and never needs the floor.
+		toward := contrast(bg)
+		span := (luma(toward) - luma(bg)) * sign
+		return mix(bg, toward, min(distance/span, maxLift))
+	}
+
+	span := (luma(hue) - luma(bg)) * sign
+	if span <= 0 {
+		// The hue sits at the background's own weight or on the wrong side of
+		// it, so no amount of it lifts the row. Keeping the lean beats trading
+		// it for a grey the other tint would be indistinguishable from; the
+		// marker column carries what the luma cannot.
+		return mix(bg, hue, minHueLift)
+	}
+
+	return mix(bg, hue, min(max(distance/span, minHueLift), maxLift))
 }
 
 // mix blends ratio of b into a, per channel. Both are read at 8 bits, which is
