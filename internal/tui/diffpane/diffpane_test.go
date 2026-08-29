@@ -1625,24 +1625,19 @@ func TestABlockEndingInABlankStillCountsIt(t *testing.T) {
 	}
 }
 
-// A pane too narrow for a box draws the card bare, and the fill is then the only
-// thing that was ever saying which card the cursor is on. A terminal that
-// answered nothing has no fill to give, so the weight has to carry it the way it
-// does in the tree and on the base picker.
+// A pane too narrow for a box draws the card bare, where the fill was the only
+// thing saying which card the cursor is on.
 func TestABareCardStandsWithoutAFill(t *testing.T) {
 	const path = "internal/review/state.go"
 
 	c := testchangeset.Nested(t)
 	m := diffpane.New(testtheme.Bare)
 
-	// Narrower than the box a card is otherwise drawn in, which is the only
-	// width that reaches the bare form.
+	// Narrow enough to reach the bare form.
 	m.SetSize(18, 20)
 	m.SetFile(fileAt(t, c, path), testchangeset.NestedComments(), nil, 2)
 
-	// The card is one stop for the cursor, so walking the pane is what puts the
-	// cursor on it. Every distinct way its row came out is collected, and the
-	// lit form has to be one of them.
+	// The card is one stop for the cursor, so walking the pane lands on it.
 	seen := map[string]bool{}
 	for range 40 {
 		if row, ok := bareCardRow(m); ok {
@@ -1661,7 +1656,6 @@ func TestABareCardStandsWithoutAFill(t *testing.T) {
 	}
 }
 
-// bareCardRow is the first bare card in the frame, escapes and all.
 func bareCardRow(m diffpane.Model) (string, bool) {
 	for _, row := range strings.Split(m.View(), "\n") {
 		if strings.Contains(ansi.Strip(row), "◇ open") {

@@ -1,10 +1,6 @@
-// Package theme holds the palette the UI styles from. Nothing in the TUI
-// hardcodes a color: a color that isn't here means this struct needs a field.
-//
-// There is one theme and it is derived rather than written down. The hues are
-// ANSI slots, so they are whatever the reader's terminal maps them to; the
-// shades are blended from the background the terminal reports at launch, so
-// they sit just above it whatever it is.
+// Package theme is the one palette the UI styles from, derived from the
+// terminal: ANSI slots for the hues, blends off the reported background for the
+// shades.
 package theme
 
 import (
@@ -13,45 +9,37 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// Theme is one palette. Optional fields are nil-able and have accessors that
-// fall back, so adding a field doesn't force the derivation to be rewritten.
+// Theme is one palette. A nil color means the terminal's own shows through.
 type Theme struct {
-	// Syntax names a Chroma style rather than restating its token colors, there
-	// being far more of them than the chrome has fields. Empty is Chroma's default.
+	// Syntax names a Chroma style. Empty is Chroma's default.
 	Syntax string
 
-	// Named for weight, not rank: Subtle is still meant to be read, Muted is
-	// there to be looked past.
+	// Named for weight, not rank: Subtle is still read, Muted is looked past.
 	Text     color.Color
 	Accent   color.Color
 	Subtle   color.Color
 	Muted    color.Color
 	Inverted color.Color
 
-	// Semantic
 	Success color.Color
 	Warning color.Color
 	Error   color.Color
 	Actor   color.Color
 
-	// Surfaces. Background is nil and stays nil: the one this theme was derived
-	// from is the terminal's own, so painting it would change nothing a reader
-	// can see and would cost a translucent terminal its translucency.
+	// Background stays nil: it is the terminal's own, and painting it would
+	// cost a translucent terminal its translucency.
 	Background         color.Color
 	SelectedBackground color.Color
 
-	// Diff surfaces. They group a run of changed lines and nothing more, because
-	// the marker and the line number already say which way a line went.
 	AddedBackground   color.Color
 	RemovedBackground color.Color
 
-	// Borders
 	Border       color.Color
 	BorderSubtle color.Color
 	BorderMuted  color.Color
 }
 
-// InvertedOrText is the text color to use on top of a filled surface.
+// InvertedOrText is the text color for use on top of a filled surface.
 func (t Theme) InvertedOrText() color.Color {
 	if t.Inverted != nil {
 		return t.Inverted
@@ -59,7 +47,6 @@ func (t Theme) InvertedOrText() color.Color {
 	return t.Text
 }
 
-// BorderSubtleOrBorder falls back for themes that define one border color.
 func (t Theme) BorderSubtleOrBorder() color.Color {
 	if t.BorderSubtle != nil {
 		return t.BorderSubtle
@@ -67,7 +54,6 @@ func (t Theme) BorderSubtleOrBorder() color.Color {
 	return t.Border
 }
 
-// BorderMutedOrSubtle falls back through the border ladder.
 func (t Theme) BorderMutedOrSubtle() color.Color {
 	if t.BorderMuted != nil {
 		return t.BorderMuted
@@ -75,10 +61,8 @@ func (t Theme) BorderMutedOrSubtle() color.Color {
 	return t.BorderSubtleOrBorder()
 }
 
-// The hues, as ANSI slots. Painted, a slot is whatever the terminal maps it to,
-// which is the whole point: a reader's palette reaches the chrome without being
-// configured. Only the low eight are taken. A terminal is free to leave 8 to 15
-// undeclared or collapsed onto 0 to 7, and nothing here would be able to tell.
+// A terminal may leave 8 to 15 undeclared or collapsed onto 0 to 7, so only the
+// low eight are taken.
 const (
 	slotBlack   = lipgloss.Black
 	slotRed     = lipgloss.Red
@@ -90,88 +74,63 @@ const (
 	slotGrey    = lipgloss.BrightBlack
 )
 
-// SyntaxDark and SyntaxLight are the Chroma styles code is highlighted with.
-// The chrome follows the terminal and code cannot: Chroma styles are truecolor
-// and there is no ANSI one to reach for. Pairing them against the background is
-// what stops a light terminal rendering #e6edf3 source on white.
+// Chroma ships no ANSI style, so code cannot follow the palette. These are
+// paired against the background instead.
 const (
 	SyntaxDark  = "github-dark"
 	SyntaxLight = "github"
 )
 
-// minSeparation is the least a usable pair may be apart, in luma. It is the
-// floor under the side test below, for the pair that straddles the midpoint by
-// a hair and is no direction to travel in either.
+// The least a usable background/foreground pair may be apart, in luma.
 const minSeparation = 48
 
-// tintLift and selectionLift are how far off the background a filled row sits,
-// in luma. A distance rather than a ratio, because a ratio toward a hue the
-// reader chose is not a fixed step: the same fraction that lifts a row clear of
-// one palette's green barely moves it against another's.
+// How far off the background a filled row sits, in luma. A distance rather than
+// a ratio: a ratio toward a hue the reader chose is not a fixed step.
 const (
 	tintLift      = 16
 	selectionLift = 12
 )
 
-// The ratio a lift toward a hue is held between. The floor is there because a
-// pale green reaches the distance in a few percent, and a few percent of a
-// colour is not a colour: the row lifts and reads grey.
-// The ceiling only ever binds for a hue sitting within a few dozen luma of the
-// background, which is the case where a large fraction of it moves the row's
-// colour a long way and its weight barely at all. So it is loose: what stops a
-// tint burying code is the distance being solved for, not this.
+// The floor keeps a pale hue from reaching the distance in so few percent that
+// the row reads grey. The ceiling is loose: the distance is what bounds a tint.
 const (
 	minHueLift = 0.14
 	maxLift    = 0.5
 )
 
-// Terminal derives the theme from what the terminal reported. Either field of
-// the surface is nil where nothing answered.
+// Terminal derives the theme from what the terminal reported.
 func Terminal(s Surface) Theme {
 	bg := s.Background
 	t := Theme{
 		Syntax: SyntaxDark,
 
-		// Text is the terminal's own foreground rather than a color of ours.
-		// Nothing matches a reader's palette as exactly as the palette.
 		Text: lipgloss.NoColor{},
 
-		// Blue is where a palette puts what is interactive, and it is the slot
-		// a scheme's identity most often lives in. Magenta was this app's accent
-		// while the theme was Rosé Pine and iris was the color it highlighted
-		// with; read as a slot rather than as that palette, it is the decorative
-		// one. Nord is the case that shows it: slot 5 is a muted mauve where
-		// slot 4 is the frost blue the scheme is known for.
-		Accent: slotBlue,
-
+		// Blue over magenta: it is where a palette puts what is interactive and
+		// where a scheme's identity most often lives.
+		Accent:  slotBlue,
 		Success: slotGreen,
 		Warning: slotYellow,
 		Error:   slotRed,
 
-		// Magenta rather than cyan, which sits beside blue and would muddle
-		// wherever a handle is written next to focused chrome.
+		// Magenta rather than cyan, which sits beside blue and would muddle a
+		// handle written next to focused chrome.
 		Actor: slotMagenta,
 
-		// The terminal's own, always. Every shade below was derived against it
-		// rather than over a fill of ours, so there is nothing to paint.
 		Background: nil,
 	}
 
 	if bg == nil {
-		// Slots are the best available guess at a grey and a border, and the
-		// caveat above applies: a palette that collapsed 8 onto 0 puts muted
-		// chrome on the background and there is no way to see it coming. It is
-		// the fallback because there is nothing better, not because it is good.
+		// Nothing to blend against. Slots are the fallback because there is
+		// nothing better, not because they are good.
 		t.Subtle, t.Muted = slotWhite, slotGrey
 		t.Border, t.BorderSubtle, t.BorderMuted = slotGrey, slotGrey, slotGrey
 		t.Inverted = slotBlack
 		return t
 	}
 
-	// The greys are blends where the hues are slots, and the split is
-	// deliberate. A palette's identity lives in its hues. Greys are structural
-	// and only have to stay legible, which a slot cannot promise and a blend off
-	// the known background is by construction.
+	// Greys are structural and only have to stay legible, which a slot cannot
+	// promise and a blend off the known background is by construction.
 	away := shadeToward(bg, s.Foreground)
 	t.Subtle = mix(bg, away, 0.65)
 	t.Muted = mix(bg, away, 0.45)
@@ -179,33 +138,25 @@ func Terminal(s Surface) Theme {
 	t.BorderSubtle = mix(bg, away, 0.20)
 	t.BorderMuted = mix(bg, away, 0.12)
 
-	// Text drawn on top of a filled Accent, so it wants to read as the page
-	// does: the background the fill was placed over.
 	t.Inverted = bg
 
 	if !isDark(bg) {
 		t.Syntax = SyntaxLight
 	}
 
-	// Neutral rather than along the shade axis. A selection is a lift off the
-	// page and not a colour of its own, and travelling toward the foreground
-	// gave it the foreground's tint on every palette that has one.
+	// Neutral: along the shade axis it took the foreground's tint.
 	t.SelectedBackground = lift(bg, nil, selectionLift)
 
-	// The two tints lean on the reader's own red and green where the terminal
-	// answered for them. A slot's RGBA() is its canonical value and never what
-	// the terminal mapped it to, so blending one washes the row in xterm's dark
-	// system red rather than in the red beside it in the marker column.
+	// A slot's RGBA() is its canonical value, so blending one washes the row in
+	// xterm's system red rather than the red in the marker column beside it.
 	t.AddedBackground = lift(bg, hueOr(s.Green, slotGreen), tintLift)
 	t.RemovedBackground = lift(bg, hueOr(s.Red, slotRed), tintLift)
 
 	return t
 }
 
-// hueOr is a slot as the terminal actually paints it, where it answered for it,
-// and the canonical value where it did not. Blending a slot is otherwise
-// forbidden and this is the one place it happens: a tint has to lean its own way
-// whatever came back, or added and removed are the same wash.
+// The reported slot, or its canonical value. The one place a slot is blended:
+// a tint has to lean its own way, or added and removed are the same wash.
 func hueOr(reported, canonical color.Color) color.Color {
 	if reported != nil {
 		return reported
@@ -213,24 +164,16 @@ func hueOr(reported, canonical color.Color) color.Color {
 	return canonical
 }
 
-// lift places a color a fixed luma distance off the background, travelling
-// toward hue, or neutrally where there is none.
-//
-// Solving for the distance is what lets one number hold across palettes. The
-// ratio it works out to is small against a bright hue and large against a dark
-// one, where a fixed ratio leaves the row unlifted on every terminal whose green
-// happens to sit near its background.
+// lift places a color a fixed luma distance off the background, toward hue or
+// neutrally where there is none.
 func lift(bg, hue color.Color, distance float64) color.Color {
-	// Which way a shade has to move to be seen: brighter on a dark background,
-	// darker on a light one.
+	// Brighter on a dark background, darker on a light one.
 	sign := 1.0
 	if !isDark(bg) {
 		sign = -1
 	}
 
 	if hue == nil {
-		// Neutral is always the full way to white or black, so it always has
-		// the room and never needs the floor.
 		toward := contrast(bg)
 		span := (luma(toward) - luma(bg)) * sign
 		return mix(bg, toward, min(distance/span, maxLift))
@@ -238,18 +181,15 @@ func lift(bg, hue color.Color, distance float64) color.Color {
 
 	span := (luma(hue) - luma(bg)) * sign
 	if span <= 0 {
-		// The hue sits at the background's own weight or on the wrong side of
-		// it, so no amount of it lifts the row. Keeping the lean beats trading
-		// it for a grey the other tint would be indistinguishable from; the
-		// marker column carries what the luma cannot.
+		// No amount of this hue lifts the row, so keep the lean rather than
+		// trade it for a grey the other tint is indistinguishable from.
 		return mix(bg, hue, minHueLift)
 	}
 
 	return mix(bg, hue, min(max(distance/span, minHueLift), maxLift))
 }
 
-// mix blends ratio of b into a, per channel. Both are read at 8 bits, which is
-// what a terminal takes and what keeps the arithmetic legible.
+// mix blends ratio of b into a, per channel, at 8 bits.
 func mix(a, b color.Color, ratio float64) color.Color {
 	ar, ag, ab := rgb8(a)
 	br, bg, bb := rgb8(b)
@@ -260,16 +200,9 @@ func mix(a, b color.Color, ratio float64) color.Color {
 	return lipgloss.RGBColor{R: blend(ar, br), G: blend(ag, bg), B: blend(ab, bb)}
 }
 
-// shadeToward is the direction a shade travels from the background. The
-// terminal's own foreground is the right answer where it reported one: the greys
-// then sit on the axis between the page and the text on it, rather than on the
-// one between the page and pure white.
-//
-// It has to be on the far side of the midpoint from the background, which is a
-// different test from being far from it. A terminal is free to report a pair
-// that sits on one side of it, and a ladder built along those two climbs from
-// almost-black to still-dark. Refusing the pair costs the harmony and keeps the
-// shades legible, which is the half that matters.
+// shadeToward is the direction a shade travels from the background. Far from it
+// and on the far side of the midpoint are two tests, and a pair failing either
+// is no direction to travel in.
 func shadeToward(bg, fg color.Color) color.Color {
 	if fg == nil || isDark(bg) == isDark(fg) || separation(bg, fg) < minSeparation {
 		return contrast(bg)
@@ -285,10 +218,7 @@ func separation(a, b color.Color) float64 {
 	return d
 }
 
-// contrast is the direction a shade moves in to stay visible against c: toward
-// white on a dark background, toward black on a light one. It is the fallback
-// wherever no usable foreground was reported, and it lets one set of ratios
-// serve a light terminal and a dark one without a second table.
+// contrast is the fallback direction where no usable foreground was reported.
 func contrast(c color.Color) color.Color {
 	if isDark(c) {
 		return lipgloss.RGBColor{R: 0xff, G: 0xff, B: 0xff}
@@ -296,8 +226,7 @@ func contrast(c color.Color) color.Color {
 	return lipgloss.RGBColor{R: 0x00, G: 0x00, B: 0x00}
 }
 
-// isDark reports whether c is dark, by perceived luminance. lipgloss has this
-// and does not export it.
+// lipgloss has this and does not export it.
 func isDark(c color.Color) bool { return luma(c) < 128 }
 
 func luma(c color.Color) float64 {

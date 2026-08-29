@@ -355,9 +355,7 @@ func TestTheBasePickerFiltersAndSelectsAcrossGroups(t *testing.T) {
 			break
 		}
 	}
-	// The fill and the weight are what say which row is selected. The text on it
-	// is the terminal's own, so there is no foreground escape to look for: a
-	// color of ours over the fill is what would make it unreadable.
+	// The text is the terminal's own, so there is no foreground escape to find.
 	if !strings.Contains(selected, styleParams(t, lipgloss.NewStyle().Background(testtheme.Dark.SelectedBackground))) ||
 		!strings.Contains(selected, ";1m") {
 		t.Errorf("selected base does not stand on its fill:\n%s", s.raw())
@@ -387,9 +385,8 @@ func styleParams(t *testing.T, style lipgloss.Style) string {
 	return probe[start+1 : end]
 }
 
-// A terminal that answered nothing leaves no SelectedBackground to fill with, so
-// the weight is the whole of the selection. Nothing else on the picker says
-// which row enter would take.
+// With no fill, weight is the whole of the selection: nothing else on the picker
+// says which row enter would take.
 func TestTheSelectedBaseStandsWithoutAFill(t *testing.T) {
 	s := themed(t, testtheme.Bare, 100, 20)
 	s.src.candidates = review.BaseCandidates{

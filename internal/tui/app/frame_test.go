@@ -142,8 +142,6 @@ func open(t *testing.T, width, height int) *screen {
 	return named(t, "zen-review", width, height)
 }
 
-// themed opens the reader over a theme of the caller's choosing, which is what
-// the assertions about a terminal that answered nothing drive.
 func themed(t *testing.T, th theme.Theme, width, height int) *screen {
 	t.Helper()
 

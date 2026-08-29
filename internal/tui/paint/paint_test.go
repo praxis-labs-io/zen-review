@@ -137,8 +137,7 @@ func TestFillBeatsTheKindTint(t *testing.T) {
 }
 
 // A theme leaving a surface nil means "leave the terminal's own showing", and
-// handing that to Lipgloss is what breaks a transparent background. This is the
-// theme a terminal that answered nothing gets, which has no surfaces at all.
+// handing that to Lipgloss is what breaks a transparent background.
 func TestARowTakesNoBackgroundFromAThemeThatDefinesNone(t *testing.T) {
 	p := paint.Painter{Theme: testtheme.Bare}
 	row := p.Line(paint.Line{Kind: paint.Added, New: 12, Tokens: []syntax.Token{{Text: "n = 4"}}}, 2, 40)
@@ -472,14 +471,8 @@ func fgSeq(t *testing.T, c color.Color) string {
 	return sgrParams(t, lipgloss.NewStyle().Foreground(c))
 }
 
-// sgrParams is what a color actually paints as, taken from Lipgloss rather than
-// built out of RGBA(): a slot's RGBA() is its canonical value and never the
-// sequence the terminal is sent, so a hand-built one would look for truecolor
-// where a 34 was written.
-//
-// A color that writes no escape at all fails the test rather than answering
-// with the empty string, which every strings.Contains in the file would take
-// for a match.
+// A slot's RGBA() is its canonical value and not the sequence sent, so the
+// escape is read back off Lipgloss rather than built by hand.
 func sgrParams(t *testing.T, s lipgloss.Style) string {
 	t.Helper()
 

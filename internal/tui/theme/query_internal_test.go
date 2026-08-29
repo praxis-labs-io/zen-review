@@ -11,17 +11,13 @@ import (
 	"time"
 )
 
-// reply drives the decode half of Query over a canned terminal answer, which is
-// everything but the raw-mode dance.
+// reply drives the decode half of Query, which is all but the raw-mode dance.
 func reply(t *testing.T, answer string) Surface {
 	t.Helper()
 	return collect(strings.NewReader(answer), queryTimeout)
 }
 
-// collect is reply over any reader, for the cases that need one that does not
-// hand its whole answer over at once. It drives Query's own dispatch rather than
-// a copy of it, which is the only way these cases say anything about the code
-// that ships.
+// Drives Query's own dispatch rather than a copy of it.
 func collect(in io.Reader, timeout time.Duration) Surface {
 	var s Surface
 	read(in, &bytes.Buffer{}, "", timeout, s.take)
@@ -47,9 +43,6 @@ func TestQueryReadsBothReports(t *testing.T) {
 	}
 }
 
-// The two slots the tints lean on. A tint is a blend, and blending a slot takes
-// its canonical value rather than the one the terminal actually paints, so they
-// are read off the palette instead of assumed.
 func TestQueryReadsThePaletteSlots(t *testing.T) {
 	got := reply(t, "\x1b]4;1;rgb:cccc/2424/1d1d\x1b\\\x1b]4;2;rgb:9898/9797/1a1a\x1b\\\x1b[?62;c")
 
@@ -61,8 +54,7 @@ func TestQueryReadsThePaletteSlots(t *testing.T) {
 	}
 }
 
-// A terminal is free to answer for slots nobody asked about, and one that does
-// must not have its blue land in the field the added tint is derived from.
+// A terminal may answer for slots nobody asked about.
 func TestQueryIgnoresPaletteSlotsItDidNotAskFor(t *testing.T) {
 	got := reply(t, "\x1b]4;4;rgb:0000/0000/ffff\x1b\\\x1b[?62;c")
 
@@ -71,8 +63,7 @@ func TestQueryIgnoresPaletteSlotsItDidNotAskFor(t *testing.T) {
 	}
 }
 
-// The palette is the half most likely to go unanswered: a terminal that reports
-// its background may still say nothing about slot 1. The rest has to survive it.
+// A terminal that reports its background may still say nothing about slot 1.
 func TestQueryTakesTheSurfaceWithoutThePalette(t *testing.T) {
 	got := reply(t, "\x1b]11;rgb:2323/2121/3636\x1b\\\x1b[?62;c")
 
@@ -84,8 +75,7 @@ func TestQueryTakesTheSurfaceWithoutThePalette(t *testing.T) {
 	}
 }
 
-// Terminals answer with components of varying width, and a short one scales up
-// rather than being read at face value.
+// Components come back at varying width and a short one scales up.
 func TestQueryScalesShortComponents(t *testing.T) {
 	got := reply(t, "\x1b]11;rgb:1c/1c/1c\x1b\\\x1b[?62;c")
 	if want := "#1c1c1c"; hexOf(got.Background) != want {
@@ -93,8 +83,7 @@ func TestQueryScalesShortComponents(t *testing.T) {
 	}
 }
 
-// One of the two answering is the common case on a terminal that supports only
-// half of it, and the half that came back has to survive.
+// Half an answer is the common case, and that half has to survive.
 func TestQueryTakesWhicheverAnswered(t *testing.T) {
 	got := reply(t, "\x1b]11;rgb:2323/2121/3636\x1b\\\x1b[?62;c")
 
@@ -106,12 +95,8 @@ func TestQueryTakesWhicheverAnswered(t *testing.T) {
 	}
 }
 
-// The device attributes end the read. Reading only until the colors parsed would
-// leave them in the buffer, and the terminal echoes them the moment raw mode
-// ends, before anything has been drawn.
+// Left in the buffer, the attributes are echoed the moment raw mode ends.
 func TestTheDeviceAttributesEndTheRead(t *testing.T) {
-	// Nothing follows the attributes here: a read that ran past them would block
-	// on a reader with nothing left and be cancelled by the timeout instead.
 	done := make(chan Surface, 1)
 	go func() { done <- reply(t, "\x1b]11;rgb:2323/2121/3636\x1b\\\x1b[?62;c") }()
 
@@ -125,14 +110,8 @@ func TestTheDeviceAttributesEndTheRead(t *testing.T) {
 	}
 }
 
-// A terminal that answers nothing must not hang the launch, and must not leave
-// a reader parked on the tty eating the first key pressed. A reader that ends
-// proves neither: it returns of its own accord and the timeout never fires.
-//
-// It has to be an os.Pipe rather than any blocking io.Reader. The cancel reader
-// interrupts a file descriptor and cannot interrupt an arbitrary Read, so a
-// hand-written blocking reader tests a path this never takes: what Query passes
-// is os.Stdin, and a pipe is the same kind of thing.
+// An os.Pipe, not any blocking reader: the cancel reader interrupts a file
+// descriptor and cannot interrupt an arbitrary Read.
 func TestASilentTerminalGivesUpAndReportsNothing(t *testing.T) {
 	silent, w, err := os.Pipe()
 	if err != nil {
@@ -154,23 +133,18 @@ func TestASilentTerminalGivesUpAndReportsNothing(t *testing.T) {
 	}
 }
 
-// A reply arriving in pieces is the ordinary case over a slow link. The decoder
-// carries acc and state across reads, and only a reader that actually returns
-// the answer in more than one Read exercises that: string literals beside each
-// other are one string by the time the test runs, and a strings.Reader hands
-// the whole of it over in a single call.
+// The decoder carries acc and state across reads, which only a reader that
+// really answers in more than one Read exercises.
 func TestASplitReplyStillParses(t *testing.T) {
 	full := "\x1b]11;rgb:2323/2121/3636\x1b\\\x1b[?62;c"
 
-	// Split inside the color sequence, so the carry is what has to work.
 	got := collect(&chunked{parts: []string{full[:12], full[12:]}}, queryTimeout)
 	if want := "#232136"; hexOf(got.Background) != want {
 		t.Errorf("Background = %s, want %s", hexOf(got.Background), want)
 	}
 }
 
-// chunked hands its answer over one piece per Read, which strings.Reader will
-// not do.
+// One piece per Read, which strings.Reader will not do.
 type chunked struct{ parts []string }
 
 func (c *chunked) Read(p []byte) (int, error) {

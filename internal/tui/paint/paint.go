@@ -41,10 +41,7 @@ type Line struct {
 	// lit and a bar says where it starts, which is what an eye follows.
 	Bar color.Color
 
-	// Weight is what marks a row the caller has no Fill to mark it with. Bold
-	// is not a colour and survives a theme that could offer no surface, which
-	// is the one case where a lit row would otherwise paint identically to the
-	// row above it.
+	// Weight marks a row the caller has no Fill to mark it with.
 	Weight bool
 }
 

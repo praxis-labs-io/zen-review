@@ -135,9 +135,8 @@ func New(t theme.Theme, src Source, repo string, r Reload) Model {
 // command it started, so a caller holding the session has to before it lets go
 // of it.
 func Run(ctx context.Context, src Source, repo string, r Reload) error {
-	// Asked here rather than by the caller: the query owns the tty for the
-	// length of a round trip, and it has to have given it back before Bubble
-	// Tea takes it.
+	// The query owns the tty for a round trip and has to give it back before
+	// Bubble Tea takes it.
 	t := theme.Terminal(theme.Query(os.Stdin, os.Stdout))
 
 	if _, err := tea.NewProgram(New(t, src, repo, r), tea.WithContext(ctx)).Run(); err != nil {

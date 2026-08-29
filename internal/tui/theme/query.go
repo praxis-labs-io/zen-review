@@ -13,40 +13,23 @@ import (
 	"github.com/charmbracelet/x/term"
 )
 
-// queryTimeout is what a terminal that answers nothing costs. Anything that
-// answers at all answers the device attributes, which ends the read at once, so
-// this is paid only by a terminal that replies to none of the three.
 const queryTimeout = 500 * time.Millisecond
 
-// Surface is what the terminal says about itself. Any field is nil where
-// nothing answered, and a theme is derived from whatever did.
+// Surface is what the terminal reported about itself. Any field is nil where
+// nothing answered.
 type Surface struct {
 	Background color.Color
 	Foreground color.Color
-
-	// The two slots the diff tints lean on. A tint is a blend, and blending a
-	// slot takes its canonical value rather than the one the reader is looking
-	// at, so these two are asked for by name instead of assumed.
-	Red   color.Color
-	Green color.Color
+	Red        color.Color
+	Green      color.Color
 }
 
-// requestPalette asks for one of the terminal's own palette slots. x/ansi has
-// the foreground and background requests and not this one.
 func requestPalette(slot int) string {
 	return fmt.Sprintf("\x1b]4;%d;?\x07", slot)
 }
 
-// Query asks the terminal for its background, its foreground and the two palette
-// slots the diff tints lean on.
-//
-// lipgloss has this for the background alone and does not export the machinery,
-// and the foreground is what the shades want to travel toward: blended toward
-// pure white or black instead they sit on a different axis from the reader's own
-// text. So the four are asked for together, over one round trip.
-//
-// It must run before Bubble Tea takes the tty, and it puts the terminal in raw
-// mode for the length of the exchange.
+// Query asks the terminal for its background, foreground and the two slots the
+// diff tints lean on. It must run before Bubble Tea takes the tty.
 func Query(in, out *os.File) Surface {
 	var s Surface
 	if !term.IsTerminal(in.Fd()) || !term.IsTerminal(out.Fd()) {
@@ -59,13 +42,8 @@ func Query(in, out *os.File) Surface {
 	}
 	defer term.Restore(in.Fd(), state) //nolint:errcheck
 
-	// The two slots ride along in the same write and the same read: they cost
-	// no second round trip and no second timeout, which is the whole reason
-	// asking for them is worth it where it would not be on its own.
-	//
-	// The device attributes go last and are what ends the read. A terminal
-	// answers them and answers them last, so waiting on them is what tells an
-	// unanswered color query apart from one still arriving.
+	// The attributes go last and are what ends the read: a terminal answers
+	// them and answers them last.
 	query := ansi.RequestForegroundColor + ansi.RequestBackgroundColor +
 		requestPalette(int(slotRed)) + requestPalette(int(slotGreen)) +
 		ansi.RequestPrimaryDeviceAttributes
@@ -74,10 +52,8 @@ func Query(in, out *os.File) Surface {
 	return s
 }
 
-// take files one decoded reply and reports whether to keep reading. It is a
-// method rather than a closure so a test drives the same dispatch the terminal
-// does: a test that reimplemented it would stay green through 10 and 11 being
-// swapped, and the shipped app would derive its greys from the background.
+// take files one decoded reply and reports whether to keep reading. A method so
+// the tests drive this dispatch rather than a copy of it.
 func (s *Surface) take(seq string, pa *ansi.Parser) bool {
 	switch {
 	case ansi.HasOscPrefix(seq):
@@ -102,8 +78,6 @@ func (s *Surface) take(seq string, pa *ansi.Parser) bool {
 	return true
 }
 
-// oscColor reads the color out of an OSC 10 or 11 reply, whose data is the
-// command number and the color separated by a semicolon.
 func oscColor(pa *ansi.Parser) color.Color {
 	spec := afterSemicolon(string(pa.Data()))
 	if spec == "" {
@@ -112,9 +86,6 @@ func oscColor(pa *ansi.Parser) color.Color {
 	return ansi.XParseColor(spec)
 }
 
-// paletteColor reads the slot and the color out of an OSC 4 reply, whose data
-// is the command, the slot and the color separated by semicolons. The slot is
-// -1 where the reply did not parse, which matches nothing.
 func paletteColor(pa *ansi.Parser) (int, color.Color) {
 	rest := afterSemicolon(string(pa.Data()))
 	spec := afterSemicolon(rest)
@@ -139,14 +110,10 @@ func afterSemicolon(data string) string {
 }
 
 // read writes the query and feeds decoded sequences to filter until it returns
-// false or the timeout cancels the read. The reader is a cancellable one so the
-// timeout cannot leave a goroutine parked on the tty, eating the first key the
-// reader presses.
-//
-// The reply is drained to the filter's own stopping point rather than to the
-// last color parsed: leaving the device attributes in the buffer means raw mode
-// ends, echo comes back, and the terminal prints them before anything is drawn.
+// false or the timeout cancels the read.
 func read(in io.Reader, out io.Writer, query string, timeout time.Duration, filter func(string, *ansi.Parser) bool) {
+	// A cancellable reader, or the timeout leaves a goroutine parked on the tty
+	// eating the first key pressed.
 	rd, err := uv.NewCancelReader(in)
 	if err != nil {
 		return

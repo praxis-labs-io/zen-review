@@ -170,9 +170,7 @@ func (m Model) drawCard(c store.Comment, block [][]syntax.Token, placed bool) ([
 
 	at, width := m.cardBox()
 	if width < cardMin {
-		// Bold as well as filled, the way the tree marks its cursor row. A
-		// terminal that answered nothing leaves no fill to give, and the bare
-		// form has no border to light instead.
+		// The bare form has no border to light, so weight carries a missing fill.
 		return m.bareRow(c, placed, at, lipgloss.NewStyle()),
 			m.bareRow(c, placed, at, lipgloss.NewStyle().
 				Background(m.theme.SelectedBackground).Bold(true))

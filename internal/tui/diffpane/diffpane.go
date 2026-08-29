@@ -504,11 +504,8 @@ func (m Model) render(i int) (string, lipgloss.Style) {
 		bar = m.theme.Accent
 	}
 
-	// A theme that could offer no surface leaves a selected row painted exactly
-	// as the row above it, and the bar cannot stand in: it is what tells the
-	// cursor apart from the rest of the selection. Weight is asked for only
-	// where there is no fill, so a reader whose terminal answered sees the run
-	// they have always seen.
+	// With no fill a selected row paints as the row above it, and the bar
+	// cannot stand in: it tells the cursor from the rest of the selection.
 	weight := fill == nil && m.inSelection(i)
 
 	switch r.kind {

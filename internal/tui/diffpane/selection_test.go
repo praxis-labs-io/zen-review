@@ -300,13 +300,8 @@ func TestTheRootMovingTheCursorClearsTheSelection(t *testing.T) {
 	}
 }
 
-// A theme that could offer no surface leaves the fill nil, and the fill is the
-// only thing marking the rows of a selection the cursor is not on. The reader
-// presses v, moves down, and has to be able to see what the range covers before
-// pressing c. The bar cannot stand in: it says which row the next key moves from.
-//
-// The two panes end with the cursor on the same row, so the bar is in the same
-// place and the selection is the only thing left to tell them apart.
+// With no fill, nothing marks the selected rows the cursor is not on. Both panes
+// end on the same row, so the selection is all that can tell them apart.
 func TestASelectionStandsWithoutAFill(t *testing.T) {
 	bare := func(t *testing.T) diffpane.Model {
 		t.Helper()

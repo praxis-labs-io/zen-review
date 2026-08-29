@@ -21,8 +21,6 @@ func pane(t *testing.T, width, height int) tree.Model {
 	return themed(t, testtheme.Dark, width, height)
 }
 
-// themed opens the pane over a theme of the caller's choosing, which is what the
-// assertions about a terminal that answered nothing drive.
 func themed(t *testing.T, th theme.Theme, width, height int) tree.Model {
 	t.Helper()
 
@@ -147,10 +145,8 @@ func TestALevelSortsLikeAFileTree(t *testing.T) {
 // and a terminal that drops colour drops the fill with it: the reader presses j
 // and watches nothing move. Bold is not a colour and comes through.
 //
-// The surface-less theme is the case that matters and the one a fixture built
-// from a reported palette never reaches: a terminal that answered nothing has no
-// SelectedBackground at all, so bold is the whole of the cursor rather than a
-// second signal beside the fill.
+// Without a surface, bold is the whole of the cursor rather than a second
+// signal beside the fill.
 func TestTheCursorSurvivesATerminalWithoutColour(t *testing.T) {
 	for _, tc := range []struct {
 		name string

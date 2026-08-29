@@ -84,8 +84,7 @@ var hunks = []hunk{
 }
 
 func main() {
-	// The real derivation, so the demo shows the theme the reader would get:
-	// run it in a light terminal and a dark one to see both.
+	// The real derivation: a light terminal and a dark one show different screens.
 	t := theme.Terminal(theme.Query(os.Stdin, os.Stdout))
 
 	s, ok := syntax.New(t.Syntax)
