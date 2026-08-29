@@ -6,11 +6,13 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/praxis-labs-io/zen-review/internal/review"
 	"github.com/praxis-labs-io/zen-review/internal/store"
 	"github.com/praxis-labs-io/zen-review/internal/testchangeset"
 	"github.com/praxis-labs-io/zen-review/internal/tui/diffpane"
+	"github.com/praxis-labs-io/zen-review/internal/tui/theme"
 )
 
 var (
@@ -295,5 +297,40 @@ func TestTheRootMovingTheCursorClearsTheSelection(t *testing.T) {
 				t.Errorf("the selection outlived the cursor moving to %s", tt.name)
 			}
 		})
+	}
+}
+
+// A theme that could offer no surface leaves the fill nil, and the fill is the
+// only thing marking the rows of a selection the cursor is not on. The reader
+// presses v, moves down, and has to be able to see what the range covers before
+// pressing c. The bar cannot stand in: it says which row the next key moves from.
+//
+// The two panes end with the cursor on the same row, so the bar is in the same
+// place and the selection is the only thing left to tell them apart.
+func TestASelectionStandsWithoutAFill(t *testing.T) {
+	bare := func(t *testing.T) diffpane.Model {
+		t.Helper()
+
+		m := diffpane.New(theme.Terminal(theme.Surface{}))
+		m.SetSize(60, 10)
+		m.SetFile(fileAt(t, testchangeset.Nested(t), "internal/review/state.go"), nil, nil, 2)
+		m.Select(store.SideHead, 13)
+		return m
+	}
+
+	loose := press(t, bare(t), down, down, down)
+	held := press(t, bare(t), down, sel, down, down)
+
+	if _, on := held.Selected(); !on {
+		t.Fatal("the keys opened no selection, so the case never ran")
+	}
+	if loose.Cursor() != held.Cursor() {
+		t.Fatalf("the cursor is on %d and %d, so the two frames differ for another reason",
+			loose.Cursor(), held.Cursor())
+	}
+
+	if held.View() == loose.View() {
+		t.Errorf("the pane draws identically with a selection open, so nothing says what it covers:\n%s",
+			ansi.Strip(held.View()))
 	}
 }

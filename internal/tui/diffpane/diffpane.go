@@ -504,15 +504,22 @@ func (m Model) render(i int) (string, lipgloss.Style) {
 		bar = m.theme.Accent
 	}
 
+	// A theme that could offer no surface leaves a selected row painted exactly
+	// as the row above it, and the bar cannot stand in: it is what tells the
+	// cursor apart from the rest of the selection. Weight is asked for only
+	// where there is no fill, so a reader whose terminal answered sees the run
+	// they have always seen.
+	weight := fill == nil && m.inSelection(i)
+
 	switch r.kind {
 	case headRow:
 		return m.painter.HunkHeader(m.header(r.hunk, fill, bar), m.codeColumn(), m.width), lipgloss.NewStyle()
 	case codeRow:
 		if m.splitting() {
-			return m.halves(r, fill, bar), lipgloss.NewStyle()
+			return m.halves(r, fill, bar, weight), lipgloss.NewStyle()
 		}
 		l := r.line
-		l.Fill, l.Bar = fill, bar
+		l.Fill, l.Bar, l.Weight = fill, bar, weight
 		return m.painter.Line(l, m.gutter, m.width), lipgloss.NewStyle()
 	case cardRow:
 		// A card is one block, so a cursor anywhere in it lights the whole thing.

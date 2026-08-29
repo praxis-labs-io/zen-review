@@ -9,8 +9,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/charmbracelet/x/ansi"
 )
 
 // reply drives the decode half of Query over a canned terminal answer, which is
@@ -21,32 +19,12 @@ func reply(t *testing.T, answer string) Surface {
 }
 
 // collect is reply over any reader, for the cases that need one that does not
-// hand its whole answer over at once.
+// hand its whole answer over at once. It drives Query's own dispatch rather than
+// a copy of it, which is the only way these cases say anything about the code
+// that ships.
 func collect(in io.Reader, timeout time.Duration) Surface {
 	var s Surface
-	read(in, &bytes.Buffer{}, "", timeout, func(seq string, pa *ansi.Parser) bool {
-		switch {
-		case ansi.HasOscPrefix(seq):
-			switch pa.Command() {
-			case 4:
-				switch slot, c := paletteColor(pa); slot {
-				case int(slotRed):
-					s.Red = c
-				case int(slotGreen):
-					s.Green = c
-				}
-			case 10:
-				s.Foreground = oscColor(pa)
-			case 11:
-				s.Background = oscColor(pa)
-			}
-		case ansi.HasCsiPrefix(seq):
-			if pa.Command() == ansi.Command('?', 0, 'c') {
-				return false
-			}
-		}
-		return true
-	})
+	read(in, &bytes.Buffer{}, "", timeout, s.take)
 	return s
 }
 

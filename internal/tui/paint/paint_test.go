@@ -128,10 +128,10 @@ func TestFillBeatsTheKindTint(t *testing.T) {
 	line := paint.Line{Kind: paint.Added, New: 12, Tokens: []syntax.Token{{Text: "n = 4"}}, Fill: testTheme.SelectedBackground}
 	row := p.Line(line, 2, 40)
 
-	if !strings.Contains(row, bgSeq(testTheme.SelectedBackground)) {
+	if !strings.Contains(row, bgSeq(t, testTheme.SelectedBackground)) {
 		t.Error("the fill is not on the row")
 	}
-	if strings.Contains(row, bgSeq(testTheme.AddedBackground)) {
+	if strings.Contains(row, bgSeq(t, testTheme.AddedBackground)) {
 		t.Error("the added tint painted over the fill")
 	}
 }
@@ -276,14 +276,14 @@ func TestABadgeTakesItsOwnColour(t *testing.T) {
 	// The text is already accent, so subtle appearing at all is the badge and
 	// nothing else. That is what makes either direction here worth asserting.
 	plain := p.HunkHeader(paint.Header{Text: "@@ -1,2 +1,3 @@", Badge: "○"}, paint.CodeColumn(gutter), 60)
-	if strings.Contains(plain, fgSeq(testTheme.Subtle)) {
+	if strings.Contains(plain, fgSeq(t, testTheme.Subtle)) {
 		t.Errorf("a badge with no colour took one anyway: %q", plain)
 	}
 
 	own := p.HunkHeader(paint.Header{
 		Text: "@@ -1,2 +1,3 @@", Badge: "○", BadgeColor: testTheme.Subtle,
 	}, paint.CodeColumn(gutter), 60)
-	if !strings.Contains(own, fgSeq(testTheme.Subtle)) {
+	if !strings.Contains(own, fgSeq(t, testTheme.Subtle)) {
 		t.Errorf("the badge does not carry its own colour: %q", own)
 	}
 	if !strings.Contains(xansi.Strip(own), "○") {
@@ -298,7 +298,7 @@ func TestAHeaderTakesItsOwnTextColour(t *testing.T) {
 	gutter := paint.Gutter(9)
 
 	plain := p.HunkHeader(paint.Header{Text: "@@ -1,2 +1,3 @@", Marker: "\u25b8"}, paint.CodeColumn(gutter), 60)
-	if !strings.Contains(plain, fgSeq(testTheme.Accent)) {
+	if !strings.Contains(plain, fgSeq(t, testTheme.Accent)) {
 		t.Errorf("a header with no colour of its own is not accent: %q", plain)
 	}
 
@@ -307,10 +307,10 @@ func TestAHeaderTakesItsOwnTextColour(t *testing.T) {
 	own := p.HunkHeader(paint.Header{
 		Text: "@@ -1,2 +1,3 @@", Marker: "\u25b8", TextColor: testTheme.Muted,
 	}, paint.CodeColumn(gutter), 60)
-	if strings.Contains(own, fgSeq(testTheme.Accent)) {
+	if strings.Contains(own, fgSeq(t, testTheme.Accent)) {
 		t.Errorf("a dimmed header still paints accent somewhere: %q", own)
 	}
-	if !strings.Contains(own, fgSeq(testTheme.Muted)) {
+	if !strings.Contains(own, fgSeq(t, testTheme.Muted)) {
 		t.Errorf("the header does not carry its own colour: %q", own)
 	}
 	if !strings.Contains(xansi.Strip(own), "@@ -1,2 +1,3 @@") {
@@ -370,7 +370,7 @@ func TestAFilledHeaderIsPaintedToTheFullWidth(t *testing.T) {
 	if got := lipgloss.Width(header); got != 40 {
 		t.Errorf("header width = %d, want the full 40", got)
 	}
-	if !strings.Contains(header, bgSeq(testTheme.SelectedBackground)) {
+	if !strings.Contains(header, bgSeq(t, testTheme.SelectedBackground)) {
 		t.Error("the fill is not on the heading")
 	}
 }
@@ -437,7 +437,7 @@ func TestAFilledHeaderWiderThanThePaneKeepsItsFillToTheEdge(t *testing.T) {
 	if open < 0 {
 		t.Fatalf("the cut mark carries no style: %q", header)
 	}
-	if !strings.Contains(header[open:cut], bgSeq(testTheme.SelectedBackground)) {
+	if !strings.Contains(header[open:cut], bgSeq(t, testTheme.SelectedBackground)) {
 		t.Errorf("the cut mark lost the fill: %q", header)
 	}
 }
@@ -454,7 +454,7 @@ func TestRealChromaTokensPaintOverTheRowsBackground(t *testing.T) {
 	lines := s.Lines("a.go", "const n = 4")
 	row := p.Line(paint.Line{Kind: paint.Added, New: 12, Tokens: lines[0]}, 2, 40)
 
-	if got := strings.Count(row, bgSeq(testTheme.AddedBackground)); got < 3 {
+	if got := strings.Count(row, bgSeq(t, testTheme.AddedBackground)); got < 3 {
 		t.Errorf("the tint survives %d runs, want it under every token", got)
 	}
 	if got := xansi.Strip(row); !strings.Contains(got, "const n = 4") {
@@ -462,20 +462,31 @@ func TestRealChromaTokensPaintOverTheRowsBackground(t *testing.T) {
 	}
 }
 
-func bgSeq(c color.Color) string { return sgrParams(lipgloss.NewStyle().Background(c)) }
+func bgSeq(t *testing.T, c color.Color) string {
+	t.Helper()
+	return sgrParams(t, lipgloss.NewStyle().Background(c))
+}
 
-func fgSeq(c color.Color) string { return sgrParams(lipgloss.NewStyle().Foreground(c)) }
+func fgSeq(t *testing.T, c color.Color) string {
+	t.Helper()
+	return sgrParams(t, lipgloss.NewStyle().Foreground(c))
+}
 
 // sgrParams is what a color actually paints as, taken from Lipgloss rather than
 // built out of RGBA(): a slot's RGBA() is its canonical value and never the
 // sequence the terminal is sent, so a hand-built one would look for truecolor
 // where a 34 was written.
-func sgrParams(s lipgloss.Style) string {
+//
+// A color that writes no escape at all fails the test rather than answering
+// with the empty string, which every strings.Contains in the file would take
+// for a match.
+func sgrParams(t *testing.T, s lipgloss.Style) string {
+	t.Helper()
+
 	out := s.Render("x")
 	end := strings.Index(out, "m")
 	if end < 0 {
-		// NoColor is the terminal's own, and nothing is written for it.
-		return ""
+		t.Fatalf("lipgloss wrote no escape for the style, so there is nothing to look for: %q", out)
 	}
 	return out[len("\x1b["):end]
 }

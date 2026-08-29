@@ -37,12 +37,13 @@ func requestPalette(slot int) string {
 	return fmt.Sprintf("\x1b]4;%d;?\x07", slot)
 }
 
-// Query asks the terminal for its background and foreground.
+// Query asks the terminal for its background, its foreground and the two palette
+// slots the diff tints lean on.
 //
 // lipgloss has this for the background alone and does not export the machinery,
 // and the foreground is what the shades want to travel toward: blended toward
 // pure white or black instead they sit on a different axis from the reader's own
-// text. So the pair is asked for together, over one round trip.
+// text. So the four are asked for together, over one round trip.
 //
 // It must run before Bubble Tea takes the tty, and it puts the terminal in raw
 // mode for the length of the exchange.
@@ -69,30 +70,36 @@ func Query(in, out *os.File) Surface {
 		requestPalette(int(slotRed)) + requestPalette(int(slotGreen)) +
 		ansi.RequestPrimaryDeviceAttributes
 
-	read(in, out, query, queryTimeout, func(seq string, pa *ansi.Parser) bool {
-		switch {
-		case ansi.HasOscPrefix(seq):
-			switch pa.Command() {
-			case 4:
-				switch slot, c := paletteColor(pa); slot {
-				case int(slotRed):
-					s.Red = c
-				case int(slotGreen):
-					s.Green = c
-				}
-			case 10:
-				s.Foreground = oscColor(pa)
-			case 11:
-				s.Background = oscColor(pa)
-			}
-		case ansi.HasCsiPrefix(seq):
-			if pa.Command() == ansi.Command('?', 0, 'c') {
-				return false
-			}
-		}
-		return true
-	})
+	read(in, out, query, queryTimeout, s.take)
 	return s
+}
+
+// take files one decoded reply and reports whether to keep reading. It is a
+// method rather than a closure so a test drives the same dispatch the terminal
+// does: a test that reimplemented it would stay green through 10 and 11 being
+// swapped, and the shipped app would derive its greys from the background.
+func (s *Surface) take(seq string, pa *ansi.Parser) bool {
+	switch {
+	case ansi.HasOscPrefix(seq):
+		switch pa.Command() {
+		case 4:
+			switch slot, c := paletteColor(pa); slot {
+			case int(slotRed):
+				s.Red = c
+			case int(slotGreen):
+				s.Green = c
+			}
+		case 10:
+			s.Foreground = oscColor(pa)
+		case 11:
+			s.Background = oscColor(pa)
+		}
+	case ansi.HasCsiPrefix(seq):
+		if pa.Command() == ansi.Command('?', 0, 'c') {
+			return false
+		}
+	}
+	return true
 }
 
 // oscColor reads the color out of an OSC 10 or 11 reply, whose data is the
