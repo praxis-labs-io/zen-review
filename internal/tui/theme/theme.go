@@ -92,7 +92,8 @@ const (
 )
 
 // The floor keeps a pale hue from reaching the distance in so few percent that
-// the row reads grey. The ceiling is loose: the distance is what bounds a tint.
+// the row reads grey. The ceiling binds where a hue sits at the background's own
+// weight, canonical red over a dark page being the case that matters.
 const (
 	minHueLift = 0.14
 	maxLift    = 0.5

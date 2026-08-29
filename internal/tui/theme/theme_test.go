@@ -330,13 +330,38 @@ func TestATintIsPerceptibleOnEverySurface(t *testing.T) {
 	}
 }
 
+// Canonical red sits at a dark page's own weight, so where the terminal answered
+// for no palette the removed tint leans without lifting. This is the fallback
+// the OSC 4 request exists to avoid, and it is pinned rather than asserted away.
+func TestTheCanonicalFallbackLeansWithoutLifting(t *testing.T) {
+	for _, bg := range []string{"#232136", "#282828", "#2b2b2b"} {
+		t.Run(bg, func(t *testing.T) {
+			base := lipgloss.Color(bg)
+			th := theme.Terminal(theme.Surface{Background: base, Foreground: darkFG})
+
+			br, bgr, bb := rgb(base)
+			rr, rg, rb := rgb(th.RemovedBackground)
+			if moved := max(abs(rr-br), abs(rg-bgr), abs(rb-bb)); moved < 10 {
+				t.Errorf("RemovedBackground is %d,%d,%d over %d,%d,%d, moving %d: the row does not read as red",
+					rr, rg, rb, br, bgr, bb, moved)
+			}
+			if rr <= rg || rr <= rb {
+				t.Errorf("RemovedBackground = %d,%d,%d, want red to lead so the lean survives the flat luma", rr, rg, rb)
+			}
+			if got := luma(th.AddedBackground) - luma(base); got < 8 {
+				t.Errorf("AddedBackground lifted %.1f, want the fallback green to still clear the page", got)
+			}
+		})
+	}
+}
+
 // A reader scanning a hunk reads the block before the marker in it.
 func TestTheTwoTintsNeverCollapseTogether(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		s    theme.Surface
 	}{
-		{"dark", dark},
+		{"dark", withPalette(dark, "#eb6f92", "#3e8fb0")},
 		{"light", light},
 		{"blue-heavy background", mocha},
 		{"olive hues", gruvbox},
