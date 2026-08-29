@@ -13,7 +13,6 @@ import (
 
 	"github.com/praxis-labs-io/zen-review/internal/review"
 	"github.com/praxis-labs-io/zen-review/internal/tui/app"
-	"github.com/praxis-labs-io/zen-review/internal/tui/theme"
 )
 
 // runRoot is a bare zen-review: the reader on a terminal, the printed
@@ -260,5 +259,5 @@ func runTUI(cmd *cobra.Command, opts *options) (err error) {
 		return err
 	}
 
-	return app.Run(cmd.Context(), theme.RosePineMoon, src, s.Repo(), r)
+	return app.Run(cmd.Context(), src, s.Repo(), r)
 }

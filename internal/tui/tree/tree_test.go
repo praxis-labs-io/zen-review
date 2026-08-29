@@ -11,14 +11,20 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/praxis-labs-io/zen-review/internal/testchangeset"
+	"github.com/praxis-labs-io/zen-review/internal/tui/testtheme"
 	"github.com/praxis-labs-io/zen-review/internal/tui/theme"
 	"github.com/praxis-labs-io/zen-review/internal/tui/tree"
 )
 
 func pane(t *testing.T, width, height int) tree.Model {
 	t.Helper()
+	return themed(t, testtheme.Dark, width, height)
+}
 
-	m := tree.New(theme.RosePineMoon, testchangeset.Nested(t))
+func themed(t *testing.T, th theme.Theme, width, height int) tree.Model {
+	t.Helper()
+
+	m := tree.New(th, testchangeset.Nested(t))
 	m.SetSize(width, height)
 	m.Focus()
 	return m
@@ -54,7 +60,7 @@ func fill(c color.Color) string {
 func cursored(t *testing.T, m tree.Model, i int) bool {
 	t.Helper()
 	raw := strings.Split(m.View(), "\n")[topPadLines:]
-	return strings.Contains(raw[i], fill(theme.RosePineMoon.SelectedBackground))
+	return strings.Contains(raw[i], fill(testtheme.Dark.SelectedBackground))
 }
 
 func press(t *testing.T, m tree.Model, keys ...string) (tree.Model, tea.Cmd) {
@@ -113,7 +119,7 @@ func TestALevelSortsLikeAFileTree(t *testing.T) {
 			"--- a/" + p + "\n+++ b/" + p + "\n@@ -1 +1 @@\n-old\n+new\n"
 	}
 
-	m := tree.New(theme.RosePineMoon, testchangeset.Derive(t, patch))
+	m := tree.New(testtheme.Dark, testchangeset.Derive(t, patch))
 	m.SetSize(40, 20)
 
 	// Byte order does the work: "." sorts below every letter and upper case
@@ -138,20 +144,32 @@ func TestALevelSortsLikeAFileTree(t *testing.T) {
 // TestTheCursorSurvivesATerminalWithoutColour. The row is a filled background,
 // and a terminal that drops colour drops the fill with it: the reader presses j
 // and watches nothing move. Bold is not a colour and comes through.
+//
+// Without a surface, bold is the whole of the cursor rather than a second
+// signal beside the fill.
 func TestTheCursorSurvivesATerminalWithoutColour(t *testing.T) {
-	th := theme.RosePineMoon
-	m, _ := press(t, pane(t, 32, 20), "j")
+	for _, tc := range []struct {
+		name string
+		th   theme.Theme
+	}{
+		{"palette reported", testtheme.Dark},
+		{"nothing answered", testtheme.Bare},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m, _ := press(t, themed(t, tc.th, 32, 20), "j")
 
-	on := lipgloss.NewStyle().
-		Background(th.SelectedBackground).Foreground(th.Text).Bold(true).Render("logo.png")
-	off := lipgloss.NewStyle().Foreground(th.Text).Bold(true).Render("README.md")
+			on := lipgloss.NewStyle().
+				Background(tc.th.SelectedBackground).Foreground(tc.th.Text).Bold(true).Render("logo.png")
+			off := lipgloss.NewStyle().Foreground(tc.th.Text).Bold(true).Render("README.md")
 
-	view := m.View()
-	if !strings.Contains(view, on) {
-		t.Errorf("the row under the cursor is not bold, so a terminal without colour shows no cursor")
-	}
-	if strings.Contains(view, off) {
-		t.Errorf("a row the cursor is not on is bold")
+			view := m.View()
+			if !strings.Contains(view, on) {
+				t.Errorf("the row under the cursor is not bold, so a terminal without colour shows no cursor")
+			}
+			if strings.Contains(view, off) {
+				t.Errorf("a row the cursor is not on is bold")
+			}
+		})
 	}
 }
 
@@ -166,7 +184,7 @@ func TestOneRowShowsTheRowAndNotAPad(t *testing.T) {
 +one
 `
 
-	m := tree.New(theme.RosePineMoon, testchangeset.Derive(t, patch))
+	m := tree.New(testtheme.Dark, testchangeset.Derive(t, patch))
 	m.SetSize(32, 1)
 	m.Focus()
 
@@ -319,7 +337,7 @@ rename from old_name_here.go
 rename to new_name_here.go
 `
 
-	m := tree.New(theme.RosePineMoon, testchangeset.Derive(t, patch))
+	m := tree.New(testtheme.Dark, testchangeset.Derive(t, patch))
 	m.SetSize(32, 4)
 	m.Focus()
 
@@ -345,7 +363,7 @@ func TestAControlCharacterInAPathCannotBreakTheRow(t *testing.T) {
 		"@@ -0,0 +1 @@\n" +
 		"+package two\n"
 
-	m := tree.New(theme.RosePineMoon, testchangeset.Derive(t, patch))
+	m := tree.New(testtheme.Dark, testchangeset.Derive(t, patch))
 	m.SetSize(32, 4)
 	m.Focus()
 
@@ -374,7 +392,7 @@ func TestTheTreeDrawsTheOrderItWasGiven(t *testing.T) {
 	c := testchangeset.Nested(t)
 	slices.Reverse(c.Files)
 
-	m := tree.New(theme.RosePineMoon, c)
+	m := tree.New(testtheme.Dark, c)
 	m.SetSize(40, 20)
 
 	// The top level of the reversed list, in the order it arrived. Sorted, it
@@ -454,7 +472,7 @@ func TestAFoldSurvivesTheChainCollapsingUnderIt(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := tree.New(theme.RosePineMoon, testchangeset.Derive(t, tt.from))
+			m := tree.New(testtheme.Dark, testchangeset.Derive(t, tt.from))
 			m.SetSize(40, 20)
 
 			if !fold(t, &m, tt.fold) {

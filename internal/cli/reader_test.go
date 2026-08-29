@@ -14,7 +14,7 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/review"
 	"github.com/praxis-labs-io/zen-review/internal/testrepo"
 	"github.com/praxis-labs-io/zen-review/internal/tui/app"
-	"github.com/praxis-labs-io/zen-review/internal/tui/theme"
+	"github.com/praxis-labs-io/zen-review/internal/tui/testtheme"
 )
 
 // reader is app.Model over a live session, with the runtime's job done by hand:
@@ -54,7 +54,7 @@ func driving(t *testing.T, repo *testrepo.Repo) *reader {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r.m = app.New(theme.RosePineMoon, src, s.Repo(), first)
+	r.m = app.New(testtheme.Dark, src, s.Repo(), first)
 
 	r.send(tea.WindowSizeMsg{Width: 120, Height: 40})
 	return r

@@ -8,10 +8,10 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/praxis-labs-io/zen-review/internal/tui/comp"
-	"github.com/praxis-labs-io/zen-review/internal/tui/theme"
+	"github.com/praxis-labs-io/zen-review/internal/tui/testtheme"
 )
 
-func pane() comp.Pane { return comp.NewPane(theme.RosePineMoon) }
+func pane() comp.Pane { return comp.NewPane(testtheme.Dark) }
 
 // strip is the frame as a golden would hold it: the box drawn, the colour gone.
 func strip(rendered string) []string {
@@ -72,7 +72,7 @@ func TestTheBorderCarriesTheIndexAndTheTitle(t *testing.T) {
 // panes half-focused rather than one focused pane, so the index, the title and
 // the border move together.
 func TestTheHeadingAnswersToFocus(t *testing.T) {
-	t2 := theme.RosePineMoon
+	t2 := testtheme.Dark
 
 	lit := map[string]string{
 		"corner": lipgloss.NewStyle().Foreground(t2.Accent).Render("╭"),
@@ -160,7 +160,7 @@ func TestTheFooterSitsInTheBottomBorder(t *testing.T) {
 // cut short by the first reset inside it if the pane restyled it, which is how
 // a churn count loses everything after its additions.
 func TestTheFooterIsDrawnAsItWasGiven(t *testing.T) {
-	churn := comp.Churn(lipgloss.NewStyle(), theme.RosePineMoon, 630, 105)
+	churn := comp.Churn(lipgloss.NewStyle(), testtheme.Dark, 630, 105)
 
 	bottom := strings.Split(pane().Size(30, 4).Footer("", churn).Render(""), "\n")[3]
 	if !strings.Contains(bottom, churn) {
@@ -170,10 +170,10 @@ func TestTheFooterIsDrawnAsItWasGiven(t *testing.T) {
 
 // TestChurnSaysWhichWayItWent, rather than one grey for both halves.
 func TestChurnSaysWhichWayItWent(t *testing.T) {
-	got := comp.Churn(lipgloss.NewStyle(), theme.RosePineMoon, 630, 105)
+	got := comp.Churn(lipgloss.NewStyle(), testtheme.Dark, 630, 105)
 
-	added := lipgloss.NewStyle().Foreground(theme.RosePineMoon.Success).Render("+630")
-	removed := lipgloss.NewStyle().Foreground(theme.RosePineMoon.Error).Render("-105")
+	added := lipgloss.NewStyle().Foreground(testtheme.Dark.Success).Render("+630")
+	removed := lipgloss.NewStyle().Foreground(testtheme.Dark.Error).Render("-105")
 
 	if !strings.Contains(got, added) {
 		t.Errorf("the additions are not in the success colour: %q", got)

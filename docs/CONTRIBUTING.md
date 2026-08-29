@@ -54,7 +54,7 @@ internal/
   store/          SQLite and migrations
   cli/            the subcommands. A thin shell over review/
   tui/            app, tree, diffpane, compose, comp
-  tui/theme/      the palette
+  tui/theme/      the palette, derived from the terminal
   tui/syntax/     Chroma tokens, not rendered text
   tui/paint/      the diff-line painter. Pure functions
 ```
@@ -79,6 +79,12 @@ TUI running?** If not, the logic is in the wrong package.
 
 Everything styles from the `theme.Theme` it was handed. A colour that is not in
 the struct means the struct needs a field, not a hardcoded Lipgloss value.
+
+There is one theme and it is derived rather than written down: the hues are ANSI
+slots and the shades are blended off the background the terminal reports at
+launch. A colour's spelling is load-bearing. A slot may be painted, because the
+terminal maps it; a slot must never be blended, because `RGBA()` on one is its
+canonical value and not what the reader would see.
 
 ## Tests
 

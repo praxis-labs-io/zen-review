@@ -7,7 +7,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/praxis-labs-io/zen-review/internal/tui/compose"
-	"github.com/praxis-labs-io/zen-review/internal/tui/theme"
+	"github.com/praxis-labs-io/zen-review/internal/tui/testtheme"
 )
 
 // TestTheBoxNeverOutgrowsTheFrame. Over clips what does not fit, and a clipped
@@ -27,7 +27,7 @@ func TestTheBoxNeverOutgrowsTheFrame(t *testing.T) {
 	body := strings.Repeat("a body long enough to wrap more than once. ", 8)
 
 	for _, size := range sizes {
-		m := compose.New(theme.RosePineMoon)
+		m := compose.New(testtheme.Dark)
 		m.SetSize(size.width, size.height)
 		m.Open("Session note", body)
 
@@ -39,7 +39,7 @@ func TestTheBoxNeverOutgrowsTheFrame(t *testing.T) {
 
 	// A textarea has a size of its own, so a box opened before the first resize
 	// would draw at that size on a frame with no room reported for it yet.
-	unsized := compose.New(theme.RosePineMoon)
+	unsized := compose.New(testtheme.Dark)
 	unsized.Open("Session note", body)
 
 	if got := unsized.View(); got != "" {
@@ -49,7 +49,7 @@ func TestTheBoxNeverOutgrowsTheFrame(t *testing.T) {
 
 // TestAClosedBoxDrawsNothing, so the root can render it without asking first.
 func TestAClosedBoxDrawsNothing(t *testing.T) {
-	m := compose.New(theme.RosePineMoon)
+	m := compose.New(testtheme.Dark)
 	m.SetSize(100, 24)
 
 	if got := m.View(); got != "" {
@@ -70,7 +70,7 @@ func TestAClosedBoxDrawsNothing(t *testing.T) {
 // TestTheCursorStaysInsideTheFrame. A box on a frame with no room for its own
 // chrome would put the terminal's cursor off the screen, where it parks anywhere.
 func TestTheCursorStaysInsideTheFrame(t *testing.T) {
-	m := compose.New(theme.RosePineMoon)
+	m := compose.New(testtheme.Dark)
 	m.SetSize(2, 2)
 	m.Open("Comment on a.go:1", "hi")
 

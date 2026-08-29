@@ -40,6 +40,9 @@ type Line struct {
 	// Bar paints the leading cell, and nil leaves it blank. A tint says a row is
 	// lit and a bar says where it starts, which is what an eye follows.
 	Bar color.Color
+
+	// Weight marks a row the caller has no Fill to mark it with.
+	Weight bool
 }
 
 // Painter paints rows from one theme.
@@ -56,7 +59,7 @@ func (p Painter) Line(l Line, gutter, width int) string {
 		tint = l.Fill
 	}
 
-	base := background(lipgloss.NewStyle(), tint)
+	base := background(lipgloss.NewStyle(), tint).Bold(l.Weight)
 	kind := base.Foreground(c)
 	faint := base.Foreground(p.Theme.Subtle)
 
@@ -108,7 +111,7 @@ func (p Painter) Half(l Line, gutter, width int) string {
 		tint = l.Fill
 	}
 
-	base := background(lipgloss.NewStyle(), tint)
+	base := background(lipgloss.NewStyle(), tint).Bold(l.Weight)
 	kind := base.Foreground(c)
 
 	num := base.Foreground(p.Theme.Subtle)

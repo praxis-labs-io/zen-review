@@ -65,6 +65,14 @@ A nil color field means "leave the terminal's own showing". Guard for it rather
 than passing it to Lipgloss, or a transparent background stops being
 transparent.
 
+**A colour's spelling is load-bearing.** The theme is derived from the terminal,
+so a hue is an ANSI slot and a slot only follows the reader's palette for as
+long as it reaches the terminal as one. A slot may be painted; a slot must never
+be blended, hexed, or otherwise flattened through `RGBA()`, which answers with
+its canonical value and not with what the terminal mapped it to. A test that
+builds an escape by hand out of `RGBA()` is asserting against a colour nobody
+sees; render the style and read the parameters back.
+
 Diff rows come from `paint`, and every exported function there is pure: same
 arguments, same string. A second line painter anywhere else is the drift the
 package exists to prevent.

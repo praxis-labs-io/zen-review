@@ -170,8 +170,10 @@ func (m Model) drawCard(c store.Comment, block [][]syntax.Token, placed bool) ([
 
 	at, width := m.cardBox()
 	if width < cardMin {
+		// The bare form has no border to light, so weight carries a missing fill.
 		return m.bareRow(c, placed, at, lipgloss.NewStyle()),
-			m.bareRow(c, placed, at, lipgloss.NewStyle().Background(m.theme.SelectedBackground))
+			m.bareRow(c, placed, at, lipgloss.NewStyle().
+				Background(m.theme.SelectedBackground).Bold(true))
 	}
 
 	// The box being typed in is always lit and names its own two keys, because
