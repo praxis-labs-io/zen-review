@@ -121,9 +121,13 @@ func Terminal(s Surface) Theme {
 	}
 
 	if bg == nil {
-		// Nothing to blend against. Slots are the fallback because there is
-		// nothing better, not because they are good.
-		t.Subtle, t.Muted = slotWhite, slotGrey
+		// Nothing to blend against, and no slot is safe on both a light
+		// terminal and a dark one: 7 disappears into a light background and 8
+		// may be undeclared or collapsed onto 0. Text a reader has to read
+		// takes the terminal's own foreground, which is legible by
+		// construction. Borders are drawn runes and take the grey: a frame that
+		// went missing would be visible, where unreadable labels are not.
+		t.Subtle, t.Muted = lipgloss.NoColor{}, lipgloss.NoColor{}
 		t.Border, t.BorderSubtle, t.BorderMuted = slotGrey, slotGrey, slotGrey
 		t.Inverted = slotBlack
 		return t

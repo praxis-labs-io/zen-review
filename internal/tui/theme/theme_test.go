@@ -413,8 +413,6 @@ func TestNoBackgroundPinsNothing(t *testing.T) {
 		"Warning":      th.Warning,
 		"Error":        th.Error,
 		"Actor":        th.Actor,
-		"Subtle":       th.Subtle,
-		"Muted":        th.Muted,
 		"Inverted":     th.Inverted,
 		"Border":       th.Border,
 		"BorderSubtle": th.BorderSubtle,
@@ -424,8 +422,22 @@ func TestNoBackgroundPinsNothing(t *testing.T) {
 			t.Errorf("%s = %T, want a slot the terminal maps", name, c)
 		}
 	}
-	if !isNoColor(th.Text) {
-		t.Errorf("Text = %T, want NoColor", th.Text)
+	for name, c := range map[string]color.Color{"Text": th.Text, "Subtle": th.Subtle, "Muted": th.Muted} {
+		if !isNoColor(c) {
+			t.Errorf("%s = %T, want NoColor", name, c)
+		}
+	}
+}
+
+// Slot 7 disappears into a light background and slot 8 may be undeclared or
+// collapsed onto slot 0, so neither can carry text a reader has to read.
+func TestTextWeightsTakeNoSlotWithoutABackground(t *testing.T) {
+	th := theme.Terminal(theme.Surface{})
+
+	for name, c := range map[string]color.Color{"Subtle": th.Subtle, "Muted": th.Muted} {
+		if got, ok := c.(xansi.BasicColor); ok {
+			t.Errorf("%s = slot %d, which the terminal is free to leave invisible", name, got)
+		}
 	}
 }
 

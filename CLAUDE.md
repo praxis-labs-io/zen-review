@@ -121,8 +121,12 @@ to keep true:
   can see and would cost a translucent terminal its translucency.
 - Nothing answered is not the same as a guess. The three surfaces go nil rather
   than take a slot: slot 0 is the background on a great many dark palettes, so a
-  selection painted in it is invisible exactly where it was needed. Borders are
-  drawn runes rather than fills and still take one.
+  selection painted in it is invisible exactly where it was needed.
+- No slot is safe on both a light terminal and a dark one, so with no background
+  reported the text weights take `NoColor` rather than one. Slot 7 disappears
+  into a light background and slot 8 may be undeclared or collapsed onto slot 0.
+  Borders keep the grey: a frame that went missing is visible, where a label a
+  reader cannot read is not.
 - The query runs in `app.Run`, before Bubble Tea takes the tty, and it drains to
   the device attributes. Stopping at the last colour leaves them buffered, and
   the terminal echoes them the moment raw mode ends. The reader is a cancellable
