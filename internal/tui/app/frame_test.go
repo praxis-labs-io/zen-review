@@ -13,6 +13,7 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/store"
 	"github.com/praxis-labs-io/zen-review/internal/testchangeset"
 	"github.com/praxis-labs-io/zen-review/internal/tui/app"
+	"github.com/praxis-labs-io/zen-review/internal/tui/testtheme"
 	"github.com/praxis-labs-io/zen-review/internal/tui/theme"
 )
 
@@ -193,7 +194,7 @@ func replacing(t *testing.T, width, height int, block ...string) *screen {
 	}
 
 	src := &source{at: r}
-	s := &screen{t: t, m: app.New(testTheme, src, "zen-review", r), src: src}
+	s := &screen{t: t, m: app.New(testtheme.Dark, src, "zen-review", r), src: src}
 	s.send(tea.WindowSizeMsg{Width: width, Height: height})
 	return s
 }
@@ -217,7 +218,7 @@ func measured(t *testing.T, base review.Base, c review.Changeset, width, height 
 
 	r := app.Reload{Base: base, Generation: review.Generation{ID: 2, Seq: 2}, Changeset: c}
 	src := &source{at: r}
-	s := &screen{t: t, m: app.New(testTheme, src, "zen-review", r), src: src}
+	s := &screen{t: t, m: app.New(testtheme.Dark, src, "zen-review", r), src: src}
 	s.send(tea.WindowSizeMsg{Width: width, Height: height})
 	return s
 }
@@ -236,7 +237,7 @@ func with(t *testing.T, repo string, c review.Changeset, comments []store.Commen
 	}
 
 	src := &source{at: r}
-	s := &screen{t: t, m: app.New(testTheme, src, repo, r), src: src}
+	s := &screen{t: t, m: app.New(testtheme.Dark, src, repo, r), src: src}
 	s.send(tea.WindowSizeMsg{Width: width, Height: height})
 	return s
 }

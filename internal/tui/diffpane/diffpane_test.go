@@ -13,7 +13,7 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/testchangeset"
 	"github.com/praxis-labs-io/zen-review/internal/tui/diffpane"
 	"github.com/praxis-labs-io/zen-review/internal/tui/syntax"
-	"github.com/praxis-labs-io/zen-review/internal/tui/theme"
+	"github.com/praxis-labs-io/zen-review/internal/tui/testtheme"
 )
 
 // mark is the caret the pane puts on the heading the ring is on, written as an
@@ -36,7 +36,7 @@ func commented(t *testing.T, path string, width, height int, comments ...store.C
 	t.Helper()
 
 	c := testchangeset.Nested(t)
-	m := diffpane.New(testTheme)
+	m := diffpane.New(testtheme.Dark)
 	m.SetSize(width, height)
 	m.SetFile(fileAt(t, c, path), comments, nil, 2)
 	return m
@@ -165,7 +165,7 @@ func TestSourceCannotWriteToTheTerminal(t *testing.T) {
 		"+const shout = \"\x1b[31mred\x1b[0m\a\"\n"
 
 	c := testchangeset.Derive(t, patch)
-	m := diffpane.New(testTheme)
+	m := diffpane.New(testtheme.Dark)
 	m.SetSize(60, 4)
 	m.SetFile(&c.Files[0], nil, nil, 2)
 
@@ -191,7 +191,7 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 `
 
 	c := testchangeset.Derive(t, patch)
-	m := diffpane.New(testTheme)
+	m := diffpane.New(testtheme.Dark)
 	m.SetSize(60, 6)
 	m.SetFile(&c.Files[0], nil, nil, 2)
 
@@ -225,9 +225,9 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 +package run
 `
 
-	s, ok := syntax.New(testTheme.Syntax)
+	s, ok := syntax.New(testtheme.Dark.Syntax)
 	if !ok {
-		t.Fatalf("the theme names a Chroma style Chroma does not have: %q", testTheme.Syntax)
+		t.Fatalf("the theme names a Chroma style Chroma does not have: %q", testtheme.Dark.Syntax)
 	}
 
 	// Python reads the line as one comment. Go has no comment starting with a
@@ -239,12 +239,12 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 	}
 
 	c := testchangeset.Derive(t, patch)
-	m := diffpane.New(testTheme)
+	m := diffpane.New(testtheme.Dark)
 	m.SetSize(60, 4)
 	m.SetFile(&c.Files[0], nil, nil, 2)
 
 	want := lipgloss.NewStyle().
-		Background(testTheme.RemovedBackground).
+		Background(testtheme.Dark.RemovedBackground).
 		Foreground(tokens[0].Color).
 		Render(comment)
 
@@ -256,9 +256,9 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 // TestCodeIsHighlighted, on a context row so the kind's own tint is not in the
 // way. A stripped frame cannot see a colour, so this reads the raw one.
 func TestCodeIsHighlighted(t *testing.T) {
-	s, ok := syntax.New(testTheme.Syntax)
+	s, ok := syntax.New(testtheme.Dark.Syntax)
 	if !ok {
-		t.Fatalf("the theme names a Chroma style Chroma does not have: %q", testTheme.Syntax)
+		t.Fatalf("the theme names a Chroma style Chroma does not have: %q", testtheme.Dark.Syntax)
 	}
 
 	keyword := s.Lines(twoHunks, "type State string")[0][0]
@@ -341,7 +341,7 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 `
 
 	c := testchangeset.Derive(t, patch)
-	m := diffpane.New(testTheme)
+	m := diffpane.New(testtheme.Dark)
 	m.SetSize(60, 4)
 	m.SetFile(&c.Files[0], nil, nil, 2)
 
@@ -445,7 +445,7 @@ func TestTheFirstSizingScrollsToTheCursor(t *testing.T) {
 
 	// Sized after the cursor is set, the way the root builds it: New, then the
 	// terminal says how big it is.
-	m := diffpane.New(testTheme)
+	m := diffpane.New(testtheme.Dark)
 	m.SetFile(fileAt(t, c, twoHunks), nil, nil, 2)
 	m.Select(store.SideHead, 124)
 	m.SetSize(60, 8)
@@ -471,7 +471,7 @@ func filled(t *testing.T, m diffpane.Model) string {
 func filledRows(t *testing.T, m diffpane.Model) []string {
 	t.Helper()
 
-	fill := params(t, lipgloss.NewStyle().Background(testTheme.SelectedBackground))
+	fill := params(t, lipgloss.NewStyle().Background(testtheme.Dark.SelectedBackground))
 
 	var out []string
 	for _, line := range strings.Split(m.View(), "\n") {
@@ -897,7 +897,7 @@ func TestTheResponseBoxIsTwoColumnsInsideTheCard(t *testing.T) {
 // on it. A stripped frame cannot see a colour, so this reads the escapes.
 func TestTheResponseBoxNeverLights(t *testing.T) {
 	m := cards(t, twoHunks, 76, 60)
-	accent := params(t, lipgloss.NewStyle().Foreground(testTheme.Accent))
+	accent := params(t, lipgloss.NewStyle().Foreground(testtheme.Dark.Accent))
 
 	for range 60 {
 		m = press(t, m, down)
@@ -1106,7 +1106,7 @@ func TestJStepsOverACardInOnePress(t *testing.T) {
 // colour, and the border is the only thing saying where the keys are.
 func TestACardTakesTheAccentBorderUnderTheCursor(t *testing.T) {
 	m := cards(t, "README.md", 76, 20)
-	accent := params(t, lipgloss.NewStyle().Foreground(testTheme.Accent))
+	accent := params(t, lipgloss.NewStyle().Foreground(testtheme.Dark.Accent))
 
 	// The bottom border, because the top one carries the badge and an open
 	// comment's badge is the accent whether the cursor is on it or not.
@@ -1192,7 +1192,7 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 	c := testchangeset.Derive(t, patch)
 	old := testchangeset.OnBase(testchangeset.Comment("111111111111", "run.py", 1, 1, "python is gone"))
 
-	m := diffpane.New(testTheme)
+	m := diffpane.New(testtheme.Dark)
 	m.SetSize(76, 10)
 	m.SetFile(&c.Files[0], []store.Comment{old}, nil, 2)
 
@@ -1226,7 +1226,7 @@ func TestACommentFrozenAtAnOlderGenerationDrawsWhereItPointed(t *testing.T) {
 	stale.GenerationID = 1
 
 	c := testchangeset.Nested(t)
-	m := diffpane.New(testTheme)
+	m := diffpane.New(testtheme.Dark)
 	m.SetSize(76, 30)
 	m.SetFile(fileAt(t, c, twoHunks), []store.Comment{stale}, nil, 2)
 
@@ -1243,7 +1243,7 @@ func TestACommentFrozenAtThisGenerationStaysWhereItIs(t *testing.T) {
 		store.CommentResolved)
 
 	c := testchangeset.Nested(t)
-	m := diffpane.New(testTheme)
+	m := diffpane.New(testtheme.Dark)
 	m.SetSize(76, 30)
 	m.SetFile(fileAt(t, c, twoHunks), []store.Comment{settled}, nil, 2)
 
@@ -1420,7 +1420,7 @@ func blocked(t *testing.T, comments []store.Comment, width, height int, block ..
 	t.Helper()
 
 	c := testchangeset.Nested(t)
-	m := diffpane.New(testTheme)
+	m := diffpane.New(testtheme.Dark)
 	m.SetSize(width, height)
 	m.SetFile(fileAt(t, c, twoHunks), comments, map[string][]string{respondedCard: block}, 2)
 	return m
@@ -1571,7 +1571,7 @@ func TestABlockStaysInsideTheBox(t *testing.T) {
 // so the tint is asserted against the theme beside the golden that holds the row.
 func TestTheBlockIsPaintedAsTheRemovalsItIs(t *testing.T) {
 	m := replacing(t, 76, 60, "files := d.Files()")
-	removed := params(t, lipgloss.NewStyle().Background(testTheme.RemovedBackground))
+	removed := params(t, lipgloss.NewStyle().Background(testtheme.Dark.RemovedBackground))
 
 	for i, row := range rows(t, m) {
 		if !strings.Contains(row, "files := d.Files()") {
@@ -1592,7 +1592,7 @@ func TestTheBlockIsPaintedAsTheRemovalsItIs(t *testing.T) {
 // row of tint, or the block reads as two blocks with a hole between them.
 func TestABlankLineInABlockStillFills(t *testing.T) {
 	m := replacing(t, 76, 60, "type cutter struct {", "", "}")
-	removed := params(t, lipgloss.NewStyle().Background(testTheme.RemovedBackground))
+	removed := params(t, lipgloss.NewStyle().Background(testtheme.Dark.RemovedBackground))
 
 	flat, raw := rows(t, m), strings.Split(m.View(), "\n")
 	for i, row := range flat {
@@ -1633,7 +1633,7 @@ func TestABareCardStandsWithoutAFill(t *testing.T) {
 	const path = "internal/review/state.go"
 
 	c := testchangeset.Nested(t)
-	m := diffpane.New(theme.Terminal(theme.Surface{}))
+	m := diffpane.New(testtheme.Bare)
 
 	// Narrower than the box a card is otherwise drawn in, which is the only
 	// width that reaches the bare form.

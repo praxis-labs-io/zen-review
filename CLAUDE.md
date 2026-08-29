@@ -198,6 +198,7 @@ internal/
   tui/paint/   the diff-line painter. Pure functions.
   testrepo/    real git repos for tests. Test-only, imports nothing of ours.
   testchangeset/  changesets for the render tests. Test-only, no git, no database.
+  tui/testtheme/  the surface the render tests derive from. Test-only.
   golden/      the golden-file compare. Test-only, and owns the -update flag.
 ```
 

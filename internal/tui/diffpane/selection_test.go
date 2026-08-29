@@ -12,7 +12,7 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/store"
 	"github.com/praxis-labs-io/zen-review/internal/testchangeset"
 	"github.com/praxis-labs-io/zen-review/internal/tui/diffpane"
-	"github.com/praxis-labs-io/zen-review/internal/tui/theme"
+	"github.com/praxis-labs-io/zen-review/internal/tui/testtheme"
 )
 
 var (
@@ -311,7 +311,7 @@ func TestASelectionStandsWithoutAFill(t *testing.T) {
 	bare := func(t *testing.T) diffpane.Model {
 		t.Helper()
 
-		m := diffpane.New(theme.Terminal(theme.Surface{}))
+		m := diffpane.New(testtheme.Bare)
 		m.SetSize(60, 10)
 		m.SetFile(fileAt(t, testchangeset.Nested(t), "internal/review/state.go"), nil, nil, 2)
 		m.Select(store.SideHead, 13)

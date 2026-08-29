@@ -7,6 +7,7 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/golden"
 	"github.com/praxis-labs-io/zen-review/internal/tui/paint"
 	"github.com/praxis-labs-io/zen-review/internal/tui/syntax"
+	"github.com/praxis-labs-io/zen-review/internal/tui/testtheme"
 )
 
 // These goldens keep their escapes, where the frame ones are stripped: what a
@@ -20,15 +21,15 @@ func compare(t *testing.T, name, got string) {
 // what the painter did and not what a lexer version thought of a line.
 func tokens() []syntax.Token {
 	return []syntax.Token{
-		{Text: "const ", Color: testTheme.Accent},
-		{Text: "n", Color: testTheme.Text},
+		{Text: "const ", Color: testtheme.Dark.Accent},
+		{Text: "n", Color: testtheme.Dark.Text},
 		{Text: " = "},
-		{Text: "4", Color: testTheme.Warning},
+		{Text: "4", Color: testtheme.Dark.Warning},
 	}
 }
 
 func painter() paint.Painter {
-	return paint.Painter{Theme: testTheme}
+	return paint.Painter{Theme: testtheme.Dark}
 }
 
 func TestGoldenLines(t *testing.T) {
@@ -44,7 +45,7 @@ func TestGoldenLines(t *testing.T) {
 			"tabs",
 			paint.Line{Kind: paint.Context, Old: 11, New: 12, Tokens: []syntax.Token{
 				{Text: "\t"},
-				{Text: "return", Color: testTheme.Accent},
+				{Text: "return", Color: testtheme.Dark.Accent},
 				{Text: "\tnil"},
 			}},
 			40,
@@ -52,7 +53,7 @@ func TestGoldenLines(t *testing.T) {
 		{
 			"clipped",
 			paint.Line{Kind: paint.Added, New: 12, Tokens: []syntax.Token{
-				{Text: "if err != nil { return fmt.Errorf(\"painting: %w\", err) }", Color: testTheme.Text},
+				{Text: "if err != nil { return fmt.Errorf(\"painting: %w\", err) }", Color: testtheme.Dark.Text},
 			}},
 			24,
 		},
@@ -61,13 +62,13 @@ func TestGoldenLines(t *testing.T) {
 		{
 			"clipped_wide",
 			paint.Line{Kind: paint.Added, New: 12, Tokens: []syntax.Token{
-				{Text: "// 日本語のコメント", Color: testTheme.Subtle},
+				{Text: "// 日本語のコメント", Color: testtheme.Dark.Subtle},
 			}},
 			21,
 		},
 		{
 			"fill_override",
-			paint.Line{Kind: paint.Added, New: 12, Tokens: tokens(), Fill: testTheme.SelectedBackground},
+			paint.Line{Kind: paint.Added, New: 12, Tokens: tokens(), Fill: testtheme.Dark.SelectedBackground},
 			40,
 		},
 		{"wide_gutter", paint.Line{Kind: paint.Context, Old: 1234, New: 1235, Tokens: tokens()}, 40},
@@ -106,7 +107,7 @@ func TestGoldenHunkHeaderMarked(t *testing.T) {
 	compare(t, "hunk_header_marked", painter().HunkHeader(paint.Header{
 		Text:   "@@ -11,4 +12,6 @@ func Paint()",
 		Marker: "▸",
-		Fill:   testTheme.SelectedBackground,
+		Fill:   testtheme.Dark.SelectedBackground,
 	}, paint.CodeColumn(paint.Gutter(1235)), 40))
 }
 
@@ -116,7 +117,7 @@ func TestGoldenHunkHeaderBadged(t *testing.T) {
 		Text:   "@@ -11,4 +12,6 @@ func Paint()",
 		Marker: "▸",
 		Badge:  "●",
-		Fill:   testTheme.SelectedBackground,
+		Fill:   testtheme.Dark.SelectedBackground,
 	}, paint.CodeColumn(paint.Gutter(1235)), 40))
 }
 
@@ -159,7 +160,7 @@ func TestGoldenHalves(t *testing.T) {
 		{"half_wide_gutter", paint.Line{Kind: paint.Added, New: 42100, Tokens: tokens()}, 5, 26},
 		{"half_filled", paint.Line{
 			Kind: paint.Context, New: 120, Tokens: tokens(),
-			Fill: testTheme.SelectedBackground,
+			Fill: testtheme.Dark.SelectedBackground,
 		}, 3, 26},
 	}
 
@@ -175,23 +176,23 @@ func TestGoldenHalves(t *testing.T) {
 func TestGoldenBarred(t *testing.T) {
 	compare(t, "line_barred", painter().Line(paint.Line{
 		Kind: paint.Added, New: 120, Tokens: tokens(),
-		Fill: testTheme.SelectedBackground,
-		Bar:  testTheme.Accent,
+		Fill: testtheme.Dark.SelectedBackground,
+		Bar:  testtheme.Dark.Accent,
 	}, 3, 40))
 }
 
 func TestGoldenHalfBarred(t *testing.T) {
 	compare(t, "half_barred", painter().Half(paint.Line{
 		Kind: paint.Added, New: 120, Tokens: tokens(),
-		Fill: testTheme.SelectedBackground,
-		Bar:  testTheme.Accent,
+		Fill: testtheme.Dark.SelectedBackground,
+		Bar:  testtheme.Dark.Accent,
 	}, 3, 26))
 }
 
 func TestGoldenHeaderBarred(t *testing.T) {
 	compare(t, "hunk_header_barred", painter().HunkHeader(paint.Header{
 		Text: "@@ -11,4 +12,6 @@ func Paint()", Badge: "○",
-		Fill: testTheme.SelectedBackground,
-		Bar:  testTheme.Accent,
+		Fill: testtheme.Dark.SelectedBackground,
+		Bar:  testtheme.Dark.Accent,
 	}, paint.CodeColumn(3), 40))
 }
