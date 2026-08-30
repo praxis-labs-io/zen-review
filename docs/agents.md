@@ -27,7 +27,25 @@ failing the same way.
 The listing is written either way. `--exit-code` sets the status after it, never
 instead of it, so one call both reports and gates.
 
-As a Claude Code Stop hook:
+As a Claude Code Stop hook, through a script. The two vocabularies do not line
+up, and wiring the command in bare inverts the gate: Claude Code honours only
+exit 2 as a block, and on `Stop` a block means keep going, with stderr handed to
+the model as the reason. Exit 1 is a non-blocking error it proceeds past. So an
+open comment would let the agent stop, and a broken call would trap it.
+
+```sh
+#!/bin/sh
+# No repository, or no review opened here, is not this hook's business.
+dir=$(git rev-parse --git-common-dir 2>/dev/null) || exit 0
+[ -f "$dir/zen-review/state.db" ] || exit 0
+
+out=$(zen-review comments --state unresolved --json --exit-code 2>&1)
+case $? in
+  1) printf '%s\n' "$out" >&2; exit 2 ;;                      # a queue: hold the agent
+  2) printf 'zen-review failed:\n%s\n' "$out" >&2; exit 1 ;;   # broken: say so, let it go
+  *) exit 0 ;;                                                # nothing unresolved
+esac
+```
 
 ```json
 {
@@ -37,7 +55,7 @@ As a Claude Code Stop hook:
         "hooks": [
           {
             "type": "command",
-            "command": "zen-review comments --state unresolved --exit-code"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/zen-review-unresolved.sh"
           }
         ]
       }
@@ -45,6 +63,11 @@ As a Claude Code Stop hook:
   }
 }
 ```
+
+The gate on `state.db` earns its place as much as the translation does.
+`zen-review comments` resolves the session, and resolving it creates it, so a
+hook without that line opens a review database in every repository the agent
+stops in.
 
 ## Reading the queue
 
