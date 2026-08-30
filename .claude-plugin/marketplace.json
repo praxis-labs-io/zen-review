@@ -1,0 +1,15 @@
+{
+  "name": "praxis-labs",
+  "owner": {
+    "name": "Praxis Labs",
+    "url": "https://github.com/praxis-labs-io"
+  },
+  "plugins": [
+    {
+      "name": "zen-review",
+      "description": "Lets an agent read the review queue zen-review keeps, answer it, and be held at the end of a turn while anything is unresolved.",
+      "source": "./plugin",
+      "category": "workflow"
+    }
+  ]
+}

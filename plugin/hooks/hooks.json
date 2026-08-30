@@ -1,0 +1,16 @@
+{
+  "description": "Holds the turn open while a zen-review session has unresolved comments",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/unresolved.sh",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

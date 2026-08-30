@@ -77,6 +77,21 @@ gives up. `open` is the half the agent can close, and closing it is what lets
 the turn end. `unresolved` is the right question for whether the review is
 finished, which is the reader's question and not the gate's.
 
+## The plugin
+
+The repository is its own Claude Code plugin marketplace, so none of the above
+has to be wired by hand:
+
+```
+/plugin marketplace add praxis-labs-io/zen-review
+/plugin install zen-review@praxis-labs
+```
+
+It ships the hook, gate and translation included, and a `queue` skill that
+teaches the loop below. The hook is quiet in any repository where no review has
+been opened, so installing it once at user scope does not follow you into
+repositories you are not reviewing.
+
 ## Reading the queue
 
 ```sh

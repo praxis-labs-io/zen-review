@@ -294,6 +294,11 @@ travels is in [docs/guide.md](docs/guide.md). What the code has to keep true:
 `$(git rev-parse --git-common-dir)/zen-review/state.db`, so a worktree and its
 parent checkout share one database. Nothing lands in the working tree.
 
+The plugin's Stop hook tests for that exact path to decide whether a review was
+ever opened here, so moving it moves `plugin/hooks/unresolved.sh` too. Without
+that test the hook would resolve a session in every repository an agent stops
+in, and resolving one creates it.
+
 `modernc.org/sqlite`, pure Go: the cgo driver is faster but puts a C toolchain in
 the path of every cross-compile and CI runner, for a few thousand rows. WAL with
 a busy timeout so two instances on one repo do not deadlock.
