@@ -2,8 +2,7 @@
 //
 // What is under test is a shell script, not Go, so the tests drive it the way a
 // hook runner does: a real repository, a real zen-review binary on PATH, and an
-// assertion on the status it left with. The status is the whole contract, and it
-// has already been written backwards twice.
+// assertion on the status it left with.
 package plugin
 
 import (
@@ -19,13 +18,8 @@ import (
 
 func TestMain(m *testing.M) { os.Exit(testrepo.Main(m)) }
 
-// hook is the script the plugin ships, found relative to this package.
 const hook = "../../plugin/hooks/unresolved.sh"
 
-// binDir builds zen-review into a directory to be put at the front of PATH.
-//
-// Built once per run rather than per case: it is the same binary every time, and
-// a compile per case is most of the suite's wall clock.
 func binDir(t *testing.T) string {
 	t.Helper()
 
@@ -39,8 +33,7 @@ func binDir(t *testing.T) string {
 }
 
 // run executes the hook in dir and reports its status and what it wrote to
-// stderr. withBin says whether zen-review can be found, which is the difference
-// between a queue and a broken call.
+// stderr. withBin says whether zen-review can be found.
 func run(t *testing.T, dir, bin string, withBin bool) (int, string) {
 	t.Helper()
 
@@ -72,7 +65,6 @@ func run(t *testing.T, dir, bin string, withBin bool) (int, string) {
 	return status, stderr.String()
 }
 
-// zen runs a zen-review command in the repository.
 func zen(t *testing.T, dir, bin string, args ...string) string {
 	t.Helper()
 
@@ -81,8 +73,7 @@ func zen(t *testing.T, dir, bin string, args ...string) string {
 	cmd.Env = append(os.Environ(), "PATH="+bin+":/usr/bin:/bin")
 
 	out, err := cmd.CombinedOutput()
-	// comments --exit-code leaves 1 on a match, which is an answer and not a
-	// failure. Only a 2 is worth failing the test over.
+	// --exit-code leaves 1 on a match, which is an answer and not a failure.
 	if exit, ok := err.(*exec.ExitError); ok && exit.ExitCode() == 1 {
 		return string(out)
 	}
@@ -92,8 +83,6 @@ func zen(t *testing.T, dir, bin string, args ...string) string {
 	return string(out)
 }
 
-// openID is the id of the one open comment, read from the JSON rather than the
-// prose: the listing is written for a person and its shape is not a contract.
 func openID(t *testing.T, dir, bin string) string {
 	t.Helper()
 
@@ -126,12 +115,6 @@ func changed(t *testing.T) *testrepo.Repo {
 	return r
 }
 
-// TestHookLeavesUninvolvedDirectoriesAlone covers the two ways the hook is not
-// the thing that should be answering.
-//
-// The second case is the one that matters: resolving a session creates it, so a
-// hook without the state.db test would open a review database in every
-// repository an agent ever stops in.
 func TestHookLeavesUninvolvedDirectoriesAlone(t *testing.T) {
 	bin := binDir(t)
 
@@ -163,11 +146,6 @@ func TestHookLeavesUninvolvedDirectoriesAlone(t *testing.T) {
 	})
 }
 
-// TestHookHoldsTheTurnOnOpenComments is the translation, and it is the whole
-// point of the script.
-//
-// zen-review answers 1 for a match, and Claude Code honours only 2 as a block.
-// A hook passing the status straight through lets an agent stop on a queue.
 func TestHookHoldsTheTurnOnOpenComments(t *testing.T) {
 	bin := binDir(t)
 	r := changed(t)
@@ -187,11 +165,6 @@ func TestHookHoldsTheTurnOnOpenComments(t *testing.T) {
 	}
 }
 
-// TestHookReleasesOnceAddressed is the case the documented filter got wrong.
-//
-// address is the agent's verb and resolve is the reader's, so a gate on
-// unresolved is one the agent cannot clear: it would answer everything, stay
-// blocked, and loop until the client gave up.
 func TestHookReleasesOnceAddressed(t *testing.T) {
 	bin := binDir(t)
 	r := changed(t)
@@ -206,18 +179,12 @@ func TestHookReleasesOnceAddressed(t *testing.T) {
 		t.Fatalf("status = %d, want 0 once every comment is answered; stderr:\n%s", status, stderr)
 	}
 
-	// The comment is addressed and not resolved, so the filter the docs used
-	// would still match here. Asserting it keeps the distinction from quietly
-	// going away.
+	// Addressed is still unresolved, so a gate on unresolved would hold here.
 	if unresolved := zen(t, r.Dir(), bin, "comments", "--state", "unresolved", "--exit-code"); unresolved == "" {
 		t.Error("expected the addressed comment to still be unresolved")
 	}
 }
 
-// TestHookNeverBlocksOnFailure keeps a broken call from becoming a trap.
-//
-// Exit 2 is how a Stop hook says keep going, so answering a failure with 2 would
-// hold the agent against an error it cannot act on.
 func TestHookNeverBlocksOnFailure(t *testing.T) {
 	bin := binDir(t)
 	r := changed(t)

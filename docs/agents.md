@@ -90,12 +90,9 @@ What that installs is the `queue` skill: the loop below, where an agent meets
 it. Ask for the review queue and it knows what to do. It costs nothing when
 nobody asks.
 
-**It does not wire the Stop hook.** Answering a review is something you ask for,
-and you are the one who wrote the comments, so a hook enforcing it would spend a
-check on every turn of every session to catch a case you are standing in front
-of. The plugin ships the script at `hooks/unresolved.sh` for the case that is
-worth it — an unattended run, where nobody is there to say "answer the review".
-Point a `Stop` hook at it under the plugin root to turn that on.
+The gate is opt-in. The plugin ships the script at `hooks/unresolved.sh`; point
+a `Stop` hook at it under the plugin root for an unattended run, where nobody is
+there to say "answer the review".
 
 ## Reading the queue
 
