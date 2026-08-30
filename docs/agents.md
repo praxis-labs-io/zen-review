@@ -79,18 +79,23 @@ finished, which is the reader's question and not the gate's.
 
 ## The plugin
 
-The repository is its own Claude Code plugin marketplace, so none of the above
-has to be wired by hand:
+The repository is its own Claude Code plugin marketplace:
 
 ```
 /plugin marketplace add praxis-labs-io/zen-review
 /plugin install zen-review@praxis-labs
 ```
 
-It ships the hook, gate and translation included, and a `queue` skill that
-teaches the loop below. The hook is quiet in any repository where no review has
-been opened, so installing it once at user scope does not follow you into
-repositories you are not reviewing.
+What that installs is the `queue` skill: the loop below, where an agent meets
+it. Ask for the review queue and it knows what to do. It costs nothing when
+nobody asks.
+
+**It does not wire the Stop hook.** Answering a review is something you ask for,
+and you are the one who wrote the comments, so a hook enforcing it would spend a
+check on every turn of every session to catch a case you are standing in front
+of. The plugin ships the script at `hooks/unresolved.sh` for the case that is
+worth it — an unattended run, where nobody is there to say "answer the review".
+Point a `Stop` hook at it under the plugin root to turn that on.
 
 ## Reading the queue
 

@@ -1,6 +1,6 @@
 ---
 name: queue
-description: Work the review queue zen-review keeps for this repository — read the comments written against the code, answer each one with what was done, and rebuild so the reader sees the change under the answer. Use when a zen-review Stop hook holds the turn open, when asked to address review comments or check the review queue, or after making changes to code that is under review.
+description: Work the review queue zen-review keeps for this repository — read the comments written against the code, answer each one with what was done, and rebuild so the reader sees the change under the answer. Use when asked to address review comments, work the review queue, or see what a reviewer left; after changing code that is under review; or when a zen-review Stop hook hands over a queue.
 ---
 
 # The review queue
