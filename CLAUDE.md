@@ -204,6 +204,7 @@ internal/
   testchangeset/  changesets for the render tests. Test-only, no git, no database.
   tui/testtheme/  the surface the render tests derive from. Test-only.
   golden/      the golden-file compare. Test-only, and owns the -update flag.
+  plugin/      drives the shipped hook script. Test-only, no Go under test.
 ```
 
 The boundaries are in `.claude/rules/code-quality.md` and breaking one is a review-stopper. The short version: the CLI has to be able to answer any question the TUI can.
