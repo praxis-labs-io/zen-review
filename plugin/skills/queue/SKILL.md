@@ -62,9 +62,19 @@ what you did and why, not agreement.
 zen-review refresh
 ```
 
-Run it once the answers are in. It builds a new generation, which is what puts
-the block of replaced code under your answer when the reader looks. Their own
-`s` does it too, but a refresh you ran means it is there when they arrive.
+**Answer every comment before you run this.** `address` freezes a comment where
+it is. `refresh` translates every anchor that is not frozen against the code as
+it now stands, so if you rewrote the lines a comment was written against and
+refresh without answering it, the anchor is cut and the comment orphans. The
+reader's words survive in the database and nothing on screen reaches them: you
+have deleted the feedback you were in the middle of acting on.
+
+Making the change is not answering the comment. Both are required, and the
+answer comes first.
+
+Once the answers are in, the refresh puts the block of replaced code under each
+one, so the reader sees the change against what they asked for. Their own `s`
+does it too, but a refresh you ran means it is there when they arrive.
 
 ## Verbs that are not yours
 
