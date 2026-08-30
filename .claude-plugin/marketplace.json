@@ -7,7 +7,7 @@
   "plugins": [
     {
       "name": "zen-review",
-      "description": "Lets an agent read the review queue zen-review keeps, answer it, and be held at the end of a turn while anything is unresolved.",
+      "description": "Lets an agent read the review queue zen-review keeps for a branch and answer it, without the loop being explained to it first.",
       "source": "./plugin",
       "category": "workflow"
     }
