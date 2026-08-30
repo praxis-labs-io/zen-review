@@ -39,7 +39,7 @@ open comment would let the agent stop, and a broken call would trap it.
 dir=$(git rev-parse --git-common-dir 2>/dev/null) || exit 0
 [ -f "$dir/zen-review/state.db" ] || exit 0
 
-out=$(zen-review comments --state unresolved --json --exit-code 2>&1)
+out=$(zen-review comments --state open --json --exit-code 2>&1)
 case $? in
   1) printf '%s\n' "$out" >&2; exit 2 ;;                      # a queue: hold the agent
   2) printf 'zen-review failed:\n%s\n' "$out" >&2; exit 1 ;;   # broken: say so, let it go
@@ -68,6 +68,14 @@ The gate on `state.db` earns its place as much as the translation does.
 `zen-review comments` resolves the session, and resolving it creates it, so a
 hook without that line opens a review database in every repository the agent
 stops in.
+
+**A hook holding an agent asks for `open`, not `unresolved`.** `unresolved` is
+every state but `resolved`, and `resolve` is the reader's verb: an agent that
+answered every comment leaves them all `addressed`, which is still unresolved,
+so the gate it just cleared holds it again and keeps holding it until the client
+gives up. `open` is the half the agent can close, and closing it is what lets
+the turn end. `unresolved` is the right question for whether the review is
+finished, which is the reader's question and not the gate's.
 
 ## Reading the queue
 
