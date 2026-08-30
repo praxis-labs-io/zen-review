@@ -186,7 +186,14 @@ func TestAFileCommentFollowsARename(t *testing.T) {
 // A file comment names the file rather than any line in it, so it comes through
 // while the content does and is lost when the bytes change. That is the rule a
 // whole-file reviewed mark takes, and for the same reason.
-func TestAFileCommentOrphansWhenTheFileChanges(t *testing.T) {
+// A file comment is a remark about the file rather than a claim about its bytes,
+// so editing the file is not an answer to it. The body below is the case: where
+// a file belongs stays true, and stays outstanding, through every edit until
+// somebody moves it.
+//
+// The rule it does not take is Ranges'. A whole-file reviewed mark dies on the
+// same patch, because that one does say somebody read these bytes.
+func TestAFileCommentSurvivesTheFileChanging(t *testing.T) {
 	f := branched(t)
 	f.Write("code.txt", numbered(1, 20))
 	f.Commit("add code")
@@ -201,6 +208,28 @@ func TestAFileCommentOrphansWhenTheFileChanges(t *testing.T) {
 	})
 
 	f.Write("code.txt", numbered(1, 21))
+	f.refresh(s)
+
+	assertComments(t, f.storedComments(s), []string{"code.txt head 0:0 open"})
+}
+
+// The file going is the one thing that does leave a file comment with nothing to
+// be about.
+func TestAFileCommentOrphansWhenTheFileGoes(t *testing.T) {
+	f := branched(t)
+	f.Write("code.txt", numbered(1, 20))
+	f.Commit("add code")
+
+	s := f.mustOpen("")
+	g := f.refresh(s)
+	f.note(s, g, review.Note{
+		Path:  "code.txt",
+		Side:  store.SideHead,
+		Scope: store.ScopeFile,
+		Body:  "this file belongs under internal",
+	})
+
+	f.Git("rm", "-q", "-f", "code.txt")
 	f.refresh(s)
 
 	assertComments(t, f.storedComments(s), []string{"code.txt head 0:0 orphaned"})
@@ -344,6 +373,49 @@ func TestAnAgentCannotReachResolved(t *testing.T) {
 	}
 	if _, err := s.AddressComment(t.Context(), c.ID, ""); !errors.As(err, &state) {
 		t.Errorf("err = %v, want a resolved comment to refuse being addressed", err)
+	}
+}
+
+// An orphan is where an answer is most wanted, not least. The anchor went because
+// the agent rewrote the lines the comment asked it to rewrite, and the only
+// account of why is the one the agent writes. Refusing it there leaves the reader
+// resolving a comment blind.
+func TestAnOrphanCanStillBeAnswered(t *testing.T) {
+	f := branched(t)
+	f.Write("code.txt", numbered(1, 20))
+	f.Commit("add code")
+
+	s := f.mustOpen("")
+	g := f.refresh(s)
+	c := f.note(s, g, review.Note{
+		Path:  "code.txt",
+		Side:  store.SideHead,
+		Scope: store.ScopeRange,
+		Range: review.Range{Start: 10, End: 12},
+		Body:  "these three lines duplicate the loop above",
+	})
+
+	// The lines the comment named, rewritten wholesale, which is what answering
+	// it looks like and what takes its anchor away.
+	f.Write("code.txt", numbered(1, 9)+"deduplicated\n"+numbered(13, 20))
+	f.refresh(s)
+
+	if got := f.storedComment(c.ID).State; got != store.CommentOrphaned {
+		t.Fatalf("state = %s, want orphaned so the case under test is the real one", got)
+	}
+
+	addressed, err := s.AddressComment(t.Context(), c.ID, "folded the three into one call")
+	if err != nil {
+		t.Fatalf("addressing an orphaned comment: %v", err)
+	}
+	if addressed.State != store.CommentAddressed {
+		t.Errorf("state = %s, want addressed", addressed.State)
+	}
+	if addressed.Response != "folded the three into one call" {
+		t.Errorf("response = %q, want what the agent wrote", addressed.Response)
+	}
+	if f.storedComment(c.ID).Response != "folded the three into one call" {
+		t.Error("the response came back from the session and not from the row")
 	}
 }
 

@@ -176,6 +176,10 @@ diff does not answer at all.
 
 A comment is addressed once. A second `address` is refused.
 
+An orphaned comment still takes it. The anchor usually went because the lines it
+named were rewritten, which is the comment being answered rather than lost, and
+an answer is the only thing left that explains the change to the reader.
+
 ### `zen-review resolve <id>`
 
 Close a comment. This is the reader's verb, and it closes anything not already

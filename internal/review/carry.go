@@ -106,9 +106,9 @@ func translated(p store.Prior, headMoved, baseMoved map[string]diff.File, files 
 // Translation.Anchor is deliberately more forgiving than Ranges: a comment on
 // ten lines is about a region, and an agent rewriting a line in the middle of
 // that region is usually the comment being acted on rather than the comment
-// being lost. What it does not forgive is a file comment on a file whose bytes
-// moved, because that anchor names the file and the file is no longer the one
-// named.
+// being lost. A comment on the file as a whole is more forgiving still and goes
+// only when the file does, because it names the file rather than its bytes and
+// editing the file is not an answer to it.
 func carryAnchors(comments []store.Comment, moved map[string]diff.File) []store.CommentMove {
 	out := make([]store.CommentMove, 0, len(comments))
 	for _, c := range comments {

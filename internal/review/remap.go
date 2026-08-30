@@ -39,6 +39,13 @@ type Translation struct {
 	// on it comes through untouched.
 	held bool
 
+	// absent is the file being on one side only. An added file has no old side to
+	// anchor from and a deleted one has no new side to reach, and either way there
+	// is no pair to carry an anchor between. It is what separates a file whose
+	// bytes moved from a file that is not there, which line anchors do not care
+	// about and a whole-file anchor is entirely about.
+	absent bool
+
 	// spans are the surviving runs in old-side order. Empty, with held false,
 	// means nothing survived.
 	spans []span
@@ -54,7 +61,7 @@ type Translation struct {
 func Translate(f diff.File) Translation {
 	switch {
 	case f.Status == diff.FileAdded || f.Status == diff.FileDeleted:
-		return Translation{}
+		return Translation{absent: true}
 	case held(f):
 		return Translation{held: true}
 	case len(f.Hunks) == 0:
@@ -97,15 +104,19 @@ func (t Translation) Ranges(rs []Range) []Range {
 // usually the comment being acted on rather than the comment being lost. Orphan
 // it there and every comment that worked orphans before it can be confirmed.
 //
-// An anchor on the file as a whole takes the same rule it takes in Ranges,
-// because it names the file rather than any line in it: it comes through while
-// the content does and is lost when the bytes change.
+// An anchor on the file as a whole does not take the rule it takes in Ranges,
+// and the difference is what the two are claims about. A whole-file mark says
+// somebody read these bytes, so changing them voids it. A whole-file comment
+// says something about the file, and editing the file is not an answer to it:
+// "too many comments in here" stays true, and stays outstanding, while somebody
+// works on it. It comes through while the file does and is lost when the file
+// is, which is the only thing that can make it meaningless.
 func (t Translation) Anchor(r Range) (Range, bool) {
 	if t.held {
 		return r, true
 	}
 	if r.whole() {
-		return Range{}, false
+		return r, !t.absent
 	}
 
 	survived := t.cut(r)

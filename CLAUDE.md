@@ -280,10 +280,15 @@ travels is in [docs/guide.md](docs/guide.md). What the code has to keep true:
   write easy.
 - A frozen comment's row stays at the generation it stopped at and records where
   the anchor was, so nothing has to know which generation it is pinned to in
-  order to say where it lived. Only an open comment orphans.
+  order to say where it lived. Only an unfrozen comment orphans, and an orphan
+  still takes `address`: the anchor usually went because the comment was acted
+  on, and the account of that is the one thing left worth writing.
 - A comment's anchor translation is more forgiving than a reviewed range's: it
   clamps to what survived, where a range is cut into the pieces either side. A
-  file comment is the exception and takes the range rule.
+  file comment is more forgiving still and goes only when the file does. The two
+  are different claims: a whole-file mark says somebody read these bytes and an
+  edit voids it, where a comment says something about the file and an edit is
+  usually what it asked for. `Anchor` and `Ranges` split on exactly that.
 - `anchor_blob`, `created_generation_id`, `created_start_line` and
   `created_end_line` are written once at creation and never moved. A comment that
   travelled before it was answered would otherwise slice its own blob by lines it
