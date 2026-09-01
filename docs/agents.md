@@ -9,14 +9,14 @@ Concepts are in [the guide](guide.md); every flag is in
 ## The gate
 
 ```sh
-zen-review comments --state unresolved --exit-code
+zen-review comments --state open --exit-code
 ```
 
 Three codes, so a hook can tell a queue from a failure:
 
 | Code | Means | What a hook does |
 | --- | --- | --- |
-| 0 | Nothing unresolved | Stop. The work is done |
+| 0 | Nothing open | Stop. The work is done |
 | 1 | The filter matched | Keep going. There is a queue |
 | 2 | The call failed | Stop and say why. This is not a queue |
 
@@ -43,7 +43,7 @@ out=$(zen-review comments --state open --json --exit-code 2>&1)
 case $? in
   1) printf '%s\n' "$out" >&2; exit 2 ;;                      # a queue: hold the agent
   2) printf 'zen-review failed:\n%s\n' "$out" >&2; exit 1 ;;   # broken: say so, let it go
-  *) exit 0 ;;                                                # nothing unresolved
+  *) exit 0 ;;                                                # nothing open
 esac
 ```
 
@@ -191,18 +191,15 @@ changeset the write then anchors into, so `review`, `unreview`, `comment`,
 ## The loop
 
 ```sh
-# 1. Is there anything to do?
-zen-review comments --state unresolved --exit-code || true
-
-# 2. What is it?
+# 1. What is there to do? An empty list is a finished queue.
 zen-review comments --state open --json
 
-# 3. Do the work, then say what you did.
+# 2. Do the work, then say what you did.
 zen-review address "$id" --body "..."
 
-# 4. Rebuild so the reader sees the code against the comments.
+# 3. Rebuild so the reader sees the code against the comments.
 zen-review refresh
 ```
 
-Step 4 is worth doing. The reader's own `s` does it too, but a refresh you ran
+Step 3 is worth doing. The reader's own `s` does it too, but a refresh you ran
 means the block of replaced code under your answer is there when they look.
