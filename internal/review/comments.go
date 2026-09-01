@@ -207,13 +207,23 @@ func byTreeOrder(rows []store.Comment) []store.Comment {
 //
 // The response is optional. Half a queue is change requests where the diff is
 // the response, and demanding a sentence there gets "done" typed into every one.
+// AddressComment is the agent's verb, and an orphan takes it. The anchor going
+// is usually this comment being acted on: the lines it named were rewritten
+// because it asked for them to be. Refusing the answer there leaves the one
+// state where an explanation is most wanted as the one state that cannot hold
+// one, and leaves the reader resolving a comment blind.
+//
+// Safe on a frozen row because a response is written beside the anchor rather
+// than derived from it. anchor_blob and the created_ columns are written once
+// and never move, so an orphan still says where it lived.
 func (s *Session) AddressComment(ctx context.Context, id, response string) (store.Comment, error) {
 	// Whitespace alone is no response. Leading indent somebody meant is kept, the
 	// way a body's is.
 	if strings.TrimSpace(response) == "" {
 		response = ""
 	}
-	return s.freeze(ctx, id, store.CommentAddressed, &response, store.CommentOpen)
+	return s.freeze(ctx, id, store.CommentAddressed, &response,
+		store.CommentOpen, store.CommentOrphaned)
 }
 
 // ResolveComment is the reader's verb, and it closes anything that is not

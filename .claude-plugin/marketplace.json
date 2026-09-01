@@ -1,0 +1,15 @@
+{
+  "name": "praxis-labs",
+  "owner": {
+    "name": "Praxis Labs",
+    "url": "https://github.com/praxis-labs-io"
+  },
+  "plugins": [
+    {
+      "name": "zen-review",
+      "description": "Lets an agent read the review queue zen-review keeps for a branch and answer it, without the loop being explained to it first.",
+      "source": "./plugin",
+      "category": "workflow"
+    }
+  ]
+}

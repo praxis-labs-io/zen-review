@@ -361,8 +361,29 @@ func TestACommentAnchorClampsToWhatSurvived(t *testing.T) {
 			held:  true,
 		},
 		{
-			name:  "an anchor on the file as a whole is lost when its bytes change",
+			name:  "an anchor on the file as a whole survives its bytes changing",
 			patch: binaryChange,
+			in:    review.Range{Start: 0, End: 0},
+			want:  review.Range{Start: 0, End: 0},
+			held:  true,
+		},
+		{
+			name:  "an anchor on the file as a whole survives an edit to it",
+			patch: insertAbove,
+			in:    review.Range{Start: 0, End: 0},
+			want:  review.Range{Start: 0, End: 0},
+			held:  true,
+		},
+		{
+			name:  "an anchor on the file as a whole survives a wholesale rewrite",
+			patch: rewritten,
+			in:    review.Range{Start: 0, End: 0},
+			want:  review.Range{Start: 0, End: 0},
+			held:  true,
+		},
+		{
+			name:  "an anchor on the file as a whole goes when the file does",
+			patch: deletedFile,
 			in:    review.Range{Start: 0, End: 0},
 			held:  false,
 		},
@@ -379,6 +400,25 @@ func TestACommentAnchorClampsToWhatSurvived(t *testing.T) {
 				t.Errorf("Anchor(%v) = %v, want %v", tc.in, got, tc.want)
 			}
 		})
+	}
+}
+
+// A whole-file comment anchor and a whole-file reviewed mark take opposite rules
+// through the same patch, and this is the pair that says so. A mark is a claim
+// about bytes somebody read and an edit voids it; a comment is a remark about
+// the file and an edit is what it asked for.
+func TestAWholeFileMarkAndCommentPartOnAnEdit(t *testing.T) {
+	whole := review.Range{Start: 0, End: 0}
+
+	for _, patch := range []string{insertAbove, rewritten, binaryChange} {
+		file := review.Translate(parseOne(t, patch))
+
+		if got := file.Ranges([]review.Range{whole}); got != nil {
+			t.Errorf("Ranges kept a whole-file mark through an edit: got %v, want nil", got)
+		}
+		if _, held := file.Anchor(whole); !held {
+			t.Error("Anchor lost a whole-file comment through an edit, which is the feedback being deleted by the change that answers it")
+		}
 	}
 }
 

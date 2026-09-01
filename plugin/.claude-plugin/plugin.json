@@ -1,0 +1,13 @@
+{
+  "name": "zen-review",
+  "version": "0.2.0",
+  "description": "Connects an agent to a zen-review session: the queue of comments written against its code, which of the verbs for answering them are the agent's, and which belong to the reader.",
+  "author": {
+    "name": "Praxis Labs",
+    "url": "https://github.com/praxis-labs-io"
+  },
+  "homepage": "https://github.com/praxis-labs-io/zen-review",
+  "repository": "https://github.com/praxis-labs-io/zen-review",
+  "license": "MIT",
+  "keywords": ["code-review", "git", "diff", "agent"]
+}

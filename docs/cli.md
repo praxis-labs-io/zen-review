@@ -110,6 +110,13 @@ paste has in front of them anyway.
 
 ## Writing
 
+One ordering rule runs between these verbs. `address` freezes a comment where it
+is, and `refresh` translates every anchor that is not frozen against the code as
+it now stands, so answering comes before rebuilding. Refresh over a comment whose
+lines were rewritten and the anchor is cut: the reader's words survive in the
+database and nothing on screen reaches them. Making the change is not answering
+the comment.
+
 ### `zen-review refresh`
 
 Build a generation from the working tree. Nothing is built when the changeset has
@@ -175,6 +182,10 @@ change requests where the diff is the answer, and the other half are questions a
 diff does not answer at all.
 
 A comment is addressed once. A second `address` is refused.
+
+An orphaned comment still takes it. The anchor usually went because the lines it
+named were rewritten, which is the comment being answered rather than lost, and
+an answer is the only thing left that explains the change to the reader.
 
 ### `zen-review resolve <id>`
 
