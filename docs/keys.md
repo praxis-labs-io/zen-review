@@ -203,8 +203,15 @@ pick, so it keeps the rule.
 
 The label says only what the card's own position cannot. A card under its line
 needs no line number, because the gutter beside it has one. A range says the run
-it covers, a file comment says so, and a comment the diff has no line for says
-where it used to point and goes to the foot of the file.
+it covers, a file comment says so, and a comment the diff has no line for names
+its line and goes to the foot of the file.
+
+`was` goes in front of that number only where the number names no code you could
+be shown: an orphan, whose code is gone, and one frozen at an older generation,
+whose numbers name whatever is there now. A comment written against a line
+outside the hunks has no row the moment you take the whole file back out, and its
+line is still sitting in the file — telling you it *was* anywhere would be
+telling you it had gone. Press `p` to put it back under its line.
 
 ## The card
 

@@ -360,7 +360,7 @@ func (m Model) cardHead(c store.Comment, placed bool, base lipgloss.Style) strin
 
 	head := base.Foreground(on).Render(glyph) +
 		base.Foreground(m.theme.Subtle).Render(" "+word)
-	if where := commentWhere(c, placed); where != "" {
+	if where := commentWhere(c, placed, m.live(c)); where != "" {
 		head += base.Foreground(m.theme.Subtle).Render(" · " + where)
 	}
 	return head
@@ -382,18 +382,33 @@ func (m Model) commentBadge(s store.CommentState) (string, color.Color) {
 
 // commentWhere is the part of a comment's anchor the card's own position cannot
 // say. A card under its line needs no number: the gutter beside it has one.
-func commentWhere(c store.Comment, placed bool) string {
-	switch {
-	case c.Scope == store.ScopeFile:
+//
+// `was` is for numbers naming no code the pane could draw: an orphan, whose
+// anchor is gone, and one frozen at another generation, whose numbers name
+// whatever is there now. A live comment with no row is a different thing. The
+// line is in the file and the diff is not showing it, which is every comment
+// written outside a hunk the moment the whole file comes back out, and saying it
+// was anywhere would tell the reader it had gone.
+func commentWhere(c store.Comment, placed, live bool) string {
+	if c.Scope == store.ScopeFile {
 		return "file"
-	case !placed && c.Start == c.End:
-		return "was line " + strconv.Itoa(c.Start)
-	case !placed:
-		return "was lines " + span(c)
-	case c.Start != c.End:
-		return "lines " + span(c)
 	}
-	return ""
+
+	// A placed line needs nothing at all. A range says the run it covers wherever
+	// it is drawn, the gutter naming one row of it and not the span.
+	if placed && c.Start == c.End {
+		return ""
+	}
+
+	what := "line " + strconv.Itoa(c.Start)
+	if c.Start != c.End {
+		what = "lines " + span(c)
+	}
+
+	if !placed && (!live || c.State == store.CommentOrphaned) {
+		return "was " + what
+	}
+	return what
 }
 
 func span(c store.Comment) string {

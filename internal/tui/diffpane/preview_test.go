@@ -275,11 +275,15 @@ func TestPreviewHangsACardUnderAFilledInLine(t *testing.T) {
 	c := testchangeset.Comment("gggggggggggg", twoHunks, 20, 20, "This run is doing two jobs.")
 	m := commented(t, twoHunks, 60, tall, c)
 
-	// With the hunks alone it goes to the foot, wearing the label of a comment the
-	// changeset has moved past.
+	// With the hunks alone it goes to the foot, naming the line it is about. Not
+	// `was line 20`: the line is in the file, and the diff is not showing it.
 	foot := rowOf(t, m, "This run is doing two jobs.")
-	if !strings.Contains(joined(t, m), "was line 20") {
-		t.Errorf("the card outside every hunk does not say where it used to point:\n%s", joined(t, m))
+	got := joined(t, m)
+	if !strings.Contains(got, "line 20") {
+		t.Errorf("the card at the foot does not name the line it is about:\n%s", got)
+	}
+	if strings.Contains(got, "was line") {
+		t.Errorf("the card says the line has gone:\n%s", got)
 	}
 
 	m.TogglePreview()
@@ -296,9 +300,10 @@ func TestPreviewHangsACardUnderAFilledInLine(t *testing.T) {
 		t.Error("the card stayed at the foot of the file")
 	}
 
-	// The line is on screen now, so the label has nothing left to say about it.
-	if strings.Contains(joined(t, m), "was line 20") {
-		t.Error("the card still says the changeset has no line for it")
+	// The line is on screen now, so the gutter beside it carries the number and the
+	// label has nothing left to say at all.
+	if got := joined(t, m); strings.Contains(got, "line 20 ─") || strings.Contains(got, "· line 20") {
+		t.Errorf("the card still names a line the row above it already has:\n%s", got)
 	}
 }
 

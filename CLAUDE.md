@@ -328,6 +328,11 @@ follows is what the code has to keep true.
   shifts as the cursor passes. The fill is shared with a selection and the bar is
   not, which is what says where the next key moves from inside one.
 - A comment card is one stop for the cursor, not one per row.
+- `was` on a card's label is for numbers naming no code the pane could draw: an
+  orphan, and one frozen at another generation. An unplaced card is not that on
+  its own — a comment written outside a hunk loses its row the moment the whole
+  file comes back out and its line is still there — so the word keys off the
+  anchor and not off whether the layout found a row.
 - One cursor in side-by-side, never one per column. Two could point at unrelated
   lines and a side-switch would throw the window.
 - The mode `|` sets lasts the run and nothing stores it. A default belongs with
