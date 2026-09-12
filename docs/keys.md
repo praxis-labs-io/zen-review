@@ -79,6 +79,35 @@ row and the last, and the cursor goes on alone to the end of the file. Vim
 carries the cursor instead, which reads fine in an editor you are typing in and
 badly in a pane you are only reading.
 
+## The whole file
+
+Three lines of context are not always enough to judge a hunk. `p` fills in the
+rest of the file around them, at the generation the changeset is measured in,
+with the changed lines still marked and everything else drawn as the context it
+is. Pressed again it takes the file back out.
+
+It is the one rendering key that reads the repository, so the first press on a
+file waits on git and every press after it is the keystroke it looks like. The
+bytes are the generation's and not the working tree's: a file an agent has
+rewritten under you still draws as the file the hunks were measured against.
+
+The window opens on the hunk you were in rather than on the line you were on. A
+hundred lines arrive above that line, and the shortest scroll onto the screen
+would leave the hunk on the bottom row with its own lines off the window.
+
+The lines it fills in belong to no hunk, so `r` finds nothing to mark on one: the
+unit of review is still the hunk, and a key that marked the one two hundred lines
+up would mark work nobody read. `c` and `v` do reach them, which is the other
+half of the point. The code you needed the context to judge is code you can now
+ask about.
+
+A file with nothing to fill in refuses the key and the bar says so: a binary one,
+and one whose bytes the repository cannot produce.
+
+The mode lasts the run and nothing stores it, the same as `|`, and the two are
+orthogonal. A filled-in line is a context line, so it takes both columns of a
+split pane the way every other one does.
+
 ## Side by side
 
 `|` puts the two sides in two columns. A run of removals pairs against the run of

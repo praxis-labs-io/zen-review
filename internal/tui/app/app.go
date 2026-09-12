@@ -42,6 +42,11 @@ type Model struct {
 	src  Source
 	busy bool
 
+	// reading is the path whose text is out, and empty when none is. It is its
+	// own flag and not busy: the read writes nothing, so it neither blocks a
+	// write nor is blocked by one.
+	reading string
+
 	repo      string
 	base      review.Base
 	gen       review.Generation
@@ -148,6 +153,30 @@ func Run(ctx context.Context, src Source, repo string, r Reload) error {
 func (m Model) Init() tea.Cmd { return nil }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	next, cmd := m.update(msg)
+	cmd = next.asking(cmd)
+	return next, cmd
+}
+
+// asking adds the read the diff pane is waiting on to whatever else the update
+// left to run.
+//
+// It sits over the whole of update rather than at the key, because the file in
+// the pane changes on a reload and on every write as well as on a press, and a
+// body is the bytes of one path at one generation.
+//
+// reading is the path already out. Without it every key pressed while the read
+// is in flight starts another one.
+func (m *Model) asking(cmd tea.Cmd) tea.Cmd {
+	path, want := m.diff.NeedsBody()
+	if !want || path == m.reading {
+		return cmd
+	}
+	m.reading = path
+	return tea.Batch(cmd, m.loadBody(path))
+}
+
+func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.resize(msg.Width, msg.Height)
@@ -257,6 +286,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.note = notice{text: msg.err.Error(), bad: true}
 		return m, nil
 
+	case bodyLoadedMsg:
+		if msg.path == m.reading {
+			m.reading = ""
+		}
+
+		// A body read at a generation the screen has moved past is bytes under a
+		// path that now holds others. SetFile already dropped the cache for it.
+		if msg.gen != m.gen.ID {
+			return m, nil
+		}
+		if !m.diff.SetBody(msg.path, msg.body) {
+			m.note = notice{text: "no lines to show in " + comp.Safe(msg.path)}
+		}
+		return m, nil
+
+	case bodyFailedMsg:
+		m.reading = ""
+		m.diff.StopPreview()
+		m.note = notice{text: msg.err.Error(), bad: true}
+		return m, nil
+
 	case reloadFailedMsg:
 		// The changeset on screen is left alone. These writes are a local
 		// transaction that committed or did not, and there is no half-applied
@@ -285,7 +335,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (m Model) press(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	// Either box takes every key, quit and help included. A q mid-sentence is a
 	// q, and one key let out is one more thing to keep in mind while typing.
 	if m.diff.Composing() {
@@ -466,6 +516,16 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// The read it may start is added over the whole of update, so nothing is
+	// returned here. A file with no lines is a fact about the file, not a failure.
+	if key.Matches(msg, m.keys.Preview) {
+		if !m.diff.TogglePreview() {
+			m.note = notice{text: "no lines to show in " + comp.Safe(m.diff.Path())}
+		}
+		m.syncCursor()
+		return m, nil
+	}
+
 	// A fact about the frame rather than a failure, so it is not a bad notice.
 	if key.Matches(msg, m.keys.Split) {
 		if short := m.diff.ToggleSplit(); short > 0 {
@@ -530,7 +590,7 @@ func (m Model) press(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m Model) picking(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (m Model) picking(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, m.keys.Interrupt):
 		return m, tea.Quit
@@ -558,7 +618,7 @@ func (m Model) picking(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 // typing routes a key into the composer, answering the two it owns first. The
 // box stays up when the save is refused, or the press would lose what was typed.
-func (m Model) typing(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (m Model) typing(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	if !m.busy {
 		m.note = notice{}
 	}

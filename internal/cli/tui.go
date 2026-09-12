@@ -147,6 +147,18 @@ func (r *reloader) DeleteComment(g review.Generation, id string) (app.Reload, er
 	})
 }
 
+// Body reads one file whole. It writes nothing, so it takes the lock only to
+// keep off a session the reader has already closed.
+func (r *reloader) Body(g review.Generation, path string) (review.Body, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.shut {
+		return review.Body{}, errors.New("the reader closed the session before this read started")
+	}
+	return r.s.Body(r.ctx, g, path)
+}
+
 // SetSummary writes the note and reads back what landed. It names no generation
 // because the note is the session's, so nothing here can go stale.
 func (r *reloader) SetSummary(text string) (string, error) {

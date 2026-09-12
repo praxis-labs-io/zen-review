@@ -181,7 +181,7 @@ func where(c store.Comment) string {
 
 // drafting routes a key into the box, answering the two it owns first. Those
 // are the composer's: two boxes with one way out of them.
-func (m Model) drafting(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) drafting(msg tea.Msg) (Model, tea.Cmd) {
 	// One press long, the way it is outside the box. A line that outlived the
 	// press that put it there is one more thing to read past mid-sentence.
 	if !m.busy {

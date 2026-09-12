@@ -79,6 +79,10 @@ type Source interface {
 	// SetSummary writes the session note and hands back what review stored. It
 	// names no generation: the note is the session's rather than a snapshot's.
 	SetSummary(text string) (string, error)
+
+	// Body is one file's whole text at the generation on screen, which is what
+	// the preview key fills the gaps between the hunks with. It writes nothing.
+	Body(g review.Generation, path string) (review.Body, error)
 }
 
 type basesLoadedMsg struct{ candidates review.BaseCandidates }
@@ -88,6 +92,17 @@ type baseSetMsg struct {
 	r   Reload
 }
 type baseSetFailedMsg struct{ err error }
+
+// bodyLoadedMsg is a file's text that came back. It names the path and the
+// generation it was read at, because the reader can walk on while it is out.
+type bodyLoadedMsg struct {
+	path string
+	gen  int64
+	body review.Body
+}
+
+// bodyFailedMsg is one that did not. The mode stands down and the bar says so.
+type bodyFailedMsg struct{ err error }
 
 // reloadedMsg is a reload that came back.
 type reloadedMsg struct{ r Reload }
@@ -108,6 +123,19 @@ func (m Model) reload() tea.Cmd {
 			return reloadFailedMsg{err: err}
 		}
 		return reloadedMsg{r: r}
+	}
+}
+
+// loadBody reads one file off the update loop, so the first press of the preview
+// key is never a keystroke waiting on git.
+func (m Model) loadBody(path string) tea.Cmd {
+	src, g := m.src, m.gen
+	return func() tea.Msg {
+		b, err := src.Body(g, path)
+		if err != nil {
+			return bodyFailedMsg{err: err}
+		}
+		return bodyLoadedMsg{path: path, gen: g.ID, body: b}
 	}
 }
 

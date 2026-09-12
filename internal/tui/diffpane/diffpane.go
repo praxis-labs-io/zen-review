@@ -142,10 +142,15 @@ type Model struct {
 	gen int64
 
 	// cursor is the row the reader is on, -1 until the root names a hunk. headAt
-	// is where each hunk starts, gutter the width its line numbers took.
-	cursor int
-	headAt []int
-	gutter int
+	// is where each hunk starts and hunkEnd the row past its last, gutter the
+	// width its line numbers took.
+	//
+	// The two are kept rather than read off each other, because in preview the
+	// rows between two hunks are the file itself and belong to neither.
+	cursor  int
+	headAt  []int
+	hunkEnd []int
+	gutter  int
 
 	// waiting is a z held for the key that says where to put the cursor. Any
 	// landing clears it, so a ring key between the two does not arm the next.
@@ -156,6 +161,16 @@ type Model struct {
 	// side is the column the cursor is in, which only side-by-side has.
 	split bool
 	side  store.Side
+
+	// preview is the same pair for the whole file drawn around the hunks: the
+	// body arrives a keystroke after the press, and previewing is the one to read.
+	//
+	// bodies is what has come back, by path, and bodiesAt the generation those
+	// bytes are from. That is its own field rather than gen below, which the
+	// blanking pass of a reload takes to zero and back.
+	preview  bool
+	bodies   map[string]body
+	bodiesAt int64
 
 	// anchor is where v was pressed, held as a place rather than a row: a card's
 	// height moves with the width, and every row after it renumbers.
@@ -233,6 +248,16 @@ func New(t theme.Theme) Model {
 // looks like. The cursor comes with the file, from Select: the root decides
 // which hunk it lands on and this pane never guesses.
 func (m *Model) SetFile(f *review.File, comments []store.Comment, replaced map[string][]string, at int64) {
+	// A body is the bytes of one generation. The next one's are different bytes
+	// under the same path, so the cache goes rather than being checked per file.
+	//
+	// A reload blanks the pane before it rebuilds it, naming no generation at all.
+	// Dropping the cache for that would cost a read on every reload that moved
+	// nothing, which is most of them.
+	if at != 0 && at != m.bodiesAt {
+		m.bodies, m.bodiesAt = nil, at
+	}
+
 	m.file, m.comments, m.replaced, m.gen, m.offset = f, comments, replaced, at, 0
 	m.anchor = place{seq: -1}
 	m.layout()
@@ -634,10 +659,9 @@ func (m *Model) place(row int) {
 // heading and every line of it.
 func (m Model) fits(at int) bool {
 	end := len(m.rows)
-	for _, next := range m.headAt {
-		if next > at {
-			// The blank line between two hunks belongs to neither.
-			end = next - 1
+	for i, head := range m.headAt {
+		if head == at {
+			end = m.hunkEnd[i]
 			break
 		}
 	}
@@ -814,13 +838,13 @@ func (m Model) View() string {
 // layout rebuilds the rows from the file and the comments written against it. A
 // card's height moves with the width, so relayout is what carries a cursor over.
 func (m *Model) layout() {
-	m.rows, m.headAt, m.cards, m.cursor = nil, nil, nil, -1
+	m.rows, m.headAt, m.hunkEnd, m.cards, m.cursor = nil, nil, nil, nil, -1
 	if m.file == nil {
 		return
 	}
 
 	tokens := m.tokens(*m.file)
-	m.gutter = paint.Gutter(widest(*m.file))
+	m.gutter = paint.Gutter(m.widest())
 
 	mine := m.mine()
 
@@ -863,8 +887,29 @@ func (m *Model) layout() {
 
 	split := m.splitting()
 
+	// In preview the file's own lines stand where the blank between two hunks
+	// does. They belong to no hunk, so nothing pins a heading over them and
+	// nothing marks them read.
+	var runs []fill
+	if m.previewing() {
+		runs = m.fills()
+	}
+	whole := m.body()
+
+	// run draws one of those, and nothing for a pair of hunks the file has no
+	// line between.
+	run := func(f fill) {
+		lines := f.lines(whole)
+		for _, p := range pairs(lines, split) {
+			add(m.code(lines, p, f.tokens(whole), -1, split))
+		}
+	}
+
 	for i, h := range m.file.Hunks {
-		if i > 0 {
+		switch {
+		case runs != nil:
+			run(runs[i])
+		case i > 0:
 			add(row{kind: noteRow, hunk: i - 1})
 		}
 
@@ -909,9 +954,13 @@ func (m *Model) layout() {
 		}
 
 		base += len(h.Diff.Lines)
+		m.hunkEnd = append(m.hunkEnd, len(m.rows))
 	}
 
-	if len(m.file.Hunks) == 0 {
+	switch {
+	case runs != nil:
+		run(runs[len(runs)-1])
+	case len(m.file.Hunks) == 0:
 		add(row{kind: noteRow, hunk: -1, note: emptyReason(*m.file)})
 	}
 
@@ -1130,17 +1179,27 @@ func kindOf(k diff.Kind) paint.Kind {
 	}
 }
 
-// widest is the highest line number the file reaches, which is what sizes the
+// widest is the highest line number the pane will draw, which is what sizes the
 // gutter. Both columns take the same width so the marker between them does not
 // move from one row to the next.
 //
 // Start plus Lines is the line after the hunk, not its last, and a hunk ending
 // at 99 sized off 100 buys a third column the file never fills. An empty range
 // has Start 0 and no last line to name.
-func widest(f review.File) int {
+//
+// Preview reaches past every hunk on both sides: the file runs on below the last
+// one, and a run of unchanged lines under a deletion carries base numbers higher
+// than any hunk named.
+func (m Model) widest() int {
 	n := 0
-	for _, h := range f.Hunks {
+	for _, h := range m.file.Hunks {
 		n = max(n, last(h.Diff.OldStart, h.Diff.OldLines), last(h.Diff.NewStart, h.Diff.NewLines))
+	}
+	if !m.previewing() {
+		return n
+	}
+	for _, f := range m.fills() {
+		n = max(n, f.to, f.to+f.delta)
 	}
 	return n
 }

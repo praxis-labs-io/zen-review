@@ -1,0 +1,16 @@
+╭─[1]─Zen Review───────────────────────╮╭─[2]─internal/review/state.go─────────────────────────────╮
+│  docs/superpowers/specs             ││ 119 119   line 119 of the file                           │
+│   ● design.md                  +3 -0 ││▌      ●  @@ -120,5 +120,7 @@ func (s *Session) Changese…│
+│  internal                           ││ 120 120       rows, err := s.db.ReviewedRanges(ctx, g.ID)│
+│    cli                              ││ 121 121       if err != nil {                            │
+│     ○ render.go                +1 -1 ││ 122 122           return Changeset{}, err                │
+│    review                           ││ 123 123       }                                          │
+│     ⊙ state.go                 +3 -1 ││     124 +     // Ranges are read off the generation.     │
+├──────────────────────────────────────┤│     125 +     // Never off the working tree.             │
+│ origin/main                  a1b2c3d ││ 124 126       return Derive(files, rows), nil            │
+│ Generation                         2 ││ 125 127   line 127 of the file                           │
+│ Reviewed                         2/7 ││ 126 128   line 128 of the file                           │
+│ Comments                         0/0 ││ 127 129   line 129 of the file                           │
+│ Changes                   6  +10 -3 ││ 128 130   line 130 of the file                           │
+╰──────────────────────────────────────╯╰──────────────────────────────────────────────────133/133─╯
+j/k move · n/N unread · }/{ hunk · ctrl+d/u page · r/R read · c comment · s reload · ? help · q quit

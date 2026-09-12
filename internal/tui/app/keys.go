@@ -35,9 +35,10 @@ type KeyMap struct {
 	Expand  key.Binding
 	Note    key.Binding
 
-	Reload key.Binding
-	Base   key.Binding
-	Split  key.Binding
+	Reload  key.Binding
+	Base    key.Binding
+	Split   key.Binding
+	Preview key.Binding
 
 	Left  key.Binding
 	Right key.Binding
@@ -103,6 +104,10 @@ func NewKeyMap() KeyMap {
 		// A rendering choice and nothing the engine holds, so it answers from
 		// either pane and never waits on a reload.
 		Split: key.NewBinding(key.WithKeys("|"), key.WithHelp("|", "split view")),
+
+		// Preview reads the file, so it is the one rendering choice that waits on
+		// git, and only the first press on a file does.
+		Preview: key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "full file")),
 
 		// The digits are the badges the panes carry in their borders, and their own
 		// bindings because a badge is a jump to a frame where h and l are a step.
@@ -180,6 +185,7 @@ func (m Model) paneKeys() []key.Binding {
 		m.keys.Base,
 		comp.Pair(m.keys.NextComment, m.keys.PrevComment, "]/[", "comment"),
 		comp.Pair(m.keys.NextFile, m.keys.PrevFile, "tab", "file"),
+		m.keys.Preview,
 		m.keys.Split,
 	)
 }
@@ -250,6 +256,7 @@ func (m Model) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		movement,
 		append(m.ringKeys(), verbs...),
-		append(panes, m.keys.Reload, m.keys.Base, m.keys.Split, m.keys.Note, m.keys.Help, m.keys.Quit),
+		append(panes, m.keys.Reload, m.keys.Base, m.keys.Preview, m.keys.Split,
+			m.keys.Note, m.keys.Help, m.keys.Quit),
 	}
 }
