@@ -13,13 +13,10 @@ import (
 
 func pane() comp.Pane { return comp.NewPane(testtheme.Dark) }
 
-// strip is the frame as a golden would hold it: the box drawn, the colour gone.
 func strip(rendered string) []string {
 	return strings.Split(ansi.Strip(rendered), "\n")
 }
 
-// TestTheBoxIsExactlyTheSizeItWasGiven. A pane clips overflow silently, so a
-// row that outruns it takes the border with it and nothing says so.
 func TestTheBoxIsExactlyTheSizeItWasGiven(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -33,9 +30,6 @@ func TestTheBoxIsExactlyTheSizeItWasGiven(t *testing.T) {
 		{"one row of content", 12, 3, "hello"},
 		{"tall and narrow", 4, 20, "a\nb\nc"},
 
-		// Two corners and no interior. The footer has nowhere to go, and the
-		// rune it usually sits against would make the border wider than the
-		// pane it closes.
 		{"corners only", 2, 4, "content"},
 	}
 
@@ -56,7 +50,6 @@ func TestTheBoxIsExactlyTheSizeItWasGiven(t *testing.T) {
 	}
 }
 
-// TestTheBorderCarriesTheIndexAndTheTitle, flush against the left corner.
 func TestTheBorderCarriesTheIndexAndTheTitle(t *testing.T) {
 	top := strip(pane().Size(30, 4).Index(2).Title("Zen Review").Render(""))[0]
 
@@ -68,9 +61,6 @@ func TestTheBorderCarriesTheIndexAndTheTitle(t *testing.T) {
 	}
 }
 
-// TestTheHeadingAnswersToFocus. A lit border under a dim name reads as two
-// panes half-focused rather than one focused pane, so the index, the title and
-// the border move together.
 func TestTheHeadingAnswersToFocus(t *testing.T) {
 	t2 := testtheme.Dark
 
@@ -112,7 +102,6 @@ func TestTheHeadingAnswersToFocus(t *testing.T) {
 	}
 }
 
-// TestANarrowPaneClipsItsTitle rather than pushing the corner off the frame.
 func TestANarrowPaneClipsItsTitle(t *testing.T) {
 	long := "internal/tui/diffpane/painting_the_unified_view.go"
 	top := strip(pane().Size(20, 4).Index(1).Title(long).Render(""))[0]
@@ -128,7 +117,6 @@ func TestANarrowPaneClipsItsTitle(t *testing.T) {
 	}
 }
 
-// TestTheFooterSitsInTheBottomBorder, one rune in from the corner.
 func TestTheFooterSitsInTheBottomBorder(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -156,9 +144,6 @@ func TestTheFooterSitsInTheBottomBorder(t *testing.T) {
 	}
 }
 
-// TestTheFooterIsDrawnAsItWasGiven. A footer coloured piece by piece would be
-// cut short by the first reset inside it if the pane restyled it, which is how
-// a churn count loses everything after its additions.
 func TestTheFooterIsDrawnAsItWasGiven(t *testing.T) {
 	churn := comp.Churn(lipgloss.NewStyle(), testtheme.Dark, 630, 105)
 
@@ -168,7 +153,6 @@ func TestTheFooterIsDrawnAsItWasGiven(t *testing.T) {
 	}
 }
 
-// TestChurnSaysWhichWayItWent, rather than one grey for both halves.
 func TestChurnSaysWhichWayItWent(t *testing.T) {
 	got := comp.Churn(lipgloss.NewStyle(), testtheme.Dark, 630, 105)
 
@@ -186,8 +170,6 @@ func TestChurnSaysWhichWayItWent(t *testing.T) {
 	}
 }
 
-// TestANarrowFooterKeepsTheTotal. The right side is a total and a clipped total
-// misstates it; the left is a label, and a clipped label still reads.
 func TestANarrowFooterKeepsTheTotal(t *testing.T) {
 	bottom := strip(pane().Size(18, 4).Footer("140 files", "+63000 -10500").Render(""))[3]
 
@@ -199,8 +181,6 @@ func TestANarrowFooterKeepsTheTotal(t *testing.T) {
 	}
 }
 
-// TestAPaneWithNoRoomDrawsNothing. Two borders is the whole of a pane at that
-// size, and a caller appending an empty string spends no line on it.
 func TestAPaneWithNoRoomDrawsNothing(t *testing.T) {
 	for _, size := range []struct{ width, height int }{{1, 10}, {10, 1}, {0, 0}} {
 		if got := pane().Size(size.width, size.height).Render("content"); got != "" {
@@ -209,8 +189,6 @@ func TestAPaneWithNoRoomDrawsNothing(t *testing.T) {
 	}
 }
 
-// TestTheScrollCounterStaysOffWhenTheContentFits. A counter on content that
-// already fits is noise.
 func TestTheScrollCounterStaysOffWhenTheContentFits(t *testing.T) {
 	tests := []struct {
 		name   string

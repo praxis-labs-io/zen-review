@@ -7,23 +7,18 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/tui/theme"
 )
 
-// Textarea is the box prose is typed into, stripped of the chrome an editor
-// wants and a note does not. Both places prose is typed take this one.
+// Textarea returns a chrome-free textarea painted from t. It draws no cursor; the caller places it.
 func Textarea(t theme.Theme) textarea.Model {
 	area := textarea.New()
 	area.Prompt = ""
 	area.ShowLineNumbers = false
 	area.SetStyles(textareaStyles(t))
 
-	// The terminal's own cursor, placed by the root, rather than a block drawn
-	// into the text in a colour of ours. The reader set that cursor up already.
 	area.SetVirtualCursor(false)
 
 	return area
 }
 
-// textareaStyles paints from the theme, and every state the same: bubbles picks
-// its own colours, and a blurred box is one neither caller draws.
 func textareaStyles(t theme.Theme) textarea.Styles {
 	text := lipgloss.NewStyle().Foreground(t.Text)
 	muted := lipgloss.NewStyle().Foreground(t.Muted)
@@ -39,8 +34,6 @@ func textareaStyles(t theme.Theme) textarea.Styles {
 	return textarea.Styles{
 		Focused: state,
 		Blurred: state,
-		// No colour and no shape: what is left is what the terminal draws for
-		// every other program.
-		Cursor: textarea.CursorStyle{Blink: true},
+		Cursor:  textarea.CursorStyle{Blink: true},
 	}
 }
