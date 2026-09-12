@@ -320,9 +320,9 @@ to keep true:
   that committed and could not be read back closes it anyway, because saving
   again writes a second comment, which is why the Source names that failure.
 - The status bar clears on the next press inside a box as it does outside one.
-- `x`, `e`, `D` and `>` are named in the card's own footer and never in the help
-  overlay, which has no row to give at 16 rows. `esc` is named on the status bar
-  while a selection is up.
+- `>` is named in the card's own footer and never in the help overlay, which has
+  no row to give at 16 rows. `x`, `e` and `D` are named in both. `esc` is named on
+  the status bar while a selection is up.
 - `ResolveComment` refuses a comment already resolved, so a settled card neither
   offers `x` nor takes it.
 - Neither the response box nor its rail lights. The elbow is always `╰─`, there

@@ -245,7 +245,7 @@ A settled card folds to one row and keeps its box, and takes its response and th
 replaced code with it. Its footer names the direction the key goes rather than
 the state it is in.
 
-`x`, `e` and `D` are named in the lit card's own footer and nowhere else, because
+`x`, `e` and `D` are named in the lit card's own footer, because
 they reach one row on the screen and that row is where you look for them. `e` and
 `D` reach a card in any state: a typo in a resolved comment is still a typo, and
 one nobody meant to write is a record of nothing. `D` acts at once, the capital
