@@ -5,8 +5,6 @@ import (
 	"testing"
 )
 
-// A hunk is commented on as a region even where it holds one line. A selection
-// of one is still a selection, and the hunk is what was selected.
 func TestACommentOnAHunkTakesTheHunksLines(t *testing.T) {
 	f := marking(t)
 	f.mustRun("refresh")
@@ -32,8 +30,6 @@ func TestACommentOnAHunkTakesTheHunksLines(t *testing.T) {
 	}
 }
 
-// The scope falls out of the lines rather than out of how they were typed, so
-// one line is a line comment and more than one is a range.
 func TestTheScopeFollowsTheLines(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
@@ -62,9 +58,6 @@ func TestTheScopeFollowsTheLines(t *testing.T) {
 	}
 }
 
-// Lines are stored as they were given. Clipping a mark narrows a claim about how
-// much was read; clipping a comment moves what somebody said onto lines they did
-// not pick, so a comment about two hunks stays one comment about both.
 func TestACommentSpanningTwoHunksIsKeptAsTyped(t *testing.T) {
 	f := spread(t)
 	f.mustRun("refresh")
@@ -76,9 +69,6 @@ func TestACommentSpanningTwoHunksIsKeptAsTyped(t *testing.T) {
 	}
 }
 
-// A file comment names the file rather than any line in it, and takes the side
-// the file has bytes on: a deleted file has none on the head, and an anchor
-// there would survive every rewrite of the bytes it actually removed.
 func TestAFileCommentNamesTheFileOnTheSideItHasBytesOn(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -108,8 +98,6 @@ func TestAFileCommentNamesTheFileOnTheSideItHasBytesOn(t *testing.T) {
 	}
 }
 
-// A deletion-only hunk has no head-side lines, so --side base is the only way to
-// name it, exactly as it is for a mark.
 func TestADeletionOnlyHunkIsCommentedOnTheBase(t *testing.T) {
 	f := marking(t)
 	f.mustRun("refresh")
@@ -121,9 +109,6 @@ func TestADeletionOnlyHunkIsCommentedOnTheBase(t *testing.T) {
 	}
 }
 
-// A base-side comment is recorded under the name the file has on the base, which
-// a rename makes a different one. The diff a refresh translates base-side
-// anchors through knows only that name.
 func TestABaseSideCommentIsRecordedUnderTheBaseName(t *testing.T) {
 	f := renamed(t)
 	f.mustRun("refresh")
@@ -135,7 +120,6 @@ func TestABaseSideCommentIsRecordedUnderTheBaseName(t *testing.T) {
 	}
 }
 
-// A body arrives on stdin so one with newlines does not have to survive a shell.
 func TestABodyCanArriveOnStdin(t *testing.T) {
 	f := marking(t)
 	f.mustRun("refresh")
@@ -149,9 +133,6 @@ func TestABodyCanArriveOnStdin(t *testing.T) {
 	}
 }
 
-// A body is stored with its leading whitespace. The listing reads an indented
-// line as one somebody laid out on purpose, and eating it on the way in would
-// make that promise false for every body that arrives with one.
 func TestABodyKeepsTheIndentItArrivedWith(t *testing.T) {
 	f := marking(t)
 	f.mustRun("refresh")
@@ -165,8 +146,6 @@ func TestABodyKeepsTheIndentItArrivedWith(t *testing.T) {
 	}
 }
 
-// A body of several lines reads as one comment under the row naming it, and no
-// line of the output ends in whitespace.
 func TestAMultiLineBodyIsIndentedUnderItsRow(t *testing.T) {
 	f := marking(t)
 	f.mustRun("refresh")
@@ -186,9 +165,6 @@ func TestAMultiLineBodyIsIndentedUnderItsRow(t *testing.T) {
 	}
 }
 
-// Every way of getting the flags wrong, and what the reader is told to do about
-// it. None of these messages opens on a flag name or a path: the first letter is
-// capitalised on the way out, which would print a --Hunk that does not exist.
 func TestTheCommentFlagsRefuseWhatTheyCannotAnswer(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -206,8 +182,6 @@ func TestTheCommentFlagsRefuseWhatTheyCannotAnswer(t *testing.T) {
 			want: []string{"pass one"},
 		},
 		{
-			// The side is the one the file has bytes on, which a file comment does
-			// not get to choose any more than a whole-file mark does.
 			name: "a side under --file",
 			args: []string{"comment", "code.txt", "--file", "--side", "base", "--body", "here"},
 			want: []string{"side is not a choice"},
@@ -243,23 +217,16 @@ func TestTheCommentFlagsRefuseWhatTheyCannotAnswer(t *testing.T) {
 			want: []string{"blob.bin", "--file"},
 		},
 		{
-			// Line 0 is the file as a whole rather than a line in it. parseLines is
-			// shared with the mark commands, so the refusal has to point at this
-			// command's way of naming a file and not at their --all.
 			name: "a line 0 that means the whole file",
 			args: []string{"comment", "code.txt", "--lines", "0-3", "--body", "here"},
 			want: []string{"start at 1", "--file"},
 		},
 		{
-			// A flag given an empty value is a flag that was passed, so this is the
-			// --lines branch being refused rather than the --hunk one.
 			name: "lines given as nothing",
 			args: []string{"comment", "code.txt", "--lines=", "--body", "here"},
 			want: []string{"A-B", `""`},
 		},
 		{
-			// The other spelling of the same trap. A bool flag is set either way,
-			// and off is not a way of naming something to comment on.
 			name: "file turned off",
 			args: []string{"comment", "code.txt", "--file=false", "--body", "here"},
 			want: []string{"nothing to comment on"},
@@ -285,10 +252,6 @@ func TestTheCommentFlagsRefuseWhatTheyCannotAnswer(t *testing.T) {
 	}
 }
 
-// Lines no hunk holds are refused rather than clipped, and the refusal names the
-// lines the file does hold so the next attempt is a correction rather than a
-// guess. A comment anchored outside every hunk is on nothing a reader can be
-// shown, and it would carry into each new generation drifting as it goes.
 func TestLinesNoHunkHoldsAreRefusedAndTheHunksAreNamed(t *testing.T) {
 	f := spread(t)
 	f.mustRun("refresh")
@@ -302,10 +265,6 @@ func TestLinesNoHunkHoldsAreRefusedAndTheHunksAreNamed(t *testing.T) {
 	}
 }
 
-// None of the three writes takes --base. Open writes it back, so it stays
-// moved: closing a comment is not where a reader decides what the changeset is
-// measured from, and on the write itself the move recomputes the changeset the
-// comment then anchors into.
 func TestTheCommentWritesRefuseToMoveTheBase(t *testing.T) {
 	f := marking(t)
 	f.mustRun("refresh")
@@ -328,8 +287,6 @@ func TestTheCommentWritesRefuseToMoveTheBase(t *testing.T) {
 	}
 }
 
-// There is nothing for a comment to anchor to, so this refuses where files
-// reports.
 func TestCommentingBeforeAnythingIsBuiltIsRefused(t *testing.T) {
 	f := marking(t)
 
@@ -340,9 +297,6 @@ func TestCommentingBeforeAnythingIsBuiltIsRefused(t *testing.T) {
 	}
 }
 
-// A comment anchored to a generation that is no longer the latest is inert: the
-// carry runs from the latest, so nothing would ever pick it up and it would
-// never move again.
 func TestACommentNamingAnOlderGenerationIsRefused(t *testing.T) {
 	f := marking(t)
 	f.mustRun("refresh")
@@ -361,8 +315,6 @@ func TestACommentNamingAnOlderGenerationIsRefused(t *testing.T) {
 	f.mustRun("comment", "code.txt", "--file", "--body", "here", "--generation", "2")
 }
 
-// renamed is a file moved and edited in one branch, which is the case where the
-// name a base-side anchor is stored under is not the file's own.
 func renamed(t *testing.T) *fixture {
 	t.Helper()
 
@@ -377,7 +329,6 @@ func renamed(t *testing.T) *fixture {
 	return f
 }
 
-// only is the one comment a write answers with.
 func only(t *testing.T, w commentWire) commentEntry {
 	t.Helper()
 

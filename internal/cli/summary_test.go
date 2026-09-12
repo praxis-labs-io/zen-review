@@ -5,8 +5,6 @@ import (
 	"testing"
 )
 
-// summaryWire is what the summary command answers with: the same session, and
-// the note written against it.
 type summaryWire struct {
 	wireHeader
 
@@ -21,8 +19,6 @@ func (f *fixture) decodeSummary(args ...string) (summaryWire, string) {
 	return w, raw
 }
 
-// The note is written, answered with, and read back by the next invocation,
-// which is a different process against the same database.
 func TestTheSummaryIsWrittenAndReadBack(t *testing.T) {
 	f := clean(t)
 
@@ -37,7 +33,6 @@ func TestTheSummaryIsWrittenAndReadBack(t *testing.T) {
 	}
 }
 
-// A note with newlines in it does not have to survive a shell.
 func TestTheSummaryCanArriveOnStdin(t *testing.T) {
 	f := clean(t)
 	f.stdin = strings.NewReader("two things:\n\n- the first\n- the second\n")
@@ -48,13 +43,11 @@ func TestTheSummaryCanArriveOnStdin(t *testing.T) {
 	if !strings.Contains(w.Summary, "\n- the first\n") {
 		t.Errorf("summary = %q, want the lines it was given", w.Summary)
 	}
-	// A heredoc ends in a newline and a note does not.
 	if strings.HasSuffix(w.Summary, "\n") {
 		t.Errorf("summary = %q, want the trailing newline gone", w.Summary)
 	}
 }
 
-// Empty clears it, which is the only way to take a note back.
 func TestAnEmptySummaryClearsTheNote(t *testing.T) {
 	f := clean(t)
 	f.mustRun("summary", "--set", "wrote something")
@@ -67,8 +60,6 @@ func TestAnEmptySummaryClearsTheNote(t *testing.T) {
 	}
 }
 
-// No note yet is a sentence naming the flag, rather than a blank where an answer
-// goes.
 func TestNoSummaryYetNamesTheFlag(t *testing.T) {
 	f := clean(t)
 
@@ -81,8 +72,6 @@ func TestNoSummaryYetNamesTheFlag(t *testing.T) {
 	}
 }
 
-// A write does not move the base. The move sticks, and this call was not about
-// it. A read takes the flag the way every other read does.
 func TestOnlyTheWriteRefusesToMoveTheBase(t *testing.T) {
 	f := clean(t)
 
@@ -99,8 +88,6 @@ func TestOnlyTheWriteRefusesToMoveTheBase(t *testing.T) {
 	}
 }
 
-// A note wider than the page is folded under the same indent a comment body
-// takes, so the two read as one surface.
 func TestALongSummaryIsFoldedToThePage(t *testing.T) {
 	f := clean(t)
 	f.mustRun("summary", "--set", strings.Repeat("wordy ", 40))

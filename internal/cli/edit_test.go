@@ -5,8 +5,6 @@ import (
 	"testing"
 )
 
-// The body is the whole of an edit, and the response is the comment as it now
-// stands so a script does not need a second command to read it back.
 func TestEditRewritesTheBodyAndLeavesTheAnchor(t *testing.T) {
 	f := clean(t)
 	id := f.comment("code.txt", "--lines", "3", "--body", "this reads backwards")
@@ -26,8 +24,6 @@ func TestEditRewritesTheBodyAndLeavesTheAnchor(t *testing.T) {
 	}
 }
 
-// A rewritten body arrives on stdin the way a new one does, so prose with
-// newlines in it does not have to survive a shell.
 func TestAnEditBodyCanArriveOnStdin(t *testing.T) {
 	f := clean(t)
 	id := f.comment("code.txt", "--lines", "3", "--body", "here")
@@ -41,8 +37,6 @@ func TestAnEditBodyCanArriveOnStdin(t *testing.T) {
 	}
 }
 
-// An edit with no --body is a comment about to be blanked, which the engine
-// refuses anyway. The refusal names the flag and how to reach stdin with it.
 func TestAnEditWithNoBodyIsRefused(t *testing.T) {
 	f := clean(t)
 	id := f.comment("code.txt", "--lines", "3", "--body", "here")
@@ -56,8 +50,6 @@ func TestAnEditWithNoBodyIsRefused(t *testing.T) {
 	}
 }
 
-// A delete prints the row that went, because nothing else can say what the
-// comment said once it has gone, and the session is left holding none.
 func TestDeleteHandsBackTheCommentThatWent(t *testing.T) {
 	f := clean(t)
 	id := f.comment("code.txt", "--lines", "3", "--body", "never mind")
@@ -73,8 +65,6 @@ func TestDeleteHandsBackTheCommentThatWent(t *testing.T) {
 	}
 }
 
-// Both reach a comment in any state: a typo in a resolved comment is still a
-// typo, and one nobody meant to write is a record of nothing.
 func TestEditAndDeleteReachAResolvedComment(t *testing.T) {
 	for _, verb := range []string{"edit", "delete"} {
 		t.Run(verb, func(t *testing.T) {
@@ -91,8 +81,6 @@ func TestEditAndDeleteReachAResolvedComment(t *testing.T) {
 	}
 }
 
-// An id this session does not hold is a sentence, and the same one whichever
-// verb was reaching for it.
 func TestAnUnknownIdIsRefusedByEditAndDelete(t *testing.T) {
 	for _, verb := range []string{"edit", "delete"} {
 		t.Run(verb, func(t *testing.T) {
@@ -113,8 +101,6 @@ func TestAnUnknownIdIsRefusedByEditAndDelete(t *testing.T) {
 	}
 }
 
-// The state is a claim and the response is what a reader confirms it against. An
-// address with no words leaves nothing to confirm but the code itself.
 func TestAddressCarriesTheResponse(t *testing.T) {
 	f := clean(t)
 	id := f.comment("code.txt", "--lines", "3", "--body", "why is this here")
@@ -133,8 +119,6 @@ func TestAddressCarriesTheResponse(t *testing.T) {
 	}
 }
 
-// Half a queue is change requests where the diff is the response, so the flag is
-// optional and the verb is the one it always was without it.
 func TestAddressStillTakesNoWordsAtAll(t *testing.T) {
 	f := clean(t)
 	id := f.comment("code.txt", "--lines", "3", "--body", "cap this")
@@ -150,8 +134,6 @@ func TestAddressStillTakesNoWordsAtAll(t *testing.T) {
 	}
 }
 
-// A response arrives on stdin the way a body does, because an agent writing one
-// is holding prose with newlines in it.
 func TestAResponseCanArriveOnStdin(t *testing.T) {
 	f := clean(t)
 	id := f.comment("code.txt", "--lines", "3", "--body", "why")
@@ -165,8 +147,6 @@ func TestAResponseCanArriveOnStdin(t *testing.T) {
 	}
 }
 
-// The elbow is the one cue saying the words below are the agent's. A response
-// opening on a blank line would spend it on nothing and print with none at all.
 func TestAResponseOpeningOnABlankLineKeepsItsElbow(t *testing.T) {
 	f := clean(t)
 	id := f.comment("code.txt", "--lines", "3", "--body", "why")

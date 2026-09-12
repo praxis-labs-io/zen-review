@@ -9,12 +9,8 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
-// unresolvedState is the filter word for everything somebody still has to
-// answer. It is not a state a comment is ever in, which is why it is spelled
-// here and not in the store's vocabulary.
 const unresolvedState = "unresolved"
 
-// filter is what a listing was asked for. Its zero value matches everything.
 type filter struct {
 	state string
 	path  string
@@ -61,21 +57,12 @@ func runComments(cmd *cobra.Command, opts *options, f *filter) error {
 		return err
 	}
 
-	// Raised out here, where the session is already closed, so the sentinel is
-	// never joined with a close error. errors.Is finds it inside a join too, and a
-	// failed close riding along with it would exit as a match and be swallowed by
-	// the handler that keeps a match quiet.
-	//
-	// After the listing is written, never instead of it. The status is what a hook
-	// acts on and the comments are what a person reads, and a command withholding
-	// one to report the other would be answering half the question.
 	if f.exitCode && matched {
 		return errMatched
 	}
 	return nil
 }
 
-// listComments writes the listing and reports whether the filter matched.
 func listComments(cmd *cobra.Command, opts *options, f *filter) (_ bool, err error) {
 	ctx := cmd.Context()
 
@@ -115,8 +102,6 @@ func listComments(cmd *cobra.Command, opts *options, f *filter) (_ bool, err err
 	return len(v.Comments) > 0, nil
 }
 
-// check reads the state a listing was asked for against the vocabulary, so a
-// typo is a sentence rather than an empty list that looks like an answer.
 func (f *filter) check() error {
 	switch f.state {
 	case "", unresolvedState,
@@ -129,7 +114,6 @@ func (f *filter) check() error {
 	}
 }
 
-// apply narrows a listing to what was asked for.
 func (f *filter) apply(comments []store.Comment) []store.Comment {
 	out := make([]store.Comment, 0, len(comments))
 	for _, c := range comments {
@@ -155,11 +139,6 @@ func (f *filter) matches(c store.Comment) bool {
 	}
 }
 
-// nothing is what a listing that matched none says.
-//
-// It repeats the filter back rather than saying there is nothing at all, because
-// those are different answers and a reader who mistyped a path would believe the
-// wrong one.
 func (f *filter) nothing() string {
 	if f.state == "" && f.path == "" {
 		return "no comments yet"

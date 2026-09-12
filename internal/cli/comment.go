@@ -13,13 +13,8 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
-// aimFile is the third way of naming what a comment is about: the file itself,
-// rather than lines in it. The other two are shared with a mark.
 const aimFile aim = "file"
 
-// note is what a comment command was asked to write. Exactly one of the three
-// ways of naming what it is about is given, and side qualifies the two that name
-// lines.
 type note struct {
 	aim   aim
 	hunk  int
@@ -32,7 +27,6 @@ type note struct {
 	generation int
 }
 
-// mover is a comment moved to the state a verb names.
 type mover func(context.Context, string) (store.Comment, error)
 
 func newComment(opts *options) *cobra.Command {
@@ -69,8 +63,6 @@ func newComment(opts *options) *cobra.Command {
 	return cmd
 }
 
-// newAddress is the one state verb that takes words, because the state is a
-// claim and the words are what back it.
 func newAddress(opts *options) *cobra.Command {
 	var text string
 
@@ -93,7 +85,6 @@ func newAddress(opts *options) *cobra.Command {
 				return err
 			}
 
-			// Read before the database is opened, for the reason runComment gives.
 			written, err := body(cmd, text, "answer")
 			if err != nil {
 				return err
@@ -131,8 +122,6 @@ func newDelete(opts *options) *cobra.Command {
 		func(s *review.Session) mover { return s.DeleteComment })
 }
 
-// newEdit is the one verb that is not a state, so it takes a body rather than
-// the id alone.
 func newEdit(opts *options) *cobra.Command {
 	var text string
 
@@ -154,8 +143,6 @@ func newEdit(opts *options) *cobra.Command {
 				return err
 			}
 
-			// Read before the database is opened, for the reason runComment gives:
-			// a body on stdin is the reader still typing.
 			written, err := body(cmd, text, "comment")
 			if err != nil {
 				return err
@@ -191,18 +178,12 @@ func newVerb(opts *options, use, short, long string, verb func(*review.Session) 
 	}
 }
 
-// check reads the flags against each other, before anything opens a database.
-//
-// No message here opens on a flag name or a path, for the reason mark.go gives:
-// the error is printed with its first letter capitalised, which turns --hunk
-// into a flag that does not exist.
+// No message opens on a flag name or a path: the printed error capitalises its first letter.
 func (n *note) check(cmd *cobra.Command) error {
 	if err := refuseBase(cmd); err != nil {
 		return err
 	}
 
-	// --file is read by its value and the other two by whether they were passed,
-	// the same way --all is: a bool flag is set either way it is spelled.
 	named := 0
 	if cmd.Flags().Changed("hunk") {
 		named, n.aim = named+1, aimHunk
@@ -227,7 +208,6 @@ func (n *note) check(cmd *cobra.Command) error {
 	return needsBody(cmd)
 }
 
-// needsBody refuses a write with no --body, in the words both of them use.
 func needsBody(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("body") {
 		return errors.New("a comment needs something in it: pass --body <text>, or --body - to read it from stdin")
@@ -238,9 +218,6 @@ func needsBody(cmd *cobra.Command) error {
 func runComment(cmd *cobra.Command, opts *options, n *note, path string) (err error) {
 	ctx := cmd.Context()
 
-	// Read before the database is opened. A body arriving on stdin is the reader
-	// still typing, and holding the session open across that is holding it open
-	// for as long as they take.
 	text, err := body(cmd, n.body, "comment")
 	if err != nil {
 		return err
@@ -259,9 +236,6 @@ func runComment(cmd *cobra.Command, opts *options, n *note, path string) (err er
 	if !st.Exists {
 		return errors.New("this session has no generation, so there is nothing to comment on: run zen-review refresh")
 	}
-	// Read by whether it was passed, not by whether it is zero. Generation 0 is
-	// not a generation, so a sentinel would let the one value that can never be
-	// current through as though the flag had been left off.
 	if cmd.Flags().Changed("generation") && n.generation != st.Generation.Seq {
 		return &review.StaleGenerationError{Seq: n.generation, Current: st.Generation.Seq}
 	}
@@ -297,8 +271,6 @@ func runVerb(cmd *cobra.Command, opts *options, id string, verb func(*review.Ses
 	}
 	defer func() { err = closing(err, s) }()
 
-	// The session is read before the write, so a failure to describe it refuses
-	// rather than leaving a comment moved and nothing said about it.
 	st, err := s.Status(ctx)
 	if err != nil {
 		return err
@@ -316,8 +288,6 @@ func runVerb(cmd *cobra.Command, opts *options, id string, verb func(*review.Ses
 	return emit(cmd.OutOrStdout(), v, opts.asJSON)
 }
 
-// one is the answer a write gives: the comment it wrote, in the shape the
-// listing prints, so --json hands back the id the next command takes.
 func one(
 	ctx context.Context,
 	cmd *cobra.Command,
@@ -341,8 +311,6 @@ func one(
 	}, nil
 }
 
-// replacedFor is the code each answered comment was written against, and nil on
-// a session with no generation, which has no file to read the lines from.
 func replacedFor(
 	ctx context.Context,
 	opts *options,
@@ -356,7 +324,6 @@ func replacedFor(
 	return s.Replaced(ctx, st.Generation, comments)
 }
 
-// resolve turns the flags into the note the engine takes.
 func (n *note) resolve(c review.Changeset, path, text string) (review.Note, error) {
 	f, found := c.File(path)
 	if !found {
@@ -392,17 +359,7 @@ func (n *note) resolve(c review.Changeset, path, text string) (review.Note, erro
 	return review.NoteOnHunk(path, h, text), nil
 }
 
-// anchored refuses lines that no hunk of the file holds any of on that side.
-//
-// review --lines clips to the hunks instead, and the difference is deliberate.
-// Clipping a mark narrows a claim about how much was read; clipping a comment
-// moves what somebody said onto lines they did not pick. So a range overlapping
-// one anchor is kept exactly as typed, and one spanning two hunks stays one
-// comment about both.
-//
-// Refusing the rest matters for the reason the clip exists. A comment anchored
-// outside every hunk is on nothing a reader can be shown, and it carries into
-// each new generation drifting as it goes.
+// Refuses rather than clips as a mark does: clipping a comment moves what somebody said onto lines they did not pick.
 func anchored(f review.File, side store.Side, r review.Range) error {
 	if len(f.Hunks) == 0 {
 		return fmt.Errorf("nothing in %s is named by a line, so --file is how to comment on it", f.Diff.Path)
@@ -429,8 +386,6 @@ func anchored(f review.File, side store.Side, r review.Range) error {
 		f.Diff.Path, side, r.Start, r.End, strings.Join(held, ", "))
 }
 
-// span is a run of lines as a reader types it back. A selection of one line is
-// still a selection and nobody types 42-42.
 func span(r review.Range) string {
 	if r.Start == r.End {
 		return fmt.Sprint(r.Start)
@@ -438,15 +393,6 @@ func span(r review.Range) string {
 	return fmt.Sprintf("%d-%d", r.Start, r.End)
 }
 
-// body is what was written: the text passed, or stdin when it is -, so prose
-// with newlines in it does not have to survive a shell. Only the stdin failure
-// uses what, to name the thing it was reading.
-//
-// Trailing whitespace goes, because a heredoc ends in a newline and a comment
-// does not. Leading whitespace stays: the listing reads an indented line as one
-// somebody laid out on purpose, and eating it here would make that promise
-// false for every body that arrives with one. A comment left with nothing in it
-// is refused by the engine rather than stored.
 func body(cmd *cobra.Command, flag, what string) (string, error) {
 	if flag != "-" {
 		return trailing(flag), nil
@@ -459,4 +405,5 @@ func body(cmd *cobra.Command, flag, what string) (string, error) {
 	return trailing(string(raw)), nil
 }
 
+// Leading whitespace survives, because the listing reads an indented line as deliberate layout.
 func trailing(s string) string { return strings.TrimRight(s, " \t\r\n") }

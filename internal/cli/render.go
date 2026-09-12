@@ -12,15 +12,8 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/review"
 )
 
-// label is the width of the widest heading, so the three of them line up
-// without a tabwriter for three rows.
 const label = "%-10s  %s\n"
 
-// render writes the view as prose.
-//
-// It returns a string rather than writing, because a strings.Builder cannot
-// fail and that makes this a pure function of the view. Every formatting test
-// is then a table over view literals with no repository behind it.
 func (v view) render() string {
 	var b strings.Builder
 	v.write(&b)
@@ -39,13 +32,6 @@ func (v view) render() string {
 	return b.String()
 }
 
-// empty is the generation holding nothing to review.
-//
-// It is scoped to the generation once that stops describing what is on disk. A
-// generation built on a clean branch and then edited against would otherwise
-// print "no changes since origin/main" directly under the line saying the work
-// tree moved, and of the two the reader believes the one that sounds like an
-// answer.
 func (v header) empty(b *strings.Builder) {
 	if v.reason() == fresh {
 		fmt.Fprintf(b, "\nno changes since %s\n", v.Base.Name())
@@ -54,8 +40,6 @@ func (v header) empty(b *strings.Builder) {
 	fmt.Fprintf(b, "\ngeneration %d held no changes since %s\n", v.Generation.Seq, v.Base.Name())
 }
 
-// write is the three headings and the sentence about the generation, which every
-// command opens with.
 func (v header) write(b *strings.Builder) {
 	fmt.Fprintf(b, label, "base", baseCell(v.Base))
 	if v.Exists {
@@ -74,7 +58,6 @@ func (v header) write(b *strings.Builder) {
 	}
 }
 
-// baseCell is the base and its sha, tagged when it is one nobody asked for.
 func baseCell(b review.Base) string {
 	cell := fmt.Sprintf("%s (%s)", b.Name(), short(b.SHA))
 	if b.Fallback == "" {
@@ -83,12 +66,9 @@ func baseCell(b review.Base) string {
 	return cell + "  ·  " + b.Fallback
 }
 
-// writeFiles lays the rows out in columns.
 func writeFiles(b *strings.Builder, files []diff.File) {
 	rows := make([][]string, 0, len(files))
 	for _, f := range files {
-		// The churn cell is left off rather than left empty, so a file with nothing
-		// to count does not end its row with padding.
 		cells := []string{letter(f.Status), name(f), extent(f)}
 		if c := churn(f); c != "" {
 			cells = append(cells, c)
@@ -98,19 +78,7 @@ func writeFiles(b *strings.Builder, files []diff.File) {
 	writeColumns(b, "", rows)
 }
 
-// writeColumns pads a set of rows to a shared width and writes them under an
-// indent.
-//
-// The padding is here rather than in text/tabwriter because that writes through
-// an io.Writer that can fail, and this one provably cannot. Doing it by hand
-// also makes the guarantee explicit rather than a side effect: the last cell of
-// a row is never padded, so no line ends in whitespace.
-//
-// Widths count runes, which is what tabwriter counted, so a path outside ASCII
-// lines up the same way it did.
-//
-// One call is one set of columns. The hunk rows under a file are their own call,
-// because sharing widths with the file rows above would pad them out to a path.
+// Padded by hand rather than through text/tabwriter, so it cannot fail and never pads a row's last cell.
 func writeColumns(b *strings.Builder, indent string, rows [][]string) {
 	widths := columnWidths(rows)
 	for _, cells := range rows {
@@ -118,7 +86,6 @@ func writeColumns(b *strings.Builder, indent string, rows [][]string) {
 	}
 }
 
-// columnWidths is the widest cell in each column.
 func columnWidths(rows [][]string) []int {
 	var widths []int
 	for _, cells := range rows {
@@ -132,8 +99,6 @@ func columnWidths(rows [][]string) []int {
 	return widths
 }
 
-// writeRow writes one row padded to widths. The last cell is never padded, so no
-// line ends in whitespace.
 func writeRow(b *strings.Builder, indent string, widths []int, cells []string) {
 	const gap = 2
 
@@ -148,17 +113,6 @@ func writeRow(b *strings.Builder, indent string, widths []int, cells []string) {
 	b.WriteString("\n")
 }
 
-// writeSkipped names every path rather than counting them, and it goes last so
-// it is the final word after the count it corrects.
-//
-// It says "just now" deliberately. On a status these paths come from the
-// snapshot taken moments ago while the files above come from the stored
-// generation, so this is not a property of the generation being reported.
-//
-// The stakes are higher than a missing row. The snapshot index is seeded from
-// HEAD, so a tracked file git could not read keeps the blob that was already
-// there: it does not vanish and it does not read as deleted, it reads as
-// unchanged. An edit nobody can see is the failure this tool exists to prevent.
 func writeSkipped(b *strings.Builder, skipped []string) {
 	if len(skipped) == 0 {
 		return
@@ -171,8 +125,6 @@ func writeSkipped(b *strings.Builder, skipped []string) {
 	}
 }
 
-// headerJSON is what every payload opens with, embedded so the session keys are
-// spelled once and every command promises the same ones.
 type headerJSON struct {
 	Session string `json:"session"`
 	Ref     string `json:"ref"`
@@ -181,34 +133,16 @@ type headerJSON struct {
 
 	Base baseJSON `json:"base"`
 
-	// Generation is null on a session that has never refreshed, which says more
-	// than a zeroed object beside a flag. Its BaseSha sits beside Base.SHA
-	// deliberately: when the two differ the files below were measured from this
-	// one, and a consumer holding only the other cannot tell.
 	Generation *generationJSON `json:"generation"`
 
 	Stale bool `json:"stale"`
 
-	// StaleReason is "", "tree" or "base". It is empty on a session with no
-	// generation, where Stale is true and neither a base nor a tree moved to make
-	// it so: a consumer switching on this reads the null generation for that case.
-	//
-	// No omitempty on it or on Stale, because false and absent are different
-	// answers and a consumer should not have to guess which it got.
+	// No omitempty here or on Stale: false and absent are different answers.
 	StaleReason staleness `json:"staleReason"`
 
-	// Skipped is top level rather than under Generation, because on a status it
-	// describes the snapshot just taken and not the generation being reported.
 	Skipped []string `json:"skipped"`
 }
 
-// payload is the wire shape, and a contract with whatever is parsing it rather
-// than a mirror of the engine's structs.
-//
-// review.Status is declared for the engine: its Go names are wrong here, its
-// Kind is an engine type, and its Files carry every hunk and every line where a
-// status wants counts. Keeping the two apart also means a field landing on the
-// engine through M5 does not silently join this output the day it is declared.
 type payload struct {
 	headerJSON
 
@@ -232,8 +166,6 @@ type baseJSON struct {
 	Ref string `json:"ref"`
 	SHA string `json:"sha"`
 
-	// Fallback tags a base nobody asked for, and is absent when the base is the
-	// one that was. Ref is empty only for the empty tree, which has no ref.
 	Fallback string `json:"fallback,omitempty"`
 }
 
@@ -250,8 +182,6 @@ type fileJSON struct {
 	OldPath string      `json:"oldPath,omitempty"`
 	Status  diff.Status `json:"status"`
 
-	// Omitted says why a file has no hunks, and is empty when the counts are the
-	// whole story.
 	Omitted string `json:"omitted,omitempty"`
 
 	Hunks     int `json:"hunks"`
@@ -266,11 +196,6 @@ type totalsJSON struct {
 	Deletions int `json:"deletions"`
 }
 
-// headerOf projects the session onto the wire.
-//
-// Skipped is made rather than declared. It is nil when nothing was skipped, and
-// a nil slice marshals to null, which leaves a caller handling two spellings of
-// empty.
 func headerOf(v header) headerJSON {
 	h := headerJSON{
 		Session:     v.SessionID,
@@ -296,8 +221,6 @@ func headerOf(v header) headerJSON {
 	return h
 }
 
-// payloadOf projects the view onto the wire. Files is made for the same reason
-// Skipped is: it is nil on a session that never refreshed.
 func payloadOf(v view) payload {
 	p := payload{
 		headerJSON: headerOf(v.header),
@@ -339,8 +262,6 @@ func candidateJSONs(candidates []review.Candidate) []candidateJSON {
 	return out
 }
 
-// encode writes the view as JSON, indented to match the goldens elsewhere in
-// the repo. The encoder writes its own trailing newline.
 func (v view) encode(out io.Writer) error {
 	enc := json.NewEncoder(out)
 	enc.SetIndent("", "  ")
@@ -373,8 +294,6 @@ func letter(s diff.Status) string {
 	}
 }
 
-// name shows a rename as both of its names, because the old one is how a reader
-// knows which file this used to be.
 func name(f diff.File) string {
 	if f.OldPath == "" {
 		return f.Path

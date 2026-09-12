@@ -8,8 +8,6 @@ import (
 	"testing"
 )
 
-// Status is a read. Building is what bare zen-review and refresh do, and the
-// ref is what proves the difference rather than the wording of the output.
 func TestStatusWritesNothing(t *testing.T) {
 	f := edited(t)
 
@@ -49,10 +47,6 @@ func TestOnlyStatusJSONListsBaseCandidates(t *testing.T) {
 	}
 }
 
-// A session with nothing built yet is where an unreadable path matters most,
-// because there is no generation to have reported it earlier and no other way
-// to find out. The skipped paths come from the snapshot status just took, so
-// they do not depend on a generation existing.
 func TestStatusNamesPathsGitCouldNotReadBeforeAnythingIsBuilt(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("root reads a file with no permissions, so there is nothing to skip")
@@ -91,8 +85,6 @@ func TestStatusOnAFreshSessionSaysWhatToRun(t *testing.T) {
 	}
 }
 
-// After a refresh the status describes the generation that was built, and the
-// changeset comes back with it.
 func TestStatusAfterARefreshReportsTheGeneration(t *testing.T) {
 	f := edited(t)
 	built, _ := f.decode("refresh")
@@ -113,10 +105,6 @@ func TestStatusAfterARefreshReportsTheGeneration(t *testing.T) {
 	}
 }
 
-// TestTheFilesComeBackInTheOrderATreeReads. Git reports the order it walked the
-// index in, which drops a root file above every directory holding the rest of
-// the changeset. One ordering comes out of the engine, so this table and the
-// reader's tree pane cannot disagree about what is first.
 func TestTheFilesComeBackInTheOrderATreeReads(t *testing.T) {
 	f := newFixture(t)
 	for _, p := range []string{"README.md", "internal/git/diff.go", "internal/cli/root.go"} {
@@ -142,9 +130,6 @@ func TestTheFilesComeBackInTheOrderATreeReads(t *testing.T) {
 	}
 }
 
-// An edit makes the generation stale, and what comes back is what was reviewed
-// rather than what is on disk now. That second half is the whole point of a
-// generation and the thing a golden file cannot see.
 func TestAnEditMakesTheStatusStaleAndKeepsTheReviewedContent(t *testing.T) {
 	f := edited(t)
 	f.mustRun("refresh")
@@ -168,7 +153,6 @@ func TestAnEditMakesTheStatusStaleAndKeepsTheReviewedContent(t *testing.T) {
 		t.Errorf("the prose does not say the work tree moved:\n%s", out)
 	}
 
-	// And a refresh clears it, which is the other half of the loop.
 	after, _ := f.decode("refresh")
 	if after.Stale {
 		t.Error("a refresh did not clear the staleness it was run to clear")
@@ -178,9 +162,6 @@ func TestAnEditMakesTheStatusStaleAndKeepsTheReviewedContent(t *testing.T) {
 	}
 }
 
-// base_ref sticks and base_sha follows the branch, so a rebase onto a newer base
-// moves the fork point. The engine reports one Stale bool over both causes; the
-// two bases in the payload are what tell them apart.
 func TestARebaseIsStaleForADifferentReasonThanAnEdit(t *testing.T) {
 	f := branched(t)
 	f.Write("work.txt", "the branch's own work\n")
@@ -188,8 +169,6 @@ func TestARebaseIsStaleForADifferentReasonThanAnEdit(t *testing.T) {
 
 	built, _ := f.decode("refresh")
 
-	// main moves on, and the branch is replayed onto it, which is what an agent
-	// rebasing onto a newer origin/main leaves behind.
 	f.Git("checkout", "-q", "main")
 	f.Write("upstream.txt", "landed while we were working\n")
 	f.Commit("upstream")
@@ -216,8 +195,6 @@ func TestARebaseIsStaleForADifferentReasonThanAnEdit(t *testing.T) {
 	if !strings.Contains(out, "the base moved to") {
 		t.Errorf("the prose does not say the base moved:\n%s", out)
 	}
-	// The upstream commit is not this branch's work, and measuring from the old
-	// fork point is exactly how it would look like it was.
 	if _, ok := w.files()["upstream.txt"]; ok {
 		t.Errorf("files = %+v, want the rebase's own commits left out", w.Files)
 	}

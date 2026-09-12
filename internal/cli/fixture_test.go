@@ -14,16 +14,10 @@ import (
 
 func TestMain(m *testing.M) { os.Exit(testrepo.Main(m)) }
 
-// fixture is a real repository with a real database under it. Nothing here is
-// mocked: what these tests check is what the commands do to a repository, and a
-// fake would answer a different question.
 type fixture struct {
 	*testrepo.Repo
 	t *testing.T
 
-	// stdin is what the next invocation reads, for the commands that take a body
-	// on it. Nil leaves the command with whatever cobra defaults to, which under
-	// go test is the test binary's own stdin and holds nothing.
 	stdin io.Reader
 }
 
@@ -32,8 +26,6 @@ func newFixture(t *testing.T) *fixture {
 	return &fixture{Repo: testrepo.New(t), t: t}
 }
 
-// branched is the common shape: a commit on main tracked as origin/main, then a
-// feature branch to do the work on.
 func branched(t *testing.T) *fixture {
 	t.Helper()
 
@@ -45,8 +37,6 @@ func branched(t *testing.T) *fixture {
 	return f
 }
 
-// edited is branched with one uncommitted change, which is the state a review
-// actually opens in.
 func edited(t *testing.T) *fixture {
 	t.Helper()
 
@@ -55,21 +45,11 @@ func edited(t *testing.T) *fixture {
 	return f
 }
 
-// run drives the command the way a shell does, from inside the repository.
-//
-// stdout and stderr are separate buffers. Merged, a test cannot prove an error
-// stayed out of the JSON stream, which is the one thing --json has to promise
-// whatever is parsing it.
-//
-// SetArgs takes an empty slice rather than nil, because nil means "read
-// os.Args", which under `go test` is the test binary's own flags.
 func (f *fixture) run(args ...string) (stdout, stderr string, err error) {
 	f.t.Helper()
 	return f.runFrom(f.Dir(), args...)
 }
 
-// runFrom is run from somewhere other than the repository root, which is where
-// most invocations actually happen.
 func (f *fixture) runFrom(dir string, args ...string) (stdout, stderr string, err error) {
 	f.t.Helper()
 	f.t.Chdir(dir)
@@ -97,8 +77,6 @@ func (f *fixture) mustRun(args ...string) string {
 	return out
 }
 
-// failure runs a command that has to fail and hands back the error, so a test
-// asserting on a message cannot pass by the command quietly succeeding.
 func (f *fixture) failure(args ...string) error {
 	f.t.Helper()
 
@@ -109,10 +87,7 @@ func (f *fixture) failure(args ...string) error {
 	return err
 }
 
-// wireHeader is what every payload opens with, as something parsing it sees.
-// These types are declared here rather than shared with the code that produces
-// them: a test reading the same struct it is checking cannot catch a renamed
-// key, and the key names are most of what this output promises.
+// Declared apart from the payload types, since a test reading the struct it checks cannot catch a renamed key.
 type wireHeader struct {
 	Session string `json:"session"`
 	Ref     string `json:"ref"`
@@ -138,7 +113,6 @@ type wireHeader struct {
 	Skipped     []string `json:"skipped"`
 }
 
-// wire is what status and refresh answer with: the changeset counted, not read.
 type wire struct {
 	wireHeader
 
@@ -171,8 +145,6 @@ type candidateWire struct {
 	Ahead int    `json:"ahead"`
 }
 
-// stateWire is what files, review and unreview answer with: the same session,
-// and the changeset with the review derived on it.
 type stateWire struct {
 	wireHeader
 
@@ -214,8 +186,6 @@ type stateFile struct {
 	} `json:"hunks"`
 }
 
-// commentWire is what the four comment commands answer with: the same session,
-// and the comments written against it.
 type commentWire struct {
 	wireHeader
 
@@ -248,7 +218,6 @@ type commentEntry struct {
 	UpdatedAt string `json:"updatedAt"`
 }
 
-// decode runs a command with --json and parses what it wrote to stdout.
 func (f *fixture) decode(args ...string) (wire, string) {
 	f.t.Helper()
 	return f.decodeFrom(f.Dir(), args...)
@@ -262,8 +231,6 @@ func (f *fixture) decodeFrom(dir string, args ...string) (wire, string) {
 	return w, raw
 }
 
-// decodeState is the same for the payload files, review and unreview answer
-// with.
 func (f *fixture) decodeState(args ...string) (stateWire, string) {
 	f.t.Helper()
 
@@ -272,7 +239,6 @@ func (f *fixture) decodeState(args ...string) (stateWire, string) {
 	return w, raw
 }
 
-// decodeComments is the same for the payload the comment surface answers with.
 func (f *fixture) decodeComments(args ...string) (commentWire, string) {
 	f.t.Helper()
 
@@ -281,9 +247,6 @@ func (f *fixture) decodeComments(args ...string) (commentWire, string) {
 	return w, raw
 }
 
-// jsonFrom runs the command with --json and parses stdout into into. It also
-// checks stderr stayed empty, because a warning landing in the stream is what
-// breaks the caller rather than the command.
 func (f *fixture) jsonFrom(dir string, into any, args ...string) string {
 	f.t.Helper()
 
@@ -300,8 +263,6 @@ func (f *fixture) jsonFrom(dir string, into any, args ...string) string {
 	return stdout
 }
 
-// files keys the rows by path, so an assertion does not depend on the order git
-// happened to report them in.
 func (w wire) files() map[string]string {
 	got := map[string]string{}
 	for _, f := range w.Files {
@@ -310,8 +271,6 @@ func (w wire) files() map[string]string {
 	return got
 }
 
-// sessionRefs is every ref this tool has written, which is how a test proves a
-// read path wrote nothing at all.
 func (f *fixture) sessionRefs() []string {
 	f.t.Helper()
 

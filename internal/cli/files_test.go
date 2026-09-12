@@ -7,8 +7,6 @@ import (
 	"testing"
 )
 
-// files is a read like status is. It reports the generation already recorded
-// rather than building one, and the ref is what proves it wrote nothing.
 func TestFilesBuildsNothing(t *testing.T) {
 	f := edited(t)
 
@@ -22,13 +20,6 @@ func TestFilesBuildsNothing(t *testing.T) {
 	}
 }
 
-// The whole point of the listing: every hunk is named by a side and a line that
-// go straight back in as --side and --hunk. A name a reader cannot type back is
-// a name for nothing.
-//
-// The fixture spaces its hunks deliberately. A changeset of one hunk per file
-// names them all 1, which is also what an index would name them, so it proves
-// the round trip against a name that was never in question.
 func TestEveryHunkFilesNamesCanBeMarkedByThatName(t *testing.T) {
 	f := spread(t)
 	f.mustRun("refresh")
@@ -62,8 +53,6 @@ func TestEveryHunkFilesNamesCanBeMarkedByThatName(t *testing.T) {
 	}
 }
 
-// A hunk read in part is neither of the two states a reader could act on, and
-// the count beside it has to say so as well as the word.
 func TestAPartlyReadHunkReadsPartial(t *testing.T) {
 	f := lined(t)
 	f.mustRun("refresh")
@@ -84,9 +73,6 @@ func TestAPartlyReadHunkReadsPartial(t *testing.T) {
 	}
 }
 
-// A refresh taking reviewed lines off a file is not readable off the coverage it
-// leaves: an unmark leaves the same thing behind. The listing carries the record
-// the refresh wrote instead.
 func TestFilesReportsWhatTheRefreshCutFromAFile(t *testing.T) {
 	f := lined(t)
 	f.mustRun("refresh")
@@ -106,9 +92,6 @@ func TestFilesReportsWhatTheRefreshCutFromAFile(t *testing.T) {
 	}
 }
 
-// spread is a changeset whose hunks are nowhere near the top of their files: two
-// far enough apart that git keeps them separate, and a deletion-only hunk that
-// only the base side can name.
 func spread(t *testing.T) *fixture {
 	t.Helper()
 
@@ -124,8 +107,6 @@ func spread(t *testing.T) *fixture {
 	return f
 }
 
-// numbered is a file that says which line each of its lines is, so an assertion
-// about a hunk's name can be read against the fixture.
 func numbered(from, to int) string {
 	var b strings.Builder
 	for i := from; i <= to; i++ {
@@ -134,8 +115,6 @@ func numbered(from, to int) string {
 	return b.String()
 }
 
-// lined is a committed file of five lines with one of them edited, which gives
-// the changeset a single hunk wide enough to mark part of.
 func lined(t *testing.T) *fixture {
 	t.Helper()
 

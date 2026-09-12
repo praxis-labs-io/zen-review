@@ -44,12 +44,6 @@ func runFiles(cmd *cobra.Command, opts *options) (err error) {
 	return emit(cmd.OutOrStdout(), v, opts.asJSON)
 }
 
-// derive reads the review on the generation the status reported.
-//
-// A session with no generation is reported rather than refused, the way a status
-// is: the header says to run refresh and there is no changeset to say anything
-// else about. Marking is the call that has to refuse, because there is nothing
-// for a mark to anchor to.
 func derive(ctx context.Context, s *review.Session, st review.Status) (changesetView, error) {
 	v := changesetView{header: statusHeader(s, st)}
 	if !st.Exists {
