@@ -14,12 +14,9 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/tui/app"
 )
 
-// TestTheCommentRingCrossesFiles. The comments are one list over the whole
-// changeset, so ] walks off the end of a file the way n walks off a hunk.
 func TestTheCommentRingCrossesFiles(t *testing.T) {
 	s := commented(t, 100, 24, testchangeset.NestedComments()...)
 
-	// The first is on README.md and the next two are on state.go.
 	s.press("]")
 	if got := s.title(); !strings.Contains(got, "README.md") {
 		t.Fatalf("the first ] opened %q", got)
@@ -34,8 +31,6 @@ func TestTheCommentRingCrossesFiles(t *testing.T) {
 	}
 }
 
-// TestTheCommentRingSkipsAResolvedOne. A review is a burn-down and this ring is
-// the comments' half of it, the way n is the hunks'.
 func TestTheCommentRingSkipsAResolvedOne(t *testing.T) {
 	settled := testchangeset.In(
 		testchangeset.Comment("ffffffffffff", "README.md", 3, 3, "settled and gone"),
@@ -47,21 +42,15 @@ func TestTheCommentRingSkipsAResolvedOne(t *testing.T) {
 		s.press("]")
 	}
 
-	// The hints, not the body: both cards draw their body whether lit or not, so
-	// only what a lit card names says which one the ring landed on.
 	if got := s.frame(); !strings.Contains(got, "space fold") {
 		t.Fatalf("the ring never landed on the open comment:\n%s", got)
 	}
 
-	// Only a lit card names its keys, and the folded one names the way out of
-	// its fold. So the resolved card was never landed on.
 	if got := s.frame(); strings.Contains(got, "space open") {
 		t.Errorf("the ring landed on the resolved card:\n%s", got)
 	}
 }
 
-// TestTheCommentRingWraps, so a reader holding ] walks the queue round rather
-// than stopping on the last one with no way to say so.
 func TestTheCommentRingWraps(t *testing.T) {
 	first := testchangeset.Comment("aaaaaaaaaaaa", "README.md", 2, 2, "the first one")
 	second := testchangeset.Comment("bbbbbbbbbbbb", "internal/review/state.go", 13, 13, "the second one")
@@ -74,8 +63,6 @@ func TestTheCommentRingWraps(t *testing.T) {
 	}
 }
 
-// TestTheRingFollowsACardIntoItsHunk, so r after ] marks the hunk the card is
-// in rather than whichever one the reader was on before.
 func TestTheRingFollowsACardIntoItsHunk(t *testing.T) {
 	on := testchangeset.Comment("cccccccccccc", "internal/review/state.go", 124, 125, "the second hunk")
 
@@ -88,8 +75,6 @@ func TestTheRingFollowsACardIntoItsHunk(t *testing.T) {
 	}
 }
 
-// TestACardFoldsFromTheReader. space is the tree's fold key doing the tree's
-// job on the one other thing on screen that can be folded away.
 func TestACardFoldsFromTheReader(t *testing.T) {
 	on := testchangeset.Comment("aaaaaaaaaaaa", "README.md", 2, 2, "worth folding away")
 
@@ -109,15 +94,11 @@ func TestACardFoldsFromTheReader(t *testing.T) {
 		t.Errorf("the folded card names the fold rather than the way out of it:\n%s", got)
 	}
 
-	// The box stays. Without one a folded card is a line of grey text in a
-	// column of diff, which is what the diff's own notes look like.
 	if !strings.Contains(got, "╭─ ◇ open") {
 		t.Errorf("the folded card lost its box:\n%s", got)
 	}
 }
 
-// TestTheFactsCountTheComments. Nothing else on screen says one exists before
-// the reader scrolls into a card.
 func TestTheFactsCountTheComments(t *testing.T) {
 	s := commented(t, 100, 24, testchangeset.NestedComments()...)
 
@@ -126,13 +107,9 @@ func TestTheFactsCountTheComments(t *testing.T) {
 	}
 }
 
-// TestTheRingLeavesTheFileWithACardOutsideEveryHunk. A file comment and a stray
-// sit outside every hunk, and a ring left where it was would mark a hunk in the
-// file the reader just left.
 func TestTheRingLeavesTheFileWithACardOutsideEveryHunk(t *testing.T) {
 	whole := testchangeset.Comment("aaaaaaaaaaaa", "README.md", 0, 0, "the file itself")
 
-	// Off in state.go, so a ring left alone would still be pointed there.
 	s := commented(t, 100, 24, whole)
 	s.press("tab", "]", "r")
 
@@ -142,9 +119,6 @@ func TestTheRingLeavesTheFileWithACardOutsideEveryHunk(t *testing.T) {
 	}
 }
 
-// TestTheCommentRingSkipsAFileTheChangesetLost. A comment whose file was
-// reverted out has nowhere to draw, and in the ring it is a stop that lands on
-// nothing and never lets the key move past it.
 func TestTheCommentRingSkipsAFileTheChangesetLost(t *testing.T) {
 	gone := testchangeset.Comment("aaaaaaaaaaaa", "reverted.go", 4, 4, "its file went away")
 	live := testchangeset.Comment("bbbbbbbbbbbb", "README.md", 2, 2, "this one is still here")
@@ -157,8 +131,6 @@ func TestTheCommentRingSkipsAFileTheChangesetLost(t *testing.T) {
 	}
 }
 
-// mixedPatch is one hunk that both removes and adds, so a selection has a side
-// to pick and a removal has one of its own.
 const mixedPatch = `diff --git a/a.go b/a.go
 --- a/a.go
 +++ b/a.go
@@ -169,7 +141,6 @@ const mixedPatch = `diff --git a/a.go b/a.go
  three
 `
 
-// wrote is the one comment a press of c wrote, and fails on anything else.
 func wrote(t *testing.T, s *screen) string {
 	t.Helper()
 
@@ -180,8 +151,6 @@ func wrote(t *testing.T, s *screen) string {
 	return got[0]
 }
 
-// TestCScopesToWhatIsUnderTheCursor. The scope is the whole of what the key
-// decides, and the ladder is what tells a line from a hunk from a file.
 func TestCScopesToWhatIsUnderTheCursor(t *testing.T) {
 	for _, tt := range []struct {
 		name string
@@ -192,13 +161,9 @@ func TestCScopesToWhatIsUnderTheCursor(t *testing.T) {
 		{"a code row", []string{"j"}, `AddComment a.go head:1-1 line "x" gen=2`},
 		{"a removal", []string{"j", "j"}, `AddComment a.go base:2-2 line "x" gen=2`},
 
-		// The head wherever the lines have one, because that is the code the next
-		// agent rewrites. A selection of removals has none.
 		{"a selection", []string{"j", "v", "j", "j"}, `AddComment a.go head:1-2 range "x" gen=2`},
 		{"a selection of removals", []string{"j", "j", "v"}, `AddComment a.go base:2-2 line "x" gen=2`},
 
-		// The tree names the file, and a selection still open in the pane beside
-		// it is what c comments on from either.
 		{"the tree", []string{"h"}, `AddComment a.go file "x" gen=2`},
 		{"the tree over a selection", []string{"j", "v", "j", "j", "h"},
 			`AddComment a.go head:1-2 range "x" gen=2`},
@@ -214,8 +179,6 @@ func TestCScopesToWhatIsUnderTheCursor(t *testing.T) {
 	}
 }
 
-// TestCOnAFileWithNoHunksCommentsOnTheFile. A binary file is one thing to read
-// and one thing to comment on, and it has no line to hang a card under.
 func TestCOnAFileWithNoHunksCommentsOnTheFile(t *testing.T) {
 	s := open(t, 100, 24)
 	if title := s.title(); !strings.Contains(title, "assets/logo.png") {
@@ -229,8 +192,6 @@ func TestCOnAFileWithNoHunksCommentsOnTheFile(t *testing.T) {
 	}
 }
 
-// TestCOnADirectoryRowDoesNothing. There is no file under the cursor, so the
-// press has nothing to act on rather than something to refuse.
 func TestCOnADirectoryRowDoesNothing(t *testing.T) {
 	s := open(t, 100, 24).press("h", "j")
 
@@ -245,8 +206,6 @@ func TestCOnADirectoryRowDoesNothing(t *testing.T) {
 	}
 }
 
-// TestTheBoxHangsWhereTheCardWill, which is what says where the comment lands.
-// A box under one line needs no number: the gutter beside it has one.
 func TestTheBoxHangsWhereTheCardWill(t *testing.T) {
 	for _, tt := range []struct {
 		name  string
@@ -256,11 +215,8 @@ func TestTheBoxHangsWhereTheCardWill(t *testing.T) {
 	}{
 		{"one line", []string{"j"}, "◇ new", "one"},
 
-		// The label says the run, because a box covering four lines cannot be
-		// read off the one row it hangs under.
 		{"a range", []string{"j", "v", "j", "j"}, "◇ new · lines 1-2", "dos"},
 
-		// Under the removal it is about, which is what says it is on the base.
 		{"a removal", []string{"j", "j"}, "◇ new", "two"},
 		{"the file", []string{"h"}, "◇ new · file", ""},
 	} {
@@ -289,8 +245,6 @@ func TestTheBoxHangsWhereTheCardWill(t *testing.T) {
 	}
 }
 
-// TestTheBarNamesTheBoxsKeysAndNothingElse. It takes q and ? too, so a bar
-// still offering the way out would be naming two keystrokes.
 func TestTheBarNamesTheBoxsKeysAndNothingElse(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24).press("j", "c")
 
@@ -307,8 +261,6 @@ func TestTheBarNamesTheBoxsKeysAndNothingElse(t *testing.T) {
 	}
 }
 
-// TestAnEmptyCommentWritesNothing and takes the box down. The engine refuses
-// one, and nothing typed is nothing the key can cost.
 func TestAnEmptyCommentWritesNothing(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24)
 	s.press("c", " ", "ctrl+s")
@@ -321,8 +273,6 @@ func TestAnEmptyCommentWritesNothing(t *testing.T) {
 	}
 }
 
-// TestDiscardingACommentWritesNothing, and the next c comes up empty rather
-// than holding what was thrown away.
 func TestDiscardingACommentWritesNothing(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24)
 	s.press("c", "n", "o", "esc")
@@ -337,8 +287,6 @@ func TestDiscardingACommentWritesNothing(t *testing.T) {
 	}
 }
 
-// TestAFailedCommentKeepsTheWordsAndTheAim. The only thing a local transaction
-// can cost is what was typed into it, and the lines it was pointed at.
 func TestAFailedCommentKeepsTheWordsAndTheAim(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24).press("j", "v", "j", "j")
 	s.src.wroteErr = errors.New("the database is locked")
@@ -352,7 +300,6 @@ func TestAFailedCommentKeepsTheWordsAndTheAim(t *testing.T) {
 		t.Errorf("the words went with it:\n%s", got)
 	}
 
-	// And the retry writes them, against the lines the first press was aimed at.
 	s.src.wroteErr = nil
 	s.press("ctrl+s")
 
@@ -362,8 +309,6 @@ func TestAFailedCommentKeepsTheWordsAndTheAim(t *testing.T) {
 	}
 }
 
-// TestASavedCommentReportsItselfAndComesBackAsACard, which is the write going
-// through the same seam every other one does.
 func TestASavedCommentReportsItselfAndComesBackAsACard(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24).press("j")
 	s.resolving(testchangeset.Comment("aaaaaaaaaaaa", "a.go", 1, 1, "why one"))
@@ -381,8 +326,6 @@ func TestASavedCommentReportsItselfAndComesBackAsACard(t *testing.T) {
 	}
 }
 
-// TestCIsRefusedWhileAReloadIsOut. The generation would land under the open box
-// and move the lines it was scoped to, and the box cannot be re-aimed.
 func TestCIsRefusedWhileAReloadIsOut(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24)
 
@@ -396,7 +339,6 @@ func TestCIsRefusedWhileAReloadIsOut(t *testing.T) {
 		t.Errorf("the bar reads %q, want it still saying what is happening", got)
 	}
 
-	// And once it has landed the key works, so the refusal costs one press.
 	s.drain(running)
 	s.press("c")
 
@@ -405,8 +347,6 @@ func TestCIsRefusedWhileAReloadIsOut(t *testing.T) {
 	}
 }
 
-// TestCFallsBackToTheBoxOverTheFrame. It holds every key while it is up, so a
-// pane with no room to draw one is not a reason to have none.
 func TestCFallsBackToTheBoxOverTheFrame(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, mixedPatch), 50, 10)
 	s.press("c")
@@ -422,8 +362,6 @@ func TestCFallsBackToTheBoxOverTheFrame(t *testing.T) {
 	}
 }
 
-// TestAFrameTooSmallForTheBoxTakesItOverTheFrame, with what was typed. Nothing
-// is lost by a terminal getting smaller under a reader mid-sentence.
 func TestAFrameTooSmallForTheBoxTakesItOverTheFrame(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24).press("j", "c", "h", "i")
 
@@ -448,12 +386,9 @@ func TestAFrameTooSmallForTheBoxTakesItOverTheFrame(t *testing.T) {
 	}
 }
 
-// TestASaveThatLandedTakesTheBoxDown, whatever was typed while it was out. A
-// second save would write a second comment, where a note is one thing overwritten.
 func TestASaveThatLandedTakesTheBoxDown(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24).press("j", "c", "h", "i")
 
-	// Held, so the write is still out when the next key lands.
 	saving := s.hold(keystroke("ctrl+s"))
 	s.press("!")
 	s.drain(saving)
@@ -468,8 +403,6 @@ func TestASaveThatLandedTakesTheBoxDown(t *testing.T) {
 	}
 }
 
-// TestAWriteSavedAndNotReadBackTakesTheBoxDown. Retrying that one writes a
-// second comment, where every other failure wrote nothing at all.
 func TestAWriteSavedAndNotReadBackTakesTheBoxDown(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24).press("j", "c", "h", "i")
 	s.src.wroteErr = fmt.Errorf("%w: the database is locked", app.ErrSaved)
@@ -483,8 +416,6 @@ func TestAWriteSavedAndNotReadBackTakesTheBoxDown(t *testing.T) {
 	}
 }
 
-// TestARefusedWriteNamesAKeyTheBoxWouldEat. s is a letter while a body is being
-// typed, so the bar cannot ask for it on its own.
 func TestARefusedWriteNamesAKeyTheBoxWouldEat(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24).press("j", "c", "h", "i")
 	s.src.wroteErr = &review.StaleGenerationError{Seq: 2, Current: 3}
@@ -495,8 +426,6 @@ func TestARefusedWriteNamesAKeyTheBoxWouldEat(t *testing.T) {
 	}
 }
 
-// tallPatch is one hunk deeper than any window the reader has, which is what
-// puts the box a hunk comment hangs under off the bottom of the pane.
 func tallPatch() string {
 	var b strings.Builder
 	b.WriteString("diff --git a/a.go b/a.go\n--- a/a.go\n+++ b/a.go\n@@ -1,40 +1,40 @@\n")
@@ -510,8 +439,6 @@ func tallPatch() string {
 	return b.String()
 }
 
-// TestTheBoxOnATallHunkIsOnScreen. c on a heading anchors at the top of the
-// hunk and hangs under the bottom, and the box holds every key that would scroll.
 func TestTheBoxOnATallHunkIsOnScreen(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, tallPatch()), 100, 24)
 	s.press("c")
@@ -525,8 +452,6 @@ func TestTheBoxOnATallHunkIsOnScreen(t *testing.T) {
 	}
 }
 
-// TestTheRingLandsOnACardBelowATallHunk. A card on a whole hunk anchors at the
-// top of it, and a ring that stopped there would land on a card off the window.
 func TestTheRingLandsOnACardBelowATallHunk(t *testing.T) {
 	deep := testchangeset.Comment("aaaaaaaaaaaa", "a.go", 5, 40, "this hunk is the whole file")
 
@@ -539,8 +464,6 @@ func TestTheRingLandsOnACardBelowATallHunk(t *testing.T) {
 	}
 }
 
-// The key reaches the card the cursor is on from either pane, the way x, e and D
-// do. The tree wants the letter for nothing, so nothing is gained by gating it.
 func TestExpandReachesTheCardFromTheTree(t *testing.T) {
 	s := replacing(t, 100, 24, "one", "two", "three", "four")
 	s.press("]", "]", "]", "]")

@@ -17,25 +17,10 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/tui/testtheme"
 )
 
-// code takes the keys to the tree and walks it to the fixture's two-hunk Go
-// file, counting back from the last row rather than down from the first: the
-// reader opens on a binary file, and the rows between the two are directories a
-// change to the fixture would move.
-//
-// The h is the reader moving into the tree. The diff pane holds the keys on the
-// frame the reader opens on.
 var code = []string{"h", "G", "k", "k", "k"}
 
-// mark is the caret the diff pane puts on the heading the ring is on, written
-// as an escape: a Nerd Font glyph does not survive every editor and pipe, and an
-// empty string is contained in every row there is.
-const mark = "\uf0da"
+const mark = "\uf0da" // an escape, because a Nerd Font glyph does not survive every editor and pipe
 
-// TestGoldenFrames locks the layout at the widths that prove something.
-//
-// The goldens hold the frame with its escapes stripped, so a diff in review is
-// readable and a lipgloss bump does not churn every file. What they prove is
-// alignment and clipping; colour is asserted directly further down.
 func TestGoldenFrames(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -44,53 +29,28 @@ func TestGoldenFrames(t *testing.T) {
 	}{
 		{"open", 100, 16, nil},
 
-		// Narrow enough that a path outruns the tree and a line of code outruns
-		// the diff pane, which is the only width that proves the panes clip
-		// before they draw. The keys walk to a file that has code in it; the
-		// tree opens on a binary one, which has none.
 		{"narrow", 56, 16, code},
 
-		// Both panes, because the overlay reads its keys off whichever one has
-		// them and only one of the two can be wrong at a time.
 		{"help", 100, 16, []string{"h", "?"}},
 		{"help-diff", 100, 16, []string{"?"}},
 
-		// Eighty columns, where the overlay is widest against the frame that has
-		// to hold it. A column past that edge is clipped with no ellipsis, and
-		// the column carrying the way out is the last one.
 		{"help-eighty", 80, 20, []string{"?"}},
 
-		// A selection open on the fixture's two-hunk file. The fill is colour and
-		// a stripped golden cannot see it; this is the bar it takes over.
 		{"selecting", 100, 16, []string{"n", "n", "j", "v", "j", "j"}},
 
-		// The box c puts up, where the card will hang, with two keys typed into
-		// it. The j is what takes the cursor off the heading and onto code.
 		{"commenting", 100, 16, []string{"n", "n", "j", "c", "n", "o"}},
 
 		{"folded", 100, 16, []string{"h", "j", "space"}},
 		{"deep", 100, 16, []string{"h", "G"}},
 
-		// The ring on the fixture's two-hunk file, landed on the second: the
-		// mark is on its heading, the tree followed, and the window has scrolled
-		// as far as it goes without running off the end of the file.
 		{"ring", 100, 16, []string{"n", "n", "}"}},
 
-		// The notice on the bar, with the keys dropped from the tail to make room
-		// for it. The source is the same changeset, which is a work tree that has
-		// not moved.
 		{"reloaded", 100, 16, []string{"s"}},
 
-		// Two rows shorter than the tree has rows, so the pane has to scroll
-		// rather than run off the status bar.
 		{"short", 100, 8, []string{"h", "G"}},
 
-		// The fixture's two-hunk file holds both side-by-side shapes: a removal
-		// paired against its replacement, and an addition with a blank facing it.
 		{"split", 120, 16, []string{"n", "n", "|"}},
 
-		// The same press at a width two halves do not fit in. The bar says how
-		// many columns short it is and the pane is left unified.
 		{"split-narrow", 100, 16, []string{"n", "n", "|"}},
 	}
 
@@ -102,12 +62,8 @@ func TestGoldenFrames(t *testing.T) {
 	}
 }
 
-// respondedCard is the fixture's addressed comment, the one a block hangs under.
 const respondedCard = "dddddddddddd"
 
-// TestTheRespondedCardGoldenFrame. The card renders against the pane, and the
-// pane clips what overruns it without a mark, so the rail and the second border
-// have to be measured inside the frame that holds them rather than beside it.
 func TestTheRespondedCardGoldenFrame(t *testing.T) {
 	s := commented(t, 100, 20, testchangeset.NestedComments()...)
 	s.press("]", "]", "]", "]")
@@ -115,8 +71,6 @@ func TestTheRespondedCardGoldenFrame(t *testing.T) {
 	golden.Compare(t, "responded", []byte(s.frame()+"\n"))
 }
 
-// TestTheReplacedBlockGoldenFrame. The block truncates inside the response box,
-// three borders and a rail deep, which is where a width mistake shows.
 func TestTheReplacedBlockGoldenFrame(t *testing.T) {
 	s := replacing(t, 100, 24,
 		"\tfiles := d.Files()", "sort.Strings(files)", "return files", "// unreachable")
@@ -125,8 +79,6 @@ func TestTheReplacedBlockGoldenFrame(t *testing.T) {
 	golden.Compare(t, "replaced", []byte(s.frame()+"\n"))
 }
 
-// TestTheExpandedBlockGoldenFrame is the same card with the key pressed: every
-// line, and a footer offering to put them back.
 func TestTheExpandedBlockGoldenFrame(t *testing.T) {
 	s := replacing(t, 100, 24,
 		"\tfiles := d.Files()", "sort.Strings(files)", "return files", "// unreachable")
@@ -135,12 +87,6 @@ func TestTheExpandedBlockGoldenFrame(t *testing.T) {
 	golden.Compare(t, "expanded", []byte(s.frame()+"\n"))
 }
 
-// TestTheFrameIsExactlyTheTerminal is the clipping proof the goldens cannot
-// give on their own.
-//
-// A pane clips overflow silently: a row wider than the terminal loses its
-// trailing columns mid-cell with no ellipsis, and a golden written from that
-// row looks just as tidy as a correct one.
 func TestTheFrameIsExactlyTheTerminal(t *testing.T) {
 	sizes := []struct{ width, height int }{
 		{100, 16},
@@ -148,13 +94,9 @@ func TestTheFrameIsExactlyTheTerminal(t *testing.T) {
 		{56, 6},
 		{200, 40},
 
-		// A base short enough that the facts do not reach the hint on their own,
-		// which is the case that used to leave the last row short of the screen.
 		{72, 10},
 	}
 
-	// Each size every way the frame is built: as it opens, on a binary file, on
-	// the longest lines, under the bar's notice, and under each composited box.
 	for _, keys := range [][]string{nil, code, {"?"}, {"s"}, {"C"}, {"c"}, {"v", "j", "j"}} {
 		for _, size := range sizes {
 			s := open(t, size.width, size.height).press(keys...)
@@ -173,13 +115,6 @@ func TestTheFrameIsExactlyTheTerminal(t *testing.T) {
 	}
 }
 
-// TestFocusMovesBetweenThePanes asserts the colour the frame carries, because
-// which pane has the keys is said in the border colour and a stripped golden
-// cannot show it.
-//
-// The seam is where the two panes meet, so it carries both answers at once: a
-// frame with the wrong pane lit fails on the same string a frame with both lit
-// does.
 func TestFocusMovesBetweenThePanes(t *testing.T) {
 	tests := []struct {
 		name string
@@ -203,8 +138,6 @@ func TestFocusMovesBetweenThePanes(t *testing.T) {
 	}
 }
 
-// seam is the two corners where the panes meet, the tree's right and the diff
-// pane's left, coloured for whichever holds the keys.
 func seam(treeFocused bool) string {
 	lit := lipgloss.NewStyle().Foreground(testtheme.Dark.Accent)
 	dim := lipgloss.NewStyle().Foreground(testtheme.Dark.BorderSubtleOrBorder())
@@ -215,13 +148,6 @@ func seam(treeFocused bool) string {
 	return dim.Render("╮") + lit.Render("╭")
 }
 
-// TestTheCursorIsOnTheRowTheKeysMoved. The tree marks its cursor with a filled
-// background and nothing else, so a stripped golden cannot see it and j could
-// stop moving without a single frame changing.
-//
-// The diff pane's heading wears the same fill, and one line of the frame holds
-// both panes, so the fill alone no longer names a row. The bold on the name is
-// what the tree's cursor row has and nothing else on screen does.
 func TestTheCursorIsOnTheRowTheKeysMoved(t *testing.T) {
 	for _, tt := range []struct {
 		keys []string
@@ -243,11 +169,6 @@ func TestTheCursorIsOnTheRowTheKeysMoved(t *testing.T) {
 	}
 }
 
-// filledTreeRow is the tree's cursor row, stripped, found by the bold name over
-// the fill that only that row carries. It is empty when no row carries one.
-//
-// Two foregrounds, because the name dims when the pane does not hold the keys
-// and the ring moves the tree's cursor from the diff pane.
 func filledTreeRow(t *testing.T, s *screen) string {
 	t.Helper()
 
@@ -266,16 +187,10 @@ func filledTreeRow(t *testing.T, s *screen) string {
 	return ""
 }
 
-// TestTheHalfPageKeysPageTheDiffFromTheTree. Walking the tree is how the reader
-// gets to a file and reading it is what they came for, so ctrl+d belongs to the
-// pane they are reading whichever one has the keys.
 func TestTheHalfPageKeysPageTheDiffFromTheTree(t *testing.T) {
-	// On the fixture's two-hunk file, with the tree still holding the keys.
 	s := open(t, 100, 16).press(code...)
 	columns := s.treeColumns()
 
-	// Twice. The first press parks the cursor mid-window without scrolling, and
-	// a stripped frame cannot see a cursor.
 	before := s.frame()
 	s.press("ctrl+d", "ctrl+d")
 	after := s.frame()
@@ -288,8 +203,6 @@ func TestTheHalfPageKeysPageTheDiffFromTheTree(t *testing.T) {
 	}
 }
 
-// column is the left pane of a frame, for an assertion about one pane that has
-// to ignore what the other did.
 func column(frame string, width int) string {
 	var b strings.Builder
 	for _, line := range strings.Split(frame, "\n") {
@@ -299,13 +212,8 @@ func column(frame string, width int) string {
 	return b.String()
 }
 
-// TestTheOverlayStaysABoxOnTheSmallestFrame. The compositor clips what does not
-// fit, and a clipped box loses the border off two of its sides: the reader sees
-// an unclosed rectangle and no bottom row. The modal is sized into the frame so
-// the pane clips its content instead.
 func TestTheOverlayStaysABoxOnTheSmallestFrame(t *testing.T) {
 	for _, size := range []struct{ width, height int }{
-		// The smallest frame that draws panes at all, and one row more.
 		{56, 4},
 		{56, 6},
 		{72, 10},
@@ -321,9 +229,6 @@ func TestTheOverlayStaysABoxOnTheSmallestFrame(t *testing.T) {
 	}
 }
 
-// TestTheOverlaySaysWhichPaneAKeyMoves. The overlay lists a pane's keys in one
-// column, so a key that moves the other pane has to say so or the column reads
-// as one more way to move this one.
 func TestTheOverlaySaysWhichPaneAKeyMoves(t *testing.T) {
 	tree := open(t, 100, 16).press("?").frame()
 	if !strings.Contains(tree, "ctrl+d diff half page down") {
@@ -355,7 +260,6 @@ func TestTheBasePickerFiltersAndSelectsAcrossGroups(t *testing.T) {
 			break
 		}
 	}
-	// The text is the terminal's own, so there is no foreground escape to find.
 	if !strings.Contains(selected, styleParams(t, lipgloss.NewStyle().Background(testtheme.Dark.SelectedBackground))) ||
 		!strings.Contains(selected, ";1m") {
 		t.Errorf("selected base does not stand on its fill:\n%s", s.raw())
@@ -385,8 +289,6 @@ func styleParams(t *testing.T, style lipgloss.Style) string {
 	return probe[start+1 : end]
 }
 
-// With no fill, weight is the whole of the selection: nothing else on the picker
-// says which row enter would take.
 func TestTheSelectedBaseStandsWithoutAFill(t *testing.T) {
 	s := themed(t, testtheme.Bare, 100, 20)
 	s.src.candidates = review.BaseCandidates{
@@ -430,8 +332,6 @@ func TestTheBasePickerCanCancelAndChooseNothing(t *testing.T) {
 	}
 }
 
-// TestTheBasePickerTakesARefNobodyListed. The list is local branches, so tags,
-// shas and the other 291 remotes are reached by naming one.
 func TestTheBasePickerTakesARefNobodyListed(t *testing.T) {
 	s := open(t, 100, 20)
 	s.src.candidates = review.BaseCandidates{
@@ -449,8 +349,6 @@ func TestTheBasePickerTakesARefNobodyListed(t *testing.T) {
 	}
 }
 
-// TestTheBasePickerClearsALastRefsFailure, because a sentence about the ref
-// before it reads as an answer to the one being typed now.
 func TestTheBasePickerClearsALastRefsFailure(t *testing.T) {
 	s := open(t, 100, 20)
 	s.src.candidates = review.BaseCandidates{
@@ -502,12 +400,6 @@ func TestZBOwnsTheBAtTheRoot(t *testing.T) {
 	}
 }
 
-// TestTheTreeIsHeadedByTheRepository, so a reader with two of these open knows
-// which one they are looking at. What is in it is said in the footer.
-//
-// The directory name reads as a name rather than as a path segment, and only
-// its first letters are touched: lowercasing the rest renames a repository its
-// owner did not.
 func TestTheTreeIsHeadedByTheRepository(t *testing.T) {
 	tests := []struct {
 		repo string
@@ -530,16 +422,10 @@ func TestTheTreeIsHeadedByTheRepository(t *testing.T) {
 	}
 }
 
-// TestTheFactsAreDrawnAndColoured, out of the goldens, where a
-// layout change would hide their loss.
-//
-// The counts carry their own colours: one grey across the line says how much
-// changed and not which way it went, which is the half a reader scans for.
 func TestTheFactsAreDrawnAndColoured(t *testing.T) {
 	th := testtheme.Dark
 	s := open(t, 100, 16)
 
-	// Label against the left edge of the pane, value against the right.
 	for _, want := range []struct{ label, value string }{
 		{"origin/main", "a1b2c3d"},
 		{"Generation", "2"},
@@ -561,8 +447,6 @@ func TestTheFactsAreDrawnAndColoured(t *testing.T) {
 		}
 	}
 
-	// Every label reads at one weight. Only the churn and the burn-down carry a
-	// colour, and they carry different ones.
 	for _, label := range []string{"origin/main", "Generation", "Reviewed", "Changes"} {
 		if want := lipgloss.NewStyle().Foreground(th.Muted).Render(label); !strings.Contains(s.raw(), want) {
 			t.Errorf("the %q label is not muted", label)
@@ -579,14 +463,9 @@ func TestTheFactsAreDrawnAndColoured(t *testing.T) {
 	}
 }
 
-// TestTheBurnDownWearsItsOwnState. It is the same ladder as the glyphs beside
-// the filenames, so the one number and the whole column agree at a glance.
 func TestTheBurnDownWearsItsOwnState(t *testing.T) {
 	th := testtheme.Dark
 
-	// Two hunks in one file, so there is a half-way to be at. They only add, so
-	// each has one anchor and one range covers it: a hunk that also removes has
-	// a second anchor on the base side and takes two.
 	const patch = `diff --git a/a.go b/a.go
 --- a/a.go
 +++ b/a.go
@@ -621,9 +500,6 @@ func TestTheBurnDownWearsItsOwnState(t *testing.T) {
 	}
 }
 
-// TestTheFactsSitAtTheFootOfTheTree, ruled off from the rows rather than boxed
-// beside them. A box of their own reads as a third pane to move into, and
-// nothing there takes a key.
 func TestTheFactsSitAtTheFootOfTheTree(t *testing.T) {
 	s := open(t, 100, 16)
 	lines := s.lines()
@@ -645,20 +521,13 @@ func TestTheFactsSitAtTheFootOfTheTree(t *testing.T) {
 		t.Errorf("the facts start on line %d and the rule is on %d", first, rule)
 	}
 
-	// The rule joins the side borders rather than floating between them, and
-	// the tree pane is the only thing it crosses.
 	want := "├" + strings.Repeat("─", s.treeColumns()-2) + "┤"
 	if !strings.HasPrefix(lines[rule], want) {
 		t.Errorf("the rule is %q, want it to start %q", lines[rule], want)
 	}
 }
 
-// TestThePadsBelongToTheEndsOfTheList. They are content rather than chrome, so
-// a reader partway down a long list gets rows against both edges and does not
-// pay two lines for a margin they cannot see the point of.
 func TestThePadsBelongToTheEndsOfTheList(t *testing.T) {
-	// At fifteen high the tree's window is six rows over a list of twelve, so
-	// first and last are the screen lines that window starts and ends on.
 	const height, first, last = 15, 1, 6
 
 	tests := []struct {
@@ -687,8 +556,6 @@ func TestThePadsBelongToTheEndsOfTheList(t *testing.T) {
 	}
 }
 
-// TestTheBarCarriesTheFactsWhenTheTreeCannot. The facts have to be somewhere,
-// and a frame too short for the box is still a frame someone is reading.
 func TestTheBarCarriesTheFactsWhenTheTreeCannot(t *testing.T) {
 	s := open(t, 100, 7)
 	lines := s.lines()
@@ -706,7 +573,6 @@ func TestTheBarCarriesTheFactsWhenTheTreeCannot(t *testing.T) {
 	}
 }
 
-// TestTheHintIsAgainstTheLeftEdge, where the eye starts.
 func TestTheHintIsAgainstTheLeftEdge(t *testing.T) {
 	for _, width := range []int{100, 72, 56} {
 		bar := open(t, width, 16).lines()[15]
@@ -718,17 +584,12 @@ func TestTheHintIsAgainstTheLeftEdge(t *testing.T) {
 			t.Errorf("at %d columns the bar is %d wide: %q", width, got, bar)
 		}
 
-		// The bar cuts from the right, so a pane hint that does not fit would
-		// take these with it and leave nothing on screen saying the overlay is
-		// there. The reader who needs that is the one on the narrow terminal.
 		if !strings.Contains(bar, "? help") || !strings.Contains(bar, "q quit") {
 			t.Errorf("at %d columns the bar lost the way out: %q", width, bar)
 		}
 	}
 }
 
-// TestTheBarSaysWhatThePaneHoldingTheKeysCanDo. The overlay is a keypress away
-// and nothing on screen said the keypress existed.
 func TestTheBarSaysWhatThePaneHoldingTheKeysCanDo(t *testing.T) {
 	tree := open(t, 100, 16).press("h").lines()[15]
 	for _, want := range []string{"j/k move", "enter open", "space fold"} {
@@ -745,7 +606,6 @@ func TestTheBarSaysWhatThePaneHoldingTheKeysCanDo(t *testing.T) {
 		t.Errorf("the bar still names a key of the pane that lost the keys: %q", diff)
 	}
 
-	// The one that answers from both, said the same way from either.
 	for _, bar := range []string{tree, diff} {
 		if !strings.Contains(bar, "ctrl+d/u page") {
 			t.Errorf("the bar drops the key that crosses the panes: %q", bar)
@@ -753,8 +613,6 @@ func TestTheBarSaysWhatThePaneHoldingTheKeysCanDo(t *testing.T) {
 	}
 }
 
-// TestOpeningAFileMovesTheReaderToIt separates the two things enter does from
-// what walking the tree does.
 func TestOpeningAFileMovesTheReaderToIt(t *testing.T) {
 	s := open(t, 100, 16).press("h", "j", "j")
 	if title := s.lines()[0]; !strings.Contains(title, "docs/superpowers/specs/design.md") {
@@ -770,8 +628,6 @@ func TestOpeningAFileMovesTheReaderToIt(t *testing.T) {
 	}
 }
 
-// TestADirectoryLeavesTheDiffPaneAlone. Blanking the pane on the way past a
-// directory row would punish walking the tree.
 func TestADirectoryLeavesTheDiffPaneAlone(t *testing.T) {
 	s := open(t, 100, 16).press("h", "j")
 	if got := s.lines()[0]; !strings.Contains(got, "assets/logo.png") {
@@ -779,8 +635,6 @@ func TestADirectoryLeavesTheDiffPaneAlone(t *testing.T) {
 	}
 }
 
-// TestHelpTakesTheKeys. Routing keys under an overlay scrolls a pane the reader
-// cannot see, and they are still scrolled when it closes.
 func TestHelpTakesTheKeys(t *testing.T) {
 	s := open(t, 100, 16)
 	before := s.frame()
@@ -793,7 +647,6 @@ func TestHelpTakesTheKeys(t *testing.T) {
 	}
 }
 
-// TestQuitting. q and ctrl+c both leave, from either pane.
 func TestQuitting(t *testing.T) {
 	tests := []struct {
 		name string
@@ -820,8 +673,6 @@ func TestQuitting(t *testing.T) {
 	}
 }
 
-// TestATerminalTooSmallSaysSo, rather than drawing a frame out of negative
-// widths.
 func TestATerminalTooSmallSaysSo(t *testing.T) {
 	s := open(t, 40, 10)
 	if got := s.frame(); !strings.Contains(got, "the terminal is 40x10") {
@@ -829,10 +680,6 @@ func TestATerminalTooSmallSaysSo(t *testing.T) {
 	}
 }
 
-// TestTheHintSurvivesTheFactsBesideIt, at the one height where the two share
-// the bar. Dropping it drops the only thing on screen saying that ? exists, and
-// the reader who needed it is the one on the small terminal. It also left the
-// last row short of the screen.
 func TestTheHintSurvivesTheFactsBesideIt(t *testing.T) {
 	for _, width := range []int{100, 72, 56} {
 		s := open(t, width, 7)
@@ -847,8 +694,6 @@ func TestTheHintSurvivesTheFactsBesideIt(t *testing.T) {
 	}
 }
 
-// TestASmallTerminalStillFillsTheScreen. Every other path returns width by
-// height, and a frame that stops short leaves whatever was under it on screen.
 func TestASmallTerminalStillFillsTheScreen(t *testing.T) {
 	for _, size := range []struct{ width, height int }{{54, 20}, {20, 4}, {80, 2}} {
 		s := open(t, size.width, size.height)
@@ -865,8 +710,6 @@ func TestASmallTerminalStillFillsTheScreen(t *testing.T) {
 	}
 }
 
-// ringPatch is two files with two hunks each, so there is a hunk to cross into
-// and a file boundary to cross over.
 const ringPatch = `diff --git a/a.go b/a.go
 --- a/a.go
 +++ b/a.go
@@ -883,8 +726,6 @@ diff --git a/b.go b/b.go
 +diez
 `
 
-// heading is the diff pane's cursor row, stripped, found by the mark only that
-// row carries. It is empty when the pane marks nothing.
 func heading(t *testing.T, s *screen) string {
 	t.Helper()
 
@@ -896,8 +737,6 @@ func heading(t *testing.T, s *screen) string {
 	return ""
 }
 
-// TestTheReaderOpensOnTheFirstHunkTheyHaveNotRead, which is not the first hunk
-// of the changeset whenever the top of it has already been read.
 func TestTheReaderOpensOnTheFirstHunkTheyHaveNotRead(t *testing.T) {
 	c := testchangeset.Derive(t, ringPatch,
 		testchangeset.Head("a.go", 1, 1),
@@ -916,12 +755,9 @@ func TestTheReaderOpensOnTheFirstHunkTheyHaveNotRead(t *testing.T) {
 	}
 }
 
-// TestTheRingWrapsPastTheLastUnread, so n held down keeps going rather than
-// stopping on the last one and reporting nothing.
 func TestTheRingWrapsPastTheLastUnread(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
 
-	// Four hunks, so the fourth n is the one that comes back round.
 	first := heading(t, s)
 	s.press("n", "n", "n")
 	if last := heading(t, s); last == first {
@@ -934,8 +770,6 @@ func TestTheRingWrapsPastTheLastUnread(t *testing.T) {
 	}
 }
 
-// TestAFullyReadChangesetLeavesTheRingWhereItIs. n has done its job when there
-// is nothing left to find, and the burn-down in the facts is what says so.
 func TestAFullyReadChangesetLeavesTheRingWhereItIs(t *testing.T) {
 	c := testchangeset.Derive(t, ringPatch,
 		testchangeset.Head("a.go", 1, 1), testchangeset.Head("a.go", 11, 11),
@@ -950,12 +784,9 @@ func TestAFullyReadChangesetLeavesTheRingWhereItIs(t *testing.T) {
 	}
 }
 
-// TestTheHunkKeyCrossesIntoTheNextFileAndTheTreeFollows, so the two panes never
-// disagree about what is open.
 func TestTheHunkKeyCrossesIntoTheNextFileAndTheTreeFollows(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
 
-	// Off a.go's second hunk and into b.go.
 	s.press("}", "}")
 
 	if title := s.lines()[0]; !strings.Contains(title, "b.go") {
@@ -966,8 +797,6 @@ func TestTheHunkKeyCrossesIntoTheNextFileAndTheTreeFollows(t *testing.T) {
 	}
 }
 
-// TestTheFileKeyLandsOnTheFilesFirstHunk, going either way. Stepping back to a
-// file's last hunk would open it at the bottom and read as a different key.
 func TestTheFileKeyLandsOnTheFilesFirstHunk(t *testing.T) {
 	for _, tt := range []struct {
 		keys []string
@@ -987,14 +816,9 @@ func TestTheFileKeyLandsOnTheFilesFirstHunk(t *testing.T) {
 	}
 }
 
-// TestAFileWithNoHunksIsAStopOnTheRing. A binary file is one thing to read, and
-// the burn-down counts it, so a ring that stepped over it would leave n unable
-// to walk the count to zero.
 func TestAFileWithNoHunksIsAStopOnTheRing(t *testing.T) {
 	s := open(t, 100, 16)
 
-	// The fixture's binary file is where the reader opens, so the ring has to
-	// come all the way back round to it.
 	if title := s.lines()[0]; !strings.Contains(title, "assets/logo.png") {
 		t.Fatalf("the reader did not open on the binary file: %q", title)
 	}
@@ -1005,9 +829,6 @@ func TestAFileWithNoHunksIsAStopOnTheRing(t *testing.T) {
 	}
 }
 
-// TestTheMarkedHeadingIsFilledAndOneCellWide. The fill is the signal a stripped
-// golden cannot see, and a two-cell glyph would put every row under the heading
-// out of step with the code above it.
 func TestTheMarkedHeadingIsFilledAndOneCellWide(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
 
@@ -1023,13 +844,7 @@ func TestTheMarkedHeadingIsFilledAndOneCellWide(t *testing.T) {
 	}
 }
 
-// TestTheTreeFollowsTheRingOffADirectoryRow. A directory row leaves the diff
-// pane on the file before it, so the tree's cursor can be somewhere the pane is
-// not, and a landing that only moves the tree when the file changes leaves the
-// two disagreeing.
 func TestTheTreeFollowsTheRingOffADirectoryRow(t *testing.T) {
-	// To the two-hunk file, then one row up onto the directory holding it. The
-	// pane stays on the file, so the two panes are now on different things.
 	s := open(t, 100, 16).press(code...).press("k")
 
 	if got := filledTreeRow(t, s); strings.Contains(got, "state.go") {
@@ -1039,17 +854,12 @@ func TestTheTreeFollowsTheRingOffADirectoryRow(t *testing.T) {
 		t.Fatalf("the directory row took the file out of the pane: %q", title)
 	}
 
-	// Inside the file the pane is already on, so nothing about the file changes
-	// and only the tree has anywhere to move.
 	s.press("}")
 	if got := filledTreeRow(t, s); !strings.Contains(got, "state.go") {
 		t.Errorf("the tree's cursor is on %q, want the file the ring moved inside", got)
 	}
 }
 
-// TestOpeningTheFileAlreadyOpenLeavesTheRingWhereItIs. Pressing enter on the
-// file being read is not a move onto it, and putting the ring back at the top
-// would throw away where the reader had got to.
 func TestOpeningTheFileAlreadyOpenLeavesTheRingWhereItIs(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16).press("}")
 
@@ -1064,9 +874,6 @@ func TestOpeningTheFileAlreadyOpenLeavesTheRingWhereItIs(t *testing.T) {
 	}
 }
 
-// movedPatch is ringPatch with a.go's hunks pushed down the file, which is what
-// an agent inserting above them does. Both keep their content and neither keeps
-// its name.
 const movedPatch = `diff --git a/a.go b/a.go
 --- a/a.go
 +++ b/a.go
@@ -1083,7 +890,6 @@ diff --git a/b.go b/b.go
 +diez
 `
 
-// gonePatch is ringPatch with a.go reverted out of the changeset.
 const gonePatch = `diff --git a/b.go b/b.go
 --- a/b.go
 +++ b/b.go
@@ -1093,7 +899,6 @@ const gonePatch = `diff --git a/b.go b/b.go
 +diez
 `
 
-// renamedPatch is ringPatch with a.go under a new name and the same hunks.
 const renamedPatch = `diff --git a/a.go b/c.go
 rename from a.go
 rename to c.go
@@ -1112,8 +917,6 @@ diff --git a/b.go b/b.go
 +diez
 `
 
-// TestAReloadWithNoEditsLeavesTheReaderWhereTheyWere, which is the whole of
-// what a refresh owes a reader who is mid-hunk.
 func TestAReloadWithNoEditsLeavesTheReaderWhereTheyWere(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16).press("}")
 
@@ -1121,7 +924,6 @@ func TestAReloadWithNoEditsLeavesTheReaderWhereTheyWere(t *testing.T) {
 	s.press("s")
 	after := s.lines()
 
-	// Everything but the bar, which is where the reload reports itself.
 	for i := range before[:len(before)-1] {
 		if before[i] != after[i] {
 			t.Fatalf("a reload that changed nothing moved row %d:\n%q\n%q", i, before[i], after[i])
@@ -1132,8 +934,6 @@ func TestAReloadWithNoEditsLeavesTheReaderWhereTheyWere(t *testing.T) {
 	}
 }
 
-// TestAReloadWithNoEditsKeepsTheReaderWhereTheyScrolledTo. The same bytes are
-// on screen, so the place they had got to inside the hunk is still a place.
 func TestAReloadWithNoEditsKeepsTheReaderWhereTheyScrolledTo(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, ringPatch), 100, 4).press("j", "j")
 
@@ -1145,9 +945,6 @@ func TestAReloadWithNoEditsKeepsTheReaderWhereTheyScrolledTo(t *testing.T) {
 	}
 }
 
-// TestAReloadLandsOnTheHunkThatTookThePlaceOfTheOldOne. The names all moved, so
-// the ordinal is what is left: second of two stays second of two, rather than
-// the nearest line number putting the reader back on code they have read.
 func TestAReloadLandsOnTheHunkThatTookThePlaceOfTheOldOne(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16).press("}")
 
@@ -1165,8 +962,6 @@ func TestAReloadLandsOnTheHunkThatTookThePlaceOfTheOldOne(t *testing.T) {
 	}
 }
 
-// TestAReloadFollowsARename. The file is the same file, so the hunk in it is
-// the hunk the reader was on.
 func TestAReloadFollowsARename(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16).press("}")
 	s.reloading(testchangeset.Derive(t, renamedPatch)).press("s")
@@ -1179,7 +974,6 @@ func TestAReloadFollowsARename(t *testing.T) {
 	}
 }
 
-// TestAReloadThatLostTheFileLandsWhereItWas, and says which one went.
 func TestAReloadThatLostTheFileLandsWhereItWas(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16).press("}")
 	s.reloading(testchangeset.Derive(t, gonePatch)).press("s")
@@ -1195,8 +989,6 @@ func TestAReloadThatLostTheFileLandsWhereItWas(t *testing.T) {
 	}
 }
 
-// TestAFailedReloadLeavesTheChangesetAlone. The write either committed or it
-// did not, and there is no half-applied state to paint over.
 func TestAFailedReloadLeavesTheChangesetAlone(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16).press("}")
 
@@ -1215,7 +1007,6 @@ func TestAFailedReloadLeavesTheChangesetAlone(t *testing.T) {
 	}
 }
 
-// TestTheErrorIsSaidInTheThemesErrorColour, which a stripped frame cannot see.
 func TestTheErrorIsSaidInTheThemesErrorColour(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
 	s.src.err = errors.New("no")
@@ -1227,8 +1018,6 @@ func TestTheErrorIsSaidInTheThemesErrorColour(t *testing.T) {
 	}
 }
 
-// TestASecondReloadWhileOneIsRunningDoesNothing. Two refreshes on one session
-// race the ref swap against itself, and the loser writes no row at all.
 func TestASecondReloadWhileOneIsRunningDoesNothing(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
 
@@ -1250,8 +1039,6 @@ func TestASecondReloadWhileOneIsRunningDoesNothing(t *testing.T) {
 	}
 }
 
-// TestTheNoticeClearsOnTheNextKey. It is one press long and nothing on screen
-// moves without one.
 func TestTheNoticeClearsOnTheNextKey(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16).press("s")
 
@@ -1263,8 +1050,6 @@ func TestTheNoticeClearsOnTheNextKey(t *testing.T) {
 	}
 }
 
-// TestTheFactsMoveWithTheGeneration, so the number on screen names the bytes
-// under it.
 func TestTheFactsMoveWithTheGeneration(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
 	s.reloading(testchangeset.Derive(t, gonePatch)).press("s")
@@ -1277,12 +1062,6 @@ func TestTheFactsMoveWithTheGeneration(t *testing.T) {
 	}
 }
 
-// TestTheTreeKeepsAFoldedDirectoryAcrossAReload. Folding is the reader's, and a
-// refresh is not an answer to it.
-//
-// The folded row is a collapsed chain and not the one the cursor lands in.
-// Landing opens every directory above the file it lands on, which is the one
-// fold a reload is allowed to take: a cursor nobody can see is worse.
 func TestTheTreeKeepsAFoldedDirectoryAcrossAReload(t *testing.T) {
 	s := open(t, 100, 16).press("h", "j", "space")
 
@@ -1299,9 +1078,6 @@ func TestTheTreeKeepsAFoldedDirectoryAcrossAReload(t *testing.T) {
 	}
 }
 
-// twiceRenamedPatch is renamedPatch renamed again. Every generation is diffed
-// from the same base, so the file is still reported against a.go and never
-// against the c.go the reader has on screen.
 const twiceRenamedPatch = `diff --git a/a.go b/d.go
 rename from a.go
 rename to d.go
@@ -1320,9 +1096,6 @@ diff --git a/b.go b/b.go
 +diez
 `
 
-// TestAReloadFollowsAFileRenamedTwice. The name on screen is one generation of
-// a rename and the base-side name is every one of them, so that is what a file
-// is looked up by.
 func TestAReloadFollowsAFileRenamedTwice(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16).press("}")
 	s.reloading(testchangeset.Derive(t, renamedPatch)).press("s")
@@ -1343,9 +1116,6 @@ func TestAReloadFollowsAFileRenamedTwice(t *testing.T) {
 	}
 }
 
-// recreatedPatch renames a.go to c.go and writes a new a.go in the same
-// generation, so both names are on screen and only one holds what the reader
-// was reading.
 const recreatedPatch = `diff --git a/a.go b/a.go
 --- /dev/null
 +++ b/a.go
@@ -1369,8 +1139,6 @@ diff --git a/b.go b/b.go
 +diez
 `
 
-// TestARenameBeatsAFileWrittenBackUnderTheOldName. Both names are in the
-// changeset and only one of them holds the content the reader was reading.
 func TestARenameBeatsAFileWrittenBackUnderTheOldName(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16).press("}")
 	s.reloading(testchangeset.Derive(t, recreatedPatch)).press("s")
@@ -1380,8 +1148,6 @@ func TestARenameBeatsAFileWrittenBackUnderTheOldName(t *testing.T) {
 	}
 }
 
-// TestTheBarKeepsSayingAReloadIsRunning. A press does not end a git call, and
-// the bar is the only thing on screen saying one is happening.
 func TestTheBarKeepsSayingAReloadIsRunning(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
 
@@ -1394,8 +1160,6 @@ func TestTheBarKeepsSayingAReloadIsRunning(t *testing.T) {
 	s.drain(running)
 }
 
-// TestAFailedReloadStillFillsTheBar. The error takes the whole line, and a
-// sentence written for a terminal is longer than most of them.
 func TestAFailedReloadStillFillsTheBar(t *testing.T) {
 	long := "another zen-review refreshed this session first, so nothing was built: run it again"
 
@@ -1410,8 +1174,6 @@ func TestAFailedReloadStillFillsTheBar(t *testing.T) {
 	}
 }
 
-// A changeset with nothing in it draws two panes saying so. Two blank boxes are
-// a state the reader has to read as an answer.
 func TestAnEmptyChangesetSaysSoInBothPanes(t *testing.T) {
 	base := review.Base{Ref: "origin/main", SHA: "a1b2c3d4e5f67890"}
 
@@ -1424,8 +1186,6 @@ func TestAnEmptyChangesetSaysSoInBothPanes(t *testing.T) {
 	}
 }
 
-// The fallback reads beside the base rather than on the bar. It is a standing
-// fact about the session, and the bar is for what the last key did.
 func TestAFallbackBaseReadsBesideTheBase(t *testing.T) {
 	base := review.Base{Ref: "HEAD", SHA: "a1b2c3d4e5f67890", Fallback: "uncommitted"}
 
@@ -1438,14 +1198,11 @@ func TestAFallbackBaseReadsBesideTheBase(t *testing.T) {
 		t.Errorf("bar = %q, want the bar left to the keys", s.bar())
 	}
 
-	// It stands rather than clearing, which is what a notice would have done.
 	if !strings.Contains(s.press("j").frame(), "HEAD (uncommitted)") {
 		t.Error("a press cleared the fallback, which is not a notice")
 	}
 }
 
-// A pane too narrow for both clips the reason and keeps the ref. The ref is
-// what the sha beside it is a sha of.
 func TestANarrowPaneClipsTheReasonAndKeepsTheRef(t *testing.T) {
 	base := review.Base{
 		Ref:      "feature",
@@ -1463,8 +1220,6 @@ func TestANarrowPaneClipsTheReasonAndKeepsTheRef(t *testing.T) {
 	}
 }
 
-// The empty tree has a sha and no ref, so the fact under the tree names it
-// rather than sitting there blank beside a sha.
 func TestTheEmptyTreeBaseIsNamedInTheFacts(t *testing.T) {
 	base := review.Base{SHA: "4b825dc642cb6eb9a060e54bf8d69288fbee4904"}
 
@@ -1475,12 +1230,9 @@ func TestTheEmptyTreeBaseIsNamedInTheFacts(t *testing.T) {
 	}
 }
 
-// The bar that has to carry the facts on one line separates them by a dot, so
-// the tag cannot use one: the sha would read as the value of a fact.
 func TestTheFallbackTagDoesNotReadAsAFactOnTheBar(t *testing.T) {
 	base := review.Base{Ref: "HEAD", SHA: "a1b2c3d4e5f67890", Fallback: "uncommitted"}
 
-	// Short enough that the facts do not fit their own box and fall to the bar.
 	bar := measured(t, base, testchangeset.Derive(t, ringPatch), 200, 6).bar()
 
 	if !strings.Contains(bar, "HEAD (uncommitted)") {
@@ -1491,28 +1243,22 @@ func TestTheFallbackTagDoesNotReadAsAFactOnTheBar(t *testing.T) {
 	}
 }
 
-// TestHStepsTheColumnBeforeItLeavesTheDiffPane. h is a step and the diff pane in
-// two columns has one more place to step to, where 1 and 2 stay a jump.
 func TestHStepsTheColumnBeforeItLeavesTheDiffPane(t *testing.T) {
 	s := open(t, 120, 16).press("n", "n", "|")
 	if !strings.Contains(s.raw(), seam(false)) {
 		t.Fatal("the diff pane does not have the focus to begin with")
 	}
 
-	// The cursor opens in the head column, so the first h goes to the base and
-	// the pane keeps the focus.
 	s.press("h")
 	if !strings.Contains(s.raw(), seam(false)) {
 		t.Error("h left the diff pane instead of stepping into the base column")
 	}
 
-	// Nowhere further left inside the pane, so the second h gives the focus up.
 	s.press("h")
 	if !strings.Contains(s.raw(), seam(true)) {
 		t.Error("a second h did not hand the focus to the tree")
 	}
 
-	// l comes back into the pane, and a second l steps to the head column.
 	s.press("l")
 	if !strings.Contains(s.raw(), seam(false)) {
 		t.Fatal("l did not come back to the diff pane")
@@ -1523,8 +1269,6 @@ func TestHStepsTheColumnBeforeItLeavesTheDiffPane(t *testing.T) {
 	}
 }
 
-// TestTheBadgeIsAJumpNotAStep. 1 names the tree frame whatever column the
-// cursor is in, or the badge stops meaning what it is drawn beside.
 func TestTheBadgeIsAJumpNotAStep(t *testing.T) {
 	s := open(t, 120, 16).press("n", "n", "|")
 
@@ -1539,8 +1283,6 @@ func TestTheBadgeIsAJumpNotAStep(t *testing.T) {
 	}
 }
 
-// TestAUnifiedPaneStillGivesTheFocusUpOnTheFirstH. The column step exists only
-// while two are drawn, and h is one key everywhere else.
 func TestAUnifiedPaneStillGivesTheFocusUpOnTheFirstH(t *testing.T) {
 	s := open(t, 120, 16).press("n", "n")
 
@@ -1550,13 +1292,9 @@ func TestAUnifiedPaneStillGivesTheFocusUpOnTheFirstH(t *testing.T) {
 	}
 }
 
-// TestTheToggleLeavesTheCursorWhereTheCaretIs. r acts on the caret's hunk, and a
-// toggle that moved the cursor off it would mark a hunk nobody is looking at.
 func TestTheToggleLeavesTheCursorWhereTheCaretIs(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, ringPatch), 120, 16)
 
-	// The pane opens on a heading, and the ring key moves to the next one, which
-	// is the row a toggle used to lose.
 	s.press("}")
 	if got := barred(t, s); !strings.Contains(got, "@@ -10,0 +11,1 @@") {
 		t.Fatalf("the cursor is on %q, want a.go's second hunk heading", got)
@@ -1574,8 +1312,6 @@ func TestTheToggleLeavesTheCursorWhereTheCaretIs(t *testing.T) {
 	}
 }
 
-// barred is the row the cursor is on, which the diff pane marks with a bar in
-// the row's leading cell.
 func barred(t *testing.T, s *screen) string {
 	t.Helper()
 

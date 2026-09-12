@@ -10,11 +10,8 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/testchangeset"
 )
 
-// read is the badge a heading wears once the hunk under it has been read.
 const read = "●"
 
-// TestRMarksTheHunkTheCursorIsOn, naming it by side and line the way review
-// does, and against the generation on screen.
 func TestRMarksTheHunkTheCursorIsOn(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
 	s.press("r")
@@ -25,8 +22,6 @@ func TestRMarksTheHunkTheCursorIsOn(t *testing.T) {
 	}
 }
 
-// The mark has to reach the pane, not just the tree. Both point into the
-// changeset the write replaced, and only one of them is re-pointed by hand.
 func TestAMarkedHunkWearsTheBadgeInTheDiffPane(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
 
@@ -42,8 +37,6 @@ func TestAMarkedHunkWearsTheBadgeInTheDiffPane(t *testing.T) {
 	}
 }
 
-// r advances so r r r r walks a review down, and it advances against what the
-// mark did rather than against the changeset that was there before it.
 func TestRAdvancesToTheNextUnreadHunk(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
 
@@ -55,8 +48,6 @@ func TestRAdvancesToTheNextUnreadHunk(t *testing.T) {
 	}
 }
 
-// TestTheMarkKeysAdvanceAndTheUnmarkKeysStay. R lands past the rest of its own
-// file, which is what tells it from r on a file's first hunk.
 func TestTheMarkKeysAdvanceAndTheUnmarkKeysStay(t *testing.T) {
 	tests := []struct {
 		key     string
@@ -87,8 +78,6 @@ func TestTheMarkKeysAdvanceAndTheUnmarkKeysStay(t *testing.T) {
 	}
 }
 
-// A press with nothing left unread leaves the cursor where it is. The write
-// still happened; there is just nowhere to go.
 func TestRStaysPutWhenNothingIsLeftUnread(t *testing.T) {
 	whole := testchangeset.Derive(t, ringPatch,
 		testchangeset.Head("a.go", 1, 1), testchangeset.Head("a.go", 11, 11),
@@ -127,8 +116,6 @@ func TestTheMarkKeysReachTheirOwnCall(t *testing.T) {
 	}
 }
 
-// A file with no hunks is one stop and is marked whole, which is the only way a
-// binary file can be read.
 func TestRMarksAFileWithNoHunksWhole(t *testing.T) {
 	s := open(t, 100, 24)
 	for range 20 {
@@ -147,8 +134,6 @@ func TestRMarksAFileWithNoHunksWhole(t *testing.T) {
 	}
 }
 
-// A refresh landing between the press and the transaction is not a failure.
-// Nothing was written, and the reader is told which key answers it.
 func TestAStaleWriteWritesNothingAndSaysWhichKeyAnswersIt(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
 	s.src.wroteErr = &review.StaleGenerationError{Seq: 2, Current: 3}
@@ -157,8 +142,6 @@ func TestAStaleWriteWritesNothingAndSaysWhichKeyAnswersIt(t *testing.T) {
 	if got := s.calls(); len(got) != 0 {
 		t.Errorf("the reader wrote %v, want nothing", got)
 	}
-	// The engine's own sentence, not a second copy of it. It names both
-	// generations and says what to do; the bar adds only the key that does it.
 	bar := s.bar()
 	if !strings.Contains(bar, "generation 2 is not the current one, 3 is") {
 		t.Errorf("the bar says %q, want the error's own sentence", bar)
@@ -171,8 +154,6 @@ func TestAStaleWriteWritesNothingAndSaysWhichKeyAnswersIt(t *testing.T) {
 	}
 }
 
-// A write that failed leaves the changeset alone. It is a local transaction
-// that committed or did not, and there is no half-applied state to paint over.
 func TestAFailedWriteLeavesTheChangesetAlone(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
 	was := s.frame()
@@ -195,14 +176,9 @@ func TestAFailedWriteLeavesTheChangesetAlone(t *testing.T) {
 	}
 }
 
-// One write in flight at a time. A press refused while the last is still in git
-// loses nothing: nothing was written and the cursor did not move, so the next
-// press acts on the same hunk. What it must not do is go quiet.
 func TestAPressDuringAWriteIsRefusedAndSaysSo(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
 
-	// hold applies the press without running the command it returned, which is
-	// the frame the reader sees while the first write is still going.
 	cmd := s.hold(keystroke("r"))
 	if bar := s.bar(); !strings.Contains(bar, "marking") {
 		t.Errorf("the bar says %q while a write is out, want it to say what is happening", bar)
@@ -217,14 +193,11 @@ func TestAPressDuringAWriteIsRefusedAndSaysSo(t *testing.T) {
 	}
 }
 
-// The advance does not wrap. The ring wraps because hunting is what n is for;
-// coming back to the top would let one key claim the whole changeset was read.
 func TestTheAdvanceStopsAtTheEndRatherThanWrapping(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, ringPatch,
 		testchangeset.Head("a.go", 11, 11), testchangeset.Head("b.go", 1, 1),
 	), 100, 16)
 
-	// n walks to the last unread hunk, leaving one unread above the cursor.
 	s.press("n")
 	if got := heading(t, s); !strings.Contains(got, "@@ -10,0 +11,1 @@") {
 		t.Fatalf("n landed on %q, want b.go's second hunk", got)
@@ -252,13 +225,9 @@ func TestTheBarSaysHowFarDownTheReviewIs(t *testing.T) {
 	}
 }
 
-// TestJTakesTheRingIntoTheHunkTheCursorReaches. The mark keys act on the hunk
-// the reader is looking at, and after j that is not the one they opened on.
 func TestJTakesTheRingIntoTheHunkTheCursorReaches(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
 
-	// a.go's first hunk is a heading, one added line and the blank after it, so
-	// the third row down is the second hunk's heading.
 	s.press("j", "j", "j")
 	if got := heading(t, s); !strings.Contains(got, "@@ -10,0 +11,1 @@") {
 		t.Fatalf("the caret is on %q, want a.go's second hunk", got)
@@ -271,12 +240,9 @@ func TestJTakesTheRingIntoTheHunkTheCursorReaches(t *testing.T) {
 	}
 }
 
-// TestAMoveDuringAWriteCancelsTheAdvance, even inside the hunk that was marked.
-// The reader moved after pressing r, and that is the newer of the two asks.
 func TestAMoveDuringAWriteCancelsTheAdvance(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
 
-	// r held, then j down onto the hunk's own added line before it lands.
 	cmd := s.hold(keystroke("r"))
 	s.press("j")
 	s.drain(cmd)
