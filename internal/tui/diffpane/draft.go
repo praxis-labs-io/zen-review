@@ -11,61 +11,44 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/tui/comp"
 )
 
-// draftID names the card being typed into. A stored comment's id is twelve hex
-// characters, so no comment can answer to this one.
+// draftID cannot collide with a stored comment id, which is twelve hex characters.
 const draftID = "draft"
 
-// draftRows is the shortest the box gets. It grows to hold what is typed into
-// it, because a box that scrolls hides the sentence somebody is still writing.
 const draftRows = 4
 
-// draft is the comment being typed: where it will land, and the box it is typed
-// in. The pane draws it as the card it is about to become.
 type draft struct {
 	at   store.Comment
 	area textarea.Model
 
-	// path is the file the box was opened over. A reload landing under it can
-	// put another file in the pane, and the box belongs to neither.
 	path string
 
-	// edits names the comment the box is standing in for, and is empty for one
-	// being written. That card comes down while the box is up.
 	edits string
 }
 
-// FitsBox is whether the pane has the room to draw a box being typed in. A box
-// nobody can see still holds every key, so the caller puts it somewhere else.
+// FitsBox reports whether the pane has room to draw a comment box.
 func (m Model) FitsBox() bool {
 	_, width := m.cardBox()
 
-	// The rows capBox reserves as well as the box's own floor. A pane that took
-	// one and then clamped it under that floor would draw two rows to type in.
 	return m.file != nil && width >= cardMin && m.height >= draftRows+4
 }
 
-// Compose opens a box where a new comment will hang, and false for a pane with
-// no room to draw one.
+// Compose opens a box for a new comment at c's anchor, returning its focus command. False when FitsBox is.
 func (m *Model) Compose(c store.Comment) (tea.Cmd, bool) {
 	c.State = store.CommentOpen
 	return m.open(c, "", "")
 }
 
-// Edit opens the box over a card that is already there, holding what it says.
-// The card comes down: the box is standing in its place.
+// Edit opens a box in place of comment c's card, holding its body. False when FitsBox is.
 func (m *Model) Edit(c store.Comment) (tea.Cmd, bool) {
 	return m.open(c, c.Body, c.ID)
 }
 
-// open puts a box in the pane and takes the cursor onto it.
 func (m *Model) open(c store.Comment, body, edits string) (tea.Cmd, bool) {
 	if !m.FitsBox() {
 		return nil, false
 	}
 	c.ID, c.Body = draftID, ""
 
-	// The textarea keeps its own height off the rows it wraps into, which is the
-	// count this cannot make: only it knows where its lines broke.
 	area := comp.Textarea(m.theme)
 	area.DynamicHeight = true
 	area.MinHeight = draftRows
@@ -77,8 +60,6 @@ func (m *Model) open(c store.Comment, body, edits string) (tea.Cmd, bool) {
 	m.draft = &draft{at: c, area: area, path: m.file.Diff.Path, edits: edits}
 	m.capBox()
 
-	// Focused before the box is drawn, or the first frame is one with no cursor
-	// in it and the reader has to type to find out where they are.
 	cmd := m.draft.area.Focus()
 	m.layout()
 
@@ -89,11 +70,10 @@ func (m *Model) open(c store.Comment, body, edits string) (tea.Cmd, bool) {
 	return cmd, true
 }
 
-// Composing is whether a box is up, which is whether the pane has the keys.
+// Composing reports whether a box is up. While it is, Update sends every message to it.
 func (m Model) Composing() bool { return m.draft != nil }
 
-// TypingAt is where the terminal's cursor goes while a box is up, in the pane's
-// own coordinates. It is nil for a pane holding no box, or one scrolled off it.
+// TypingAt is the terminal cursor in pane coordinates, or nil with no box or with the box scrolled off.
 func (m Model) TypingAt() *tea.Cursor {
 	if m.draft == nil {
 		return nil
@@ -105,8 +85,6 @@ func (m Model) TypingAt() *tea.Cursor {
 		return nil
 	}
 
-	// Past the indent the card hangs at, its border and the gutter inside it,
-	// and past the border row the box opens with.
 	left, _ := m.cardBox()
 	c.X += left + 1 + cardGutter
 	c.Y += at - m.offset + 1
@@ -117,7 +95,6 @@ func (m Model) TypingAt() *tea.Cursor {
 	return c
 }
 
-// Draft is what has been typed, and empty when no box is up.
 func (m Model) Draft() string {
 	if m.draft == nil {
 		return ""
@@ -125,8 +102,7 @@ func (m Model) Draft() string {
 	return m.draft.area.Value()
 }
 
-// CloseDraft takes the box down and leaves the cursor where the reader was when
-// they opened it: on the card the box stood in for, or on the code it hung off.
+// CloseDraft takes the box down, returning the cursor to the card it replaced or the line it hung under.
 func (m *Model) CloseDraft() {
 	if m.draft == nil {
 		return
@@ -136,8 +112,6 @@ func (m *Model) CloseDraft() {
 	m.draft = nil
 	m.layout()
 
-	// A card that came back unlit is one x and e no longer reach, and the reader
-	// pressed the key from it.
 	if edits != "" {
 		m.SelectComment(edits)
 		return
@@ -149,8 +123,6 @@ func (m *Model) CloseDraft() {
 	}
 }
 
-// typing takes a key to the body and redraws the box in place. Nothing else on
-// screen moves for it until the box grows, which pushes the file down a row.
 func (m *Model) typing(msg tea.Msg) tea.Cmd {
 	was := m.draft.area.Height()
 
@@ -171,8 +143,6 @@ func (m *Model) typing(msg tea.Msg) tea.Cmd {
 	return cmd
 }
 
-// grew lays the file out around a box that changed height and keeps the whole of
-// it on screen, the row it gained included.
 func (m *Model) grew() {
 	at := place{comment: draftID, seq: -1}
 	m.relayout(at)
@@ -182,18 +152,13 @@ func (m *Model) grew() {
 	}
 }
 
-// capBox holds the box to what the pane can draw around it: its two borders, the
-// line it hangs under, and the heading pinned over that. Past there it scrolls.
+// capBox caps the height itself because textarea's MaxHeight also limits how many lines can be typed.
 func (m *Model) capBox() {
-	// Here rather than as the textarea's MaxHeight, which is also a limit on how
-	// many lines may be typed at all. FitsBox is what keeps this off the floor.
 	if room := max(m.height-4, draftRows); m.draft.area.Height() > room {
 		m.draft.area.SetHeight(room)
 	}
 }
 
-// anchorOf is the row a card hangs under, or its own first row when the diff
-// has no line for it. It is where the cursor goes once the card is gone.
 func (m Model) anchorOf(id string) int {
 	for _, c := range m.cards {
 		if c.id == id {
@@ -206,14 +171,11 @@ func (m Model) anchorOf(id string) int {
 	return -1
 }
 
-// draftWidth is what the box has to type in, which is what a card's prose gets.
 func (m Model) draftWidth() int {
 	_, width := m.cardBox()
 	return max(width-2-2*cardGutter, 1)
 }
 
-// draftBody is the box as the card's rows, set in off the border the way prose
-// is. A pane too narrow for a card never gets here.
 func (m Model) draftBody() []string {
 	gutter := strings.Repeat(" ", cardGutter)
 
@@ -224,8 +186,6 @@ func (m Model) draftBody() []string {
 	return out
 }
 
-// draftHints are the two keys the box answers to, where a card names its own.
-// Nothing else on screen says how to get out of it.
 func (m Model) draftHints(width int) string {
 	line := "ctrl+s save · esc discard "
 	if lipgloss.Width(line) > max(width-3, 0) {

@@ -11,8 +11,6 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/tui/diffpane"
 )
 
-// composing is a pane with the box open on the fixture's mixed hunk, over the
-// head line the cursor is on.
 func composing(t *testing.T, width, height int) diffpane.Model {
 	t.Helper()
 
@@ -30,8 +28,6 @@ func composing(t *testing.T, width, height int) diffpane.Model {
 	return m
 }
 
-// TestTheBoxTakesWhatIsTypedIntoIt, and nothing else on screen moves for it: a
-// formatter is not the only thing that must not reshuffle the page mid-word.
 func TestTheBoxTakesWhatIsTypedIntoIt(t *testing.T) {
 	m := composing(t, 70, 20)
 	before := len(rows(t, m))
@@ -49,8 +45,6 @@ func TestTheBoxTakesWhatIsTypedIntoIt(t *testing.T) {
 	}
 }
 
-// TestAPasteReachesTheBox. It arrives as a message of its own rather than as
-// keys, and a pane routing only presses would drop one.
 func TestAPasteReachesTheBox(t *testing.T) {
 	m, _ := composing(t, 70, 20).Update(tea.PasteMsg{Content: "from somewhere else"})
 
@@ -59,8 +53,6 @@ func TestAPasteReachesTheBox(t *testing.T) {
 	}
 }
 
-// TestTheBoxSurvivesAResizeWithItsWords. Its width moves with the pane's, and
-// the words are the one thing a resize must not cost.
 func TestTheBoxSurvivesAResizeWithItsWords(t *testing.T) {
 	m := press(t, composing(t, 70, 20), tea.KeyPressMsg{Code: 'h', Text: "h"})
 	m.SetSize(50, 20)
@@ -78,8 +70,6 @@ func TestTheBoxSurvivesAResizeWithItsWords(t *testing.T) {
 	}
 }
 
-// TestClosingTheBoxLeavesTheCursorOnTheCode it hung off, which is where the
-// reader was before they reached for the key.
 func TestClosingTheBoxLeavesTheCursorOnTheCode(t *testing.T) {
 	m := composing(t, 70, 20)
 	was := m.Cursor()
@@ -97,11 +87,7 @@ func TestClosingTheBoxLeavesTheCursorOnTheCode(t *testing.T) {
 	}
 }
 
-// TestABoxRefusesAPaneWithNoRoomForIt. Every key goes into it while it is up,
-// so one that cannot be drawn is a reader typing into nothing.
 func TestABoxRefusesAPaneWithNoRoomForIt(t *testing.T) {
-	// The heights are the ones capBox would clamp under the box's own floor,
-	// which is a pane taking a box it can only give two rows to.
 	for _, tt := range []struct{ width, height int }{{18, 20}, {70, 4}, {70, 6}, {70, 7}} {
 		m := commented(t, twoHunks, tt.width, tt.height)
 		m.Select(store.SideHead, 13)
@@ -118,7 +104,6 @@ func TestABoxRefusesAPaneWithNoRoomForIt(t *testing.T) {
 	}
 }
 
-// editing is a pane with the box open over a card that is already there.
 func editing(t *testing.T, width, height int, c store.Comment) diffpane.Model {
 	t.Helper()
 
@@ -131,8 +116,6 @@ func editing(t *testing.T, width, height int, c store.Comment) diffpane.Model {
 	return m
 }
 
-// TestTheBoxOverACardHoldsWhatItSaid, so a typo is fixed rather than retyped,
-// and the card itself comes down: the box is standing in its place.
 func TestTheBoxOverACardHoldsWhatItSaid(t *testing.T) {
 	card := testchangeset.Comment("cccccccccccc", twoHunks, 13, 13, "unreviewd is the clearer word.")
 	m := editing(t, 70, 20, card)
@@ -153,8 +136,6 @@ func TestTheBoxOverACardHoldsWhatItSaid(t *testing.T) {
 	}
 }
 
-// TestTheBoxStandsWhereTheCardWas, which is under the code it answers rather
-// than at the foot of whatever is placed last.
 func TestTheBoxStandsWhereTheCardWas(t *testing.T) {
 	card := testchangeset.Comment("cccccccccccc", twoHunks, 13, 13, "unreviewd is the clearer word.")
 
@@ -166,8 +147,6 @@ func TestTheBoxStandsWhereTheCardWas(t *testing.T) {
 	}
 }
 
-// TestClosingTheBoxPutsTheCardBack. esc writes nothing, so what was there has to
-// come back saying what it always said.
 func TestClosingTheBoxPutsTheCardBack(t *testing.T) {
 	card := testchangeset.Comment("cccccccccccc", twoHunks, 13, 13, "unreviewd is the clearer word.")
 
@@ -183,7 +162,6 @@ func TestClosingTheBoxPutsTheCardBack(t *testing.T) {
 	}
 }
 
-// at is the first row holding a string, and -1 for a frame without it.
 func at(t *testing.T, lines []string, want string) int {
 	t.Helper()
 
@@ -196,8 +174,6 @@ func at(t *testing.T, lines []string, want string) int {
 	return -1
 }
 
-// TestTheBoxOnARangeTallerThanTheWindow is on screen. A card is clamped to the
-// line it answers, and a box off the window holds every key that would scroll it.
 func TestTheBoxOnARangeTallerThanTheWindow(t *testing.T) {
 	m := commented(t, twoHunks, 70, 8)
 	m.Select(store.SideHead, 13)
@@ -216,8 +192,6 @@ func TestTheBoxOnARangeTallerThanTheWindow(t *testing.T) {
 	}
 }
 
-// TestACardDrawsTheBreaksTheBoxWasTypedWith. The box shows a newline as a break,
-// so a card that folded it away would say the reader wrote a paragraph.
 func TestACardDrawsTheBreaksTheBoxWasTypedWith(t *testing.T) {
 	card := testchangeset.Comment("cccccccccccc", twoHunks, 13, 13,
 		"the first thing\nthe second thing\nthe third")
@@ -235,8 +209,6 @@ func TestACardDrawsTheBreaksTheBoxWasTypedWith(t *testing.T) {
 	}
 }
 
-// TestClosingTheBoxPutsTheCursorBackOnTheCard it stood in for. That is the row
-// the reader pressed e from, and a card left unlit is one x and e cannot reach.
 func TestClosingTheBoxPutsTheCursorBackOnTheCard(t *testing.T) {
 	card := testchangeset.Comment("cccccccccccc", twoHunks, 13, 13, "unreviewd is the clearer word.")
 
@@ -251,8 +223,6 @@ func TestClosingTheBoxPutsTheCursorBackOnTheCard(t *testing.T) {
 	}
 }
 
-// boxRows is how tall the drawn box is, read off the frame: its own border rows
-// are the only thing that says what height it took.
 func boxRows(t *testing.T, m diffpane.Model, head string) int {
 	t.Helper()
 
@@ -260,14 +230,10 @@ func boxRows(t *testing.T, m diffpane.Model, head string) int {
 	return at(t, lines, "ctrl+s save") - at(t, lines, head) + 1
 }
 
-// TestTheBoxGrowsWithWhatIsTypedIntoIt. One that scrolled would hide the
-// sentence somebody is still writing.
 func TestTheBoxGrowsWithWhatIsTypedIntoIt(t *testing.T) {
 	m := composing(t, 70, 24)
 	before := boxRows(t, m, "◇ new")
 
-	// Four newlines past the four rows it opens with, which is where it starts
-	// having to grow.
 	enter := tea.KeyPressMsg{Code: tea.KeyEnter}
 	m = press(t, m, enter, enter, enter, enter, enter, enter)
 
@@ -276,15 +242,12 @@ func TestTheBoxGrowsWithWhatIsTypedIntoIt(t *testing.T) {
 	}
 }
 
-// TestTheBoxOpensTallEnoughForWhatItHolds, so editing a comment of five lines
-// does not open on four of them.
 func TestTheBoxOpensTallEnoughForWhatItHolds(t *testing.T) {
 	body := "one\ntwo\nthree\nfour\nfive\nsix"
 	card := testchangeset.Comment("cccccccccccc", twoHunks, 13, 13, body)
 
 	m := editing(t, 70, 24, card)
 
-	// Six lines and the two borders.
 	if got := boxRows(t, m, "◇ editing"); got != 8 {
 		t.Errorf("the box is %d rows, want 8, the six lines and its borders", got)
 	}
@@ -293,23 +256,17 @@ func TestTheBoxOpensTallEnoughForWhatItHolds(t *testing.T) {
 	}
 }
 
-// TestTheBoxStopsAtThePane. It grows to hold what is typed, and the pane is
-// where that stops: a box taller than the window is one nobody can see the end of.
 func TestTheBoxStopsAtThePane(t *testing.T) {
 	body := strings.Repeat("a line\n", 40)
 	card := testchangeset.Comment("cccccccccccc", twoHunks, 13, 13, body)
 
 	m := editing(t, 70, 12, card)
 
-	// The pane's twelve, less the line it hangs under and the heading pinned
-	// over that.
 	if got := boxRows(t, m, "◇ editing"); got != 10 {
 		t.Errorf("the box is %d rows, want 10", got)
 	}
 }
 
-// TestTheBoxOpensOnAWrappedBodyWholeAndUnscrolled. It counts the rows its lines
-// wrap into, so a body that folds twice at this width does not scroll away.
 func TestTheBoxOpensOnAWrappedBodyWholeAndUnscrolled(t *testing.T) {
 	body := "the first line of it, which is long enough to fold at this width\n" +
 		"and a second\n" +
@@ -327,7 +284,6 @@ func TestTheBoxOpensOnAWrappedBodyWholeAndUnscrolled(t *testing.T) {
 		t.Errorf("the box is too short for its last line:\n%s", got)
 	}
 
-	// A blank row inside the box is one the wrapping was not counted for.
 	lines := rows(t, m)
 	for i := at(t, lines, "◇ editing") + 1; i < at(t, lines, "ctrl+s save"); i++ {
 		if strings.TrimSpace(strings.ReplaceAll(lines[i], "│", "")) == "" {

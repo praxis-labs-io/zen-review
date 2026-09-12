@@ -12,16 +12,10 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/tui/diffpane"
 )
 
-// bodyLines is how long the two-hunk file is in the fixture. Past its last hunk,
-// which ends at 126, so the rows below it are rows the diff never showed.
 const bodyLines = 130
 
-// tall is a pane deep enough to draw the whole of that file, so a row assertion
-// does not have to scroll to the row it is about.
 const tall = bodyLines + 16
 
-// preview is a pane already showing the whole file, the text asked for and
-// handed over the way the root does it.
 func preview(t *testing.T, path string, width, height, lines int) diffpane.Model {
 	t.Helper()
 
@@ -40,8 +34,6 @@ func preview(t *testing.T, path string, width, height, lines int) diffpane.Model
 	return m
 }
 
-// rowOf is the index of the one row holding text, and fails the test when the
-// pane drew it twice or not at all.
 func rowOf(t *testing.T, m diffpane.Model, text string) int {
 	t.Helper()
 
@@ -61,50 +53,36 @@ func rowOf(t *testing.T, m diffpane.Model, text string) int {
 	return at
 }
 
-// TestPreviewFillsTheGapsWithTheFile. Three lines of context are what the key
-// exists to get past, so the rows the diff never showed are the whole assertion.
 func TestPreviewFillsTheGapsWithTheFile(t *testing.T) {
 	m := preview(t, twoHunks, 60, tall, bodyLines)
 
-	// The file opens on its own first line, and the heading of the first hunk
-	// arrives after the nine lines above it rather than on row nought.
 	if got := rowOf(t, m, "line 1 of the file"); got != 0 {
 		t.Errorf("the file opens on row %d, want 0", got)
 	}
 
-	// One row between them, which is the frame below.
 	head := rowOf(t, m, "@@ -10,5 +10,5 @@")
 	if last := rowOf(t, m, "line 9 of the file"); last != head-2 {
 		t.Errorf("line 9 is on row %d and the first heading on %d, want a row between",
 			last, head)
 	}
 
-	// The lines between the two hunks, which the diff showed none of, and the
-	// ones below the last, which it had no reason to reach.
 	for _, line := range []string{"line 15 of the file", "line 119 of the file", "line 130 of the file"} {
 		rowOf(t, m, line)
 	}
 }
 
-// TestPreviewNumbersBothSides. A gap row carries the base number the hunks above
-// it have moved it to, or the two gutters disagree about the same line.
 func TestPreviewNumbersBothSides(t *testing.T) {
 	m := preview(t, twoHunks, 60, tall, bodyLines)
 
-	// Above every hunk the two sides are still in step.
 	if row := rows(t, m)[rowOf(t, m, "line 1 of the file")]; !strings.Contains(row, "  1   1 ") {
 		t.Errorf("line 1 is not numbered 1 on both sides: %q", row)
 	}
 
-	// The second hunk adds two lines, so everything under it sits two further on
-	// than the base it came from.
 	if row := rows(t, m)[rowOf(t, m, "line 127 of the file")]; !strings.Contains(row, "125 127 ") {
 		t.Errorf("head line 127 does not read as base line 125: %q", row)
 	}
 }
 
-// TestPreviewIsTakenBack. The mode lasts the run and the key that set it is the
-// key that clears it, so the rows have to come all the way back.
 func TestPreviewIsTakenBack(t *testing.T) {
 	m := pane(t, twoHunks, 60, tall)
 	was := joined(t, m)
@@ -122,13 +100,10 @@ func TestPreviewIsTakenBack(t *testing.T) {
 	}
 }
 
-// TestPreviewCarriesTheCursor. The two modes do not number their rows the same,
-// so a stored row index would land the reader on something else.
 func TestPreviewCarriesTheCursor(t *testing.T) {
 	m := pane(t, twoHunks, 60, tall)
 	m.Select(store.SideHead, 13)
 
-	// Down off the heading and onto the first line the hunk holds.
 	m = press(t, m, down)
 	line := rows(t, m)[m.Cursor()]
 
@@ -144,8 +119,6 @@ func TestPreviewCarriesTheCursor(t *testing.T) {
 	}
 }
 
-// TestPreviewLinesBelongToNoHunk. r takes the hunk the cursor is in, and a line
-// two hundred rows away from one is not in it.
 func TestPreviewLinesBelongToNoHunk(t *testing.T) {
 	m := preview(t, twoHunks, 60, tall, bodyLines)
 
@@ -160,8 +133,6 @@ func TestPreviewLinesBelongToNoHunk(t *testing.T) {
 	}
 }
 
-// TestPreviewWidensTheGutter. The file runs past its last hunk, and a gutter
-// sized off the hunks puts every number below them out of its column.
 func TestPreviewWidensTheGutter(t *testing.T) {
 	short := preview(t, twoHunks, 60, tall, bodyLines)
 	long := preview(t, twoHunks, 60, tall, 1300)
@@ -169,15 +140,12 @@ func TestPreviewWidensTheGutter(t *testing.T) {
 	at := func(m diffpane.Model) int {
 		return strings.Index(rows(t, m)[0], "line 1 of the file")
 	}
-	// A digit each, and there are two gutters.
 	if at(long) != at(short)+2 {
 		t.Errorf("the code starts at column %d over 1300 lines and %d over %d, want two further",
 			at(long), at(short), bodyLines)
 	}
 }
 
-// TestPreviewRefusesAFileWithNoLines. A binary file has nothing to fill in, and
-// a key that appeared to do nothing is worse than one that says why.
 func TestPreviewRefusesAFileWithNoLines(t *testing.T) {
 	m := pane(t, "assets/logo.png", 60, 10)
 	if m.TogglePreview() {
@@ -188,8 +156,6 @@ func TestPreviewRefusesAFileWithNoLines(t *testing.T) {
 	}
 }
 
-// TestPreviewAsksOncePerFile. The text is the bytes of one generation, so a
-// second press is the cache and not a second git call.
 func TestPreviewAsksOncePerFile(t *testing.T) {
 	m := preview(t, twoHunks, 60, tall, bodyLines)
 
@@ -200,8 +166,6 @@ func TestPreviewAsksOncePerFile(t *testing.T) {
 	}
 }
 
-// TestPreviewStandsDownOnAnEmptyBody. A blob the repository could not read comes
-// back empty, and the mode cannot be left on over nothing.
 func TestPreviewStandsDownOnAnEmptyBody(t *testing.T) {
 	m := pane(t, twoHunks, 60, tall)
 	was := joined(t, m)
@@ -214,14 +178,11 @@ func TestPreviewStandsDownOnAnEmptyBody(t *testing.T) {
 		t.Errorf("the rows moved for an empty body:\n%s", got)
 	}
 
-	// And it is not asked for again: the answer was read, not missed.
 	if _, asked := m.NeedsBody(); asked {
 		t.Error("the pane asked for a body it has already been told is empty")
 	}
 }
 
-// A row wider than the pane loses its trailing columns with no ellipsis, and a
-// width test still passes. Every gap row is a row that has to fit.
 func TestEveryPreviewRowIsExactlyThePane(t *testing.T) {
 	for _, width := range []int{40, 60, 61} {
 		m := preview(t, twoHunks, width, tall, bodyLines)
@@ -234,8 +195,6 @@ func TestEveryPreviewRowIsExactlyThePane(t *testing.T) {
 	}
 }
 
-// TestPreviewPairsSideBySide. The two modes are orthogonal, so the gap lines take
-// both columns the way every other context line does.
 func TestPreviewPairsSideBySide(t *testing.T) {
 	m := preview(t, twoHunks, splitWide, tall, bodyLines)
 	if short := m.ToggleSplit(); short > 0 {
@@ -251,8 +210,6 @@ func TestPreviewPairsSideBySide(t *testing.T) {
 	}
 }
 
-// TestPreviewKeepsACardUnderItsLine. The card hangs on the row it answers, and
-// filling the gaps renumbers every row after it.
 func TestPreviewKeepsACardUnderItsLine(t *testing.T) {
 	c := testchangeset.Comment("bbbbbbbbbbbb", twoHunks, 13, 13, "The longer word is the clearer one.")
 	m := commented(t, twoHunks, 60, tall, c)
@@ -270,15 +227,10 @@ func TestPreviewKeepsACardUnderItsLine(t *testing.T) {
 	}
 }
 
-// TestPreviewHangsACardUnderAFilledInLine. A comment on a line outside every
-// hunk is one the diff had no row for, and the unplaced pass sends those to the
-// foot of the file. Preview draws that line, so the card belongs under it.
 func TestPreviewHangsACardUnderAFilledInLine(t *testing.T) {
 	c := testchangeset.Comment("gggggggggggg", twoHunks, 20, 20, "This run is doing two jobs.")
 	m := commented(t, twoHunks, 60, tall, c)
 
-	// With the hunks alone it goes to the foot, naming the line it is about. Not
-	// `was line 20`: the line is in the file, and the diff is not showing it.
 	foot := rowOf(t, m, "This run is doing two jobs.")
 	got := joined(t, m)
 	if !strings.Contains(got, "line 20") {
@@ -302,16 +254,11 @@ func TestPreviewHangsACardUnderAFilledInLine(t *testing.T) {
 		t.Error("the card stayed at the foot of the file")
 	}
 
-	// The line is on screen now, so the gutter beside it carries the number and the
-	// label has nothing left to say at all.
 	if got := joined(t, m); strings.Contains(got, "line 20 ─") || strings.Contains(got, "· line 20") {
 		t.Errorf("the card still names a line the row above it already has:\n%s", got)
 	}
 }
 
-// TestPreviewKeepsTheWindowOnAFilledInCard. The card answers the line above it,
-// so topping it would scroll that line away. Under preview the rows between are
-// the file, which is what broke the arithmetic that found the line.
 func TestPreviewKeepsTheWindowOnAFilledInCard(t *testing.T) {
 	c := testchangeset.Comment("gggggggggggg", twoHunks, 60, 60, "Why is this here?")
 	m := commented(t, twoHunks, 60, 12, c)
@@ -328,9 +275,6 @@ func TestPreviewKeepsTheWindowOnAFilledInCard(t *testing.T) {
 	}
 }
 
-// TestPreviewCarriesASelectionOnItsLines. A selection is held as a row, and the
-// two modes do not number those the same. Left alone it measures from whatever
-// row took the number, and the comment goes against lines nobody picked.
 func TestPreviewCarriesASelectionOnItsLines(t *testing.T) {
 	m := pane(t, twoHunks, 60, tall)
 	m.Select(store.SideHead, 13)
@@ -352,19 +296,15 @@ func TestPreviewCarriesASelectionOnItsLines(t *testing.T) {
 		t.Errorf("the selection is %+v, want the %+v it was anchored on", got, was)
 	}
 
-	// And back out again.
 	m.TogglePreview()
 	if back, still := m.Selected(); !still || !reflect.DeepEqual(back, was) {
 		t.Errorf("the selection came back as %+v, want %+v", back, was)
 	}
 }
 
-// TestPreviewDropsASelectionItCannotPlace. A dropped selection costs a keypress.
-// A moved one costs the comment, so the anchor is cleared rather than guessed at.
 func TestPreviewDropsASelectionItCannotPlace(t *testing.T) {
 	m := preview(t, twoHunks, 60, tall, bodyLines)
 
-	// Anchored on a line only preview has a row for.
 	m.Restore(rowOf(t, m, "line 60 of the file"), 0)
 	m = press(t, m, selectKey)
 	if _, open := m.Selected(); !open {
@@ -377,10 +317,6 @@ func TestPreviewDropsASelectionItCannotPlace(t *testing.T) {
 	}
 }
 
-// TestPreviewFramesEveryHunk. The heading says where a change starts and nothing
-// says where it stops, so with the lines around it all drawn the last line of a
-// hunk and the line after it read alike. A blank is what separates two hunks in
-// the diff, doing the same job here.
 func TestPreviewFramesEveryHunk(t *testing.T) {
 	m := preview(t, twoHunks, 60, tall, bodyLines)
 	rows := rows(t, m)
@@ -394,7 +330,6 @@ func TestPreviewFramesEveryHunk(t *testing.T) {
 		}
 	}
 
-	// And below the last line of each, where the file picks up again.
 	for _, pair := range [][2]string{
 		{`Partial    State = "partial"`, "line 15 of the file"},
 		{"return Derive(files, rows), nil", "line 127 of the file"},
@@ -407,9 +342,6 @@ func TestPreviewFramesEveryHunk(t *testing.T) {
 	}
 }
 
-// TestPreviewFramesNothingTwice. A hunk the file has no line before takes no
-// frame, or the pane opens on a blank row and the rows between two adjacent
-// hunks double up.
 func TestPreviewFramesNothingTwice(t *testing.T) {
 	m := preview(t, "internal/cli/render.go", 60, tall, 40)
 
@@ -417,7 +349,6 @@ func TestPreviewFramesNothingTwice(t *testing.T) {
 	if strings.TrimSpace(rows[0]) == "" {
 		t.Errorf("the pane opens on a blank row:\n%s", joined(t, m))
 	}
-	// The pane pads its own height, so only rows holding content are in scope.
 	content := len(rows)
 	for content > 0 && strings.TrimSpace(rows[content-1]) == "" {
 		content--
