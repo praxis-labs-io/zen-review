@@ -19,7 +19,7 @@ n N                      next / prev unreviewed hunk
 ] [                      next / prev unresolved comment
 
 r                        mark hunk reviewed, advance to next unreviewed
-R                        mark whole file reviewed
+R                        mark whole file reviewed, advance to next unreviewed
 u U                      take either back
 c                        comment on the selection, the row, the hunk or the file
 v esc                    range selection for c, j/k extend. esc or v cancels
@@ -42,7 +42,8 @@ s                        reload
 
 `n` is the one that matters. A review is a burn-down and `n` is the key held
 until the count reaches zero. `r` advances after marking, so `r r r r` walks the
-whole thing.
+whole thing. `R` advances too, and with the whole file read the next unreviewed
+hunk is in another file. `u` and `U` stay where they are.
 
 The diff pane opens focused on the first unreviewed hunk. You came here to burn a
 review down, not to browse.
