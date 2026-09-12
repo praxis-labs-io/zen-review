@@ -302,7 +302,15 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, nil
 
 	case bodyFailedMsg:
-		m.reading = ""
+		if msg.path == m.reading {
+			m.reading = ""
+		}
+
+		// Gated the way the loaded case is. A read that failed for a file the reader
+		// has left says nothing about the one they are on.
+		if msg.gen != m.gen.ID || msg.path != m.diff.Path() {
+			return m, nil
+		}
 		m.diff.StopPreview()
 		m.note = notice{text: msg.err.Error(), bad: true}
 		return m, nil

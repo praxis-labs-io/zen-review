@@ -67,6 +67,22 @@ func (m *Model) StopPreview() {
 	m.settle()
 }
 
+// OffHunk is whether the cursor is on a line of the file belonging to no hunk,
+// which is a row only the whole file drawn around them has.
+//
+// This is not Hunk answering false. A comment card outside every hunk answers
+// false too, and the ring is what put the reader on one, so a mark key there
+// falls back to the stop it came from. A line is different: nothing put the
+// reader on it but their own movement, and the hunk the ring last named is not
+// what they are looking at.
+func (m Model) OffHunk() bool {
+	if m.cursor < 0 || m.cursor >= len(m.rows) {
+		return false
+	}
+	r := m.rows[m.cursor]
+	return r.kind == codeRow && r.hunk < 0
+}
+
 // previewing is whether the pane draws the whole file, which takes the reader's
 // answer and a body to honour it with.
 func (m Model) previewing() bool {

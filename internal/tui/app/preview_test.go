@@ -8,6 +8,7 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/golden"
 	"github.com/praxis-labs-io/zen-review/internal/review"
 	"github.com/praxis-labs-io/zen-review/internal/testchangeset"
+	"github.com/praxis-labs-io/zen-review/internal/tui/app"
 )
 
 // twoHunks is the fixture's Go file, the one with code in it and two hunks.
@@ -204,5 +205,57 @@ func TestTheBoxHangsUnderAFilledInLine(t *testing.T) {
 	// it is showing it.
 	if strings.Contains(got, "was line") {
 		t.Errorf("the box says the changeset has no line for it:\n%s", got)
+	}
+}
+
+// TestRMarksNothingOnAFilledInLine. The ring stop still names the hunk the reader
+// arrived on, so a mark path reading it would mark a hunk a hundred lines from
+// the cursor, which is the thing the whole file was turned on to avoid.
+func TestRMarksNothingOnAFilledInLine(t *testing.T) {
+	s := previewing(t, twoHunks, previewLines, 100, 16)
+	s.press("n", "n", "}", "p", "g")
+
+	s.press("r")
+	if got := s.calls(); len(got) != 0 {
+		t.Errorf("r wrote %v from a row in no hunk", got)
+	}
+
+	s.press("u")
+	if got := s.calls(); len(got) != 0 {
+		t.Errorf("u wrote %v from a row in no hunk", got)
+	}
+
+	// R still reaches the file, which is a thing that row is part of.
+	s.press("R")
+	if got := s.calls(); len(got) != 1 || !strings.Contains(got[0], "MarkFile") {
+		t.Errorf("R wrote %v, want the whole file", got)
+	}
+}
+
+// TestRStillMarksTheHunkTheCursorIsIn, so the guard above did not take the key
+// away from the rows it belongs to.
+func TestRStillMarksTheHunkTheCursorIsIn(t *testing.T) {
+	s := previewing(t, twoHunks, previewLines, 100, 16)
+	s.press("n", "n", "p", "j")
+
+	s.press("r")
+	if got := s.calls(); len(got) != 1 || !strings.Contains(got[0], "MarkHunk") {
+		t.Errorf("r wrote %v, want the hunk the cursor is in", got)
+	}
+}
+
+// TestAFailedReadLeavesAnotherFilesPreviewAlone. Two reads can be out at once,
+// and the one that failed says nothing about the file on screen.
+func TestAFailedReadLeavesAnotherFilesPreviewAlone(t *testing.T) {
+	s := previewing(t, twoHunks, previewLines, 100, 16)
+	s.press("n", "n", "p")
+
+	s.send(app.BodyFailed("internal/cli/render.go", 2, errors.New("object missing")))
+
+	if !strings.Contains(s.frame(), "line 15 of the file") {
+		t.Errorf("a failure on another file stood this one's preview down:\n%s", s.frame())
+	}
+	if strings.Contains(s.bar(), "object missing") {
+		t.Errorf("it reported that failure against this file: %q", s.bar())
 	}
 }

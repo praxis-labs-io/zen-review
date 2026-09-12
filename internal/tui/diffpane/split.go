@@ -252,8 +252,10 @@ func (m *Model) remode() {
 	was := m.placeOf(m.cursor)
 	hunk := m.hunkAt(m.cursor)
 	side, line := m.at(m.cursor)
+	anchorSide, anchorLine := m.anchorAt()
 
 	m.layout()
+	m.reanchor(anchorSide, anchorLine)
 
 	at := m.rowOf(side, line)
 	if was.comment != "" {
@@ -276,6 +278,39 @@ func (m *Model) remode() {
 		return
 	}
 	m.moveTo(at)
+}
+
+// anchorAt is the side and line an open selection is anchored on, read before a
+// relayout so it can be put back afterwards.
+//
+// A selection held to a card keeps its id, which no mode renumbers, so it needs
+// no carrying. Everything else is a seq, and the modes do not number those the
+// same: left alone across a change of mode the span measures from whatever row
+// took that number, and the next comment is written against lines nobody picked.
+func (m Model) anchorAt() (store.Side, int) {
+	if !m.Selecting() || m.anchor.comment != "" {
+		return "", 0
+	}
+	return m.at(m.rowAt(m.anchor))
+}
+
+// reanchor puts an open selection back on the line it was anchored on, and drops
+// it where this mode has no row for that line. A dropped selection costs the
+// reader a keypress; a moved one costs them the comment.
+func (m *Model) reanchor(side store.Side, line int) {
+	if !m.Selecting() || m.anchor.comment != "" {
+		return
+	}
+
+	at := -1
+	if line != 0 {
+		at = m.rowOf(side, line)
+	}
+	if at < 0 {
+		m.anchor = place{seq: -1}
+		return
+	}
+	m.anchor = m.placeOf(at)
 }
 
 // at is the side and line the row at i names, and 0 for a row naming none. The

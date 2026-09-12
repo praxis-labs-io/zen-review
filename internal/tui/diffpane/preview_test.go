@@ -1,6 +1,7 @@
 package diffpane_test
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -323,5 +324,54 @@ func TestPreviewKeepsTheWindowOnAFilledInCard(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Errorf("the window does not hold %q:\n%s", want, got)
 		}
+	}
+}
+
+// TestPreviewCarriesASelectionOnItsLines. A selection is held as a row, and the
+// two modes do not number those the same. Left alone it measures from whatever
+// row took the number, and the comment goes against lines nobody picked.
+func TestPreviewCarriesASelectionOnItsLines(t *testing.T) {
+	m := pane(t, twoHunks, 60, tall)
+	m.Select(store.SideHead, 13)
+	m = press(t, m, down, selectKey)
+
+	was, open := m.Selected()
+	if !open {
+		t.Fatal("v opened no selection")
+	}
+
+	m.TogglePreview()
+	m.SetBody(twoHunks, testchangeset.Body(bodyLines))
+
+	got, still := m.Selected()
+	if !still {
+		t.Fatal("the selection went when the whole file came in")
+	}
+	if !reflect.DeepEqual(got, was) {
+		t.Errorf("the selection is %+v, want the %+v it was anchored on", got, was)
+	}
+
+	// And back out again.
+	m.TogglePreview()
+	if back, still := m.Selected(); !still || !reflect.DeepEqual(back, was) {
+		t.Errorf("the selection came back as %+v, want %+v", back, was)
+	}
+}
+
+// TestPreviewDropsASelectionItCannotPlace. A dropped selection costs a keypress.
+// A moved one costs the comment, so the anchor is cleared rather than guessed at.
+func TestPreviewDropsASelectionItCannotPlace(t *testing.T) {
+	m := preview(t, twoHunks, 60, tall, bodyLines)
+
+	// Anchored on a line only preview has a row for.
+	m.Restore(rowOf(t, m, "line 60 of the file"), 0)
+	m = press(t, m, selectKey)
+	if _, open := m.Selected(); !open {
+		t.Fatal("v opened no selection on a filled-in line")
+	}
+
+	m.TogglePreview()
+	if got, open := m.Selected(); open {
+		t.Errorf("the selection survived as %+v on a line the hunks have no row for", got)
 	}
 }

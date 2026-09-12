@@ -101,8 +101,15 @@ type bodyLoadedMsg struct {
 	body review.Body
 }
 
-// bodyFailedMsg is one that did not. The mode stands down and the bar says so.
-type bodyFailedMsg struct{ err error }
+// bodyFailedMsg is one that did not. It names the path and the generation for the
+// reason the loaded case does: two reads can be out at once, and a failure that
+// stood the mode down without checking would take down a preview of another file
+// and report its error against that one.
+type bodyFailedMsg struct {
+	path string
+	gen  int64
+	err  error
+}
 
 // reloadedMsg is a reload that came back.
 type reloadedMsg struct{ r Reload }
@@ -133,7 +140,7 @@ func (m Model) loadBody(path string) tea.Cmd {
 	return func() tea.Msg {
 		b, err := src.Body(g, path)
 		if err != nil {
-			return bodyFailedMsg{err: err}
+			return bodyFailedMsg{path: path, gen: g.ID, err: err}
 		}
 		return bodyLoadedMsg{path: path, gen: g.ID, body: b}
 	}
