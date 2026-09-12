@@ -10,20 +10,6 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
-// A write committed while a refresh is mid-flight used to be accepted and then
-// lost. The refresh read the generation's state, did its git work, and wrote;
-// anything landing between the read and the write went onto a generation the
-// carry had already read past, where nothing would read it again. The write
-// returned nil, so the caller reported success and the lines came back unread.
-//
-// The reads now happen inside the transaction that writes the generation, and
-// every write asserts from inside its own transaction that the generation it
-// names is still the latest. So a write in the window either moves forward with
-// the refresh or is refused, and these drive that window on purpose.
-
-// during runs one write inside the window, through a second session on the same
-// repository, which is the shape two instances have and the shape the TUI has
-// when a reload and a mark are in flight together.
 func (f *fixture) during(s *review.Session, write func(*review.Session, review.Generation)) {
 	f.t.Helper()
 
@@ -42,9 +28,6 @@ func (f *fixture) during(s *review.Session, write func(*review.Session, review.G
 	f.t.Cleanup(func() { s.DuringRefresh(nil) })
 }
 
-// handle is the generation a caller holds, built from the row. Callers get one
-// off a status or a refresh, and a test reaching into the database for one is
-// standing in for a caller that read it a moment before the window opened.
 func handle(g store.Generation) review.Generation {
 	return review.Generation{
 		ID:        g.ID,
@@ -69,14 +52,9 @@ func TestAMarkCommittedDuringARefreshLandsInTheNewGeneration(t *testing.T) {
 	if next.Seq == first.Seq {
 		t.Fatal("the refresh built no new generation, so there was no window to land in")
 	}
-	// Both ranges shifted by the inserted line: the one read before the refresh
-	// started, and the one written while it was running.
 	assertRanges(t, f.storedRanges(next), []string{"code.txt head 6:10", "code.txt head 16:17"})
 }
 
-// A comment in the window is worse than a lost mark. It stays open, so the
-// anchor it shows is a live one, and left behind it points at code nobody wrote
-// it about.
 func TestACommentWrittenDuringARefreshMovesWithTheCode(t *testing.T) {
 	f, s, _ := marked(t)
 
@@ -101,9 +79,6 @@ func TestACommentWrittenDuringARefreshMovesWithTheCode(t *testing.T) {
 	}
 }
 
-// The mirror of the two above: a comment settled in the window has stopped
-// moving, and a carry that read it as open a moment earlier would walk it onto a
-// generation it never lived at.
 func TestAResolveDuringARefreshStopsTheCommentMoving(t *testing.T) {
 	f, s, g := marked(t)
 	c := f.note(s, g, review.NoteOnLines("code.txt", store.SideHead, review.Range{Start: 15, End: 16}, "answered"))
@@ -129,15 +104,6 @@ func TestAResolveDuringARefreshStopsTheCommentMoving(t *testing.T) {
 	}
 }
 
-// A whole refresh in the window is the case the ref swap cannot catch. This one
-// read what it was carrying from generation one, another instance built two and
-// took every open comment with it, and the swap still succeeds because the ref
-// was read after it moved.
-//
-// Writing anyway would carry out of a generation two behind: everything written
-// against the one in between is dropped, and the comments that moved onto it are
-// left pinned to a generation nothing reads again. So it refuses, as the same
-// lost race the swap reports.
 func TestARefreshThatLosesTheSessionUnderItWritesNothing(t *testing.T) {
 	f, s, first := marked(t)
 
@@ -154,21 +120,13 @@ func TestARefreshThatLosesTheSessionUnderItWritesNothing(t *testing.T) {
 		t.Fatalf("err = %v, want it to read as the lost race it is", err)
 	}
 
-	// Two: the one the fixture built, and the one the other instance built inside
-	// the window. Never a third.
 	latest, found := f.latest(s.ID())
 	if !found || latest.Seq != first.Seq+1 {
 		t.Fatalf("latest = %+v, want the generation the other instance wrote", latest)
 	}
-	// The other instance's own translation, untouched. This one refusing is what
-	// leaves it standing.
 	assertRanges(t, f.storedRanges(handle(latest)), []string{"code.txt head 6:10"})
 }
 
-// The same lost session on a fresh one, where there is no generation to name and
-// so nothing that looked like a claim to check. Two instances build the first
-// generation, the second takes the swap, and this one would write a second first
-// generation carrying nothing out of the one it never saw.
 func TestAFirstRefreshThatLosesTheSessionWritesNothing(t *testing.T) {
 	f := branched(t)
 	f.Write("code.txt", numbered(1, 20))
@@ -198,9 +156,6 @@ func TestAFirstRefreshThatLosesTheSessionWritesNothing(t *testing.T) {
 	assertRanges(t, f.storedRanges(handle(latest)), []string{"code.txt head 5:9"})
 }
 
-// A carry moving an open anchor leaves the comment open, so a resolve reading it
-// a moment earlier still wins the swap. Where it stopped is where the carry left
-// it, not where the read found it.
 func TestAResolveRecordsWhereARefreshLeftTheComment(t *testing.T) {
 	f, s, _, c := commented(t)
 
@@ -218,7 +173,6 @@ func TestAResolveRecordsWhereARefreshLeftTheComment(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolving the comment: %v", err)
 	}
-	// The comment was written on line 10 and the inserted line moved it to 11.
 	if got.LastLine != 11 {
 		t.Errorf("answered with last line %d, want 11, where the refresh left it", got.LastLine)
 	}
@@ -231,12 +185,6 @@ func TestAResolveRecordsWhereARefreshLeftTheComment(t *testing.T) {
 	}
 }
 
-// The reverse ordering of the case above: the refresh gets there first and the
-// state change arrives with the comment already orphaned under it.
-//
-// Resolving an orphan is the reader's call either way, so the swap goes again
-// against the state that is there rather than answering a legal resolve with a
-// refusal about a state it accepts.
 func TestAResolveGoesAgainWhenARefreshOrphansTheCommentUnderIt(t *testing.T) {
 	f, s, _, c := commented(t)
 
@@ -265,15 +213,6 @@ func TestAResolveGoesAgainWhenARefreshOrphansTheCommentUnderIt(t *testing.T) {
 	}
 }
 
-// The same window under goroutines rather than a seam, which is what -race has
-// something to say about. Both writes go in, because a mark and a comment are
-// different transactions and only one of them is covered above.
-//
-// It asserts the invariant and not the winner, because both outcomes are
-// correct: a write that comes back nil is at whatever generation is latest by
-// then, and one that is refused named a generation the refresh moved past. Which
-// one happens on a given pass is the scheduler's business, and a test demanding
-// one of them would be a test that fails for no reason.
 func TestWritesRacingARefreshLoseNothing(t *testing.T) {
 	f := branched(t)
 	f.Write("code.txt", numbered(1, 20))
@@ -285,8 +224,6 @@ func TestWritesRacingARefreshLoseNothing(t *testing.T) {
 
 	landed, refused := 0, 0
 	for pass := range 8 {
-		// Appended, so lines 1 to 20 keep their numbers through every generation
-		// and a write against one of them is where it was left.
 		line := pass + 1
 		f.Write("code.txt", numbered(1, 20)+numbered(100, 100+pass))
 		g := handle(latestOf(t, db, writer.ID()))
@@ -369,9 +306,6 @@ func readAt(t *testing.T, db *store.DB, generationID int64) []store.ReviewedRang
 	return rs
 }
 
-// covers says the line reads reviewed, whatever the write merged it into. Marks
-// on adjacent lines come back as one range, so naming the rows is the wrong
-// question to ask across passes.
 func covers(rs []store.ReviewedRange, line int) bool {
 	for _, r := range rs {
 		if r.Side == store.SideHead && r.Start <= line && line <= r.End {

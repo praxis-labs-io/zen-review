@@ -17,57 +17,40 @@ const (
 	Reviewed   State = "reviewed"
 )
 
-// Anchor is one side of a hunk and the lines it holds there.
+// Anchor is one side of a hunk and the lines it spans there.
 type Anchor struct {
 	Side  store.Side
 	Range Range
 }
 
-// Hunk is one hunk of the changeset with what has been read marked on it.
 type Hunk struct {
 	Diff diff.Hunk
 
-	// Anchors are the sides this hunk touches and the lines it holds on each,
-	// head first, and there is always at least one.
-	//
-	// A hunk that both adds and removes has two. Reading it means reading both,
-	// and marking it means marking both: a hunk anchored on its additions alone
-	// would swallow a deletion arriving later, because the lines it removes are
-	// not lines it has.
+	// Anchors are the sides the hunk touches, head first, and never empty.
 	Anchors []Anchor
 
 	State State
 }
 
-// Name is the side and the line a hunk is named by: the first line it
-// introduces, or the first line it removes when it introduces none.
-//
-// It is content rather than a position, where an index would name whatever is
-// third in the file after an agent inserts a hunk above it.
+// Name is the side and line a hunk is named by: its first added line, or first removed when it adds none.
 func (h Hunk) Name() (store.Side, int) {
 	return h.Anchors[0].Side, h.Anchors[0].Range.Start
 }
 
-// File is one file of the changeset with its hunks derived.
 type File struct {
 	Diff  diff.File
 	State State
 	Hunks []Hunk
 
-	// Changed is a refresh reporting that it took reviewed lines off this file:
-	// the content moved under a mark rather than the mark being withdrawn. It
-	// stands beside State rather than inside it, because how much has been read
-	// and why it is no longer all of it are different questions.
+	// Changed means a refresh took reviewed lines off this file, as opposed to a mark withdrawn.
 	Changed bool
 
-	// Reviewed and Items are this file's share of the burn-down. An item is one
-	// hunk, or the whole file when it has none.
+	// Reviewed and Items are this file's share of the burn-down.
 	Reviewed int
 	Items    int
 }
 
-// Owns is whether a comment was written against this file. A base-side one is
-// recorded under the base's name, so a rename joins back through the old path.
+// Owns reports whether c was written against f, following a rename for a base-side comment.
 func (f File) Owns(c store.Comment) bool {
 	if c.Side == store.SideBase {
 		return c.Path == f.Diff.BasePath()
@@ -75,42 +58,19 @@ func (f File) Owns(c store.Comment) bool {
 	return c.Path == f.Diff.Path
 }
 
-// Changeset is a generation's diff with the review on it.
 type Changeset struct {
 	Files []File
 
-	// Reviewed and Items are the burn-down: n of m, and the number the n key
-	// walks down to zero.
-	//
-	// A file with no hunks counts as one item rather than none. A binary file is
-	// one thing to read, and a counter leaving it out reads complete while it
-	// sits unopened.
+	// Reviewed and Items are the burn-down, counting a file with no hunks as one item.
 	Reviewed int
 	Items    int
 
-	// Additions and Deletions are the whole changeset's churn, summed off the
-	// files so nothing reporting the total walks them again.
 	Additions int
 	Deletions int
 }
 
-// Derive reads a changeset's state out of the ranges recorded against it.
-//
-// Files come back in the order a file tree reads, not the order git walked the
-// index in, so every reader of a changeset is looking at one list. It holds no
-// git and no database. A hunk is reviewed when every line of every anchor it has
-// is covered, unreviewed when none is, and partial in between. A file is
-// reviewed when every hunk is, or when a file with no hunks carries a whole-file
-// mark.
-//
-// cut names the files a refresh took reviewed lines off, and nothing here infers
-// it. A range that failed to translate and a range somebody withdrew leave the
-// same coverage behind, so only the refresh can tell them apart, because only
-// the refresh ran the translation. It is reported on a file that has lines left
-// to read and dropped on one that reads reviewed, so finishing a file clears the
-// flag without waiting for the next refresh to write the row away. An unmark
-// settles the row itself, because a refresh only runs when something moved and a
-// reader who takes lines back by hand has left nothing due to run.
+// Derive reads the review state of files out of rows, in file-tree order. cut names the files
+// a refresh took reviewed lines off, reported only on a file not reviewed again since.
 func Derive(files []diff.File, rows []store.ReviewedRange, cut map[string]bool) Changeset {
 	cur := coverageOf(rows)
 
@@ -125,16 +85,11 @@ func Derive(files []diff.File, rows []store.ReviewedRange, cut map[string]bool) 
 		c.Deletions += f.Deletions
 	}
 
-	// Sorted here as well as in Session.Files, which is where the printed table
-	// reads its list and never comes through Derive. This is the sort a caller
-	// building a changeset by hand gets, and on the session's path it runs over
-	// a list already in order.
 	slices.SortFunc(c.Files, func(a, b File) int { return byTree(a.Diff.Path, b.Diff.Path) })
 	return c
 }
 
-// File finds a file by the head-side path the changeset lists it under, which is
-// the name a reader has in hand and the one a subcommand takes.
+// File finds a file by its head-side path.
 func (c Changeset) File(path string) (File, bool) {
 	for _, f := range c.Files {
 		if f.Diff.Path == path {
@@ -144,8 +99,7 @@ func (c Changeset) File(path string) (File, bool) {
 	return File{}, false
 }
 
-// Hunk finds a hunk by the path, side and line the changeset names it under,
-// which is how a subcommand naming one on the command line resolves it.
+// Hunk finds a hunk by the path, side and line it is named by.
 func (c Changeset) Hunk(path string, side store.Side, line int) (Hunk, bool) {
 	f, found := c.File(path)
 	if !found {
@@ -159,10 +113,7 @@ func (c Changeset) Hunk(path string, side store.Side, line int) (Hunk, bool) {
 	return Hunk{}, false
 }
 
-// Changeset is the generation's diff with the review on it.
-//
-// g has to be a generation that exists. Status reports that as Exists, and the
-// zero value reaches git as an empty revision, the same way Session.Files does.
+// Changeset is g's diff with the review on it. g has to exist; see Status.Exists.
 func (s *Session) Changeset(ctx context.Context, g Generation) (Changeset, error) {
 	files, err := s.Files(ctx, g)
 	if err != nil {
@@ -181,12 +132,9 @@ func (s *Session) Changeset(ctx context.Context, g Generation) (Changeset, error
 	return Derive(files, rows, cutsOf(gen)), nil
 }
 
-// deriveFile is one file's hunks and the state that falls out of them.
 func deriveFile(f diff.File, cur map[key]coverage) File {
 	out := File{Diff: f}
 
-	// Base-side ranges are stored under the name the file has on the base, which
-	// a rename makes a different one from its own.
 	sides := map[store.Side]coverage{
 		store.SideHead: cur[key{path: f.Path, side: store.SideHead}],
 		store.SideBase: cur[key{path: baseName(f), side: store.SideBase}],
@@ -196,9 +144,6 @@ func deriveFile(f diff.File, cur map[key]coverage) File {
 	for _, d := range f.Hunks {
 		anchors := anchorsOf(d)
 		if len(anchors) == 0 {
-			// Git emits no hunk with neither an addition nor a deletion. One
-			// arriving here has nothing to mark and nothing to read, so it is not
-			// a hunk of the review.
 			continue
 		}
 
@@ -218,9 +163,6 @@ func deriveFile(f diff.File, cur map[key]coverage) File {
 		out.Hunks = append(out.Hunks, Hunk{Diff: d, Anchors: anchors, State: state})
 	}
 
-	// A whole-file mark answers only for a file with no lines to read. carry.go
-	// drops one the moment its file has hunks, so honouring it on a file that
-	// already has them would report a review the next refresh deletes.
 	if len(out.Hunks) == 0 {
 		out.Items = 1
 		if sides[wholeSide(f.Status)].whole {
@@ -243,13 +185,7 @@ func deriveFile(f diff.File, cur map[key]coverage) File {
 	return out
 }
 
-// anchorsOf is the sides a hunk touches and the lines it holds on each.
-//
-// A span runs from the first line the hunk has on that side to the last, taking
-// in the context between them. Anchoring the changed lines exactly would be more
-// precise and less correct: an agent editing a context line between two of them
-// leaves both where they were, so the hunk would read reviewed with a changed
-// line sitting inside it.
+// anchorsOf spans the context between changed lines, or an edit to that context would leave the hunk reading reviewed.
 func anchorsOf(h diff.Hunk) []Anchor {
 	var added, removed Range
 	for _, l := range h.Lines {
@@ -272,8 +208,6 @@ func anchorsOf(h diff.Hunk) []Anchor {
 	return out
 }
 
-// extend grows a span to take in one more line. A span starting at 0 has not
-// started, which no line number can be mistaken for.
 func extend(r Range, line int) Range {
 	if r.Start == 0 {
 		r.Start = line
@@ -282,7 +216,6 @@ func extend(r Range, line int) Range {
 	return r
 }
 
-// reading is how much of a hunk has been read.
 func reading(covered, lines int) State {
 	switch covered {
 	case 0:
@@ -294,23 +227,17 @@ func reading(covered, lines int) State {
 	}
 }
 
-// key is one file on one side, which is what a range is stored under.
 type key struct {
 	path string
 	side store.Side
 }
 
-// coverage is what has been read of one file on one side.
 type coverage struct {
-	// whole is a mark on the file rather than on lines in it, which is how a file
-	// with no hunks is marked. Nothing reads it off a file that has hunks, so it
-	// takes no part in the line arithmetic below.
 	whole bool
 
 	lines []Range
 }
 
-// covered is how many lines of r have been read.
 func (c coverage) covered(r Range) int {
 	n := 0
 	for _, l := range c.lines {
@@ -322,11 +249,6 @@ func (c coverage) covered(r Range) int {
 	return n
 }
 
-// coverageOf groups stored ranges by file and side.
-//
-// The ranges are merged rather than taken as given. A stored set is normalised
-// already, but Derive is handed what a caller has, and counting lines over a
-// pair that overlaps would count the overlap twice.
 func coverageOf(rows []store.ReviewedRange) map[key]coverage {
 	out := make(map[key]coverage)
 	for _, r := range rows {
@@ -347,16 +269,7 @@ func coverageOf(rows []store.ReviewedRange) map[key]coverage {
 	return out
 }
 
-// wholeSide is the side a file with no lines to name is marked on, and the side
-// its whole text is read from: the one it has a blob on.
-//
-// A deleted file has no head blob, so a head-side mark on it would be keyed to
-// bytes that are not there and would survive every rewrite of the bytes it
-// actually removed. On the base it is keyed to those, and the base-side
-// translation cuts it when they move.
-//
-// This is what a mark is written on and what a read looks for, so both come
-// through here rather than each spelling the rule.
+// wholeSide is the base for a deleted file, which has no head bytes for a whole-file mark to name.
 func wholeSide(status diff.Status) store.Side {
 	if status == diff.FileDeleted {
 		return store.SideBase
@@ -364,8 +277,6 @@ func wholeSide(status diff.Status) store.Side {
 	return store.SideHead
 }
 
-// baseName is the name a file has on the base side, which a rename makes a
-// different one from its own. It is what a base-side range is stored under.
 func baseName(f diff.File) string {
 	if f.OldPath != "" {
 		return f.OldPath

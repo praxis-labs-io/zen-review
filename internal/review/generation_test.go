@@ -38,10 +38,6 @@ func (f *fixture) status(s *review.Session) review.Status {
 	return st
 }
 
-// db is the session database, opened a second time. Every assertion about what
-// was written goes through the store rather than through the session that just
-// wrote it, so a method returning the right value while writing nothing cannot
-// pass.
 func (f *fixture) db() *store.DB {
 	f.t.Helper()
 
@@ -78,7 +74,6 @@ func (f *fixture) genFiles(g review.Generation) map[string]store.GenFile {
 	return byPath
 }
 
-// parents of a commit, in the order git records them.
 func (f *fixture) parents(commit string) []string {
 	f.t.Helper()
 
@@ -86,8 +81,6 @@ func (f *fixture) parents(commit string) []string {
 	return fields[1:]
 }
 
-// sessionRefs is every ref this tool has written, so a test can say that a
-// refusal wrote none.
 func (f *fixture) sessionRefs() []string {
 	f.t.Helper()
 
@@ -98,8 +91,6 @@ func (f *fixture) sessionRefs() []string {
 	return strings.Split(out, "\n")
 }
 
-// looseObjects is how many objects the repository has hashed and not packed,
-// which is what a snapshot of a directory nobody wanted to review costs.
 func (f *fixture) looseObjects() int {
 	f.t.Helper()
 
@@ -118,19 +109,13 @@ func (f *fixture) looseObjects() int {
 	return 0
 }
 
-// signatureEmail is what Refresh attributes a generation commit to, and what
-// tells one apart from the base history it hangs off.
 const signatureEmail = "zen-review@invalid"
 
-// generations counts the generation commits a ref's first-parent chain holds.
-// seq is contiguous from 1, so the newest row's seq is what this has to match.
 func (f *fixture) generations(ref string) int {
 	f.t.Helper()
 	return strings.Count(f.Git("log", "--first-parent", "--format=%ae", ref), signatureEmail)
 }
 
-// edited is the common shape for these tests: a branch with one uncommitted
-// change on it, which is a changeset with something in it.
 func edited(t *testing.T) *fixture {
 	t.Helper()
 
@@ -152,8 +137,6 @@ func TestTheFirstRefreshWritesGenerationOne(t *testing.T) {
 		t.Errorf("the ref is at %s, want the generation commit %s", got, g.CommitSha)
 	}
 
-	// The base is the first generation's parent, which is what keeps it reachable
-	// after a force-push of the branch it was on.
 	if got := f.parents(g.CommitSha); len(got) != 1 || got[0] != s.Base().SHA {
 		t.Errorf("parents = %v, want just the base %s", got, s.Base().SHA)
 	}
@@ -167,8 +150,6 @@ func TestTheFirstRefreshWritesGenerationOne(t *testing.T) {
 	}
 }
 
-// Without the no-op check every status writes a commit, and a session picks up a
-// generation per invocation rather than per change.
 func TestASecondRefreshWithNothingTouchedWritesNothing(t *testing.T) {
 	f := edited(t)
 	s := f.mustOpen("")
@@ -204,9 +185,6 @@ func TestAnEditBuildsTheNextGeneration(t *testing.T) {
 	}
 }
 
-// Whether the agent committed is an accident of its behaviour. The bytes to
-// review are the same either way, so a generation per commit is a generation per
-// nothing.
 func TestCommittingTheWorkTreeBuildsNothing(t *testing.T) {
 	f := edited(t)
 	s := f.mustOpen("")
@@ -220,9 +198,6 @@ func TestCommittingTheWorkTreeBuildsNothing(t *testing.T) {
 	}
 }
 
-// A base change moves what the changeset is measured from, so it builds even
-// where nothing on disk moved. The new base joins the parents for the same
-// reason the first one did: it has to stay reachable.
 func TestChangingTheBaseBuildsAGenerationHangingOffBoth(t *testing.T) {
 	f := newFixture(t)
 	first := f.commit("first")
@@ -250,9 +225,6 @@ func TestChangingTheBaseBuildsAGenerationHangingOffBoth(t *testing.T) {
 	}
 }
 
-// base_ref sticks and base_sha follows the branch. Measuring a rebased branch
-// from the old fork point shows every commit the rebase brought in as this
-// branch's work.
 func TestARebaseMovesTheBase(t *testing.T) {
 	f := newFixture(t)
 	f.Write("a.txt", "one\n")
@@ -287,9 +259,6 @@ func TestARebaseMovesTheBase(t *testing.T) {
 	}
 }
 
-// The reason generations exist. git prints a head-side sha for an untracked or
-// unstaged file that is computed in memory and is not an object, so nothing can
-// be diffed through it later. The generation commit writes it for real.
 func TestAnUntrackedFileGetsABlobThatResolves(t *testing.T) {
 	f := branched(t)
 	f.Write("new.txt", "untracked content\n")
@@ -332,9 +301,6 @@ func TestADeletedFileKeepsItsBaseBlob(t *testing.T) {
 	}
 }
 
-// git records an embedded repository as a mode 160000 gitlink, which diffs as an
-// ordinary added file. That is why gen_files.status needs no value of its own,
-// and the sha it carries is the inner repository's commit rather than a blob.
 func TestAnEmbeddedRepositoryIsOneOrdinaryRow(t *testing.T) {
 	inner := testrepo.New(t)
 	inner.Write("f.txt", "inner\n")
@@ -359,9 +325,6 @@ func TestAnEmbeddedRepositoryIsOneOrdinaryRow(t *testing.T) {
 	}
 }
 
-// The whole changeset is one diff of one tree, so a file moved in the work tree
-// pairs with the tracked file it came from. Composing a tracked diff with a
-// per-untracked-file diff cannot see the pair at all.
 func TestAFileMovedInTheWorkTreeIsOneRename(t *testing.T) {
 	f := newFixture(t)
 	body := strings.Repeat("a line of content\n", 20)
@@ -386,16 +349,9 @@ func TestAFileMovedInTheWorkTreeIsOneRename(t *testing.T) {
 	}
 }
 
-// A directory somebody forgot to ignore is not a review, and refusing it after
-// the snapshot is too late: `git add -A` hashes the whole directory into the
-// object store first, and those objects are reachable from nothing, so gc holds
-// them for its prune window. The refusal has to cost nothing, and it has to name
-// the directory, because the fix is one line in .gitignore.
 func TestUntrackedFilesPastTheCeilingRefuseBeforeAnythingIsHashed(t *testing.T) {
 	f := branched(t)
 	for i := 0; i <= 5000; i++ {
-		// Distinct content, so the object count reflects what the hashing costs
-		// rather than what git deduplicates.
 		f.Write(fmt.Sprintf("generated/pack/%d.txt", i), fmt.Sprintf("%d\n", i))
 	}
 
@@ -425,9 +381,6 @@ func TestUntrackedFilesPastTheCeilingRefuseBeforeAnythingIsHashed(t *testing.T) 
 	}
 }
 
-// The count above is of untracked files, so it does not see a branch that
-// rewrote the world in commits. That one is caught after the diff, which is
-// still before any commit, ref or row.
 func TestATrackedChangesetPastTheCeilingRefuses(t *testing.T) {
 	f := newFixture(t)
 	f.Write("a.txt", "one\n")
@@ -458,15 +411,10 @@ func TestATrackedChangesetPastTheCeilingRefuses(t *testing.T) {
 	}
 }
 
-// The ref and the database disagree after a crash between the swap and the
-// insert: the ref holds a generation no row describes. Deciding whether to pin
-// the base from the row alone leaves it unpinned in exactly that window, and a
-// base that moved would then hang off nothing.
 func TestAGenerationTheDatabaseDoesNotKnowStillPinsTheBase(t *testing.T) {
 	f := edited(t)
 	s := f.mustOpen("")
 
-	// Stand in for the crash: a ref pointing at a commit with no row behind it.
 	orphan := f.Git("rev-parse", "HEAD")
 	f.Git("update-ref", s.Ref(), orphan)
 
@@ -478,19 +426,7 @@ func TestAGenerationTheDatabaseDoesNotKnowStillPinsTheBase(t *testing.T) {
 	}
 }
 
-// Two instances on one repository is the normal case: a TUI open while a
-// subcommand runs. The compare-and-swap is what keeps them honest, and the
-// failure it exists to prevent is a database claiming a generation the ref
-// chain does not hold.
-//
-// The two race on different bases deliberately. Two instances snapshotting the
-// same tree at the same instant build the same commit, and a loser that wrote a
-// row anyway would be writing the sha that won, which hides the failure. A
-// different base means a different parent, so the loser's commit exists nowhere
-// on the chain if it ever reaches the database.
-//
-// The outcome of the race is not asserted. Which one wins depends on
-// scheduling; that the two never disagree does not.
+// The two race on different bases, or both build one commit and a loser that wrote a row hides it.
 func TestConcurrentRefreshesNeverClaimAGenerationTheRefLost(t *testing.T) {
 	f := newFixture(t)
 	first := f.commit("first")
@@ -533,14 +469,10 @@ func TestConcurrentRefreshesNeverClaimAGenerationTheRefLost(t *testing.T) {
 	}
 }
 
-// An instance reading the ref after the winner moved it clears the swap and is
-// refused by the row write, so the refusal is what has to take its commit back off.
 func TestARefusedGenerationPutsTheRefBack(t *testing.T) {
 	f := edited(t)
 	slow, quick := f.mustOpen(""), f.mustOpen("")
 
-	// The whole of the quick refresh lands in the window the slow one has read
-	// its latest generation in and not yet read the ref.
 	slow.DuringRefresh(func() {
 		slow.DuringRefresh(nil)
 		if _, err := quick.Refresh(t.Context()); err != nil {
@@ -564,8 +496,6 @@ func TestARefusedGenerationPutsTheRefBack(t *testing.T) {
 	}
 }
 
-// A cancel is the other way the row does not land, and the commoner one: it is
-// a reader quitting rather than two instances racing.
 func TestACancelledRefreshStillPutsTheRefBack(t *testing.T) {
 	f := edited(t)
 	s := f.mustOpen("")
@@ -577,7 +507,6 @@ func TestACancelledRefreshStillPutsTheRefBack(t *testing.T) {
 		t.Fatal("the cancelled refresh reported a generation")
 	}
 
-	// The first refresh created the ref, so putting it back is deleting it.
 	if refs := f.sessionRefs(); refs != nil {
 		t.Errorf("refs = %v, want the swap taken back", refs)
 	}
@@ -633,9 +562,6 @@ func TestStatusFollowsTheWorkTree(t *testing.T) {
 	}
 }
 
-// A worktree is a throwaway, and the review must not go with it. The generation
-// commits land under the common dir, so the checkout it was cut from can still
-// read them.
 func TestALinkedWorktreeRefreshesIntoTheSharedRepository(t *testing.T) {
 	f := branched(t)
 
@@ -653,7 +579,6 @@ func TestALinkedWorktreeRefreshesIntoTheSharedRepository(t *testing.T) {
 
 	g := f.refresh(s)
 
-	// Read from the parent checkout, which is the one that outlives the worktree.
 	if got := f.Git("rev-parse", s.Ref()); got != g.CommitSha {
 		t.Errorf("the parent reads the ref as %s, want %s", got, g.CommitSha)
 	}
@@ -662,8 +587,6 @@ func TestALinkedWorktreeRefreshesIntoTheSharedRepository(t *testing.T) {
 	}
 }
 
-// A file git could not read is missing from the tree, and a snapshot that says
-// so beats one that quietly ships without it.
 func TestARefreshNamesWhatItCouldNotRead(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("root reads a file with no permissions, so there is nothing to skip")
