@@ -143,7 +143,6 @@ The Charm v2 line lives under `charm.land/*`, not `github.com/charmbracelet/*`. 
 charm.land/bubbletea/v2
 charm.land/lipgloss/v2
 charm.land/bubbles/v2
-charm.land/glamour/v2
 ```
 
 `github.com/charmbracelet/fang` (v1 line) keeps its github path and pulls an older beta of `charm.land/lipgloss/v2`. Requiring v2.0.5 directly upgrades past it; there is no two-lipgloss problem as long as nothing imports the github v2 path.
@@ -205,6 +204,7 @@ internal/
   tui/testtheme/  the surface the render tests derive from. Test-only.
   golden/      the golden-file compare. Test-only, and owns the -update flag.
   plugin/      drives the shipped hook script. Test-only, no Go under test.
+  version/     the version stamped in at build time.
 ```
 
 The boundaries are in `.claude/rules/code-quality.md` and breaking one is a review-stopper. The short version: the CLI has to be able to answer any question the TUI can.
@@ -294,6 +294,10 @@ travels is in [docs/guide.md](docs/guide.md). What the code has to keep true:
   travelled before it was answered would otherwise slice its own blob by lines it
   never had. One diff per pair of blobs, so a file's comments cost one call
   between them rather than one each.
+- A refresh race is tested by putting one refresh inside another at a chosen
+  point, not by hoping the scheduler lines them up. `export_test.go` exposes
+  `DuringRefresh`, which fires after the latest generation is read, and
+  `AfterSwap`, which fires between the ref moving and the row being written.
 
 ### Storage
 
