@@ -910,19 +910,68 @@ func (m *Model) layout() {
 	}
 	whole := m.body()
 
-	// run draws one of those, and nothing for a pair of hunks the file has no
-	// line between.
-	run := func(f fill) {
-		lines := f.lines(whole)
-		for _, p := range pairs(lines, split) {
-			add(m.code(lines, p, f.tokens(whole), -1, split))
+	// hang puts a card under the row just added, for every comment whose last line
+	// that row names.
+	//
+	// It runs over the file's own lines as well as a hunk's. In preview the
+	// changeset draws a line outside every hunk, so a comment on one belongs under
+	// it: left to the unplaced pass below it would go to the foot of the file
+	// wearing the label of a comment the diff has no line for, and take the reader
+	// with it.
+	hang := func(lines []diff.Line, p pair, hunk int) {
+		at := len(m.rows) - 1
+
+		for _, k := range sides(p) {
+			l := lines[k]
+
+			for j, c := range mine {
+				if !m.live(c) {
+					continue
+				}
+				if _, seen := first[c.ID]; !seen && on(c, l, c.Start) {
+					first[c.ID] = at
+				}
+				if !placed[j] && on(c, l, c.End) {
+					placed[j] = true
+
+					// A range whose first line the diff does not show anchors to its
+					// last, which is the row the card is already hanging under.
+					anchor, ok := first[c.ID]
+					if !ok {
+						anchor = at
+					}
+					m.addCard(c, hunk, anchor)
+				}
+			}
 		}
 	}
+
+	// source draws a run of lines and whatever hangs under them: a hunk's, or the
+	// file's own where preview fills a gap in. -1 is the run belonging to no hunk.
+	source := func(lines []diff.Line, toks [][]syntax.Token, hunk int) {
+		for _, p := range pairs(lines, split) {
+			add(m.code(lines, p, toks, hunk, split))
+
+			// It hangs under the line it was written about. Without it a file that
+			// lost its trailing newline shows two rows of the same text.
+			if eol(lines, p) {
+				add(row{kind: noteRow, hunk: hunk, note: `\ No newline at end of file`})
+			}
+
+			// A card hangs under the last line of what it answers, so that code is
+			// above it and stays on screen when the ring lands on the card.
+			hang(lines, p, hunk)
+		}
+	}
+
+	// fillIn draws one of the file's own runs, and nothing for a pair of hunks the
+	// file has no line between.
+	fillIn := func(f fill) { source(f.lines(whole), f.tokens(whole), -1) }
 
 	for i, h := range m.file.Hunks {
 		switch {
 		case runs != nil:
-			run(runs[i])
+			fillIn(runs[i])
 		case i > 0:
 			add(row{kind: noteRow, hunk: i - 1})
 		}
@@ -930,42 +979,7 @@ func (m *Model) layout() {
 		m.headAt = append(m.headAt, len(m.rows))
 		add(row{kind: headRow, hunk: i})
 
-		for _, p := range pairs(h.Diff.Lines, split) {
-			add(m.code(h.Diff.Lines, p, tokens[base:], i, split))
-			at := len(m.rows) - 1
-
-			// It hangs under the line it was written about. Without it a file that
-			// lost its trailing newline shows two rows of the same text.
-			if eol(h.Diff.Lines, p) {
-				add(row{kind: noteRow, hunk: i, note: `\ No newline at end of file`})
-			}
-
-			// A card hangs under the last line of what it answers, so that code is
-			// above it and stays on screen when the ring lands on the card.
-			for _, k := range sides(p) {
-				l := h.Diff.Lines[k]
-
-				for j, c := range mine {
-					if !m.live(c) {
-						continue
-					}
-					if _, seen := first[c.ID]; !seen && on(c, l, c.Start) {
-						first[c.ID] = at
-					}
-					if !placed[j] && on(c, l, c.End) {
-						placed[j] = true
-
-						// A range whose first line the diff does not show anchors to its
-						// last, which is the row the card is already hanging under.
-						anchor, ok := first[c.ID]
-						if !ok {
-							anchor = at
-						}
-						m.addCard(c, i, anchor)
-					}
-				}
-			}
-		}
+		source(h.Diff.Lines, tokens[base:], i)
 
 		base += len(h.Diff.Lines)
 		m.hunkEnd = append(m.hunkEnd, len(m.rows))
@@ -973,7 +987,7 @@ func (m *Model) layout() {
 
 	switch {
 	case runs != nil:
-		run(runs[len(runs)-1])
+		fillIn(runs[len(runs)-1])
 	case len(m.file.Hunks) == 0:
 		add(row{kind: noteRow, hunk: -1, note: emptyReason(*m.file)})
 	}

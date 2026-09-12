@@ -173,3 +173,36 @@ func TestPreviewWalksOntoABinaryFile(t *testing.T) {
 		t.Errorf("the pane did not say the file is binary:\n%s", s.frame())
 	}
 }
+
+// TestTheBoxHangsUnderAFilledInLine. c on a line outside every hunk used to send
+// the box to the foot of the file and take the reader with it, because the card
+// pass only ran over a hunk's lines.
+func TestTheBoxHangsUnderAFilledInLine(t *testing.T) {
+	s := previewing(t, twoHunks, previewLines, 100, 16)
+	s.press("n", "n", "p")
+
+	// Down off the hunk and into the run below it.
+	for range 12 {
+		s.press("j")
+	}
+	was := s.frame()
+	if !strings.Contains(was, "line 20 of the file") {
+		t.Fatalf("the cursor did not reach the run:\n%s", was)
+	}
+
+	s.press("c")
+	got := s.frame()
+
+	// The code it is about is still above it, and the whole file is still on.
+	for _, want := range []string{"line 20 of the file", "ctrl+s save"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the box does not hang under the line it is about, %q is missing:\n%s", want, got)
+		}
+	}
+
+	// And the label says nothing about a line the changeset cannot show, because
+	// it is showing it.
+	if strings.Contains(got, "was line") {
+		t.Errorf("the box says the changeset has no line for it:\n%s", got)
+	}
+}

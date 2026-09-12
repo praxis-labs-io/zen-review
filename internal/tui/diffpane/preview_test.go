@@ -267,3 +267,56 @@ func TestPreviewKeepsACardUnderItsLine(t *testing.T) {
 		t.Errorf("the card is %d rows under the line it answers", card-line)
 	}
 }
+
+// TestPreviewHangsACardUnderAFilledInLine. A comment on a line outside every
+// hunk is one the diff had no row for, and the unplaced pass sends those to the
+// foot of the file. Preview draws that line, so the card belongs under it.
+func TestPreviewHangsACardUnderAFilledInLine(t *testing.T) {
+	c := testchangeset.Comment("gggggggggggg", twoHunks, 20, 20, "This run is doing two jobs.")
+	m := commented(t, twoHunks, 60, tall, c)
+
+	// With the hunks alone it goes to the foot, wearing the label of a comment the
+	// changeset has moved past.
+	foot := rowOf(t, m, "This run is doing two jobs.")
+	if !strings.Contains(joined(t, m), "was line 20") {
+		t.Errorf("the card outside every hunk does not say where it used to point:\n%s", joined(t, m))
+	}
+
+	m.TogglePreview()
+	m.SetBody(twoHunks, testchangeset.Body(bodyLines))
+
+	line := rowOf(t, m, "line 20 of the file")
+	card := rowOf(t, m, "This run is doing two jobs.")
+	switch {
+	case card <= line:
+		t.Fatalf("the card is on row %d and the line it answers on %d", card, line)
+	case card-line > 3:
+		t.Errorf("the card is %d rows under the line it answers", card-line)
+	case card == foot:
+		t.Error("the card stayed at the foot of the file")
+	}
+
+	// The line is on screen now, so the label has nothing left to say about it.
+	if strings.Contains(joined(t, m), "was line 20") {
+		t.Error("the card still says the changeset has no line for it")
+	}
+}
+
+// TestPreviewKeepsTheWindowOnAFilledInCard. The card answers the line above it,
+// so topping it would scroll that line away. Under preview the rows between are
+// the file, which is what broke the arithmetic that found the line.
+func TestPreviewKeepsTheWindowOnAFilledInCard(t *testing.T) {
+	c := testchangeset.Comment("gggggggggggg", twoHunks, 60, 60, "Why is this here?")
+	m := commented(t, twoHunks, 60, 12, c)
+
+	m.TogglePreview()
+	m.SetBody(twoHunks, testchangeset.Body(bodyLines))
+	m.SelectComment("gggggggggggg")
+
+	got := joined(t, m)
+	for _, want := range []string{"line 60 of the file", "Why is this here?"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the window does not hold %q:\n%s", want, got)
+		}
+	}
+}
