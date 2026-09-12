@@ -85,7 +85,6 @@ const (
 	maxLift    = 0.5
 )
 
-// Terminal derives the theme from what the terminal reported.
 func Terminal(s Surface) Theme {
 	bg := s.Background
 	t := Theme{

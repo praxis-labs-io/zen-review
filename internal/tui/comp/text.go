@@ -6,7 +6,6 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// BodyWidth is the widest prose is drawn.
 const BodyWidth = 80
 
 // Wrap folds each line of body to width, keeping typed breaks and repeating an indent on each fold.

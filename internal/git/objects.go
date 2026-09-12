@@ -113,7 +113,7 @@ func (r *Repo) EmptyTree(ctx context.Context) (string, error) {
 	return trim(out), nil
 }
 
-// CommitTree writes a commit object. An empty parents makes a root commit.
+// CommitTree makes a root commit when parents is empty.
 func (r *Repo) CommitTree(ctx context.Context, tree string, parents []string, message string, sig Signature) (string, error) {
 	args := []string{"commit-tree", tree}
 	for _, p := range parents {

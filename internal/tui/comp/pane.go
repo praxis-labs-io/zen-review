@@ -9,7 +9,6 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/tui/theme"
 )
 
-// Pane is a bordered region with a title in the top border, a footer in the bottom, lit by focus.
 type Pane struct {
 	theme       theme.Theme
 	title       string
@@ -71,7 +70,6 @@ func (p Pane) noteHeight() int {
 	return lines + 1
 }
 
-// Focus lights the heading and the border.
 func (p Pane) Focus(v bool) Pane {
 	p.focused = v
 	return p

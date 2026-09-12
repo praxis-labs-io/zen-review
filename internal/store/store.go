@@ -1,4 +1,4 @@
-// Package store is the SQLite review database, its migrations and its row types.
+// Package store is the SQLite review database.
 package store
 
 import (

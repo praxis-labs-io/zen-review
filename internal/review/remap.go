@@ -22,7 +22,6 @@ type span struct {
 	delta  int
 }
 
-// Translation carries anchors on one side of a file's diff over to the other.
 type Translation struct {
 	held bool
 

@@ -1,4 +1,4 @@
-// Package app is the root model: the tree, the diff pane, the status bar and the keys between them.
+// Package app is the reader's root model, routing keys between the panes.
 package app
 
 import (

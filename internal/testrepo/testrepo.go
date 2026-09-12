@@ -56,7 +56,6 @@ func (r *Repo) Git(args ...string) string {
 	return strings.TrimRight(string(out), "\n")
 }
 
-// Write creates or replaces a file, making any directory it needs.
 func (r *Repo) Write(path, content string) {
 	r.t.Helper()
 
@@ -69,7 +68,6 @@ func (r *Repo) Write(path, content string) {
 	}
 }
 
-// Commit stages everything and commits it, returning the new sha.
 func (r *Repo) Commit(message string) string {
 	r.t.Helper()
 

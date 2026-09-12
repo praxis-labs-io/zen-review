@@ -8,7 +8,6 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
-// State is how much of a hunk or a file has been read.
 type State string
 
 const (
@@ -17,7 +16,6 @@ const (
 	Reviewed   State = "reviewed"
 )
 
-// Anchor is one side of a hunk and the lines it spans there.
 type Anchor struct {
 	Side  store.Side
 	Range Range
@@ -45,7 +43,6 @@ type File struct {
 	// Changed means a refresh took reviewed lines off this file, as opposed to a mark withdrawn.
 	Changed bool
 
-	// Reviewed and Items are this file's share of the burn-down.
 	Reviewed int
 	Items    int
 }

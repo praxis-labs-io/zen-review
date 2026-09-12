@@ -81,8 +81,7 @@ func New(t theme.Theme, c review.Changeset) Model {
 	return m
 }
 
-// SetChangeset rebuilds over a new generation, keeping folds and the cursor's file if it survives.
-// Rows point into c's files, as with New.
+// SetChangeset rebuilds over c, keeping folds and the cursor's file. c's files must outlive the model.
 func (m *Model) SetChangeset(c review.Changeset) {
 	was := m.Path()
 

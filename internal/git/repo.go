@@ -50,7 +50,6 @@ type invocation struct {
 
 	allow int
 
-	// allowStderr accepts the allowed status with stderr, which otherwise marks it a failure.
 	allowStderr bool
 
 	stdin []byte

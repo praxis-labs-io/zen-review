@@ -405,5 +405,4 @@ func body(cmd *cobra.Command, flag, what string) (string, error) {
 	return trailing(string(raw)), nil
 }
 
-// Leading whitespace survives, because the listing reads an indented line as deliberate layout.
 func trailing(s string) string { return strings.TrimRight(s, " \t\r\n") }

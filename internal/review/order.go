@@ -2,7 +2,6 @@ package review
 
 import "strings"
 
-// byTree compares segments rather than joined paths, where zen-octo does not; zen-octo is the one to move.
 func byTree(a, b string) int {
 	as, bs := strings.Split(a, "/"), strings.Split(b, "/")
 

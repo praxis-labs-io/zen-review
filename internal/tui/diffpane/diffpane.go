@@ -236,7 +236,6 @@ func (m *Model) SelectComment(id string) {
 	}
 }
 
-// Comment returns the id of the card under the cursor.
 func (m Model) Comment() (string, bool) {
 	if c := m.cardOf(m.cursor); c != nil {
 		return c.id, true

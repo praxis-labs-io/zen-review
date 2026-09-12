@@ -72,7 +72,6 @@ type File struct {
 	Deletions int `json:"deletions"`
 }
 
-// BasePath is the file's name on the base side: OldPath on a rename or a copy, Path otherwise.
 func (f File) BasePath() string {
 	if f.OldPath != "" {
 		return f.OldPath

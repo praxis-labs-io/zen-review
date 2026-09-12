@@ -9,7 +9,6 @@ const (
 	exitFailed  = 2
 )
 
-// Raised only once the session is closed, so no close error is ever joined onto it.
 var errMatched = errors.New("the filter matched")
 
 // ExitCode returns the process status for the root command's error: 0, 1 for a --exit-code match, 2 otherwise.

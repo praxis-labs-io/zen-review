@@ -57,7 +57,6 @@ func Churn(base lipgloss.Style, t theme.Theme, added, removed int) string {
 		base.Foreground(t.Error).Render("-"+strconv.Itoa(removed))
 }
 
-// Placeholder renders text on a blank width by height block, a third of the way down.
 func Placeholder(t theme.Theme, text string, width, height int) string {
 	subtle := lipgloss.NewStyle().Foreground(t.Subtle)
 

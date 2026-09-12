@@ -161,7 +161,6 @@ func (db *DB) AddGeneration(ctx context.Context, g Generation, files []GenFile, 
 	return g, nil
 }
 
-// ErrStaleGeneration means a write named a generation that is no longer its session's latest.
 var ErrStaleGeneration = errors.New("the generation is no longer the session's latest")
 
 func assertLatest(ctx context.Context, tx *sql.Tx, sessionID string, generationID int64) error {

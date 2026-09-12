@@ -18,7 +18,6 @@ type options struct {
 	asJSON  bool
 }
 
-// NewRoot returns the zen-review command tree. A bare run opens the reader on a terminal and prints the changeset otherwise.
 func NewRoot() *cobra.Command {
 	var opts options
 

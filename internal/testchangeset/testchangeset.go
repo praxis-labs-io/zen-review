@@ -21,7 +21,6 @@ func Derive(t *testing.T, patch string, reviewed ...store.ReviewedRange) review.
 	return review.Derive(files, reviewed, nil)
 }
 
-// Head is a reviewed range on the head side.
 func Head(path string, start, end int) store.ReviewedRange {
 	return store.ReviewedRange{
 		Path:      path,
@@ -71,7 +70,6 @@ func OnBase(c store.Comment) store.Comment {
 	return c
 }
 
-// NestedComments is one comment of every card shape against NestedPatch.
 func NestedComments() []store.Comment {
 	const state = "internal/review/state.go"
 

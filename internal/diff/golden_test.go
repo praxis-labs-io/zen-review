@@ -11,7 +11,6 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/golden"
 )
 
-// Inputs are real git output captured by testdata/fixtures.sh, discovered rather than listed.
 func TestGoldenParses(t *testing.T) {
 	inputs, err := filepath.Glob(filepath.Join("testdata", "*.diff"))
 	if err != nil {

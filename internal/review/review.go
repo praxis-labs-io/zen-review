@@ -1,4 +1,4 @@
-// Package review is the engine: sessions, generations, review state, comments and remapping.
+// Package review tracks what has been reviewed across generations of a changeset.
 package review
 
 import (
@@ -20,7 +20,6 @@ type Options struct {
 	BaseRef string
 }
 
-// Base is the ref the changeset is measured from, and its merge base with HEAD.
 type Base struct {
 	Ref string
 	SHA string
@@ -40,7 +39,6 @@ func (b Base) Name() string {
 	return b.Ref
 }
 
-// Session is one repository and one thing to review in it, open against the database.
 type Session struct {
 	repo *git.Repo
 	db   *store.DB

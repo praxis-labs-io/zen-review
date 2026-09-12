@@ -25,20 +25,19 @@ type draft struct {
 	edits string
 }
 
-// FitsBox reports whether the pane has room to draw a comment box.
 func (m Model) FitsBox() bool {
 	_, width := m.cardBox()
 
 	return m.file != nil && width >= cardMin && m.height >= draftRows+4
 }
 
-// Compose opens a box for a new comment at c's anchor, returning its focus command. False when FitsBox is.
+// Compose opens a box for a new comment at c's anchor, returning its focus command. False when the pane cannot fit a box.
 func (m *Model) Compose(c store.Comment) (tea.Cmd, bool) {
 	c.State = store.CommentOpen
 	return m.open(c, "", "")
 }
 
-// Edit opens a box in place of comment c's card, holding its body. False when FitsBox is.
+// Edit opens a box in place of comment c's card, holding its body. False when the pane cannot fit a box.
 func (m *Model) Edit(c store.Comment) (tea.Cmd, bool) {
 	return m.open(c, c.Body, c.ID)
 }

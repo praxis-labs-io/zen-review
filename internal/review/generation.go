@@ -53,7 +53,6 @@ type Status struct {
 	Files []diff.File
 }
 
-// TooLargeError refuses a changeset of more than Limit files.
 type TooLargeError struct {
 	Count int
 	Limit int
