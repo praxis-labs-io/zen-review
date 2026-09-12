@@ -1,7 +1,5 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## What this repo is
 
 Drew's local code review engine, at `praxis-labs-io/zen-review` (`origin`). A review
@@ -64,76 +62,58 @@ CI pins golangci-lint to match the local brew version (`.github/workflows/ci.yml
 ## The visual layer
 
 `tui/theme` is the palette, `tui/syntax` returns Chroma tokens, and `tui/paint`
-turns a diff line into a row. They hold no model, no state, no layout and no
-keys, and every exported function is pure: same arguments, same string.
-
-Pushing any of those in is how they stop being the visual layer and start being
-a second renderer. Folding, scroll, side-by-side layout, hunk grouping, the
-two-sided tokenise split and review state belong to `tui/diffpane`.
+turns a diff line into a row. They hold no model, state, layout or keys.
+Folding, scroll, side-by-side layout, hunk grouping, the two-sided tokenise split
+and review state belong to `tui/diffpane`, and pushing any of them down makes a
+second renderer.
 
 `go run ./cmd/paintdemo` is how a rendering change is judged. It paints a canned
-diff at a width where a row overflows: a hunk header, all three line kinds, a
-tab-indented line, a clipped row and a `Fill` row, so a theme change shows
-everything it broke in one screen. It runs the real derivation, so a light
-terminal and a dark one show different screens. A golden file only holds it
-still.
+diff at a width where a row overflows, with a hunk header, all three line kinds,
+a tab-indented line, a clipped row and a `Fill` row, through the real
+derivation, so a light terminal and a dark one show different screens. A golden
+file only holds it still.
 
 ### The theme
 
 There is one theme and it is derived rather than written down. What the code has
 to keep true:
 
-- The hues are ANSI slots, so they are whatever the reader's terminal maps them
-  to. That is the whole feature, and it survives only as long as a slot reaches
-  the terminal as a slot: flattened to RGB it stops following the palette, which
-  is why a test type-asserts them.
-- **A slot may be painted and must never be blended.** `RGBA()` on a slot is its
-  canonical value and never what the terminal mapped it to, so blending one
-  washes a row in xterm's dark system red rather than in the red beside it in
-  the marker column. This is why slots 1 and 2 are asked for by name: the diff
-  tints are blends, and the tints are the product here. zen-octo writes the same
-  query off as not worth it for a tint, which is right for a PR reader where the
-  tints are decoration. The two OSC 4 requests ride in the write and the read
-  that already run, so the cost is a longer query string and nothing else.
-- The greys are blends off the reported background for the same reason in
-  reverse. They are structural and only have to stay legible, which a slot
-  cannot promise and a blend off a known background is by construction. Ratios
-  travel toward the reported foreground, which serves a light terminal and a
-  dark one without a second table.
-- **A filled row is placed at a luma distance, not at a ratio.** A ratio toward
-  a hue the reader chose is not a fixed step: the same fraction that clears one
-  palette's green leaves the row flat against another's. `lift` solves for the
-  distance instead, held between a floor and a ceiling, because the two ends
-  fail in opposite directions — a pale green reaches the distance in a few
-  percent and a few percent of a colour reads grey, while a green sitting at the
-  background's own weight never reaches it at all and keeps its lean instead.
-- A selection is a lift and not a colour, so it travels neutrally. Along the
-  shade axis it took the foreground's tint, which on a palette with a warm or a
-  violet foreground is a colour the reader never chose.
-- The foreground is only usable if it is on the far side of the luma midpoint
-  from the background **and** far enough from it. Far and opposite are two
-  different tests, and a pair failing either is no direction to travel in.
-- `Text` is `lipgloss.NoColor{}`, which writes no sequence at all, so it tracks
-  a terminal the reader recolours mid-session. Its `RGBA()` is black, so
-  anything spelling a colour out for a third party has to special-case it.
-- `Background` is nil and stays nil. The background every shade was derived
-  against is the terminal's own, so painting it would change nothing a reader
-  can see and would cost a translucent terminal its translucency.
-- Nothing answered is not the same as a guess. The three surfaces go nil rather
-  than take a slot: slot 0 is the background on a great many dark palettes, so a
-  selection painted in it is invisible exactly where it was needed.
-- No slot is safe on both a light terminal and a dark one, so with no background
-  reported the text weights take `NoColor` rather than one. Slot 7 disappears
-  into a light background and slot 8 may be undeclared or collapsed onto slot 0.
-  Borders keep the grey: a frame that went missing is visible, where a label a
-  reader cannot read is not.
-- The query runs in `app.Run`, before Bubble Tea takes the tty, and it drains to
-  the device attributes. Stopping at the last colour leaves them buffered, and
-  the terminal echoes them the moment raw mode ends. The reader is a cancellable
-  one, or the timeout leaves a goroutine parked on the tty eating the first key.
-- Chroma has no ANSI style and `chroma.Colour` is packed RGB, so code is the one
-  thing that cannot follow the palette. `github-dark` and `github` are paired
-  against the background instead.
+- The hues are ANSI slots, so they follow the reader's palette only while they
+  reach the terminal as slots. A test type-asserts them.
+- **A slot may be painted and never blended**, for the reason under Styling in
+  the rules. Slots 1 and 2 are queried by name because the diff tints are
+  blends, and the tints are the product here. The two OSC 4 requests ride in the
+  query that already runs.
+- The greys are blends off the reported background, travelling toward the
+  reported foreground. They only have to stay legible, which a slot cannot
+  promise and a blend off a known background can, and one ratio serves a light
+  terminal and a dark one.
+- **A filled row is placed at a luma distance, not at a ratio.** The ratio that
+  clears one palette's green leaves another's flat. `lift` solves for the
+  distance between a floor and a ceiling: a pale green reaches it in a few
+  percent and would read grey, and a green at the background's own weight never
+  reaches it and keeps its lean.
+- A selection is a lift, not a colour, so it stays neutral on a palette with a
+  warm or violet foreground.
+- The foreground is usable only if it is on the far side of the luma midpoint
+  from the background **and** far enough from it. Those are two tests.
+- `Text` is `lipgloss.NoColor{}`, which writes no sequence and tracks a terminal
+  recoloured mid-session. Its `RGBA()` is black, so anything spelling a colour
+  out for a third party special-cases it.
+- `Background` is nil and stays nil. Every shade is derived against the
+  terminal's own background, so painting it changes nothing visible and costs a
+  translucent terminal its translucency.
+- Nothing answered is not a guess. The three surfaces go nil rather than take a
+  slot, because slot 0 is the background on many dark palettes.
+- With no background reported, the text weights take `NoColor`. Slot 7 vanishes
+  on a light background and slot 8 may be undeclared or equal to slot 0. Borders
+  keep the grey, because a missing frame is visible and an unreadable label is
+  not.
+- The query runs in `app.Run` before Bubble Tea takes the tty, and drains to the
+  device attributes or the terminal echoes them when raw mode ends. The reader is
+  cancellable, or a timeout leaves a goroutine on the tty eating the first key.
+- Chroma has no ANSI style and packs colours as RGB, so code cannot follow the
+  palette. `github-dark` and `github` are paired against the background instead.
 
 ## Charm module paths
 
@@ -211,89 +191,70 @@ The boundaries are in `.claude/rules/code-quality.md` and breaking one is a revi
 
 User-facing behaviour lives in `docs/`: [the guide](docs/guide.md) for the base, sessions, generations and comments, and [the CLI reference](docs/cli.md) for every command and flag. What follows here is what the code has to keep true, not what a reader sees. Change one and the other says the wrong thing.
 
-`Session.Files` and `Derive` both hand the files back in the order a file tree
-reads: directories above the files beside them, by byte within each group. Git's
-order is the order it walked the index in, and one ordering from the engine is
-what keeps the printed table and the tree pane from disagreeing about what is
-first. Nothing above `review` sorts.
+`Session.Files` and `Derive` both return files in the order a file tree reads,
+directories above the files beside them and by byte within each group, so the
+printed table and the tree pane agree about what is first. Nothing above
+`review` sorts.
 
 ### The base
 
-How a base is chosen, what the fallback tags mean and how a reader changes one
-is in [docs/guide.md](docs/guide.md). What the code has to keep true:
-
 - Detection always reaches the bottom of the ladder. The only startup that fails
-  is a directory that is not a repository. A refusal a reader cannot act on from
-  inside the tool sends them to the shell to guess.
-- The rung above bounds the candidate walk. On a trunk called anything but `main`
-  or `master` there is no rung above HEAD to bound it with, so it walks the whole
-  first-parent chain instead, and on a default branch it does not run at all: a
-  tip left behind on that branch's own history would hide every commit since.
+  is a directory that is not a repository.
+- The rung above bounds the candidate walk. On a trunk not called `main` or
+  `master` it walks the whole first-parent chain, and on a default branch it does
+  not run at all, because a tip left on that branch's own history would hide
+  every commit since.
 - `Candidates` is every local branch, not a first-parent walk, which hid a base
-  that had been merged in. Two remote rows earn their place, the session's base
-  and `origin/HEAD`; every other remote shares a merge base with HEAD and would
-  be hundreds of rows. Nothing with nothing behind HEAD is offered.
-- A fallback writes no ref and never clears the one stored. It is a guess, and
-  one mistyped `--base` would otherwise cost the session its base and every range
-  measured from it. The tag on `Base.Fallback` stands until the ref resolves.
-- `SetBase` is the one call. `--base` and the raw string typed into the `b` box
-  both go through it, so a tag, a sha and `HEAD~5` reach the same place a flag
-  does.
-- The tag is a standing fact and not a notice, so it takes no status bar and no
-  key clears it. The reason sits right of the ref, so a narrow pane's clip eats
-  the reason and leaves the ref whole.
+  that had been merged in. The only remote rows are the session's base and
+  `origin/HEAD`, and nothing with nothing behind HEAD is offered.
+- A fallback writes no ref and never clears the stored one, or one mistyped
+  `--base` would cost the session every range measured from its base. The tag on
+  `Base.Fallback` stands until the ref resolves.
+- `SetBase` is the one call. `--base` and the `b` box both go through it, so a
+  tag, a sha and `HEAD~5` behave the way a flag does.
+- The tag is a standing fact, not a notice, so it takes no status bar and no key
+  clears it. The reason sits right of the ref, so a narrow pane clips the reason
+  and keeps the ref.
 
 ### Sessions and generations
 
-What a session and a generation are, what survives a rewrite and how a comment
-travels is in [docs/guide.md](docs/guide.md). What the code has to keep true:
-
-- A refresh moves the ref before it writes the row, and swaps against the ref's
-  own previous value rather than the last `commit_sha` stored. The other order
-  lets two instances both write rows and leaves the ref pointing at one of them.
-- Every write naming a generation asserts from inside its own transaction that
-  the generation is still the latest, the refresh included. A mark, a comment or
-  a state change landing while a refresh is in flight moves forward with it or is
-  refused, never accepted and lost.
-- All the git work is done before that transaction opens, which it can be because
+- A refresh moves the ref before it writes the row, swapping against the ref's
+  own previous value rather than the last stored `commit_sha`. The other order
+  lets two instances both write rows.
+- Every write naming a generation asserts inside its own transaction that the
+  generation is still the latest, the refresh included. A write landing
+  mid-refresh moves forward with it or is refused, never accepted and lost.
+- All the git work runs before that transaction opens, which works because
   nothing the translation needs is a row.
-- The two gates are on different things, so a row that does not land takes its
-  commit back off the ref. The loser leaves nothing rather than a generation
-  commit no row names, and that runs past a cancel: a reader quitting mid-refresh
-  is commoner than two instances racing.
+- A row that does not land takes its commit back off the ref, past a cancel too.
+  A reader quitting mid-refresh is commoner than two instances racing.
 - `edit` and `delete` name no generation. Words are true at every generation, and
   a delete leaves no anchor to go stale.
-- Reviewed state is line ranges, never hunk indices. Deletion-only hunks have no
-  head-side lines and anchor to base-side ranges.
-- `changed after review` is on `gen_files.cut` and cannot be read back off the
-  coverage: a range the translation cut and a range somebody unmarked leave the
-  same coverage behind, and only the refresh ran the translation. It follows a
-  rename through the same diff the ranges do.
-- The response is on `comments.response` and lands in the same swap as the state.
-  Every other transition passes no response rather than reading one and writing
-  it back, which would clobber a write that landed in between. A refresh carries
-  neither: they are words, not an anchor.
-- `--body` is the words of the thing the command names, on every command that
-  takes one, so an invocation reused against the wrong verb is a refusal rather
-  than a write to the wrong half. `edit` does not reach the response: the tool
-  has no identity to enforce one voice with, so it refuses to make the wrong
-  write easy.
+- Reviewed state is line ranges, never hunk indices. Deletion-only hunks anchor
+  to base-side ranges.
+- `changed after review` is on `gen_files.cut` and cannot be read off the
+  coverage, because a range the translation cut and a range somebody unmarked
+  leave the same coverage. It follows a rename through the same diff the ranges
+  do.
+- The response is on `comments.response` and lands in the same swap as the
+  state. Every other transition passes no response rather than reading and
+  rewriting it, and a refresh carries neither.
+- `--body` is the words of the thing the command names, so an invocation reused
+  against the wrong verb is refused rather than written to the wrong half.
+  `edit` does not reach the response, because the tool has no identity to
+  enforce one voice with.
 - A frozen comment's row stays at the generation it stopped at and records where
-  the anchor was, so nothing has to know which generation it is pinned to in
-  order to say where it lived. Only an unfrozen comment orphans, and an orphan
-  still takes `address`: the anchor usually went because the comment was acted
-  on, and the account of that is the one thing left worth writing.
-- A comment's anchor translation is more forgiving than a reviewed range's: it
-  clamps to what survived, where a range is cut into the pieces either side. A
-  file comment is more forgiving still and goes only when the file does. The two
-  are different claims: a whole-file mark says somebody read these bytes and an
-  edit voids it, where a comment says something about the file and an edit is
-  usually what it asked for. `Anchor` and `Ranges` split on exactly that.
+  the anchor was. Only an unfrozen comment orphans, and an orphan still takes
+  `address`, since the anchor usually went because the comment was acted on.
+- A comment's anchor clamps to what survived, where a reviewed range is cut into
+  the pieces either side, and a file comment goes only when the file does. A mark
+  says somebody read these bytes and an edit voids it; a comment says something
+  about the file and an edit is usually what it asked for. `Anchor` and `Ranges`
+  split on that.
 - `anchor_blob`, `created_generation_id`, `created_start_line` and
-  `created_end_line` are written once at creation and never moved. A comment that
-  travelled before it was answered would otherwise slice its own blob by lines it
-  never had. One diff per pair of blobs, so a file's comments cost one call
-  between them rather than one each.
+  `created_end_line` are written once and never moved, or a comment that
+  travelled would slice its blob by lines it never had. One diff per pair of
+  blobs covers every comment on a file.
 - A refresh race is tested by putting one refresh inside another at a chosen
   point, not by hoping the scheduler lines them up. `export_test.go` exposes
   `DuringRefresh`, which fires after the latest generation is read, and
@@ -302,98 +263,77 @@ travels is in [docs/guide.md](docs/guide.md). What the code has to keep true:
 ### Storage
 
 `$(git rev-parse --git-common-dir)/zen-review/state.db`, so a worktree and its
-parent checkout share one database. Nothing lands in the working tree.
+parent checkout share one database and nothing lands in the working tree.
+`plugin/hooks/unresolved.sh` tests for that exact path to decide whether a
+review was ever opened here, because resolving a session creates it. Moving one
+moves the other.
 
-The hook script the plugin ships tests for that exact path to decide whether a
-review was ever opened here, so moving it moves `plugin/hooks/unresolved.sh`
-too. Without that test the hook would resolve a session in every repository an
-agent stops in, and resolving one creates it.
-
-`modernc.org/sqlite`, pure Go: the cgo driver is faster but puts a C toolchain in
-the path of every cross-compile and CI runner, for a few thousand rows. WAL with
-a busy timeout so two instances on one repo do not deadlock.
-
-`.git` not writable is a startup error, not a degraded mode where the review
-silently is not saved.
+`modernc.org/sqlite`, pure Go, so no C toolchain in the path of a cross-compile
+or CI. WAL with a busy timeout so two instances on one repo do not deadlock.
+`.git` not writable is a startup error, never a mode where the review silently
+is not saved.
 
 ## Keys
 
-The keymap is shared with zen-octo by convention, so the two tools feel the same
-without either being hostage to the other's release cycle. Every key and what it
-does is in [docs/keys.md](docs/keys.md), and zen-octo keeps its own copy. What
-follows is what the code has to keep true.
+The keymap is shared with zen-octo by convention. Every key is in
+[docs/keys.md](docs/keys.md), and zen-octo keeps its own copy. What the code has
+to keep true:
 
-- The heading pin follows the window and not the cursor, because a heading names
-  the lines under it. The pin owns the top line, so the cursor never sits there:
-  a key that would put it on that row opens the window one higher instead.
-  Standing the pin down for the cursor was the first answer and it cost the
-  heading on every paging key.
-- The cursor bar sits in a leading cell every row already holds open, so nothing
-  shifts as the cursor passes. The fill is shared with a selection and the bar is
-  not, which is what says where the next key moves from inside one.
+- The heading pin follows the window, not the cursor, because a heading names the
+  lines under it. The pin owns the top line, so a key that would put the cursor
+  there opens the window one higher.
+- The cursor bar sits in a leading cell every row holds open, so nothing shifts
+  as it passes. A selection shares the fill but not the bar, which marks where
+  the next key moves from.
 - A comment card is one stop for the cursor, not one per row.
-- `was` on a card's label is for numbers naming no code the pane could draw: an
-  orphan, and one frozen at another generation. An unplaced card is not that on
-  its own — a comment written outside a hunk loses its row the moment the whole
-  file comes back out and its line is still there — so the word keys off the
-  anchor and not off whether the layout found a row.
-- One cursor in side-by-side, never one per column. Two could point at unrelated
-  lines and a side-switch would throw the window.
-- The mode `|` sets lasts the run and nothing stores it. A default belongs with
-  the reader's other preferences, not in the session the review is kept in. `p`
-  stores nothing either but lasts only the file: side-by-side is a taste in diffs
-  and `p` is asked on one hunk, and left on it would put a few hundred unchanged
-  rows between the hunks of every file after it. `preview` names that file rather
-  than standing for the pane, and arriving at another clears it. The two modes
-  compose: a filled-in line is a context line and takes both columns.
-- `p` is the one rendering key that reads the repository, so it is the only one
-  with an asked-for state and an in-effect state separated by a git call rather
-  than by a width. `Session.Body` hands the bytes up and the pane caches them per
-  path for the generation; a reload blanks the pane naming no generation at all,
-  so the cache is keyed to its own field rather than to the one that blanking
-  zeroes.
-- The lines `p` fills in are synthetic `diff.Context` lines run through the row
-  builder the hunks already use, which is what keeps selection, the split pairing
-  and the painter from needing a second path. They belong to no hunk, so nothing
-  pins a heading over them and `r` finds nothing to mark.
-- A hunk keeps the blank row above and below it that separates two hunks in the
-  diff. Drawn against the file's own lines the heading says where a change starts
-  and nothing says where it stops, and a reader who cannot see the boundary reads
-  `r` refusing on the line past it as a fault rather than as the rule.
-- `r` refuses on a line in no hunk and not on a card in none. The ring is what
-  puts a reader on a card outside every hunk, so the mark there falls back to the
-  stop it came from; nothing but their own movement puts them on a line.
+- `was` on a card's label is for numbers naming no code the pane could draw, an
+  orphan or a comment frozen at another generation. It keys off the anchor, not
+  off whether the layout found a row, because a comment written outside a hunk
+  has no row while its line is still there.
+- One cursor in side-by-side, never one per column, or a side-switch could throw
+  the window.
+- The mode `|` sets lasts the run and nothing stores it. `p` stores nothing and
+  lasts only the file, because left on it would put hundreds of unchanged rows
+  between the hunks of every file after it. `preview` names that file, and
+  arriving at another clears it. The two compose: a filled-in line is a context
+  line and takes both columns.
+- `p` is the one rendering key that reads the repository. `Session.Body` hands
+  the bytes up and the pane caches them per path for the generation, keyed to its
+  own field because a reload blanks the pane's generation.
+- The lines `p` fills in are synthetic `diff.Context` lines through the row
+  builder the hunks use, so selection, the split pairing and the painter need no
+  second path. They belong to no hunk, so no heading pins over them and `r` finds
+  nothing to mark.
+- A hunk keeps the blank row above and below it. Without the one below, nothing
+  says where a change stops, and `r` refusing on the line past it reads as a
+  fault.
+- `r` refuses on a line in no hunk but not on a card in none. The ring puts a
+  reader on such a card, so the mark falls back to the stop it came from.
 - A mode change that moves a row by a hundred lines opens the window on the hunk
-  rather than revealing the row. The shortest scroll is the wrong one over that
-  distance: it lands the hunk on the bottom row with its own lines off the window.
-- The composer takes every key while it is up, `ctrl+c` excepted: raw mode sends
-  no interrupt and a box that ate it would be the one place in the program with
-  no way out but `esc`. A paste arrives as its own message rather than as keys,
-  so the root routes what is not a key press into it too.
-- The cursor in the composer is the terminal's own, placed by the root through
-  the view. A drawn one paints a colour of ours over the character it covers, and
-  the reader set their cursor up already.
-- The box comes down when the write lands, not when the key is pressed. The one
-  exception is the write that committed and could not be read back: that box
-  comes down, because saving it again writes a second comment, and it is why the
-  Source names that failure rather than reporting it like any other.
-- The status bar clears on the next press inside a box the way it does outside
-  one.
+  rather than revealing the row, or the hunk lands on the bottom row.
+- The composer takes every key while it is up, `ctrl+c` excepted, because raw
+  mode sends no interrupt. A paste arrives as its own message, so the root routes
+  what is not a key press into it too.
+- The composer's cursor is the terminal's own, placed by the root through the
+  view. A drawn one paints over the character it covers.
+- The box comes down when the write lands, not when the key is pressed. A write
+  that committed and could not be read back closes it anyway, because saving
+  again writes a second comment, which is why the Source names that failure.
+- The status bar clears on the next press inside a box as it does outside one.
 - `x`, `e`, `D` and `>` are named in the card's own footer and never in the help
-  overlay, which draws to the frame's last line at sixteen rows with no row to
-  give. `esc` is named on the status bar while a selection is up.
+  overlay, which has no row to give at 16 rows. `esc` is named on the status bar
+  while a selection is up.
 - `ResolveComment` refuses a comment already resolved, so a settled card neither
-  offers `x` nor takes it. Freezing one twice re-records an anchor that stopped
-  moving a generation ago.
-- Neither the response box nor its rail ever lights. The elbow is always `╰─` and
-  never a tee, there being one response, and a pane with no room for a second
-  border draws the card whole and drops the box rather than shrinking both.
+  offers `x` nor takes it.
+- Neither the response box nor its rail lights. The elbow is always `╰─`, there
+  being one response, and a pane with no room for a second border drops the box
+  rather than shrinking both.
 - The replaced block is the translation the remap runs, not the two sides read at
-  the same numbers. The blob the comment was written against is diffed against
-  the file's blob now, the creation range goes through `Translate`, and a range
-  that comes back whole took nothing.
-- A delete is a real delete rather than a state, which would have to be filtered
-  out of every count, every ring and every export forever.
+  the same numbers. The comment's blob is diffed against the file's blob now, the
+  creation range goes through `Translate`, and a range that comes back whole took
+  nothing.
+- A delete is a real delete, not a state every count, ring and export would have
+  to filter out.
 
 Six divergences from zen-octo, all deliberate:
 
@@ -410,35 +350,32 @@ burn a review down.
 
 ## Exit codes
 
-`diff` and `grep` split answering from failing, and so does this: **0** answered
-and nothing matched, **1** answered and the filter matched, **2** failed. Only
-`comments --exit-code` reaches 1, which is what makes a Stop hook able to tell an
-open comment from a broken git call. `cmd/zen-review` maps them through
-`cli.ExitCode`, and `cli.Quiet` is what keeps the matched status from being
+The codes are in [docs/cli.md](docs/cli.md#exit-codes). `cmd/zen-review` maps
+them through `cli.ExitCode`, and `cli.Quiet` keeps the matched status from being
 printed as an error.
 
 ## Rendering traps
 
 Each of these looks like working code and produces a broken frame. The first
-group is why `tui/paint` and `tui/syntax` exist rather than every pane rolling
-its own; the rest belong to the panes above them.
+group is why `tui/paint` and `tui/syntax` exist; the rest belong to the panes
+above them.
 
-- **Every styled cell ends in a full SGR reset**, which clears the background along with the foreground. A row background has to be set per cell; wrapping a joined row paints only the first one, and the tint stops at the first token.
-- **A row with a background has to be padded to the full width.** Otherwise the tint ends where the code does and the block reads as ragged. A row with no background needs no padding, which is the only reason a context line is cheaper.
-- **`Style.Width` wraps before it clips.** Truncating to a column width means clipping explicitly first, or one long line of code becomes two rows.
-- **Soft wrap and a line-number gutter cannot both be on.** One long line folds onto a second row, and every line under it is then one further out of step with the number beside it. Clip instead, and only ever measure at a width where something overflows.
-- **A lexer carries state across lines.** Highlighting line by line comes apart on the first multi-line string. Tokenise the whole file, and tokenise the two sides of a diff separately, or the lexer reads a file holding both halves of every change. `syntax.Lines` takes a whole body for this reason; splitting a diff into two bodies is the caller's job.
+- **Every styled cell ends in a full SGR reset**, which clears the background too. Set a row background per cell; wrapping a joined row tints only up to the first token.
+- **A row with a background has to be padded to the full width**, or the tint ends where the code does. A row with no background needs no padding.
+- **`Style.Width` wraps before it clips.** Clip explicitly first, or one long line of code becomes two rows.
+- **Soft wrap and a line-number gutter cannot both be on.** A folded line puts every line under it out of step with its number. Clip instead, and measure at a width where something overflows.
+- **A lexer carries state across lines.** Tokenise whole bodies, and the two sides of a diff separately. `syntax.Lines` takes a whole body; splitting a diff into two is the caller's job.
 - **A raw tab is a variable number of cells.** One anywhere in a line puts every column after it out of step with the line above. `paint` expands them.
 - **Chroma's terminal formatter is unusable here.** It renders its own escapes, resets included. `syntax` returns tokens so the caller keeps control of the row.
-- **A Chroma style carries a background.** Taking it paints over the terminal's, which is what keeps a transparent one transparent. Read the foreground only.
-- **A viewport offset is a line, and a row is not.** Once rows are two lines, scroll arithmetic that lands on the row it wants opens the window on that row's second line with its title cut off above. Round the offset up to the next item boundary, and size the viewport to a whole number of rows or the end-of-list clamp lands back between two lines.
+- **A Chroma style carries a background.** Taking it paints over the terminal's. Read the foreground only.
+- **A viewport offset is a line, and a row is not.** With two-line rows, landing on a row can open the window on its second line. Round the offset up to the next item boundary, and size the viewport to a whole number of rows.
 - **`viewport.EnsureVisible` is not a scroll-to-cursor.** It acts only once the line is already outside the window, then puts it on the top row. Move the offset by hand.
-- **The shortest scroll onto the screen is the wrong one.** A key that lands on a block is taking the reader somewhere, so put the block at the top row, and leave it alone when it already fits on screen whole. A cursor moving a row at a time is the exception: the reader is already looking at the row, and the window is what fell behind.
-- **A key cannot aim at a block through the scroll offset.** A pane that fits its content has no offset to move, so a key reading its target off the top row acts on the first block whatever the reader does. Give the pane a cursor or do not give it the key.
-- **A block that answers the line above it cannot go to the top row.** A comment hangs under the code it was written against, so topping the card scrolls that code away. Bring its last row on screen and scroll no further up than the line it answers. That is two clamps and no magic number, and it degrades honestly: a card taller than the window keeps the line rather than the card. The line it answers is the last of the lines it covers and not the first, because a comment on a whole hunk anchors at the top of the hunk, and a scroll holding out for that leaves the card off the bottom of any window shallower than the hunk. A box being typed in is where that costs the most: off the window it still holds every key that would scroll to it.
-- **A block whose height moves with the width breaks a row index.** A card's body wraps, so a resize renumbers every row after it and a stored cursor lands on something else. The pane remembers what the cursor was on, not which row: a comment id, or a sequence over the rows a width cannot move.
+- **The shortest scroll onto the screen is the wrong one.** A key that lands on a block puts it at the top row, and leaves it alone when it already fits whole. A cursor moving a row at a time is the exception, since the window is what fell behind.
+- **A key cannot aim at a block through the scroll offset.** A pane that fits its content has no offset, so a key reading its target off the top row always acts on the first block. Give the pane a cursor or do not give it the key.
+- **A block that answers the line above it cannot go to the top row.** Bring a comment card's last row on screen and scroll no further up than the line it answers, which is the last of the lines it covers. A card taller than the window keeps the line rather than the card.
+- **A block whose height moves with the width breaks a row index.** A resize renumbers every row after a wrapped card. Remember what the cursor was on, a comment id or a sequence a width cannot move, not which row.
 - **A pane clips overflow silently.** A row wider than the pane loses its trailing columns mid-cell with no ellipsis, and a width test still passes. The row has to fit before the pane sees it.
-- **A glyph is only one cell if lipgloss and the terminal agree it is.** The tree's folders and its file marker are Nerd Font, which is the one thing on screen that asks anything of the terminal's font. Measure a new one with `lipgloss.Width` before using it: a two-cell glyph puts every row after it out of step, where a font missing a one-cell glyph only draws a box.
+- **A glyph is one cell only if lipgloss and the terminal agree.** The tree's Nerd Font folders and file marker are the one thing on screen that asks the terminal's font for anything. Measure a new one with `lipgloss.Width`, because a two-cell glyph shifts every row after it.
 - **A stripped golden cannot see a colour.** The tree's cursor is a filled background and nothing else, so the frame is identical whether `j` moved or not. Anything said only in colour needs an assertion against the theme value beside the golden.
-- **A newline in a body is a break and not a soft wrap.** `comp.Wrap` folds each line on its own and joins none of them. It used to join a paragraph before folding, so a body hard-wrapped elsewhere reflowed to the width in hand, and the price was that every break somebody typed into the box was drawn away on the card that came back.
+- **A newline in a body is a break, not a soft wrap.** `comp.Wrap` folds each line on its own and joins none of them, so a break typed into the box survives onto the card.
 - **Nothing moves on a refresh until the key is pressed.** A formatter running on save would otherwise reshuffle the page while a comment is being written.
