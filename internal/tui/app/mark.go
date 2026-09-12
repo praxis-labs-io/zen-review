@@ -34,8 +34,9 @@ type intent struct {
 	undo  bool
 }
 
-// advances is whether this ask moves on afterwards, which only r does.
-func (i intent) advances() bool { return !i.whole && !i.undo }
+// advances is whether this ask moves on afterwards, which r and R do and taking
+// a mark back does not.
+func (i intent) advances() bool { return !i.undo }
 
 // writeFailedMsg is a write that did not happen. The changeset is left alone.
 type writeFailedMsg struct{ err error }

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/praxis-labs-io/zen-review/internal/review"
+	"github.com/praxis-labs-io/zen-review/internal/store"
 	"github.com/praxis-labs-io/zen-review/internal/testchangeset"
 )
 
@@ -51,6 +52,38 @@ func TestRAdvancesToTheNextUnreadHunk(t *testing.T) {
 
 	if got := heading(t, s); !strings.Contains(got, "@@ -10,0 +11,1 @@") {
 		t.Errorf("the cursor is on %q, want a.go's second hunk", got)
+	}
+}
+
+// TestTheMarkKeysAdvanceAndTheUnmarkKeysStay. R lands past the rest of its own
+// file, which is what tells it from r on a file's first hunk.
+func TestTheMarkKeysAdvanceAndTheUnmarkKeysStay(t *testing.T) {
+	tests := []struct {
+		key     string
+		read    []store.ReviewedRange
+		file    string
+		heading string
+	}{
+		{"r", []store.ReviewedRange{testchangeset.Head("a.go", 1, 1)}, "a.go", "@@ -10,0 +11,1 @@"},
+		{"R", []store.ReviewedRange{testchangeset.Head("a.go", 1, 1), testchangeset.Head("a.go", 11, 11)}, "b.go", "@@ -1,0 +1,1 @@"},
+		{"u", nil, "a.go", "@@ -1,0 +1,1 @@"},
+		{"U", nil, "a.go", "@@ -1,0 +1,1 @@"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.key, func(t *testing.T) {
+			s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
+
+			s.wrote(testchangeset.Derive(t, ringPatch, tt.read...))
+			s.press(tt.key)
+
+			if got := s.title(); !strings.Contains(got, tt.file) {
+				t.Errorf("%s left the pane on %q, want %s", tt.key, got, tt.file)
+			}
+			if got := heading(t, s); !strings.Contains(got, tt.heading) {
+				t.Errorf("%s left the cursor on %q, want %s", tt.key, got, tt.heading)
+			}
+		})
 	}
 }
 
