@@ -1,6 +1,4 @@
-// Package paint renders one row of a diff. Every exported function is pure:
-// the same line at the same width gives the same string. Folding, scroll,
-// side-by-side layout, hunk grouping and review state belong to the caller.
+// Package paint renders one diff row. Every exported function is pure.
 package paint
 
 import (
@@ -13,11 +11,8 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/tui/theme"
 )
 
-// defaultTabWidth is what a tab expands to when a Painter names no width. A raw
-// tab is a variable number of cells and puts every column after it out of step.
 const defaultTabWidth = 4
 
-// Kind is the side of the change a line belongs to.
 type Kind int
 
 const (
@@ -26,33 +21,29 @@ const (
 	Removed
 )
 
-// Line is one row ready to paint. Old and New are line numbers; 0 means that
-// side has none, and the column stays open so the marker beside it holds still.
+// Line is one row to paint. A zero Old or New leaves that side's number column blank.
 type Line struct {
 	Kind     Kind
 	Old, New int
 	Tokens   []syntax.Token
 
-	// Fill beats the kind's tint, nil uses it. A cursor, a selection and a
-	// reviewed tint are the caller's state and all have to win.
+	// Fill overrides the kind's tint; nil keeps it.
 	Fill color.Color
 
-	// Bar paints the leading cell, and nil leaves it blank. A tint says a row is
-	// lit and a bar says where it starts, which is what an eye follows.
+	// Bar paints the leading cell; nil leaves it blank.
 	Bar color.Color
 
-	// Weight marks a row the caller has no Fill to mark it with.
+	// Weight bolds the row, for a caller with no Fill to mark it.
 	Weight bool
 }
 
-// Painter paints rows from one theme.
 type Painter struct {
 	Theme    theme.Theme
 	TabWidth int // 0 means 4
 }
 
-// Line paints one row: two numbers, the marker, and highlighted source over the
-// change's tint, cell by cell to the full width and clipped rather than wrapped.
+// Line paints both number columns, the marker and the source over the tint, clipped to width.
+// Only a row with a background is padded to width.
 func (p Painter) Line(l Line, gutter, width int) string {
 	marker, c, tint := p.weight(l.Kind)
 	if l.Fill != nil {
@@ -79,15 +70,13 @@ func (p Painter) Line(l Line, gutter, width int) string {
 	if w := lipgloss.Width(row); w > width {
 		return Clip(row, width, faint)
 	} else if tint != nil {
-		// Only a row with a background has one to run out. A context line with
-		// no fill is left short, and the pane's own padding finishes it.
 		row += base.Render(strings.Repeat(" ", width-w))
 	}
 	return row
 }
 
-// Body paints a line with its marker and tint and no number columns, for a
-// caller hanging code where a gutter would be numbering another file.
+// Body paints the marker and source over the kind's tint, without number columns.
+// It ignores Fill, Bar and Weight.
 func (p Painter) Body(l Line, width int) string {
 	marker, c, tint := p.weight(l.Kind)
 	base := background(lipgloss.NewStyle(), tint)
@@ -103,8 +92,9 @@ func (p Painter) Body(l Line, width int) string {
 	return row
 }
 
-// Half paints one column of a side-by-side row. A half carries one number, so
-// whichever of Old and New is set shows, and a zero Line paints a blank column.
+// Half paints one side of a side-by-side row, numbered by whichever of Old and New is set
+// and always padded to width.
+// A zero Line paints a blank column.
 func (p Painter) Half(l Line, gutter, width int) string {
 	marker, c, tint := p.weight(l.Kind)
 	if l.Fill != nil {
@@ -126,14 +116,11 @@ func (p Painter) Half(l Line, gutter, width int) string {
 	if w := lipgloss.Width(row); w > width {
 		return Clip(row, width, base.Foreground(p.Theme.Subtle))
 	} else if w < width {
-		// Padded whether or not it is tinted, where Line leaves that to the pane.
-		// A short half puts the column beside it out of step.
 		row += base.Render(strings.Repeat(" ", width-w))
 	}
 	return row
 }
 
-// weight is the marker, foreground and tint one kind of line is painted in.
 func (p Painter) weight(k Kind) (string, color.Color, color.Color) {
 	switch k {
 	case Added:
@@ -144,42 +131,33 @@ func (p Painter) weight(k Kind) (string, color.Color, color.Color) {
 	return " ", p.Theme.Subtle, nil
 }
 
-// Header is the @@ line ready to paint.
 type Header struct {
 	Text string
 
-	// Marker sits in the column Line puts + and − in, so a heading's mark lines
-	// up under it. "" blanks the column; anything past two cells is clipped.
+	// Marker sits in Line's +/− column. "" blanks it; past two cells is clipped.
 	Marker string
 
-	// Badge is a second glyph, left of the marker, for a state the heading
-	// carries whether or not the cursor is on it. It takes blank indent.
+	// Badge is a glyph left of Marker, for a state the heading carries with or without the cursor.
 	Badge string
 
-	// BadgeColor paints the badge, and nil paints it in Accent. A ladder of
-	// states needs more than one weight; a cursor is one thing at one weight.
+	// BadgeColor paints Badge; nil paints Accent.
 	BadgeColor color.Color
 
-	// TextColor paints the @@ line and the marker, nil paints both Accent. A
-	// column of headings at one weight cannot say which one the reader is in.
+	// TextColor paints the text and Marker; nil paints Accent.
 	TextColor color.Color
 
-	// Fill is the row's background, and nil paints none. It is the caller's
-	// state the same way Line.Fill is.
+	// Fill is the row background; nil paints none.
 	Fill color.Color
 
-	// Bar is the leading cell the same way Line.Bar is.
+	// Bar paints the leading cell; nil leaves it blank.
 	Bar color.Color
 }
 
-// HunkHeader is the @@ line, indented to code so it sits over the source it
-// introduces: CodeColumn for a unified row, HalfColumn for a side-by-side one.
+// HunkHeader paints the @@ line indented to code: CodeColumn for Line rows, HalfColumn for Half.
 func (p Painter) HunkHeader(h Header, code, width int) string {
 	base := background(lipgloss.NewStyle(), h.Fill)
 	accent := base.Foreground(p.Theme.Accent)
 
-	// The marker takes the text's colour rather than Accent. It is part of what
-	// the heading says about itself, and a lit caret on a dimmed line reads odd.
 	text := accent
 	if h.TextColor != nil {
 		text = base.Foreground(h.TextColor)
@@ -202,11 +180,8 @@ func (p Painter) HunkHeader(h Header, code, width int) string {
 	return row
 }
 
-// barGlyph marks the row the cursor is on. It goes in the leading cell every row
-// already holds open, so a row gains no width by being the one under the cursor.
 const barGlyph = "▌"
 
-// lead is a row's first cell: the bar, or the blank every other row keeps there.
 func lead(bar color.Color, base lipgloss.Style) string {
 	if bar == nil {
 		return base.Render(" ")
@@ -214,8 +189,6 @@ func lead(bar color.Color, base lipgloss.Style) string {
 	return base.Foreground(bar).Render(barGlyph)
 }
 
-// slot renders one glyph in a fixed pair of columns, blank when there is none.
-// A wider glyph eats the space after it rather than pushing the text along.
 func slot(glyph string, base, on lipgloss.Style) string {
 	if glyph == "" {
 		return base.Render(strings.Repeat(" ", markerSlot))
@@ -224,8 +197,6 @@ func slot(glyph string, base, on lipgloss.Style) string {
 	return on.Render(g) + base.Render(strings.Repeat(" ", markerSlot-lipgloss.Width(g)))
 }
 
-// code renders one row's tokens over the row's own style. Each takes only a
-// foreground, so whatever is behind the row survives all the way across.
 func (p Painter) code(tokens []syntax.Token, base lipgloss.Style) string {
 	tab := strings.Repeat(" ", p.tabWidth())
 
@@ -248,8 +219,6 @@ func (p Painter) tabWidth() int {
 	return p.TabWidth
 }
 
-// background applies a color the theme may not define. A nil one leaves the
-// terminal's own showing, which is what keeps a transparent one transparent.
 func background(s lipgloss.Style, c color.Color) lipgloss.Style {
 	if c == nil {
 		return s

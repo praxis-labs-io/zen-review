@@ -10,15 +10,12 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/tui/testtheme"
 )
 
-// These goldens keep their escapes, where the frame ones are stripped: what a
-// painted row gets wrong is the colour and the fill. `cat` one to read it.
 func compare(t *testing.T, name, got string) {
 	t.Helper()
 	golden.Compare(t, name, []byte(got))
 }
 
-// Tokens are hand-built rather than taken from Chroma, so a golden file records
-// what the painter did and not what a lexer version thought of a line.
+// tokens are hand-built so a Chroma upgrade cannot move a golden.
 func tokens() []syntax.Token {
 	return []syntax.Token{
 		{Text: "const ", Color: testtheme.Dark.Accent},
@@ -57,8 +54,6 @@ func TestGoldenLines(t *testing.T) {
 			}},
 			24,
 		},
-		// An odd remainder against two-cell runes is where the cut used to come
-		// back a column short of the pane.
 		{
 			"clipped_wide",
 			paint.Line{Kind: paint.Added, New: 12, Tokens: []syntax.Token{
@@ -83,8 +78,6 @@ func TestGoldenLines(t *testing.T) {
 	}
 }
 
-// A held-open column has to be exactly as wide as a filled one, or the marker
-// moves between a line that has both numbers and a line that has one.
 func TestGoldenOneSided(t *testing.T) {
 	p := painter()
 	gutter := paint.Gutter(120)
@@ -101,8 +94,6 @@ func TestGoldenHunkHeader(t *testing.T) {
 	compare(t, "hunk_header", painter().HunkHeader(paint.Header{Text: "@@ -11,4 +12,6 @@ func Paint()"}, paint.CodeColumn(paint.Gutter(1235)), 40))
 }
 
-// The heading a cursor is on: filled to the edge, with the mark in the column
-// the change marks under it use.
 func TestGoldenHunkHeaderMarked(t *testing.T) {
 	compare(t, "hunk_header_marked", painter().HunkHeader(paint.Header{
 		Text:   "@@ -11,4 +12,6 @@ func Paint()",
@@ -111,7 +102,6 @@ func TestGoldenHunkHeaderMarked(t *testing.T) {
 	}, paint.CodeColumn(paint.Gutter(1235)), 40))
 }
 
-// Both glyphs at once, which is a cursor on a heading that carries a state.
 func TestGoldenHunkHeaderBadged(t *testing.T) {
 	compare(t, "hunk_header_badged", painter().HunkHeader(paint.Header{
 		Text:   "@@ -11,4 +12,6 @@ func Paint()",
@@ -121,8 +111,6 @@ func TestGoldenHunkHeaderBadged(t *testing.T) {
 	}, paint.CodeColumn(paint.Gutter(1235)), 40))
 }
 
-// A body row: the marker and the tint with no number columns, filled to the
-// width so the block it belongs to has a straight edge on both sides.
 func TestGoldenBody(t *testing.T) {
 	compare(t, "body_removed", painter().Body(paint.Line{
 		Kind:   paint.Removed,
@@ -130,8 +118,6 @@ func TestGoldenBody(t *testing.T) {
 	}, 30))
 }
 
-// A body row too long for the room it has, which is what a card two borders deep
-// gives a line of source.
 func TestGoldenBodyClipped(t *testing.T) {
 	compare(t, "body_clipped", painter().Body(paint.Line{
 		Kind:   paint.Removed,
@@ -139,8 +125,6 @@ func TestGoldenBodyClipped(t *testing.T) {
 	}, 10))
 }
 
-// A half is one column of a side-by-side row: one number, the marker and the
-// code, padded to the width whether or not it is tinted.
 func TestGoldenHalves(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -152,8 +136,6 @@ func TestGoldenHalves(t *testing.T) {
 		{"half_removed", paint.Line{Kind: paint.Removed, Old: 119, Tokens: tokens()}, 3, 26},
 		{"half_context", paint.Line{Kind: paint.Context, New: 120, Tokens: tokens()}, 3, 26},
 
-		// The blank facing a change the other side has no pair for. It carries no
-		// number, no marker and no tint, and still holds its column open.
 		{"half_blank", paint.Line{}, 3, 26},
 
 		{"half_clipped", paint.Line{Kind: paint.Added, New: 120, Tokens: tokens()}, 3, 14},
@@ -171,8 +153,6 @@ func TestGoldenHalves(t *testing.T) {
 	}
 }
 
-// The cursor's bar takes the leading cell every row already holds open, so the
-// row it is on is no wider than the rows above and below it.
 func TestGoldenBarred(t *testing.T) {
 	compare(t, "line_barred", painter().Line(paint.Line{
 		Kind: paint.Added, New: 120, Tokens: tokens(),
