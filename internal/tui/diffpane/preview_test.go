@@ -72,9 +72,10 @@ func TestPreviewFillsTheGapsWithTheFile(t *testing.T) {
 		t.Errorf("the file opens on row %d, want 0", got)
 	}
 
+	// One row between them, which is the frame below.
 	head := rowOf(t, m, "@@ -10,5 +10,5 @@")
-	if last := rowOf(t, m, "line 9 of the file"); last != head-1 {
-		t.Errorf("line 9 is on row %d and the first heading on %d, want it just above",
+	if last := rowOf(t, m, "line 9 of the file"); last != head-2 {
+		t.Errorf("line 9 is on row %d and the first heading on %d, want a row between",
 			last, head)
 	}
 
@@ -373,5 +374,57 @@ func TestPreviewDropsASelectionItCannotPlace(t *testing.T) {
 	m.TogglePreview()
 	if got, open := m.Selected(); open {
 		t.Errorf("the selection survived as %+v on a line the hunks have no row for", got)
+	}
+}
+
+// TestPreviewFramesEveryHunk. The heading says where a change starts and nothing
+// says where it stops, so with the lines around it all drawn the last line of a
+// hunk and the line after it read alike. A blank is what separates two hunks in
+// the diff, doing the same job here.
+func TestPreviewFramesEveryHunk(t *testing.T) {
+	m := preview(t, twoHunks, 60, tall, bodyLines)
+	rows := rows(t, m)
+
+	blank := func(i int) bool { return strings.TrimSpace(rows[i]) == "" }
+
+	for _, h := range []string{"@@ -10,5 +10,5 @@", "@@ -120,5 +120,7 @@"} {
+		at := rowOf(t, m, h)
+		if !blank(at - 1) {
+			t.Errorf("%s has no frame above it: %q", h, rows[at-1])
+		}
+	}
+
+	// And below the last line of each, where the file picks up again.
+	for _, pair := range [][2]string{
+		{`Partial    State = "partial"`, "line 15 of the file"},
+		{"return Derive(files, rows), nil", "line 127 of the file"},
+	} {
+		last, next := rowOf(t, m, pair[0]), rowOf(t, m, pair[1])
+		if next != last+2 || !blank(last+1) {
+			t.Errorf("the file picks up on row %d after a hunk ending on %d, want a frame between",
+				next, last)
+		}
+	}
+}
+
+// TestPreviewFramesNothingTwice. A hunk the file has no line before takes no
+// frame, or the pane opens on a blank row and the rows between two adjacent
+// hunks double up.
+func TestPreviewFramesNothingTwice(t *testing.T) {
+	m := preview(t, "internal/cli/render.go", 60, tall, 40)
+
+	rows := rows(t, m)
+	if strings.TrimSpace(rows[0]) == "" {
+		t.Errorf("the pane opens on a blank row:\n%s", joined(t, m))
+	}
+	// The pane pads its own height, so only rows holding content are in scope.
+	content := len(rows)
+	for content > 0 && strings.TrimSpace(rows[content-1]) == "" {
+		content--
+	}
+	for i := 1; i < content; i++ {
+		if strings.TrimSpace(rows[i]) == "" && strings.TrimSpace(rows[i-1]) == "" {
+			t.Fatalf("rows %d and %d are both blank:\n%s", i-1, i, joined(t, m))
+		}
 	}
 }

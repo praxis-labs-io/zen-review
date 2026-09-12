@@ -964,14 +964,38 @@ func (m *Model) layout() {
 		}
 	}
 
-	// fillIn draws one of the file's own runs, and nothing for a pair of hunks the
-	// file has no line between.
-	fillIn := func(f fill) { source(f.lines(whole), f.tokens(whole), -1) }
+	// frame is the blank row where a hunk meets the file's own lines, drawn on the
+	// near side of each such boundary.
+	//
+	// It is the row that separates two hunks in the diff doing the same job. With
+	// the lines around a hunk all drawn, the heading says where the change starts
+	// and nothing says where it stops, so the last line of a hunk and the line
+	// after it read alike.
+	//
+	// It belongs to no hunk, so no heading pins over it, and a boundary at the top
+	// of the file or already carrying one takes none.
+	frame := func() {
+		if n := len(m.rows); n > 0 && !m.blank(n-1) {
+			add(row{kind: noteRow, hunk: -1})
+		}
+	}
+
+	// fillIn draws one of the file's own runs under its frame, and nothing for a
+	// pair of hunks the file has no line between.
+	fillIn := func(f fill) {
+		lines := f.lines(whole)
+		if len(lines) == 0 {
+			return
+		}
+		frame()
+		source(lines, f.tokens(whole), -1)
+	}
 
 	for i, h := range m.file.Hunks {
 		switch {
 		case runs != nil:
 			fillIn(runs[i])
+			frame()
 		case i > 0:
 			add(row{kind: noteRow, hunk: i - 1})
 		}

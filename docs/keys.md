@@ -91,6 +91,11 @@ file waits on git and every press after it is the keystroke it looks like. The
 bytes are the generation's and not the working tree's: a file an agent has
 rewritten under you still draws as the file the hunks were measured against.
 
+Each hunk keeps a blank row above and below it. With the lines around a change
+all drawn, the heading says where it starts and nothing else says where it stops,
+so the last line of a hunk and the line after it would read alike. It is the same
+row that separates two hunks when the file is out.
+
 The window opens on the hunk you were in rather than on the line you were on. A
 hundred lines arrive above that line, and the shortest scroll onto the screen
 would leave the hunk on the bottom row with its own lines off the window.

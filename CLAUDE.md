@@ -352,6 +352,13 @@ follows is what the code has to keep true.
   builder the hunks already use, which is what keeps selection, the split pairing
   and the painter from needing a second path. They belong to no hunk, so nothing
   pins a heading over them and `r` finds nothing to mark.
+- A hunk keeps the blank row above and below it that separates two hunks in the
+  diff. Drawn against the file's own lines the heading says where a change starts
+  and nothing says where it stops, and a reader who cannot see the boundary reads
+  `r` refusing on the line past it as a fault rather than as the rule.
+- `r` refuses on a line in no hunk and not on a card in none. The ring is what
+  puts a reader on a card outside every hunk, so the mark there falls back to the
+  stop it came from; nothing but their own movement puts them on a line.
 - A mode change that moves a row by a hundred lines opens the window on the hunk
   rather than revealing the row. The shortest scroll is the wrong one over that
   distance: it lands the hunk on the bottom row with its own lines off the window.
