@@ -331,9 +331,12 @@ follows is what the code has to keep true.
 - One cursor in side-by-side, never one per column. Two could point at unrelated
   lines and a side-switch would throw the window.
 - The mode `|` sets lasts the run and nothing stores it. A default belongs with
-  the reader's other preferences, not in the session the review is kept in. `p` is
-  the same fact, and the two compose: a filled-in line is a context line and takes
-  both columns.
+  the reader's other preferences, not in the session the review is kept in. `p`
+  stores nothing either but lasts only the file: side-by-side is a taste in diffs
+  and `p` is asked on one hunk, and left on it would put a few hundred unchanged
+  rows between the hunks of every file after it. `preview` names that file rather
+  than standing for the pane, and arriving at another clears it. The two modes
+  compose: a filled-in line is a context line and takes both columns.
 - `p` is the one rendering key that reads the repository, so it is the only one
   with an asked-for state and an in-effect state separated by a git call rather
   than by a width. `Session.Body` hands the bytes up and the pane caches them per

@@ -45,17 +45,46 @@ func TestPreviewReadsOncePerFile(t *testing.T) {
 	}
 }
 
-// TestPreviewReadsEachFileItIsTurnedOnOver. The mode lasts the run, so walking
-// to the next file is a file whose text has not been read yet.
-func TestPreviewReadsEachFileItIsTurnedOnOver(t *testing.T) {
+// TestPreviewIsOneFileAtATime. The key is asked on the hunk the reader cannot
+// judge, not as a taste in diffs, so the next file comes back as its hunks. Left
+// on it would put a few hundred unchanged rows between the hunks of every file
+// after it, which is the burn-down this tool is.
+func TestPreviewIsOneFileAtATime(t *testing.T) {
 	s := previewing(t, twoHunks, previewLines, 100, 16)
 	s.src.bodies["README.md"] = testchangeset.Body(12)
 
 	s.press("n", "n", "p")
-	s.press("tab")
+	if !strings.Contains(s.frame(), "line 15 of the file") {
+		t.Fatalf("the whole file is not on:\n%s", s.frame())
+	}
 
-	if got := s.src.read; len(got) != 2 {
-		t.Errorf("the reader asked for %v, want the second file too", got)
+	s.press("tab")
+	if strings.Contains(s.frame(), "of the file") {
+		t.Errorf("the next file came up with the whole of it showing:\n%s", s.frame())
+	}
+	if got := s.src.read; len(got) != 1 {
+		t.Errorf("the reader asked for %v, want the next file left alone", got)
+	}
+}
+
+// TestPreviewIsNotResurrected. Coming back to the file is the hunks, because the
+// mode went when the reader left rather than waiting there for them.
+func TestPreviewIsNotResurrected(t *testing.T) {
+	s := previewing(t, twoHunks, previewLines, 100, 16)
+	s.press("n", "n", "p")
+	s.press("tab", "shift+tab")
+
+	if strings.Contains(s.frame(), "of the file") {
+		t.Errorf("the whole file was waiting on the way back:\n%s", s.frame())
+	}
+
+	// And the text is still in hand, so turning it on again is no second read.
+	s.press("p")
+	if !strings.Contains(s.frame(), "line 15 of the file") {
+		t.Fatalf("the whole file did not come back:\n%s", s.frame())
+	}
+	if got := s.src.read; len(got) != 1 {
+		t.Errorf("the reader asked for %v, want the text it already had", got)
 	}
 }
 

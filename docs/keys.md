@@ -104,9 +104,19 @@ ask about.
 A file with nothing to fill in refuses the key and the bar says so: a binary one,
 and one whose bytes the repository cannot produce.
 
-The mode lasts the run and nothing stores it, the same as `|`, and the two are
-orthogonal. A filled-in line is a context line, so it takes both columns of a
-split pane the way every other one does.
+It lasts the file and not the run, which is where it parts from `|`. Side by side
+is a taste in diffs and true of every file; `p` is asked on the one hunk you
+cannot judge on three lines. Left on it would put a few hundred unchanged rows
+between the hunks of every file after it, and the burn-down is what you came for.
+So the next file comes up as its hunks, and coming back to this one does too: the
+mode went when you left rather than waiting here for you. The text stays in hand,
+so turning it on again is the keystroke and not the wait.
+
+Nothing stores it either way. A default belongs with your other preferences, not
+in the session the review is kept in.
+
+The two modes are orthogonal. A filled-in line is a context line, so it takes
+both columns of a split pane the way every other one does.
 
 ## Side by side
 

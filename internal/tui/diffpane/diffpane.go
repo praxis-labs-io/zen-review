@@ -162,13 +162,19 @@ type Model struct {
 	split bool
 	side  store.Side
 
-	// preview is the same pair for the whole file drawn around the hunks: the
-	// body arrives a keystroke after the press, and previewing is the one to read.
+	// preview is the path the whole file is asked for on, and empty for none. It
+	// names a file rather than standing for the pane, because the reader asks for
+	// the context of one hunk they cannot judge and not for a longer diff
+	// everywhere: left on, it would put a few hundred unchanged rows between the
+	// hunks of every file after it and slow the burn-down down.
+	//
+	// previewing is what they are getting, the side-by-side pair again, because
+	// the body arrives a keystroke after the press.
 	//
 	// bodies is what has come back, by path, and bodiesAt the generation those
 	// bytes are from. That is its own field rather than gen below, which the
 	// blanking pass of a reload takes to zero and back.
-	preview  bool
+	preview  string
 	bodies   map[string]body
 	bodiesAt int64
 
@@ -256,6 +262,14 @@ func (m *Model) SetFile(f *review.File, comments []store.Comment, replaced map[s
 	// nothing, which is most of them.
 	if at != 0 && at != m.bodiesAt {
 		m.bodies, m.bodiesAt = nil, at
+	}
+
+	// The whole file is asked for on one file, so arriving at another puts the
+	// hunks back. The same blanking pass is why this reads the path the mode names
+	// rather than the one the pane holds: that one is empty halfway through a
+	// reload, and a reader who has not moved keeps what they were reading.
+	if f != nil && f.Diff.Path != m.preview {
+		m.preview = ""
 	}
 
 	m.file, m.comments, m.replaced, m.gen, m.offset = f, comments, replaced, at, 0

@@ -30,11 +30,16 @@ type body struct {
 // previewing is what they are getting, the same two facts split as the side-by-side
 // pair, because the body arrives a keystroke after the press.
 func (m *Model) TogglePreview() bool {
-	if !m.preview && !m.hasText() {
+	if m.preview != "" {
+		m.preview = ""
+		m.settle()
+		return true
+	}
+	if !m.hasText() {
 		return false
 	}
 
-	m.preview = !m.preview
+	m.preview = m.file.Diff.Path
 	m.settle()
 	return true
 }
@@ -55,17 +60,17 @@ func (m *Model) settle() {
 // StopPreview stands the mode down, for a read that failed. Nothing is cached,
 // so the next press asks again rather than refusing on a stale answer.
 func (m *Model) StopPreview() {
-	if !m.preview {
+	if m.preview == "" {
 		return
 	}
-	m.preview = false
+	m.preview = ""
 	m.settle()
 }
 
 // previewing is whether the pane draws the whole file, which takes the reader's
 // answer and a body to honour it with.
 func (m Model) previewing() bool {
-	return m.preview && m.body().lines != nil
+	return m.preview != "" && m.body().lines != nil
 }
 
 // body is the text of the file in the pane, and the zero value before it lands.
@@ -93,7 +98,7 @@ func (m Model) hasText() bool {
 // the run, so walking onto a binary file with it on would otherwise read a blob
 // that is not lines and draw it as though it were.
 func (m Model) NeedsBody() (string, bool) {
-	if !m.preview || !m.hasText() {
+	if m.preview == "" || !m.hasText() {
 		return "", false
 	}
 	if _, read := m.bodies[m.file.Diff.Path]; read {
@@ -117,7 +122,7 @@ func (m *Model) SetBody(path string, b review.Body) bool {
 		return len(b.Lines) > 0
 	}
 	if len(b.Lines) == 0 {
-		m.preview = false
+		m.preview = ""
 		return false
 	}
 
