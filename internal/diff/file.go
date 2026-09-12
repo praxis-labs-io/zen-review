@@ -1,12 +1,7 @@
-// Package diff turns git's unified diff text into files, hunks and lines.
-//
-// It knows nothing about review. A parsed diff stays a parsed diff: nothing here
-// imports the engine above it, and nothing here decides what a changeset is.
+// Package diff parses git's unified diff text into files, hunks and lines; it knows nothing of review.
 package diff
 
-// Kind is what a line does in the diff. The values are strings so a parsed diff
-// reads as English in a golden file, and so the painter maps them with a switch
-// rather than two packages agreeing to declare their constants in one order.
+// Kind is a string so a parsed diff reads as words in a golden file.
 type Kind string
 
 const (
@@ -15,8 +10,6 @@ const (
 	Removed Kind = "removed"
 )
 
-// Status is what happened to a file. The constants carry a File prefix because
-// Added already belongs to Kind.
 type Status string
 
 const (
@@ -27,7 +20,6 @@ const (
 	FileCopied   Status = "copied"
 )
 
-// Line is one line of a hunk.
 type Line struct {
 	Kind Kind `json:"kind"`
 
@@ -35,19 +27,15 @@ type Line struct {
 	Old int `json:"old,omitempty"`
 	New int `json:"new,omitempty"`
 
-	// Text is the content with the diff marker removed.
+	// Text excludes the diff marker.
 	Text string `json:"text"`
 
-	// NoEOL is the "\ No newline at end of file" that followed this line. The
-	// annotation takes no line number of its own, so it is carried here rather
-	// than becoming a line the file does not have.
+	// NoEOL marks a "\ No newline at end of file" after this line.
 	NoEOL bool `json:"noEol,omitempty"`
 }
 
-// Hunk is one @@ block.
 type Hunk struct {
-	// Header is the @@ line verbatim, section heading and all, because the heading
-	// names the function the change sits in.
+	// Header is the @@ line verbatim, section heading included.
 	Header string `json:"header"`
 
 	OldStart int `json:"oldStart"`
@@ -58,12 +46,10 @@ type Hunk struct {
 	Lines []Line `json:"lines"`
 }
 
-// File is one file's diff.
 type File struct {
 	Path string `json:"path"`
 
-	// OldPath is set on a rename or a copy. A deleted file carries its own path in
-	// Path.
+	// OldPath is set on a rename or a copy. A deleted file keeps its path in Path.
 	OldPath string `json:"oldPath,omitempty"`
 
 	Status Status `json:"status"`
@@ -71,15 +57,13 @@ type File struct {
 	OldMode string `json:"oldMode,omitempty"`
 	NewMode string `json:"newMode,omitempty"`
 
-	// OldBlob and NewBlob are the full shas off the index line. The side a file
-	// does not exist on is empty rather than forty zeros.
+	// OldBlob and NewBlob are full shas, empty on the side the file does not exist on.
 	OldBlob string `json:"oldBlob,omitempty"`
 	NewBlob string `json:"newBlob,omitempty"`
 
 	Binary bool `json:"binary,omitempty"`
 
-	// Omitted says why there are no hunks, and is empty when the hunks are the
-	// whole story. A file that reads as unchanged is worse than one that says why.
+	// Omitted says why there are no hunks, and is empty when the hunks are the whole story.
 	Omitted string `json:"omitted,omitempty"`
 
 	Hunks []Hunk `json:"hunks,omitempty"`
@@ -88,8 +72,7 @@ type File struct {
 	Deletions int `json:"deletions"`
 }
 
-// BasePath is the name the file has on the base side, which a rename or a copy
-// makes a different one from its own. It is the name that does not move.
+// BasePath is the file's name on the base side: OldPath on a rename or a copy, Path otherwise.
 func (f File) BasePath() string {
 	if f.OldPath != "" {
 		return f.OldPath

@@ -37,8 +37,6 @@ func TestAnEmptyPatchIsNoFiles(t *testing.T) {
 	}
 }
 
-// The changeset is one tracked diff with an untracked one appended, so the parser
-// has to pick up where the first patch ended.
 func TestFilesFromSeparateDiffsConcatenate(t *testing.T) {
 	patch := append(fixture(t, "modify"), fixture(t, "untracked")...)
 
@@ -55,9 +53,6 @@ func TestFilesFromSeparateDiffsConcatenate(t *testing.T) {
 	}
 }
 
-// A removed line whose own text begins with "--" arrives as "--- x", which is the
-// shape of a path header. Reading it as one swallows the line and moves the file's
-// path to whatever the content said.
 func TestALineThatLooksLikeAPathHeaderIsStillALine(t *testing.T) {
 	got := diff.Parse(fixture(t, "diff_text"))
 
@@ -80,8 +75,6 @@ func TestALineThatLooksLikeAPathHeaderIsStillALine(t *testing.T) {
 	}
 }
 
-// Line numbers are what reviewed state anchors to, so the two sides have to count
-// independently through a hunk that adds and removes.
 func TestLineNumbersCountEachSideSeparately(t *testing.T) {
 	got := diff.Parse(fixture(t, "multiple_hunks"))
 
@@ -119,7 +112,6 @@ func TestLineNumbersCountEachSideSeparately(t *testing.T) {
 	}
 }
 
-// A file with no hunks has to say why, or it reads as unchanged.
 func TestEveryFileWithoutHunksSaysWhy(t *testing.T) {
 	tests := []struct {
 		fixture string
@@ -155,8 +147,6 @@ func TestEveryFileWithoutHunksSaysWhy(t *testing.T) {
 	}
 }
 
-// A path is the identity everything else hangs off, and the header forms that
-// carry no --- and +++ lines are the ones where it is easiest to lose.
 func TestPathsSurviveEveryHeaderForm(t *testing.T) {
 	tests := []struct {
 		fixture string
@@ -194,8 +184,6 @@ func TestPathsSurviveEveryHeaderForm(t *testing.T) {
 	}
 }
 
-// The side a file does not exist on has no blob. A caller writing a generation
-// should not have to recognise forty zeros.
 func TestTheMissingSideHasNoBlob(t *testing.T) {
 	added := diff.Parse(fixture(t, "add"))[0]
 	if added.OldBlob != "" {

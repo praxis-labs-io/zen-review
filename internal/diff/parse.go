@@ -6,25 +6,12 @@ import (
 	"strings"
 )
 
-// hunkHeader is the @@ line. The counts are optional: git writes a one-line range
-// as "@@ -1 +1 @@" rather than spelling out the 1.
 var hunkHeader = regexp.MustCompile(`^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@`)
 
-// Parse reads git's unified diff output.
-//
-// It cannot fail. A file it cannot read arrives with Omitted set rather than as an
-// error or an absence, because silently dropping a changed file is the failure
-// this whole tool exists to prevent.
-//
-// Only a "diff --git" or "diff --cc" line starts a new file. Every other header
-// form is read before the first @@ of a file and treated as body text after it: a
-// removed line whose own text begins with "--" arrives as "--- x", and would
-// otherwise be read as a path.
+// Parse reads git's unified diff output. It never fails: an unreadable file gets Omitted set.
 func Parse(patch []byte) []File {
 	p := &parser{}
 
-	// The trailing newline would otherwise split into an empty final line and land
-	// in the last hunk as a blank one the file does not have.
 	for _, line := range strings.Split(strings.TrimSuffix(string(patch), "\n"), "\n") {
 		p.line(line)
 	}
@@ -35,22 +22,14 @@ func Parse(patch []byte) []File {
 type parser struct {
 	files []File
 
-	// file is the one being read, nil before the first "diff --git".
 	file *File
 
-	// oldSide and newSide are the paths seen so far for the current file, empty
-	// for the side it does not exist on. A rename names its paths outright; these
-	// are what everything else falls back to.
 	oldSide, newSide string
 
-	// inBody says the first @@ has been read, after which no line is a header.
 	inBody bool
 
-	// combined says this file arrived as a combined diff, whose two-column body
-	// this package does not read.
 	combined bool
 
-	// oldNo and newNo are the line numbers the next body line takes.
 	oldNo, newNo int
 }
 
@@ -61,9 +40,6 @@ func (p *parser) line(line string) {
 		return
 	}
 
-	// A combined diff is what git writes for a path that is still unmerged. There
-	// is no single old side to anchor a review to, so the file is listed with a
-	// reason rather than parsed or dropped.
 	for _, prefix := range []string{"diff --cc ", "diff --combined "} {
 		if rest, ok := strings.CutPrefix(line, prefix); ok {
 			p.begin()
@@ -76,7 +52,6 @@ func (p *parser) line(line string) {
 
 	switch {
 	case p.file == nil, p.combined:
-		// Anything before the first file header, and the body of a combined diff.
 	case p.inBody:
 		p.body(line)
 	default:
@@ -91,8 +66,6 @@ func (p *parser) begin() {
 	p.inBody, p.combined = false, false
 }
 
-// flush finishes the current file: the parts git states only by omission are
-// settled here, once every header line has been seen.
 func (p *parser) flush() {
 	f := p.file
 	if f == nil {
@@ -101,8 +74,6 @@ func (p *parser) flush() {
 	p.file = nil
 
 	if f.Path == "" {
-		// A rename or a copy has already named both paths. Everything else takes
-		// the new side, or the old one when the file was deleted.
 		f.Path = p.newSide
 		if f.Path == "" {
 			f.Path = p.oldSide
@@ -114,7 +85,6 @@ func (p *parser) flush() {
 	p.files = append(p.files, *f)
 }
 
-// omission says why a file arrived with no hunks.
 func omission(f *File) string {
 	switch {
 	case f.OldMode != "" && f.NewMode != "" && f.OldMode != f.NewMode:
@@ -169,9 +139,6 @@ func (p *parser) header(line string) {
 	}
 }
 
-// index reads the blob shas, and the mode git writes here only when it is the same
-// on both sides. A created or deleted file states its mode on its own line and
-// leaves this one without.
 func (p *parser) index(rest string) {
 	shas, mode, _ := strings.Cut(rest, " ")
 	old, next, ok := strings.Cut(shas, "..")
@@ -226,33 +193,20 @@ func (p *parser) body(line string) {
 		f.Deletions++
 
 	case strings.HasPrefix(line, `\`):
-		// "\ No newline at end of file" annotates the line above it.
 		if n := len(h.Lines); n > 0 {
 			h.Lines[n-1].NoEOL = true
 		}
 
 	default:
-		// A blank context line can arrive as the empty string rather than as a lone
-		// space, so the marker comes off as a prefix rather than by index.
 		h.Lines = append(h.Lines, Line{Kind: Context, Old: p.oldNo, New: p.newNo, Text: strings.TrimPrefix(line, " ")})
 		p.oldNo++
 		p.newNo++
 	}
 }
 
-// splitPaths reads the two paths off a "diff --git" line. It is only needed for a
-// file with no --- and +++ lines, which is a binary file or a mode change, and
-// there both sides are the same path.
-//
-// The line is ambiguous in general, because a path may hold a space and git does
-// not quote for one. Equal paths make the space fall at the midpoint, and a rename
-// or a copy states its paths on their own lines, so every case that reaches here
-// splits exactly.
+// splitPaths is only reached with equal paths, so an unquoted space splits at the midpoint.
 func splitPaths(rest string) (string, string) {
 	if strings.HasPrefix(rest, `"`) {
-		// The scan steps over an escape and whatever it escapes. Looking only at the
-		// byte before a quote cannot tell an escaped quote from the closing quote of
-		// a path that ends in a backslash, which git writes as "a/back\\".
 		for i := 1; i < len(rest); i++ {
 			switch {
 			case rest[i] == '\\':
@@ -261,7 +215,6 @@ func splitPaths(rest string) (string, string) {
 			case i+2 < len(rest) && rest[i+1] == ' ' && rest[i+2] == '"':
 				return strings.TrimPrefix(unquote(rest[:i+1]), "a/"), strings.TrimPrefix(unquote(rest[i+2:]), "b/")
 			default:
-				// The first side closed without a second following it.
 				return "", ""
 			}
 		}
@@ -279,8 +232,6 @@ func splitPaths(rest string) (string, string) {
 	return old[2:], next[2:]
 }
 
-// pathSide reads a path off a --- or +++ line. /dev/null is the side a file does
-// not exist on, and comes back empty.
 func pathSide(rest, prefix string) string {
 	rest = unquote(rest)
 	if rest == "/dev/null" {
@@ -289,9 +240,7 @@ func pathSide(rest, prefix string) string {
 	return strings.TrimPrefix(rest, prefix)
 }
 
-// unquote reads a C-quoted path. core.quotePath is pinned off, but git still wraps
-// a path holding a quote, a backslash or a control character, and the escapes it
-// writes are the ones a Go string literal uses.
+// unquote exists because git C-quotes some paths even with core.quotePath off.
 func unquote(s string) string {
 	if !strings.HasPrefix(s, `"`) {
 		return s
@@ -302,7 +251,6 @@ func unquote(s string) string {
 	return s
 }
 
-// blob normalises git's null sha to an empty string.
 func blob(sha string) string {
 	if strings.Trim(sha, "0") == "" {
 		return ""
@@ -310,7 +258,6 @@ func blob(sha string) string {
 	return sha
 }
 
-// lineCount is a hunk's line count on one side. An absent one means one line.
 func lineCount(s string) int {
 	if s == "" {
 		return 1
@@ -318,14 +265,11 @@ func lineCount(s string) int {
 	return atoi(s)
 }
 
-// atoi is for digits a regular expression already matched.
 func atoi(s string) int {
 	n, _ := strconv.Atoi(s)
 	return n
 }
 
-// has assigns the remainder of a header line to field, reporting whether the
-// prefix matched, so the switch above reads as the list of header forms it is.
 func has(line, prefix string, field *string) bool {
 	rest, ok := strings.CutPrefix(line, prefix)
 	if ok {
@@ -334,7 +278,6 @@ func has(line, prefix string, field *string) bool {
 	return ok
 }
 
-// hasPath is has for a field holding a path, which git may have quoted.
 func hasPath(line, prefix string, field *string) bool {
 	rest, ok := strings.CutPrefix(line, prefix)
 	if ok {
