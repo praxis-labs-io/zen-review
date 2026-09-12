@@ -1,7 +1,4 @@
-// Package syntax colors source code. It hands back tokens rather than rendered
-// text, because the caller owns the rest of the row: a diff paints a background
-// per cell, and a token that rendered itself would end in a reset and tear a
-// hole in it.
+// Package syntax returns Chroma tokens rather than rendered text, so the caller owns the row.
 package syntax
 
 import (
@@ -15,29 +12,26 @@ import (
 	"github.com/alecthomas/chroma/v2/styles"
 )
 
-// Token is one run of code sharing a color. Color is nil where the style has
-// nothing to say, which is most of the punctuation and whitespace in a file.
+// Token is one run of code in one color. Color is nil where the style says nothing.
 type Token struct {
 	Text  string
 	Color color.Color
 }
 
-// Syntax colors source code, returning tokens rather than rendered text: one
-// that styled itself would reset the row's background. Lines mutates the cache.
+// Syntax tokenises source and caches the result. Not safe for concurrent use.
 type Syntax struct {
 	style *chroma.Style
 	cache map[uint64][][]Token
 }
 
-// New builds a colorizer over a Chroma style, reporting whether Chroma knew the
-// name. An unknown one still colorizes, so a typo costs colors and not the diff.
+// New builds a Syntax over a Chroma style, reporting whether the name was known.
+// An unknown name still colors.
 func New(name string) (Syntax, bool) {
 	_, ok := styles.Registry[name]
 	return Syntax{style: styles.Get(name), cache: make(map[uint64][][]Token)}, ok || name == ""
 }
 
-// Lines splits code into lines of colored tokens, lexer chosen from the path and
-// the body tokenised whole. Always at least one line, so an empty side indexes.
+// Lines tokenises code whole with a lexer chosen from path, split into at least one line.
 func (s *Syntax) Lines(path, code string) [][]Token {
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(path))
@@ -69,8 +63,6 @@ func (s *Syntax) tokenise(path, code string) [][]Token {
 	for _, line := range chroma.SplitTokensIntoLines(iter.Tokens()) {
 		row := make([]Token, 0, len(line))
 		for _, t := range line {
-			// Foreground only: a Chroma style carries its own background, and
-			// taking it would paint over the terminal's.
 			text := strings.TrimSuffix(t.Value, "\n")
 			if text == "" {
 				continue
@@ -80,16 +72,12 @@ func (s *Syntax) tokenise(path, code string) [][]Token {
 		out = append(out, row)
 	}
 
-	// Chroma yields nothing for an empty body, but an empty file is one empty
-	// line, which is what a caller walking a side against its rows counts on.
 	if out == nil {
 		out = [][]Token{{}}
 	}
 	return out
 }
 
-// plain is the fallback when a lexer fails outright: uncolored code beats no
-// code.
 func plain(code string) [][]Token {
 	lines := strings.Split(code, "\n")
 	out := make([][]Token, len(lines))
