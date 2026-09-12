@@ -32,7 +32,6 @@ ctrl+s esc               in the composer: save, discard
 
 p                        full-file preview
 |                        unified / side-by-side
-/                        filter the tree
 b                        change the base
 s                        reload
 ? q ctrl+c               help, quit, quit from anywhere
