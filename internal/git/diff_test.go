@@ -7,7 +7,6 @@ import (
 	"testing"
 )
 
-// twenty lines, so a hunk in the middle of it has context to spare on both sides.
 func twentyLines(marker string) string {
 	var b strings.Builder
 	for i := 1; i <= 20; i++ {
@@ -20,9 +19,6 @@ func twentyLines(marker string) string {
 	return b.String()
 }
 
-// The parser reads a fixed shape. Every flag pinned in diffFlags is one a user or
-// a repository is entitled to set the other way, and a diff that arrives without
-// prefixes or with seven lines of context parses into the wrong thing.
 func TestDiffPinsTheFlagsUserConfigCouldMove(t *testing.T) {
 	f := newFixture(t)
 	f.Write("a.txt", twentyLines("before"))
@@ -68,9 +64,6 @@ func TestDiffPinsTheFlagsUserConfigCouldMove(t *testing.T) {
 	})
 }
 
-// assertFullIndex checks every index line carries unabbreviated shas, since a
-// generation's blob identity comes from them and an abbreviation is not an
-// identity.
 func assertFullIndex(t *testing.T, diff string) {
 	t.Helper()
 
@@ -120,9 +113,6 @@ func TestUntrackedSkipsIgnoredFilesAndReachesIntoNewDirectories(t *testing.T) {
 	}
 }
 
-// A hook and `git rebase --exec` both run with GIT_DIR set, and git honours it over
-// the process's directory. Inheriting it means every command answers about a
-// repository the caller never asked for.
 func TestAnInheritedGitDirDoesNotMoveTheRepository(t *testing.T) {
 	elsewhere := newFixture(t)
 	elsewhere.Write("a.txt", "one\n")
@@ -152,8 +142,6 @@ func TestAnInheritedGitDirDoesNotMoveTheRepository(t *testing.T) {
 	}
 }
 
-// The generation path diffs a tree that has no commit yet, which is what lets a
-// caller see the whole changeset before deciding to write one.
 func TestDiffTreesReadsATreeWithNoCommit(t *testing.T) {
 	f := newFixture(t)
 	f.Write("a.txt", "before\n")
@@ -179,9 +167,6 @@ func TestDiffTreesReadsATreeWithNoCommit(t *testing.T) {
 	}
 }
 
-// A remap reads where lines went, and a context line says nothing about that. The
-// flag also splits every contiguous change into its own hunk, which is a simpler
-// shape to translate through than one hunk with edits scattered inside it.
 func TestRemapDiffCarriesNoContext(t *testing.T) {
 	f := newFixture(t)
 	f.Write("a.txt", twentyLines("before"))
@@ -210,14 +195,6 @@ func TestRemapDiffCarriesNoContext(t *testing.T) {
 	}
 }
 
-// Rename detection gives up past diff.renameLimit, writes a warning to stderr and
-// exits 0. run discards stderr on success, so without -l0 the patch that comes
-// back has every rename as an add and a delete with nothing said, and a reviewed
-// range on a renamed file would vanish for a reason nobody could see.
-//
-// The limit only bites on inexact renames, so the content moves as well as the
-// path. Two files past a limit of one is enough to make git give up, which is
-// cheaper than the thousand the real default takes.
 func TestRemapDiffFindsRenamesPastTheConfiguredLimit(t *testing.T) {
 	f := newFixture(t)
 	for _, name := range []string{"one.txt", "two.txt", "three.txt"} {
@@ -245,8 +222,6 @@ func TestRemapDiffFindsRenamesPastTheConfiguredLimit(t *testing.T) {
 		t.Errorf("the remap diff lost a rename to the configured limit:\n%s", remap)
 	}
 
-	// The same diff without -l0, to prove the flag is what carried it and that
-	// the failure it defends against is silent.
 	plain, err := repo.DiffTrees(t.Context(), base, snap.Tree)
 	if err != nil {
 		t.Fatalf("diffing the base against the snapshot: %v", err)
@@ -259,9 +234,6 @@ func TestRemapDiffFindsRenamesPastTheConfiguredLimit(t *testing.T) {
 	}
 }
 
-// diff.submodule=log writes an embedded repository as a bare "Submodule x"
-// line with no "diff --git" header, so the parser above sees no file at all and
-// the changeset silently loses a row. The pinned flag is the whole defence.
 func TestDiffTreesKeepsAnEmbeddedRepositoryVisible(t *testing.T) {
 	inner := newFixture(t)
 	inner.Write("f.txt", "inner\n")

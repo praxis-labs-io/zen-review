@@ -22,9 +22,6 @@ func TestOpenResolvesTheWorkTreeAndTheCommonDir(t *testing.T) {
 	}
 }
 
-// A subdirectory is the normal case: zen-review is run from wherever the reader
-// happens to be, and rev-parse answers --git-common-dir relative to the process
-// unless it is asked for an absolute path.
 func TestOpenFromASubdirectoryStillAnswersAbsolutePaths(t *testing.T) {
 	f := newFixture(t)
 	f.Write("deep/nested/a.txt", "one\n")
@@ -51,9 +48,6 @@ func TestOpenRejectsADirectoryOutsideARepo(t *testing.T) {
 	}
 }
 
-// The review database lives under the common dir, so a throwaway worktree has to
-// resolve to its parent's. Getting this wrong means the review disappears with
-// the worktree.
 func TestALinkedWorktreeSharesTheParentsCommonDir(t *testing.T) {
 	f := newFixture(t)
 	f.Write("a.txt", "one\n")
@@ -75,8 +69,6 @@ func TestALinkedWorktreeSharesTheParentsCommonDir(t *testing.T) {
 	}
 }
 
-// A failing command has to say what was run and what git said, because the caller
-// is a TUI that can only show the string.
 func TestAFailedCommandReportsTheArgvAndGitsStderr(t *testing.T) {
 	f := newFixture(t)
 	f.Write("a.txt", "one\n")

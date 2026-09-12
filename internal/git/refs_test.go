@@ -25,8 +25,6 @@ func TestHeadReportsTheBranchAndTheCommit(t *testing.T) {
 	}
 }
 
-// A repository whose first commit has not landed is a state to review from, so
-// it answers Unborn rather than failing. The branch name is still there.
 func TestAnUnbornHeadIsAnAnswerRatherThanAFailure(t *testing.T) {
 	f := newFixture(t)
 	f.Write("a.txt", "one\n")
@@ -44,8 +42,6 @@ func TestAnUnbornHeadIsAnAnswerRatherThanAFailure(t *testing.T) {
 	}
 }
 
-// The empty tree is what an unborn HEAD is measured from. It is asked of git
-// rather than hardcoded, so a repository on sha256 gets its own.
 func TestEmptyTreeIsTheTreeWithNothingInIt(t *testing.T) {
 	f := newFixture(t)
 	f.Write("a.txt", "one\n")
@@ -61,8 +57,6 @@ func TestEmptyTreeIsTheTreeWithNothingInIt(t *testing.T) {
 	}
 }
 
-// A detached HEAD is a session keyed on the sha, so an empty branch is the answer
-// rather than an error.
 func TestADetachedHeadHasNoBranch(t *testing.T) {
 	f := newFixture(t)
 	f.Write("a.txt", "one\n")
@@ -121,8 +115,6 @@ func TestMergeBaseFindsTheForkPoint(t *testing.T) {
 	}
 }
 
-// Unrelated histories are what a base force-push that loses the fork point looks
-// like from here, and the spec answers it with a new base rather than a crash.
 func TestMergeBaseReportsUnrelatedHistories(t *testing.T) {
 	f := newFixture(t)
 	f.Write("a.txt", "one\n")
@@ -140,9 +132,6 @@ func TestMergeBaseReportsUnrelatedHistories(t *testing.T) {
 	}
 }
 
-// The refs are written by hand rather than by cloning: this is the state a clone
-// leaves behind, and what is under test is whether origin/HEAD is read, not
-// whether git can fetch.
 func TestDefaultRemoteBranchReadsOriginHead(t *testing.T) {
 	f := newFixture(t)
 	f.Write("a.txt", "one\n")
@@ -217,8 +206,6 @@ func TestRemoteBranchesLeaveOutSymbolicAliases(t *testing.T) {
 	}
 }
 
-// The first-parent chain is what tells a branch HEAD was cut from apart from one
-// merged into it. Both are ancestors of HEAD, and only the first is on the chain.
 func TestFirstParentsSkipsWhatWasMergedIn(t *testing.T) {
 	f := newFixture(t)
 	f.Write("a.txt", "one\n")
@@ -252,8 +239,6 @@ func TestFirstParentsSkipsWhatWasMergedIn(t *testing.T) {
 	}
 }
 
-// An empty range is an answer, not a failure: a branch sitting at its base has
-// nothing above it.
 func TestFirstParentsOfNothingIsEmpty(t *testing.T) {
 	f := newFixture(t)
 	f.Write("a.txt", "one\n")
@@ -288,8 +273,6 @@ func TestAheadCountsWhatTheTipHasBeyondTheBase(t *testing.T) {
 		t.Errorf("ahead = %d, want 3", got)
 	}
 
-	// The count is one-directional. Reading it the wrong way round would sort
-	// every stack candidate the same distance from HEAD.
 	behind, err := repo.Ahead(t.Context(), "feature", base)
 	if err != nil {
 		t.Fatalf("counting the other way: %v", err)
@@ -299,8 +282,6 @@ func TestAheadCountsWhatTheTipHasBeyondTheBase(t *testing.T) {
 	}
 }
 
-// A ref that does not resolve has to fail rather than answer 0, which would read
-// as no distance and sort a typo to the front of the candidate list.
 func TestAheadRefusesARefThatDoesNotResolve(t *testing.T) {
 	f := newFixture(t)
 	f.Write("a.txt", "one\n")
@@ -311,8 +292,6 @@ func TestAheadRefusesARefThatDoesNotResolve(t *testing.T) {
 	}
 }
 
-// A session that has never refreshed has no ref, and that is its normal first
-// state rather than a failure to report.
 func TestRefShaAnswersFalseForARefThatDoesNotExist(t *testing.T) {
 	f := newFixture(t)
 	f.Write("a.txt", "one\n")
@@ -347,8 +326,6 @@ func TestRefShaReadsARefThatExists(t *testing.T) {
 	}
 }
 
-// A ref that names nothing is an answer, and a git that broke is not. Reading
-// the two as one drops a caller onto a different base with nothing said.
 func TestResolveTellsAMissingRefFromABrokenGit(t *testing.T) {
 	f := newFixture(t)
 	f.Write("a.txt", "one\n")
@@ -364,8 +341,6 @@ func TestResolveTellsAMissingRefFromABrokenGit(t *testing.T) {
 	}
 }
 
-// An empty base walks the whole chain, which is what a tip with nothing above
-// it to bound the walk needs.
 func TestFirstParentsWithNoBaseWalksTheWholeChain(t *testing.T) {
 	f := newFixture(t)
 	f.Write("a.txt", "one\n")

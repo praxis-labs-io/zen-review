@@ -1,9 +1,4 @@
-// Package git runs git and returns bytes and structs. It holds no opinion about
-// what a changeset is or what has been reviewed, and nothing above it shells out
-// to git.
-//
-// Every call is a process, and the tests run against real temporary
-// repositories: what is under test is whether git is being called correctly.
+// Package git runs the git binary and returns bytes and structs, never opinions.
 package git
 
 import (
@@ -16,27 +11,20 @@ import (
 	"strings"
 )
 
-// ErrNotARepo is returned by Open for a path that is not inside a work tree.
 var ErrNotARepo = errors.New("not a git repository")
 
-// Repo is one git work tree. It holds no process and no lock, so a value is safe
-// to call from more than one goroutine.
+// Repo is safe for concurrent use.
 type Repo struct {
 	root      string
 	commonDir string
 }
 
-// Open resolves the repository containing path.
-//
-// The two startup failures are told apart because the fix differs: git missing
-// from PATH is an installation to repair, ErrNotARepo is a directory to leave.
+// Open resolves the repository containing path. Returns ErrNotARepo outside a work tree.
 func Open(ctx context.Context, path string) (*Repo, error) {
 	if _, err := exec.LookPath("git"); err != nil {
 		return nil, errors.New("git is not on PATH")
 	}
 
-	// --git-common-dir otherwise answers relative to the process's directory, so a
-	// call from a subdirectory returns ../../.git and the database lands elsewhere.
 	out, err := run(ctx, path, "rev-parse", "--path-format=absolute", "--show-toplevel", "--git-common-dir")
 	if err != nil {
 		if strings.Contains(err.Error(), "not a git repository") {
@@ -52,50 +40,33 @@ func Open(ctx context.Context, path string) (*Repo, error) {
 	return &Repo{root: lines[0], commonDir: lines[1]}, nil
 }
 
-// Root is the top of the work tree, and the directory every command runs in.
 func (r *Repo) Root() string { return r.root }
 
-// CommonDir is the absolute git directory a checkout shares with its linked
-// worktrees. The review database lives under it, so a throwaway worktree and its
-// parent agree about which repository they are in.
+// CommonDir is the absolute git directory shared with linked worktrees.
 func (r *Repo) CommonDir() string { return r.commonDir }
 
-// invocation is what a git call needs beyond its arguments.
 type invocation struct {
-	// extra holds variables set after the three that beat cmd.Dir are stripped.
-	// The stripping is what makes setting GIT_INDEX_FILE here safe.
 	extra []string
 
-	// allow names the one non-zero status that means something: `--is-ancestor`
-	// says no with 1, and `--no-index` implies `--exit-code`.
 	allow int
 
-	// allowStderr says the allowed status can carry a complaint with it.
-	// `add --ignore-errors` names every file it skipped and still writes a
-	// usable index, which is the one command where the two arrive together.
+	// allowStderr accepts the allowed status with stderr, which otherwise marks it a failure.
 	allowStderr bool
 
-	// stdin is what the command reads. `cat-file --batch` takes its work list
-	// there and nowhere else.
 	stdin []byte
 }
 
-// result is what a git call produced. stderr is kept because a command that
-// succeeded partway names what it skipped there and nowhere else.
 type result struct {
 	stdout []byte
 	stderr []byte
 	code   int
 }
 
-// run executes git in dir, treating any non-zero exit as a failure.
 func run(ctx context.Context, dir string, args ...string) ([]byte, error) {
 	res, err := runIn(ctx, dir, invocation{}, args...)
 	return res.stdout, err
 }
 
-// runStatus is run for a command whose non-zero exit is an answer rather than a
-// failure.
 func runStatus(ctx context.Context, dir string, allow int, args ...string) ([]byte, int, error) {
 	res, err := runIn(ctx, dir, invocation{allow: allow}, args...)
 	return res.stdout, res.code, err
@@ -122,26 +93,13 @@ func runIn(ctx context.Context, dir string, in invocation, args ...string) (resu
 	if !errors.As(err, &exit) {
 		return result{code: -1}, fmt.Errorf("running git %s: %w", strings.Join(args, " "), err)
 	}
-	// An allowed status that also wrote to stderr is usually a failure wearing the
-	// same number. `git diff --no-index` exits 1 both for "the files differ" and
-	// for a path it could not read, and only the second says anything on stderr.
-	// A command that means both has to ask for allowStderr.
 	if code := exit.ExitCode(); code == in.allow && (in.allowStderr || stderr.Len() == 0) {
 		return result{stdout: stdout.Bytes(), stderr: stderr.Bytes(), code: code}, nil
 	}
 	return result{code: exit.ExitCode()}, fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, stderrOf(stderr.Bytes()))
 }
 
-// env pins two variables and drops three.
-//
-// LC_ALL keeps git's fatal messages in the wording Open matches on, and
-// GIT_OPTIONAL_LOCKS stops a read-only diff from taking the index lock an agent
-// running git in the same repository is entitled to be holding.
-//
-// The three that go are the ones that beat cmd.Dir. A hook and `git rebase --exec`
-// both run with GIT_DIR set, and inheriting it means every command answers about
-// a repository the caller never asked for. Dropping GIT_INDEX_FILE is also what
-// lets a snapshot set its own and know nothing else is in the way.
+// env drops the variables that beat cmd.Dir, pins LC_ALL for Open's message match, and stops reads taking the index lock.
 func env() []string {
 	out := make([]string, 0, len(os.Environ())+2)
 	for _, kv := range os.Environ() {
@@ -154,8 +112,6 @@ func env() []string {
 	return append(out, "LC_ALL=C", "GIT_OPTIONAL_LOCKS=0")
 }
 
-// stderrOf is git's own complaint, on one line and never empty: an error with
-// nothing after the colon reads like a bug in this package.
 func stderrOf(stderr []byte) string {
 	s := strings.TrimSpace(string(stderr))
 	if s == "" {
@@ -164,11 +120,8 @@ func stderrOf(stderr []byte) string {
 	return strings.ReplaceAll(s, "\n", "; ")
 }
 
-// trim drops the newline git ends its output with.
 func trim(out []byte) string { return strings.TrimRight(string(out), "\n") }
 
-// nulFields splits -z output, which is asked for because a path can hold anything
-// but a NUL.
 func nulFields(out []byte) []string {
 	var fields []string
 	for _, f := range strings.Split(string(out), "\x00") {
