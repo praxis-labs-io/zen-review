@@ -13,14 +13,8 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
-// epoch is the one time every fixture is written at. The package holds no clock,
-// so a pinned time here is what makes a round trip comparable field for field.
 var epoch = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
-// open is a database in a temporary directory, closed when the test ends. The
-// path carries a directory that does not exist yet, because Open creating it is
-// what lets review point at $GIT_COMMON_DIR/zen-review without preparing it
-// first.
 func open(t *testing.T) *store.DB {
 	t.Helper()
 
@@ -36,14 +30,10 @@ func open(t *testing.T) *store.DB {
 	return db
 }
 
-// carrying hands AddGeneration a carry the test built by hand, out of the
-// generation named, which is what stands in for the translation the engine
-// passes down. The zero generation is a session that had none.
 func carrying(from store.Generation, c store.Carry) store.Advance {
 	return store.Advance{From: from.ID, Carry: func(store.Prior) store.Carry { return c }}
 }
 
-// session is a saved session the generation tests can hang rows off.
 func session(t *testing.T, db *store.DB, id string) store.Session {
 	t.Helper()
 
@@ -91,8 +81,6 @@ func TestASessionRoundTrips(t *testing.T) {
 	}
 }
 
-// A session that is not there is an answer. Callers ask before they write, and
-// an error would make the first run of every branch look like a failure.
 func TestAnUnknownSessionIsAbsenceRatherThanAnError(t *testing.T) {
 	db := open(t)
 
@@ -105,8 +93,6 @@ func TestAnUnknownSessionIsAbsenceRatherThanAnError(t *testing.T) {
 	}
 }
 
-// Resuming a session three days later is the same session, so the base moves
-// and the creation time does not.
 func TestSavingASessionTwiceKeepsItsCreatedAt(t *testing.T) {
 	db := open(t)
 	first := session(t, db, "resumed")
@@ -134,12 +120,6 @@ func TestSavingASessionTwiceKeepsItsCreatedAt(t *testing.T) {
 	}
 }
 
-// The note and the base have different writers, so a save that moves the base
-// leaves the note alone.
-//
-// Every SaveSession caller holds the summary it read when it opened. Without
-// this, an instance that opened before the note was written erases it the next
-// time the base moves, which is a whole session's conclusions gone.
 func TestSavingASessionLeavesTheSummaryAlone(t *testing.T) {
 	db := open(t)
 	first := session(t, db, "two-writers")
@@ -148,8 +128,6 @@ func TestSavingASessionLeavesTheSummaryAlone(t *testing.T) {
 		t.Fatalf("writing the summary: %v", err)
 	}
 
-	// Written from the row as it was read before the note existed, which is
-	// exactly what a second instance holds.
 	stale := first
 	stale.BaseRef = "origin/develop"
 	stale.UpdatedAt = epoch.Add(time.Hour)
@@ -169,8 +147,6 @@ func TestSavingASessionLeavesTheSummaryAlone(t *testing.T) {
 	}
 }
 
-// The note moves and the base stays where it was, which is the other half of
-// the same split.
 func TestSettingTheSummaryLeavesTheBaseAlone(t *testing.T) {
 	db := open(t)
 	first := session(t, db, "noted")
@@ -195,8 +171,6 @@ func TestSettingTheSummaryLeavesTheBaseAlone(t *testing.T) {
 	}
 }
 
-// A row that is not there is a failure. Answering with a note that was never
-// stored is the one thing worse than saying so.
 func TestSettingTheSummaryOfAnUnknownSessionFails(t *testing.T) {
 	db := open(t)
 
@@ -258,10 +232,6 @@ func TestASessionWithNoGenerationsSaysSo(t *testing.T) {
 	}
 }
 
-// A generation whose files are missing is one a remap would run through and find
-// nothing in, so the two land together or neither does. Two files at one path
-// break the primary key, which is the cheapest way to make the write fail
-// partway.
 func TestAGenerationAndItsFilesLandTogetherOrNotAtAll(t *testing.T) {
 	db := open(t)
 	s := session(t, db, "atomic")
@@ -293,8 +263,6 @@ func TestAGenerationAndItsFilesLandTogetherOrNotAtAll(t *testing.T) {
 		t.Errorf("latest = %+v, want the first generation still standing", latest)
 	}
 
-	// The rolled-back generation gave its number back, so the next one takes it
-	// rather than leaving a gap the ref chain does not have.
 	next, err := db.AddGeneration(t.Context(), store.Generation{
 		SessionID: s.ID, BaseSha: "base", HeadSha: "head", CommitSha: "three", CreatedAt: epoch,
 	}, nil, store.Advance{})
@@ -306,8 +274,6 @@ func TestAGenerationAndItsFilesLandTogetherOrNotAtAll(t *testing.T) {
 	}
 }
 
-// The foreign keys are only on because the DSN turned them on, and SQLite
-// leaves them off by default. This is the check that proves the pragma survived.
 func TestAGenerationWithoutItsSessionIsRefused(t *testing.T) {
 	db := open(t)
 
@@ -350,10 +316,6 @@ func TestGenFilesComeBackOrderedByPath(t *testing.T) {
 	}
 }
 
-// The cut arrives on the Carry rather than on the files, because it is review
-// state moved into the generation and the file list is built off the parsed
-// diff. A key naming a path the generation does not hold is ignored: that is a
-// file whose content moved and then stopped differing from the base.
 func TestACarriedCutLandsOnTheFileItNames(t *testing.T) {
 	db := open(t)
 	s := session(t, db, "cuts")
@@ -392,9 +354,6 @@ func TestACarriedCutLandsOnTheFileItNames(t *testing.T) {
 	}
 }
 
-// The clear rides in the ranges transaction, and it names the head-side path
-// while the ranges are stored under the base one. Passing nothing leaves the
-// record where it was.
 func TestAWriteSettlesOnlyTheCutItNames(t *testing.T) {
 	db := open(t)
 	s := session(t, db, "settling")
@@ -410,7 +369,6 @@ func TestAWriteSettlesOnlyTheCutItNames(t *testing.T) {
 		t.Fatalf("adding the generation: %v", err)
 	}
 
-	// A base-side write, stored under old.go and settling the row keyed new.go.
 	if err := writeSide(t.Context(), db, s.ID, g.ID, "old.go", store.SideBase, epoch, "new.go",
 		keep(store.LineRange{Start: 1, End: 3})); err != nil {
 		t.Fatalf("writing the base-side ranges: %v", err)
@@ -432,9 +390,6 @@ func TestAWriteSettlesOnlyTheCutItNames(t *testing.T) {
 	}
 }
 
-// The database is a file, and the whole point of it is that a review resumes
-// days later. A second Open has to find the schema already there and leave it
-// alone.
 func TestReopeningFindsWhatWasWritten(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "zen-review", "state.db")
 
@@ -462,13 +417,6 @@ func TestReopeningFindsWhatWasWritten(t *testing.T) {
 	}
 }
 
-// Two instances opening one repository for the first time is the only moment
-// they race: both find no schema, and both try to create it. The TUI and a
-// subcommand launching together is enough to hit it, and losing meant zen-review
-// refused to start.
-//
-// This is the test that has to run more than once. A single pass proves nothing
-// about a window a few milliseconds wide.
 func TestOpeningANewDatabaseFromEveryDirectionAtOnce(t *testing.T) {
 	for run := range 5 {
 		path := filepath.Join(t.TempDir(), "zen-review", "state.db")
@@ -494,8 +442,6 @@ func TestOpeningANewDatabaseFromEveryDirectionAtOnce(t *testing.T) {
 			if db == nil {
 				continue
 			}
-			// Every one of them has to come away with a usable database, not just
-			// an error-free Open.
 			if _, _, err := db.Session(t.Context(), "any"); err != nil {
 				t.Errorf("run %d: reading through a raced connection: %v", run, err)
 			}
@@ -506,10 +452,6 @@ func TestOpeningANewDatabaseFromEveryDirectionAtOnce(t *testing.T) {
 	}
 }
 
-// The DSN is built through net/url for exactly these two characters, and the
-// driver splits its own parameters off at the first '?' it sees. A path holding
-// one has to open the file it names rather than a truncated one, and a space has
-// to survive the escaping.
 func TestADatabaseOpensUnderAPathThatNeedsEscaping(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("a question mark is not a legal path character on windows")
@@ -526,9 +468,6 @@ func TestADatabaseOpensUnderAPathThatNeedsEscaping(t *testing.T) {
 		t.Fatalf("closing the database: %v", err)
 	}
 
-	// The file has to be where it was asked for. A DSN that lost the tail of the
-	// path would have opened a different database and still passed everything
-	// above.
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("the database is not at the path it was opened with: %v", err)
 	}
@@ -548,10 +487,6 @@ func TestADatabaseOpensUnderAPathThatNeedsEscaping(t *testing.T) {
 	}
 }
 
-// Two instances on one repository is the case _txlock=immediate exists for:
-// AddGeneration reads MAX(seq) and writes seq+1, and without the write lock held
-// from BEGIN both would read the same number. One handle cannot show this,
-// because a single pool serialises the calls before they reach SQLite.
 func TestTwoInstancesNumberGenerationsWithoutColliding(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "zen-review", "state.db")
 
@@ -602,8 +537,6 @@ func TestTwoInstancesNumberGenerationsWithoutColliding(t *testing.T) {
 	}
 }
 
-// .git not writable is a startup error, never a degraded mode where the review
-// silently is not saved, so the line has to name the path that would not open.
 func TestADatabaseThatCannotBeWrittenSaysWhere(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("the permission bits do not bite on windows")

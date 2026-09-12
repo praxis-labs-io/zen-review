@@ -10,8 +10,6 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
-// holding is one generation holding a.go, which is what a comment needs
-// something to anchor to.
 func holding(t *testing.T, db *store.DB, s store.Session, commit string) store.Generation {
 	t.Helper()
 
@@ -24,7 +22,6 @@ func holding(t *testing.T, db *store.DB, s store.Session, commit string) store.G
 	return g
 }
 
-// comment writes one open line comment on a.go.
 func comment(t *testing.T, db *store.DB, s store.Session, g store.Generation, id string, line int) store.Comment {
 	t.Helper()
 
@@ -89,8 +86,6 @@ func TestACommentRoundTrips(t *testing.T) {
 	}
 }
 
-// Callers ask before they write, and an unknown id is a message about the id
-// rather than a failure of the read.
 func TestAnUnknownCommentIsAbsenceRatherThanAnError(t *testing.T) {
 	db := open(t)
 
@@ -103,15 +98,10 @@ func TestAnUnknownCommentIsAbsenceRatherThanAnError(t *testing.T) {
 	}
 }
 
-// A refresh translates the open comments of the generation it is moving off.
-// Everything else has stopped moving, and a resolved comment carried forward
-// would be reopening a question somebody closed.
 func TestOnlyTheOpenCommentsOfOneGenerationAreCarried(t *testing.T) {
 	db := open(t)
 	s := session(t, db, "queue")
 
-	// Each comment is written while its own generation is the latest, because
-	// that is the only time a comment can be written at all.
 	first := holding(t, db, s, "one")
 	comment(t, db, s, first, "open-here", 4)
 
@@ -133,7 +123,6 @@ func TestOnlyTheOpenCommentsOfOneGenerationAreCarried(t *testing.T) {
 	}
 }
 
-// Every comment of the session, live and frozen, by file and then down the file.
 func TestCommentsComeBackInReadingOrder(t *testing.T) {
 	db := open(t)
 	s := session(t, db, "ordered")
@@ -159,8 +148,6 @@ func TestCommentsComeBackInReadingOrder(t *testing.T) {
 	}
 }
 
-// A surviving anchor moves onto the generation being written and takes the
-// file's new name with it, which is what follows a rename.
 func TestACarriedAnchorMovesOntoTheNewGeneration(t *testing.T) {
 	db := open(t)
 	s := session(t, db, "moving")
@@ -192,22 +179,14 @@ func TestACarriedAnchorMovesOntoTheNewGeneration(t *testing.T) {
 	if got.State != store.CommentOpen {
 		t.Errorf("state = %s, want it still open", got.State)
 	}
-	// The lines under a comment moving is the code changing and not the comment.
-	// Stamping it here would reset every comment in the session on every refresh,
-	// which costs the column the only thing it says.
 	if !got.UpdatedAt.Equal(epoch) {
 		t.Errorf("updatedAt = %s, want the carry to have left it at %s", got.UpdatedAt, epoch)
 	}
-	// The blob and the range that slices it are one fact. Moving the range would
-	// leave the blob sliced by lines it never had.
 	if got.CreatedRange != (store.LineRange{Start: 4, End: 4}) || got.AnchorBlob != "h1" {
 		t.Errorf("created = %s %+v, want the carry to have left both alone", got.AnchorBlob, got.CreatedRange)
 	}
 }
 
-// A lost anchor orphans the comment where it stands: it keeps the generation it
-// last made sense at, and the place it was is written down where a reader is
-// shown it.
 func TestALostAnchorOrphansTheCommentWhereItStands(t *testing.T) {
 	db := open(t)
 	s := session(t, db, "orphaning")
@@ -235,10 +214,6 @@ func TestALostAnchorOrphansTheCommentWhereItStands(t *testing.T) {
 	}
 }
 
-// A generation whose comments moved without it leaves every anchor pointing at a
-// generation that is no longer the latest, and the next refresh would find none
-// of them. A line comment stretched over a span is the cheapest way to make the
-// move fail: the schema refuses it.
 func TestAGenerationAndItsCommentMovesLandTogetherOrNotAtAll(t *testing.T) {
 	db := open(t)
 	s := session(t, db, "atomic-comments")
@@ -274,9 +249,6 @@ func TestAGenerationAndItsCommentMovesLandTogetherOrNotAtAll(t *testing.T) {
 	}
 }
 
-// The state and the location go in one write, the location read off the row
-// rather than taken from the caller. A frozen comment without one is a comment
-// that lost where it was, and there is no later pass to fill it in.
 func TestFreezingACommentRecordsWhereItWas(t *testing.T) {
 	db := open(t)
 	s := session(t, db, "freezing")
@@ -297,8 +269,6 @@ func TestFreezingACommentRecordsWhereItWas(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading the comment: %v", err)
 	}
-	// The row it answered with is the row it wrote. A caller reading the state off
-	// its own copy would be reading the one it held before the write.
 	if frozen != got {
 		t.Errorf("answered with %+v, want the row it wrote, %+v", frozen, got)
 	}
@@ -316,9 +286,6 @@ func TestFreezingACommentRecordsWhereItWas(t *testing.T) {
 	}
 }
 
-// A carry moving an open anchor leaves the state alone, so the swap still wins.
-// What it records has to be where the anchor is by then, not where the caller
-// read it a moment before.
 func TestFreezingRecordsTheAnchorTheRowHasNow(t *testing.T) {
 	db := open(t)
 	s := session(t, db, "moved-under")
@@ -333,7 +300,6 @@ func TestFreezingRecordsTheAnchorTheRowHasNow(t *testing.T) {
 		t.Fatalf("adding the generation: %v", err)
 	}
 
-	// c is the read the caller started from, and says a.go:4.
 	frozen, won, err := db.FreezeComment(t.Context(), c.ID,
 		store.CommentOpen, store.CommentResolved, nil, epoch.Add(time.Hour))
 	if err != nil || !won {
@@ -346,9 +312,6 @@ func TestFreezingRecordsTheAnchorTheRowHasNow(t *testing.T) {
 	}
 }
 
-// The state a caller read is what the write lands against. Without the swap the
-// decision and the write are two statements, and a resolve landing between them
-// would be overwritten by an address that was refused the moment it was read.
 func TestFreezingAgainstAStateThatMovedChangesNothing(t *testing.T) {
 	db := open(t)
 	s := session(t, db, "contended")
@@ -381,8 +344,6 @@ func TestFreezingAgainstAStateThatMovedChangesNothing(t *testing.T) {
 	}
 }
 
-// The vocabulary is closed and the column is what every listing filters on, so a
-// state outside it is a bug above this layer rather than a row to keep.
 func TestACommentStateOutsideTheVocabularyIsRefused(t *testing.T) {
 	db := open(t)
 	s := session(t, db, "states")
@@ -405,10 +366,6 @@ func TestACommentStateOutsideTheVocabularyIsRefused(t *testing.T) {
 	}
 }
 
-// TestCommentsAtRefusesAGenerationThatHasMoved. A caller pairing comments with a
-// changeset needs both off one generation; a refresh landing between the two
-// reads translates every open anchor, and the pair is then live line numbers
-// against a diff that has moved.
 func TestCommentsAtRefusesAGenerationThatHasMoved(t *testing.T) {
 	db := open(t)
 	s := session(t, db, "paired")
@@ -426,8 +383,6 @@ func TestCommentsAtRefusesAGenerationThatHasMoved(t *testing.T) {
 	}
 }
 
-// TestAnEditRewritesTheBodyAndNothingElse. The anchor is not a body's business,
-// and a rewrite that moved one would be a remap with no translation behind it.
 func TestAnEditRewritesTheBodyAndNothingElse(t *testing.T) {
 	db := open(t)
 	s := session(t, db, "edited")
@@ -458,8 +413,6 @@ func TestAnEditRewritesTheBodyAndNothingElse(t *testing.T) {
 	}
 }
 
-// TestADeleteHandsBackTheRowThatWent, which is what a caller prints. Nothing
-// else can say what a comment said once it has gone.
 func TestADeleteHandsBackTheRowThatWent(t *testing.T) {
 	db := open(t)
 	s := session(t, db, "deleted")
@@ -482,8 +435,6 @@ func TestADeleteHandsBackTheRowThatWent(t *testing.T) {
 	}
 }
 
-// TestAnEditOrDeleteReachesOneSessionsCommentsAlone. The database is shared by
-// every session in the repository, and one session's ids are not another's.
 func TestAnEditOrDeleteReachesOneSessionsCommentsAlone(t *testing.T) {
 	db := open(t)
 	mine := session(t, db, "mine")
@@ -520,8 +471,6 @@ func TestAnEditOrDeleteReachesOneSessionsCommentsAlone(t *testing.T) {
 	}
 }
 
-// TestARefreshCarriesPastACommentThatHasGone. A delete is what makes a move name
-// nothing, and the generation it was written against still has to land.
 func TestARefreshCarriesPastACommentThatHasGone(t *testing.T) {
 	db := open(t)
 	s := session(t, db, "raced")
@@ -542,8 +491,6 @@ func TestARefreshCarriesPastACommentThatHasGone(t *testing.T) {
 	}
 }
 
-// ptr is the response a freeze names. Nil is a transition leaving the row's own
-// answer alone, so a caller writing one has to hand over an address.
 func ptr(s string) *string { return &s }
 
 func TestAResponseLandsInTheSameWriteAsTheState(t *testing.T) {
@@ -573,6 +520,3 @@ func TestAResponseLandsInTheSameWriteAsTheState(t *testing.T) {
 		t.Errorf("the response was not stored, got %q", read.Response)
 	}
 }
-
-// A resolve names no response, so the one an address left has to survive it. The
-// alternative is reading it and writing it back, which loses an edit that landed

@@ -11,11 +11,6 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/diff"
 )
 
-// These tests are inside the package because what they check has no public
-// surface. The pragmas and the schema version are what every promise above them
-// rests on, and a test that could only reach them through the API would be
-// asserting something else.
-
 func openHere(t *testing.T) *DB {
 	t.Helper()
 
@@ -34,10 +29,6 @@ func openHere(t *testing.T) *DB {
 func TestTheConnectionCarriesItsPragmas(t *testing.T) {
 	db := openHere(t)
 
-	// WAL is what lets two instances on one repository read while one writes, and
-	// the busy timeout is what keeps the one that arrives second from failing
-	// outright. foreign_keys is off by default in SQLite, so every cascade in the
-	// schema is only real because of this line.
 	for _, tc := range []struct{ pragma, want string }{
 		{"journal_mode", "wal"},
 		{"foreign_keys", "1"},
@@ -74,12 +65,6 @@ func TestTheSchemaVersionMatchesTheLastMigration(t *testing.T) {
 	}
 }
 
-// The embedded files sort as text and apply in that order, so a number that is
-// not zero-padded to the same width silently reorders the run. 10 lands before
-// 2, the version recorded makes 2 look already applied, and it never runs. The
-// check is against the parsed list rather than the real embed.FS, because there
-// is one migration today and the failure has to be catchable before a second one
-// is written badly.
 func TestMigrationsWhoseNumbersDoNotClimbAreRefused(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
@@ -118,9 +103,6 @@ func TestMigrationsWhoseNumbersDoNotClimbAreRefused(t *testing.T) {
 	}
 }
 
-// A database a newer build migrated is refused rather than half read. The
-// worktree case is real: one checkout on a released binary, another on a build
-// from source, both against the database the common dir holds.
 func TestADatabaseFromANewerBuildIsRefused(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "zen-review", "state.db")
 
@@ -150,8 +132,6 @@ func TestADatabaseFromANewerBuildIsRefused(t *testing.T) {
 	}
 }
 
-// Running migrate twice has to be a no-op. Every command opens the database, so
-// this is the path taken far more often than the first one.
 func TestMigratingAnUpToDateDatabaseChangesNothing(t *testing.T) {
 	db := openHere(t)
 
@@ -172,8 +152,6 @@ func TestMigratingAnUpToDateDatabaseChangesNothing(t *testing.T) {
 	}
 }
 
-// The spec's five tables and no more. A sixth is a design decision, and it
-// should not be able to arrive without this line changing.
 func TestTheSchemaIsTheFiveTablesTheSpecNames(t *testing.T) {
 	db := openHere(t)
 
@@ -207,10 +185,6 @@ func TestTheSchemaIsTheFiveTablesTheSpecNames(t *testing.T) {
 	}
 }
 
-// The vocabulary is closed, so a status outside it is a bug above this layer
-// rather than a row to keep. The gitlink was the case that held this constraint
-// back, and it needs no value of its own: git records an embedded repository as
-// a mode 160000 entry that diffs as an ordinary added, modified or deleted file.
 func TestGenFileStatusIsConstrainedToTheVocabulary(t *testing.T) {
 	db := openHere(t)
 	ctx := t.Context()
@@ -237,9 +211,6 @@ func TestGenFileStatusIsConstrainedToTheVocabulary(t *testing.T) {
 	}
 }
 
-// Go cannot put anything but 0 or 1 in this column, so the CHECK is what stops a
-// hand-edited database from reaching a scan into a bool and failing there,
-// nowhere near the write that did it.
 func TestGenFileCutIsConstrainedToABoolean(t *testing.T) {
 	db := openHere(t)
 	ctx := t.Context()
@@ -267,13 +238,6 @@ func TestGenFileCutIsConstrainedToABoolean(t *testing.T) {
 	}
 }
 
-// The comments table has no Go writer yet, so the rows below are raw SQL. What
-// is under test is the schema, and a row type would only be a second way to
-// spell it.
-
-// anchored is a session with two generations, which is the least a comment
-// needs: the one it was created at, and the one a refresh has since moved it
-// onto.
 func anchored(t *testing.T, db *DB) (created, current int64) {
 	t.Helper()
 
@@ -296,8 +260,6 @@ func anchored(t *testing.T, db *DB) (created, current int64) {
 	return ids[0], ids[1]
 }
 
-// commentRow is the columns the tests below vary. Everything else is held
-// constant by writeComment.
 type commentRow struct {
 	id      string
 	gen     int64
@@ -327,14 +289,6 @@ func writeComment(t *testing.T, db *DB, c commentRow) error {
 	return err
 }
 
-// 'session' is gone: sessions.summary already holds the note about the whole
-// review, and a comment scoped to nothing in particular was the second way to
-// write it.
-//
-// The refused rows carry lines, so the CHECK on scope is the only thing that can
-// turn them away. Written without them they would fail the agreement CHECK
-// instead, and this would pass against a vocabulary that had never been
-// narrowed.
 func TestACommentIsScopedToALineARangeOrAFile(t *testing.T) {
 	db := openHere(t)
 	created, _ := anchored(t, db)
@@ -365,9 +319,6 @@ func TestACommentIsScopedToALineARangeOrAFile(t *testing.T) {
 	}
 }
 
-// A scope is a claim about what the comment is on, and the lines are how that
-// claim is kept. The two disagreeing is a comment that cannot be translated as
-// what it says it is.
 func TestACommentsScopeAndItsLinesHaveToAgree(t *testing.T) {
 	db := openHere(t)
 	created, _ := anchored(t, db)
@@ -381,8 +332,6 @@ func TestACommentsScopeAndItsLinesHaveToAgree(t *testing.T) {
 		{name: "a range over lines", scope: "range", start: 4, end: 9, ok: true},
 		{name: "a file over none", scope: "file", ok: true},
 
-		// A selection of one is still a selection, so a range keeps its scope
-		// where a line comment would have been written the same way.
 		{name: "a range over one line", scope: "range", start: 4, end: 4, ok: true},
 
 		{name: "a file carrying lines", scope: "file", start: 4, end: 9},
@@ -406,9 +355,6 @@ func TestACommentsScopeAndItsLinesHaveToAgree(t *testing.T) {
 	}
 }
 
-// generation_id moves forward on every refresh that translates the anchor.
-// created_generation_id is the column that can still say where the comment
-// started, which is the tree anchor_blob resolves against.
 func TestACommentRemembersTheGenerationItWasWrittenAt(t *testing.T) {
 	db := openHere(t)
 	ctx := t.Context()
@@ -437,8 +383,6 @@ func TestACommentRemembersTheGenerationItWasWrittenAt(t *testing.T) {
 		t.Errorf("created_generation_id = %d, want the one it was written at, %d", from, created)
 	}
 
-	// Both columns are real references, so a comment cannot claim a generation
-	// that is not there.
 	if err := writeComment(t, db, commentRow{
 		id: "gone", gen: current, created: current + 1000, scope: "file",
 	}); err == nil {
@@ -446,8 +390,6 @@ func TestACommentRemembersTheGenerationItWasWrittenAt(t *testing.T) {
 	}
 }
 
-// Dropping a table drops its indexes. A rebuild that forgets to make them again
-// costs nothing that fails, only every listing walking the table.
 func TestTheCommentsIndexesSurviveTheRebuild(t *testing.T) {
 	db := openHere(t)
 
