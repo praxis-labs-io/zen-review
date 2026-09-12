@@ -8,6 +8,7 @@
 package testchangeset
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/praxis-labs-io/zen-review/internal/diff"
@@ -98,6 +99,19 @@ func NestedComments() []store.Comment {
 		In(Comment("ffffffffffff", "README.md", 3, 3, "The old line said it better."),
 			store.CommentResolved),
 	}
+}
+
+// Body is a file's whole text for a preview, as lines that name their own
+// number, so a row proves the number in its gutter against the text beside it.
+//
+// It is not the fixture patch's own content. A gap row and a hunk row then read
+// differently, which is what a test asserting the boundary between them needs.
+func Body(lines int) review.Body {
+	out := make([]string, lines)
+	for i := range out {
+		out[i] = fmt.Sprintf("line %d of the file", i+1)
+	}
+	return review.Body{Side: store.SideHead, Lines: out}
 }
 
 // Nested is the fixture the tree and the panes are drawn from. It holds every

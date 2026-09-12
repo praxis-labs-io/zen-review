@@ -58,6 +58,14 @@ func (m Model) marking(i intent) (func(Source) (Reload, error), bool) {
 		return func(s Source) (Reload, error) { return s.MarkFile(g, *f) }, true
 	}
 
+	// A line outside every hunk is a row only the whole file drawn around them has.
+	// The ring stop still names the hunk the reader arrived on, and this key takes
+	// the hunk the cursor is in, so reading the stop there would mark work nobody
+	// read. The tree has no row to ask about and keeps the stop.
+	if m.focus == focusDiff && m.diff.OffHunk() {
+		return nil, false
+	}
+
 	h, ok := m.hunkAt(*f)
 	if !ok {
 		return nil, false

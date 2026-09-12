@@ -45,6 +45,16 @@ type source struct {
 	wroteErr   error
 	candidates review.BaseCandidates
 	baseReads  int
+
+	// bodies is the text the preview key reads, by path, and bodyErr is what the
+	// read fails with. A path with no entry comes back empty, which is the file
+	// the repository could not read.
+	bodies  map[string]review.Body
+	bodyErr error
+
+	// read is the paths the preview key asked for, in order, so a test can assert
+	// the pane asks once per file and not once per press.
+	read []string
 }
 
 func (s *source) Reload() (app.Reload, error) {
@@ -121,6 +131,16 @@ func (s *source) SetSummary(text string) (string, error) {
 	return text, nil
 }
 
+// Body answers with the text the test pointed it at. It records nothing in wrote:
+// it writes nothing, and read is where a test looks for it.
+func (s *source) Body(_ review.Generation, path string) (review.Body, error) {
+	if s.bodyErr != nil {
+		return review.Body{}, s.bodyErr
+	}
+	s.read = append(s.read, path)
+	return s.bodies[path], nil
+}
+
 // write records the call and answers with whatever the test pointed it at. A
 // write that failed records nothing: the transaction did not happen.
 func (s *source) write(call string) (app.Reload, error) {
@@ -176,6 +196,16 @@ func over(t *testing.T, c review.Changeset, width, height int) *screen {
 func commented(t *testing.T, width, height int, comments ...store.Comment) *screen {
 	t.Helper()
 	return with(t, "zen-review", testchangeset.Nested(t), comments, "", width, height)
+}
+
+// previewing opens the reader with the whole of one file available to read, which
+// is what the preview key asks the source for.
+func previewing(t *testing.T, path string, lines, width, height int) *screen {
+	t.Helper()
+
+	s := open(t, width, height)
+	s.src.bodies = map[string]review.Body{path: testchangeset.Body(lines)}
+	return s
 }
 
 // replacing opens the reader over the fixture with the code one answered comment
@@ -274,6 +304,16 @@ func (s *screen) drain(cmd tea.Cmd) {
 	for cmd != nil {
 		out := cmd()
 		if out == nil {
+			return
+		}
+
+		// A batch is a message the runtime unpacks rather than one a model reads,
+		// so a harness that handed it straight to Update would drop every command
+		// in it. The order is the runtime's to choose and nothing here depends on it.
+		if batch, ok := out.(tea.BatchMsg); ok {
+			for _, next := range batch {
+				s.drain(next)
+			}
 			return
 		}
 		s.m, cmd = s.m.Update(out)

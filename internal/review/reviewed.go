@@ -143,7 +143,7 @@ func removing(rs []Range) func([]store.LineRange) []store.LineRange {
 // always lands where Derive looks for it.
 func fileAnchors(f File) []Anchor {
 	if len(f.Hunks) == 0 {
-		return []Anchor{{Side: wholeSide(f.Diff)}}
+		return []Anchor{{Side: wholeSide(f.Diff.Status)}}
 	}
 
 	var out []Anchor

@@ -1205,6 +1205,54 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 	}
 }
 
+// TestACardSaysWasOnlyOfNumbersTheCodeHasLeft. A card with no row to hang under
+// is not the same as one whose code has gone: a comment written outside a hunk
+// has no row the moment the whole file comes back out, and its line is still
+// there. The two read apart or the reader is told live code has vanished.
+func TestACardSaysWasOnlyOfNumbersTheCodeHasLeft(t *testing.T) {
+	tests := []struct {
+		name string
+		c    store.Comment
+		was  bool
+	}{
+		{
+			name: "live, outside every hunk",
+			c:    testchangeset.Comment("aaaaaaaaaaaa", twoHunks, 60, 60, "about line 60"),
+		},
+		{
+			name: "orphaned",
+			c: testchangeset.In(
+				testchangeset.Comment("bbbbbbbbbbbb", twoHunks, 60, 60, "about line 60"),
+				store.CommentOrphaned),
+			was: true,
+		},
+		{
+			name: "frozen at an older generation",
+			c:    frozenAt(1, testchangeset.Comment("cccccccccccc", twoHunks, 60, 60, "about line 60")),
+			was:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := joined(t, commented(t, twoHunks, 76, 30, tt.c))
+			if !strings.Contains(got, "line 60") {
+				t.Fatalf("the card does not name the line it is about:\n%s", got)
+			}
+			if said := strings.Contains(got, "was line 60"); said != tt.was {
+				t.Errorf("it says `was line 60`: %v, want %v:\n%s", said, tt.was, got)
+			}
+		})
+	}
+}
+
+// frozenAt stops a comment at a generation other than the one on screen, which
+// is what leaves its numbers naming whatever is there now.
+func frozenAt(gen int64, c store.Comment) store.Comment {
+	c.GenerationID = gen
+	return c
+}
+
 // TestEveryBadgeIsOneCell. A two-cell glyph puts every row after it out of step
 // where a font missing a one-cell one only draws a box, so this is measured
 // rather than assumed.

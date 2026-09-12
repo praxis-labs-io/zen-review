@@ -328,10 +328,40 @@ follows is what the code has to keep true.
   shifts as the cursor passes. The fill is shared with a selection and the bar is
   not, which is what says where the next key moves from inside one.
 - A comment card is one stop for the cursor, not one per row.
+- `was` on a card's label is for numbers naming no code the pane could draw: an
+  orphan, and one frozen at another generation. An unplaced card is not that on
+  its own — a comment written outside a hunk loses its row the moment the whole
+  file comes back out and its line is still there — so the word keys off the
+  anchor and not off whether the layout found a row.
 - One cursor in side-by-side, never one per column. Two could point at unrelated
   lines and a side-switch would throw the window.
 - The mode `|` sets lasts the run and nothing stores it. A default belongs with
-  the reader's other preferences, not in the session the review is kept in.
+  the reader's other preferences, not in the session the review is kept in. `p`
+  stores nothing either but lasts only the file: side-by-side is a taste in diffs
+  and `p` is asked on one hunk, and left on it would put a few hundred unchanged
+  rows between the hunks of every file after it. `preview` names that file rather
+  than standing for the pane, and arriving at another clears it. The two modes
+  compose: a filled-in line is a context line and takes both columns.
+- `p` is the one rendering key that reads the repository, so it is the only one
+  with an asked-for state and an in-effect state separated by a git call rather
+  than by a width. `Session.Body` hands the bytes up and the pane caches them per
+  path for the generation; a reload blanks the pane naming no generation at all,
+  so the cache is keyed to its own field rather than to the one that blanking
+  zeroes.
+- The lines `p` fills in are synthetic `diff.Context` lines run through the row
+  builder the hunks already use, which is what keeps selection, the split pairing
+  and the painter from needing a second path. They belong to no hunk, so nothing
+  pins a heading over them and `r` finds nothing to mark.
+- A hunk keeps the blank row above and below it that separates two hunks in the
+  diff. Drawn against the file's own lines the heading says where a change starts
+  and nothing says where it stops, and a reader who cannot see the boundary reads
+  `r` refusing on the line past it as a fault rather than as the rule.
+- `r` refuses on a line in no hunk and not on a card in none. The ring is what
+  puts a reader on a card outside every hunk, so the mark there falls back to the
+  stop it came from; nothing but their own movement puts them on a line.
+- A mode change that moves a row by a hundred lines opens the window on the hunk
+  rather than revealing the row. The shortest scroll is the wrong one over that
+  distance: it lands the hunk on the bottom row with its own lines off the window.
 - The composer takes every key while it is up, `ctrl+c` excepted: raw mode sends
   no interrupt and a box that ate it would be the one place in the program with
   no way out but `esc`. A paste arrives as its own message rather than as keys,

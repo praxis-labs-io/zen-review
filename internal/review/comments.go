@@ -79,7 +79,7 @@ func NoteOnLines(path string, side store.Side, r Range, body string) Note {
 // takes: a head-side anchor on one would name bytes that are not there, and it
 // would survive every rewrite of the bytes it actually removed.
 func NoteOnFile(f File, body string) Note {
-	return Note{Path: f.Diff.Path, Side: wholeSide(f.Diff), Scope: store.ScopeFile, Body: body}
+	return Note{Path: f.Diff.Path, Side: wholeSide(f.Diff.Status), Scope: store.ScopeFile, Body: body}
 }
 
 // AddComment writes a comment against a generation and returns the row.

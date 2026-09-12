@@ -79,6 +79,50 @@ row and the last, and the cursor goes on alone to the end of the file. Vim
 carries the cursor instead, which reads fine in an editor you are typing in and
 badly in a pane you are only reading.
 
+## The whole file
+
+Three lines of context are not always enough to judge a hunk. `p` fills in the
+rest of the file around them, at the generation the changeset is measured in,
+with the changed lines still marked and everything else drawn as the context it
+is. Pressed again it takes the file back out.
+
+It is the one rendering key that reads the repository, so the first press on a
+file waits on git and every press after it is the keystroke it looks like. The
+bytes are the generation's and not the working tree's: a file an agent has
+rewritten under you still draws as the file the hunks were measured against.
+
+Each hunk keeps a blank row above and below it. With the lines around a change
+all drawn, the heading says where it starts and nothing else says where it stops,
+so the last line of a hunk and the line after it would read alike. It is the same
+row that separates two hunks when the file is out.
+
+The window opens on the hunk you were in rather than on the line you were on. A
+hundred lines arrive above that line, and the shortest scroll onto the screen
+would leave the hunk on the bottom row with its own lines off the window.
+
+The lines it fills in belong to no hunk, so `r` finds nothing to mark on one: the
+unit of review is still the hunk, and a key that marked the one two hundred lines
+up would mark work nobody read. `c` and `v` do reach them, which is the other
+half of the point. The code you needed the context to judge is code you can now
+ask about.
+
+A file with nothing to fill in refuses the key and the bar says so: a binary one,
+and one whose bytes the repository cannot produce.
+
+It lasts the file and not the run, which is where it parts from `|`. Side by side
+is a taste in diffs and true of every file; `p` is asked on the one hunk you
+cannot judge on three lines. Left on it would put a few hundred unchanged rows
+between the hunks of every file after it, and the burn-down is what you came for.
+So the next file comes up as its hunks, and coming back to this one does too: the
+mode went when you left rather than waiting here for you. The text stays in hand,
+so turning it on again is the keystroke and not the wait.
+
+Nothing stores it either way. A default belongs with your other preferences, not
+in the session the review is kept in.
+
+The two modes are orthogonal. A filled-in line is a context line, so it takes
+both columns of a split pane the way every other one does.
+
 ## Side by side
 
 `|` puts the two sides in two columns. A run of removals pairs against the run of
@@ -164,8 +208,15 @@ pick, so it keeps the rule.
 
 The label says only what the card's own position cannot. A card under its line
 needs no line number, because the gutter beside it has one. A range says the run
-it covers, a file comment says so, and a comment the diff has no line for says
-where it used to point and goes to the foot of the file.
+it covers, a file comment says so, and a comment the diff has no line for names
+its line and goes to the foot of the file.
+
+`was` goes in front of that number only where the number names no code you could
+be shown: an orphan, whose code is gone, and one frozen at an older generation,
+whose numbers name whatever is there now. A comment written against a line
+outside the hunks has no row the moment you take the whole file back out, and its
+line is still sitting in the file — telling you it *was* anywhere would be
+telling you it had gone. Press `p` to put it back under its line.
 
 ## The card
 
