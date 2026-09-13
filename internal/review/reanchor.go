@@ -8,8 +8,7 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
-// Reanchor moves n, written against from, onto to the way a refresh moves a comment: clamped to
-// the lines that survived. False when none did, or when to no longer holds the file on n's side.
+// Reanchor carries n from one generation onto a later one, as a refresh carries a comment. False when its lines are gone.
 func (s *Session) Reanchor(ctx context.Context, n Note, from, to Generation) (Note, bool, error) {
 	if from.ID == to.ID {
 		return n, true, nil
