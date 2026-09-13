@@ -15,6 +15,14 @@ Bare `zen-review` opens one changeset: `merge-base(base, HEAD)` through the
 working tree, untracked files included. There is no `--staged` and no
 `--working-tree`; both would be a second answer to "what am I looking at".
 
+`docs/` holds everything a user reads: [the guide](docs/guide.md), [the CLI
+reference](docs/cli.md), [the keymap](docs/keys.md), [driving it from an
+agent](docs/agents.md) and [install](docs/install.md). `docs/CONTRIBUTING.md`
+holds the checks, the layout, the boundaries and the test conventions, and maps
+each changed surface to the document describing it. Read those rather than
+restating them here. Every doc describes what is true today, and a change that
+makes one wrong fixes it.
+
 **`main` is the product branch.** Feature work flows ticket → branch → PR on `origin`.
 
 Two things skip the PR and commit straight to `main`:
@@ -38,26 +46,7 @@ That file holds only the Go and Bubble Tea specifics. The principles and voice r
 
 ## Commands
 
-```sh
-make all              # lint (gofmt + mod-tidy + golangci-lint) + test + build
-make test             # go test -race -coverprofile ./...
-make lint             # includes gofmt check and go.mod tidiness
-make fmt-fix          # gofmt -w .
-make golden           # regenerate every golden file: diff, cli, tui/app, tui/paint
-make install          # build to ~/.local/bin/zen-review
-go run ./cmd/paintdemo  # look at the painter
-go test ./internal/review/ -run TestName   # single test
-```
-
-Run checks directly, never through a pipe that swallows exit codes. `make lint | tail` reports success on failure.
-
-### Lint version pin
-
-CI pins golangci-lint to match the local brew version (`.github/workflows/ci.yml`). Keep the pin current with the local version, or CI and local runs stop agreeing.
-
-### Git hooks
-
-`.githooks/pre-push` is tracked and rejects pushes to `main`. `git config core.hooksPath .githooks` wires it up; the SessionStart hook does this on every session so a fresh clone is covered. Untracked `.git/hooks/` files don't survive a clone, which is why the hook lives here instead.
+The checks, the lint version pin and the hook setup are in `docs/CONTRIBUTING.md`. `make all` is the gate. The SessionStart hook wires up `.githooks` on every session, so a fresh clone is covered.
 
 ## The visual layer
 
@@ -67,27 +56,15 @@ Folding, scroll, side-by-side layout, hunk grouping, the two-sided tokenise spli
 and review state belong to `tui/diffpane`, and pushing any of them down makes a
 second renderer.
 
-`go run ./cmd/paintdemo` is how a rendering change is judged. It paints a canned
-diff at a width where a row overflows, with a hunk header, all three line kinds,
-a tab-indented line, a clipped row and a `Fill` row, through the real
-derivation, so a light terminal and a dark one show different screens. A golden
-file only holds it still.
-
 ### The theme
 
 There is one theme and it is derived rather than written down. What the code has
 to keep true:
 
-- The hues are ANSI slots, so they follow the reader's palette only while they
-  reach the terminal as slots. A test type-asserts them.
 - **A slot may be painted and never blended**, for the reason under Styling in
   the rules. Slots 1 and 2 are queried by name because the diff tints are
   blends, and the tints are the product here. The two OSC 4 requests ride in the
   query that already runs.
-- The greys are blends off the reported background, travelling toward the
-  reported foreground. They only have to stay legible, which a slot cannot
-  promise and a blend off a known background can, and one ratio serves a light
-  terminal and a dark one.
 - **A filled row is placed at a luma distance, not at a ratio.** The ratio that
   clears one palette's green leaves another's flat. `lift` solves for the
   distance between a floor and a ceiling: a pale green reaches it in a few
@@ -95,8 +72,6 @@ to keep true:
   reaches it and keeps its lean.
 - A selection is a lift, not a colour, so it stays neutral on a palette with a
   warm or violet foreground.
-- The foreground is usable only if it is on the far side of the luma midpoint
-  from the background **and** far enough from it. Those are two tests.
 - `Text` is `lipgloss.NoColor{}`, which writes no sequence and tracks a terminal
   recoloured mid-session. Its `RGBA()` is black, so anything spelling a colour
   out for a third party special-cases it.
@@ -112,8 +87,6 @@ to keep true:
 - The query runs in `app.Run` before Bubble Tea takes the tty, and drains to the
   device attributes or the terminal echoes them when raw mode ends. The reader is
   cancellable, or a timeout leaves a goroutine on the tty eating the first key.
-- Chroma has no ANSI style and packs colours as RGB, so code cannot follow the
-  palette. `github-dark` and `github` are paired against the background instead.
 
 ## Charm module paths
 
@@ -159,37 +132,15 @@ Feature-complete work ships via the global `ship-feature` skill: `make all` gree
 
 **There is no copy of it in this repo.**
 
-### Specs
+### Specs and plans
 
-`docs/specs/` holds the design docs that shaped a milestone. `docs/` otherwise describes only what is true today. Durable context lives in Linear project descriptions and tickets. Specs are deleted as a part of branch cleanup.
+Scratch, never committed. What shipped is in git and what comes next is in Linear, so neither `docs/` nor this file tracks either.
 
 ## Architecture
 
-`cmd/zen-review` is the entrypoint (fang over cobra). `cmd/paintdemo` paints a
-canned diff and exits. Everything else lives in `internal/`.
+`cmd/zen-review` is the entrypoint (fang over cobra). Everything else lives in `internal/`. The layout is in `docs/CONTRIBUTING.md` and the boundaries are in the conventions file above, and breaking one is a review-stopper. The short version: the CLI has to be able to answer any question the TUI can.
 
-```
-internal/
-  git/         plumbing only. Returns bytes and structs, never opinions.
-  diff/        unified diff text -> files, hunks, lines. Knows nothing of review.
-  review/      the engine. Sessions, generations, review state, comments, remapping.
-  store/       SQLite and migrations. Nothing above it imports database/sql.
-  cli/         the review subcommands. A thin shell over review/.
-  tui/         app, tree, diffpane, compose, comp.
-  tui/theme/   the palette. Every style reads from one.
-  tui/syntax/  Chroma tokens, not rendered text.
-  tui/paint/   the diff-line painter. Pure functions.
-  testrepo/    real git repos for tests. Test-only, imports nothing of ours.
-  testchangeset/  changesets for the render tests. Test-only, no git, no database.
-  tui/testtheme/  the surface the render tests derive from. Test-only.
-  golden/      the golden-file compare. Test-only, and owns the -update flag.
-  plugin/      drives the shipped hook script. Test-only, no Go under test.
-  version/     the version stamped in at build time.
-```
-
-The boundaries are in `.claude/rules/code-quality.md` and breaking one is a review-stopper. The short version: the CLI has to be able to answer any question the TUI can.
-
-User-facing behaviour lives in `docs/`: [the guide](docs/guide.md) for the base, sessions, generations and comments, and [the CLI reference](docs/cli.md) for every command and flag. What follows here is what the code has to keep true, not what a reader sees. Change one and the other says the wrong thing.
+What follows is what the code has to keep true and a contributor can break without noticing.
 
 `Session.Files` and `Derive` both return files in the order a file tree reads,
 directories above the files beside them and by byte within each group, so the
@@ -198,23 +149,15 @@ printed table and the tree pane agree about what is first. Nothing above
 
 ### The base
 
-- Detection always reaches the bottom of the ladder. The only startup that fails
-  is a directory that is not a repository.
 - The rung above bounds the candidate walk. On a trunk not called `main` or
   `master` it walks the whole first-parent chain, and on a default branch it does
   not run at all, because a tip left on that branch's own history would hide
   every commit since.
-- `Candidates` is every local branch, not a first-parent walk, which hid a base
-  that had been merged in. The only remote rows are the session's base and
-  `origin/HEAD`, and nothing with nothing behind HEAD is offered.
 - A fallback writes no ref and never clears the stored one, or one mistyped
   `--base` would cost the session every range measured from its base. The tag on
   `Base.Fallback` stands until the ref resolves.
 - `SetBase` is the one call. `--base` and the `b` box both go through it, so a
   tag, a sha and `HEAD~5` behave the way a flag does.
-- The tag is a standing fact, not a notice, so it takes no status bar and no key
-  clears it. The reason sits right of the ref, so a narrow pane clips the reason
-  and keeps the ref.
 
 ### Sessions and generations
 
@@ -239,10 +182,6 @@ printed table and the tree pane agree about what is first. Nothing above
 - The response is on `comments.response` and lands in the same swap as the
   state. Every other transition passes no response rather than reading and
   rewriting it, and a refresh carries neither.
-- `--body` is the words of the thing the command names, so an invocation reused
-  against the wrong verb is refused rather than written to the wrong half.
-  `edit` does not reach the response, because the tool has no identity to
-  enforce one voice with.
 - A frozen comment's row stays at the generation it stopped at and records where
   the anchor was. Only an unfrozen comment orphans, and an orphan still takes
   `address`, since the anchor usually went because the comment was acted on.
@@ -268,9 +207,8 @@ parent checkout share one database and nothing lands in the working tree.
 review was ever opened here, because resolving a session creates it. Moving one
 moves the other.
 
-`modernc.org/sqlite`, pure Go, so no C toolchain in the path of a cross-compile
-or CI. WAL with a busy timeout so two instances on one repo do not deadlock.
-`.git` not writable is a startup error, never a mode where the review silently
+WAL with a busy timeout so two instances on one repo do not deadlock. `.git` not
+writable is a startup error, never a mode where the review silently
 is not saved.
 
 ## Keys
@@ -282,9 +220,6 @@ to keep true:
 - The heading pin follows the window, not the cursor, because a heading names the
   lines under it. The pin owns the top line, so a key that would put the cursor
   there opens the window one higher.
-- The cursor bar sits in a leading cell every row holds open, so nothing shifts
-  as it passes. A selection shares the fill but not the bar, which marks where
-  the next key moves from.
 - A comment card is one stop for the cursor, not one per row. One taller than the
   window scrolls under the cursor before the cursor leaves it, and `reveal` keeps
   its end on screen rather than its first row, or `k` onto it from below skips
@@ -297,13 +232,6 @@ to keep true:
   orphan or a comment frozen at another generation. It keys off the anchor, not
   off whether the layout found a row, because a comment written outside a hunk
   has no row while its line is still there.
-- One cursor in side-by-side, never one per column, or a side-switch could throw
-  the window.
-- The mode `|` sets lasts the run and nothing stores it. `p` stores nothing and
-  lasts only the file, because left on it would put hundreds of unchanged rows
-  between the hunks of every file after it. `preview` names that file, and
-  arriving at another clears it. The two compose: a filled-in line is a context
-  line and takes both columns.
 - `p` is the one rendering key that reads the repository. `Session.Body` hands
   the bytes up and the pane caches them per path for the generation, keyed to its
   own field because a reload blanks the pane's generation.
@@ -311,13 +239,6 @@ to keep true:
   builder the hunks use, so selection, the split pairing and the painter need no
   second path. They belong to no hunk, so no heading pins over them and `r` finds
   nothing to mark.
-- A hunk keeps the blank row above and below it. Without the one below, nothing
-  says where a change stops, and `r` refusing on the line past it reads as a
-  fault.
-- `r` refuses on a line in no hunk but not on a card in none. The ring puts a
-  reader on such a card, so the mark falls back to the stop it came from.
-- A mode change that moves a row by a hundred lines opens the window on the hunk
-  rather than revealing the row, or the hunk lands on the bottom row.
 - The composer takes every key while it is up, `ctrl+c` excepted, because raw
   mode sends no interrupt. A paste arrives as its own message, so the root routes
   what is not a key press into it too.
@@ -326,15 +247,6 @@ to keep true:
 - The box comes down when the write lands, not when the key is pressed. A write
   that committed and could not be read back closes it anyway, because saving
   again writes a second comment, which is why the Source names that failure.
-- The status bar clears on the next press inside a box as it does outside one.
-- `>` is named in the card's own footer and never in the help overlay, which has
-  no row to give at 16 rows. `x`, `e` and `D` are named in both. `esc` is named on
-  the status bar while a selection is up.
-- `ResolveComment` refuses a comment already resolved, so a settled card neither
-  offers `x` nor takes it.
-- Neither the response box nor its rail lights. The elbow is always `╰─`, there
-  being one response, and a pane with no room for a second border drops the box
-  rather than shrinking both.
 - The replaced block is the translation the remap runs, not the two sides read at
   the same numbers. The comment's blob is diffed against the file's blob now, the
   creation range goes through `Translate`, and a range that comes back whole took
@@ -344,16 +256,12 @@ to keep true:
 
 Six divergences from zen-octo, all deliberate:
 
-- `space` folds, replacing `o`. zen-octo adopts this too.
+- `space` folds, replacing `o`.
 - `tab` / `shift+tab` are the tab strip in zen-octo and next / previous file here. Same reason as `]` and `[`: zen-review will never have tabs.
 - `ctrl+u` / `ctrl+d` page the diff from either pane. zen-octo pages whichever pane has focus, its rail included. Walking the tree here is how a reader gets to a file, and reading it is what they came for.
 - `]` / `[` are tabs in zen-octo and comments here. zen-octo has tabs and zen-review never will.
 - `r` is reply in zen-octo and mark-reviewed here, and `u` / `U` take a mark back. Neither tool has the other's concept.
 - `v` is jump-to-diff in zen-octo, scoped to the conversation, and range selection here. They do not collide.
-
-The diff pane opens focused on the first unreviewed hunk. zen-octo's
-conversation opens unfocused because the reader came to read; you came here to
-burn a review down.
 
 ## Exit codes
 

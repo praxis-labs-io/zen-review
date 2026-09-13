@@ -26,9 +26,10 @@ every change or you keep testing the old binary.
 | `make test` | `go test -race -coverprofile ./...` |
 | `make lint` | gofmt, go.mod tidiness, golangci-lint |
 | `make fmt-fix` | `gofmt -w .` |
-| `make golden` | Regenerate every golden file |
+| `make golden` | Regenerate every golden file: diff, cli, tui/app, tui/paint |
 | `make coverage` | Coverage report from the last test run |
 | `go run ./cmd/paintdemo` | Paint a canned diff and exit |
+| `go test ./internal/review/ -run TestName` | A single test |
 
 Run them directly, never through a pipe that swallows the exit code.
 `make lint | tail` reports success on failure.
@@ -57,7 +58,16 @@ internal/
   tui/theme/      the palette, derived from the terminal
   tui/syntax/     Chroma tokens, not rendered text
   tui/paint/      the diff-line painter. Pure functions
+  version/        the version stamped in at build time
+
+  testrepo/       real git repos for tests. Imports nothing of ours
+  testchangeset/  changesets for the render tests. No git, no database
+  tui/testtheme/  the surface the render tests derive from
+  golden/         the golden-file compare. Owns the -update flag
+  plugin/         drives the shipped hook script. No Go under test
 ```
+
+Everything after `version/` is test-only.
 
 ## Boundaries
 
@@ -154,5 +164,5 @@ Releases are cut with the `release` skill, which curates
 to be on `main` before the tag is cut: the workflow reads it out of the tagged
 commit.
 
-Agent-facing conventions, the project's own history and the reasoning behind the
-design live in [`CLAUDE.md`](../CLAUDE.md).
+Agent-facing conventions, the invariants a change can break without a failing
+test, and the rendering traps live in [`CLAUDE.md`](../CLAUDE.md).
