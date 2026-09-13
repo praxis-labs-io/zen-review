@@ -577,6 +577,10 @@ func TestANoteThatDisagreesWithItselfIsRefused(t *testing.T) {
 			note: review.Note{Side: store.SideHead, Scope: store.ScopeRange, Body: "which lines"},
 		},
 		{
+			name: "a hunk comment carrying none",
+			note: review.Note{Side: store.SideHead, Scope: store.ScopeHunk, Body: "which hunk"},
+		},
+		{
 			name: "a range ending before it starts",
 			note: review.Note{
 				Side: store.SideHead, Scope: store.ScopeRange,
@@ -608,6 +612,14 @@ func TestCommentingOnAHunkAnchorsToWhatItIsNamedBy(t *testing.T) {
 	f.note(s, g, review.NoteOnHunk("code.txt", h, "the whole of this is unnecessary"))
 
 	assertComments(t, f.storedComments(s), []string{"code.txt head 1:20 open"})
+
+	cs, err := f.db().Comments(t.Context(), s.ID())
+	if err != nil {
+		t.Fatalf("reading the comments: %v", err)
+	}
+	if got := cs[0].Scope; got != store.ScopeHunk {
+		t.Errorf("scope = %q, want hunk: the reader named the hunk, not its lines", got)
+	}
 }
 
 func TestCommentsComeBackInTheOrderTheChangesetDoes(t *testing.T) {

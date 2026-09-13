@@ -289,6 +289,10 @@ to keep true:
   window scrolls under the cursor before the cursor leaves it, and `reveal` keeps
   its end on screen rather than its first row, or `k` onto it from below skips
   the middle.
+- A hunk comment is its own scope, not a range that happens to match a hunk,
+  because a match flips the moment the hunk grows. Its card draws under the
+  heading of the hunk holding its first line. Rows written as `range` before the
+  scope existed stay `range`.
 - `was` on a card's label is for numbers naming no code the pane could draw, an
   orphan or a comment frozen at another generation. It keys off the anchor, not
   off whether the layout found a row, because a comment written outside a hunk

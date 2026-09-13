@@ -208,8 +208,8 @@ pick, so it keeps the rule.
 
 The label says only what the card's own position cannot. A card under its line
 needs no line number, because the gutter beside it has one. A range says the run
-it covers, a file comment says so, and a comment the diff has no line for names
-its line and goes to the foot of the file.
+it covers, a hunk comment and a file comment say so, and a comment the diff has no
+line for names its line and goes to the foot of the file.
 
 `was` goes in front of that number only where the number names no code you could
 be shown: an orphan, whose code is gone, and one frozen at an older generation,
@@ -221,7 +221,9 @@ telling you it had gone. Press `p` to put it back under its line.
 ## The card
 
 A comment draws as a bordered card indented to the code column, hanging under the
-last line it is about. It is one stop for the cursor rather than one per row: `j`
+last line it is about. A hunk comment hangs under the hunk's heading instead, and
+stays there while the hunk grows or shrinks as long as the hunk still holds its
+first line. It is one stop for the cursor rather than one per row: `j`
 steps onto it and the next `j` clears the whole thing.
 
 A card taller than the window is still one stop, but the window scrolls through

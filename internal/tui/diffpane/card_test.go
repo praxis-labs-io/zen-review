@@ -180,3 +180,59 @@ func TestAPageThatLandsInACardStopsOnIt(t *testing.T) {
 	}
 	t.Errorf("ctrl+d paged past the card without stopping on it:\n%s", joined(t, m))
 }
+
+func hunkCard(start, end int) store.Comment {
+	return testchangeset.OnHunk(testchangeset.Comment("hhhhhhhhhhhh", twoHunks, start, end, "This hunk does two things."))
+}
+
+func TestAHunkCommentDrawsUnderItsHeading(t *testing.T) {
+	cases := []struct {
+		name       string
+		start, end int
+		heading    string
+	}{
+		{"on the whole hunk", 120, 126, "@@ -120,5 +120,7"},
+		{"on lines that no longer match the hunk", 12, 40, "@@ -10,5 +10,5"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := commented(t, twoHunks, 76, 40, hunkCard(tc.start, tc.end))
+
+			if got := under(t, m, tc.heading); !strings.Contains(got, "◇ open · hunk") {
+				t.Errorf("the row under %s is %q, want the hunk's card:\n%s", tc.heading, got, joined(t, m))
+			}
+		})
+	}
+}
+
+func TestAHunkCommentWhoseFirstLineLeftEveryHunkGoesToTheFoot(t *testing.T) {
+	m := commented(t, twoHunks, 76, 40, hunkCard(900, 905))
+	got := rows(t, m)
+
+	last := ""
+	for _, row := range got {
+		if strings.TrimSpace(row) != "" {
+			last = row
+		}
+	}
+	if !strings.Contains(joined(t, m), "lines 900-905") {
+		t.Fatalf("the card does not name its lines:\n%s", joined(t, m))
+	}
+	if strings.Contains(under(t, m, "@@ -120,5 +120,7"), "◇") || strings.Contains(under(t, m, "@@ -10,5 +10,5"), "◇") {
+		t.Errorf("a card on no hunk drew under a heading:\n%s", joined(t, m))
+	}
+	if !strings.Contains(last, "╰") {
+		t.Errorf("the pane does not end on the card, it ends on %q:\n%s", last, joined(t, m))
+	}
+}
+
+func TestEnterFromAHunkCardGoesToItsHeading(t *testing.T) {
+	m := commented(t, twoHunks, 76, 40, hunkCard(120, 126))
+	m.SelectComment("hhhhhhhhhhhh")
+	m = press(t, m, enter)
+
+	if got := filled(t, m); !strings.Contains(got, "@@ -120,5 +120,7") {
+		t.Errorf("enter left the cursor on %q, want the hunk's heading", got)
+	}
+}

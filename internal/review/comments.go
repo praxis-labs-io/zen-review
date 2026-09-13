@@ -41,10 +41,10 @@ type Note struct {
 	Body  string
 }
 
-// NoteOnHunk anchors to the side and lines h is named by, as a range even when it holds one line.
+// NoteOnHunk anchors to the side and lines h is named by, scoped to the hunk even when it holds one line.
 func NoteOnHunk(path string, h Hunk, body string) Note {
 	a := h.Anchors[0]
-	return Note{Path: path, Side: a.Side, Scope: store.ScopeRange, Range: a.Range, Body: body}
+	return Note{Path: path, Side: a.Side, Scope: store.ScopeHunk, Range: a.Range, Body: body}
 }
 
 // NoteOnLines is a line comment when r is one line and a range comment otherwise.
@@ -251,13 +251,13 @@ func (n Note) check() error {
 		if n.Range.Start < 1 || n.Range.Start != n.Range.End {
 			return fmt.Errorf("a line comment is on one line, and %d:%d is not one", n.Range.Start, n.Range.End)
 		}
-	case store.ScopeRange:
+	case store.ScopeRange, store.ScopeHunk:
 		if n.Range.Start < 1 || n.Range.End < n.Range.Start {
-			return fmt.Errorf("a range comment runs from a line to a later one, and %d:%d does not",
-				n.Range.Start, n.Range.End)
+			return fmt.Errorf("a %s comment runs from a line to a later one, and %d:%d does not",
+				n.Scope, n.Range.Start, n.Range.End)
 		}
 	default:
-		return fmt.Errorf("a comment is scoped to a line, a range or a file, not %q", n.Scope)
+		return fmt.Errorf("a comment is scoped to a line, a range, a hunk or a file, not %q", n.Scope)
 	}
 	return nil
 }

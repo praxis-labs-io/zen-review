@@ -13,6 +13,7 @@ type Scope string
 const (
 	ScopeLine  Scope = "line"
 	ScopeRange Scope = "range"
+	ScopeHunk  Scope = "hunk"
 	ScopeFile  Scope = "file"
 )
 

@@ -316,6 +316,9 @@ func commentWhere(c store.Comment, placed, live bool) string {
 	if c.Scope == store.ScopeFile {
 		return "file"
 	}
+	if placed && c.Scope == store.ScopeHunk {
+		return "hunk"
+	}
 
 	if placed && c.Start == c.End {
 		return ""

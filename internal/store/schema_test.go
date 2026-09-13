@@ -1,8 +1,11 @@
 package store
 
 import (
+	"database/sql"
 	"fmt"
+	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -289,7 +292,7 @@ func writeComment(t *testing.T, db *DB, c commentRow) error {
 	return err
 }
 
-func TestACommentIsScopedToALineARangeOrAFile(t *testing.T) {
+func TestACommentIsScopedToALineARangeAHunkOrAFile(t *testing.T) {
 	db := openHere(t)
 	created, _ := anchored(t, db)
 
@@ -300,9 +303,9 @@ func TestACommentIsScopedToALineARangeOrAFile(t *testing.T) {
 	}{
 		{scope: "line", start: 4, end: 4, ok: true},
 		{scope: "range", start: 4, end: 9, ok: true},
+		{scope: "hunk", start: 4, end: 9, ok: true},
 		{scope: "file", ok: true},
 		{scope: "session", start: 4, end: 9},
-		{scope: "hunk", start: 4, end: 9},
 	} {
 		t.Run(tc.scope, func(t *testing.T) {
 			err := writeComment(t, db, commentRow{
@@ -333,9 +336,11 @@ func TestACommentsScopeAndItsLinesHaveToAgree(t *testing.T) {
 		{name: "a file over none", scope: "file", ok: true},
 
 		{name: "a range over one line", scope: "range", start: 4, end: 4, ok: true},
+		{name: "a hunk over one line", scope: "hunk", start: 4, end: 4, ok: true},
 
 		{name: "a file carrying lines", scope: "file", start: 4, end: 9},
 		{name: "a range carrying none", scope: "range"},
+		{name: "a hunk carrying none", scope: "hunk"},
 		{name: "a line carrying none", scope: "line"},
 		{name: "a line over a span", scope: "line", start: 4, end: 9},
 		{name: "a range ending before it starts", scope: "range", start: 9, end: 4},
@@ -417,5 +422,63 @@ func TestTheCommentsIndexesSurviveTheRebuild(t *testing.T) {
 	want := []string{"comments_by_generation", "comments_by_state"}
 	if !slices.Equal(got, want) {
 		t.Errorf("indexes = %v, want %v", got, want)
+	}
+}
+
+func TestEveryCommentSurvivesTheHunkScopeRebuild(t *testing.T) {
+	ctx := t.Context()
+	path := filepath.Join(t.TempDir(), "zen-review", "state.db")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("preparing the directory: %v", err)
+	}
+
+	handle, err := sql.Open("sqlite", dsn(path))
+	if err != nil {
+		t.Fatalf("opening the database: %v", err)
+	}
+	handle.SetMaxOpenConns(1)
+	db := &DB{handle: handle}
+	t.Cleanup(func() { _ = db.Close() })
+
+	files, err := embedded()
+	if err != nil {
+		t.Fatalf("reading the migrations: %v", err)
+	}
+	for _, m := range files {
+		if m.name == "0008_comment_hunk_scope.sql" {
+			break
+		}
+		body, err := migrations.ReadFile("migrations/" + m.name)
+		if err != nil {
+			t.Fatalf("reading %s: %v", m.name, err)
+		}
+		if err := db.apply(ctx, m, string(body)); err != nil {
+			t.Fatalf("applying %s: %v", m.name, err)
+		}
+	}
+
+	created, current := anchored(t, db)
+	now := time.Now().UTC().Truncate(time.Second)
+	want := Comment{
+		ID: "kept", SessionID: "s", GenerationID: current, CreatedGenerationID: created,
+		Path: "a.txt", Side: SideBase, LineRange: LineRange{Start: 4, End: 9},
+		Scope: ScopeRange, Body: "this reads backwards", Response: "turned it round",
+		State: CommentAddressed, AnchorBlob: "blob", LastPath: "b.txt", LastLine: 7,
+		CreatedRange: LineRange{Start: 2, End: 6}, CreatedAt: now, UpdatedAt: now.Add(time.Minute),
+	}
+	if err := db.AddComment(ctx, want); err != nil {
+		t.Fatalf("writing the comment before the rebuild: %v", err)
+	}
+
+	if err := db.migrate(ctx); err != nil {
+		t.Fatalf("migrating past the rebuild: %v", err)
+	}
+
+	got, found, err := db.Comment(ctx, "kept")
+	if err != nil || !found {
+		t.Fatalf("reading the comment after the rebuild: found %v, %v", found, err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("the rebuild changed the comment:\n got %+v\nwant %+v", got, want)
 	}
 }

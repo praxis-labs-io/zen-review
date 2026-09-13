@@ -124,7 +124,7 @@ zen-review comments --state open --json
 
 `id` is what every other command takes. `side` is `head` or `base`, and a
 comment on removals is anchored on the base, where the line numbers are the old
-file's. `scope` is `range`, `hunk` or `file`. `replaced` carries the code an
+file's. `scope` is `line`, `range`, `hunk` or `file`. `replaced` carries the code an
 answer replaced, once there is an answer.
 
 The object also carries the session, the base and the generation. Narrow with

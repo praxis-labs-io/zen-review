@@ -17,8 +17,8 @@ func TestACommentOnAHunkTakesTheHunksLines(t *testing.T) {
 		t.Errorf("path = %q, want code.txt", got.Path)
 	case got.Side != "head":
 		t.Errorf("side = %q, want head", got.Side)
-	case got.Scope != "range":
-		t.Errorf("scope = %q, want range: a hunk is a region", got.Scope)
+	case got.Scope != "hunk":
+		t.Errorf("scope = %q, want hunk: the reader named the hunk, not its lines", got.Scope)
 	case got.Start != 3 || got.End != 3:
 		t.Errorf("lines = %d:%d, want 3:3", got.Start, got.End)
 	case got.State != "open":

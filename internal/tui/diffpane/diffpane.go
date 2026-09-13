@@ -813,6 +813,13 @@ func (m *Model) layout() {
 		m.headAt = append(m.headAt, len(m.rows))
 		add(row{kind: headRow, hunk: i})
 
+		for j, c := range mine {
+			if !placed[j] && c.Scope == store.ScopeHunk && m.live(c) && holds(h.Diff, c) {
+				placed[j] = true
+				m.addCard(c, i, m.headAt[i])
+			}
+		}
+
 		source(h.Diff.Lines, tokens[base:], i)
 
 		base += len(h.Diff.Lines)
@@ -863,6 +870,14 @@ func index(cs []store.Comment, id string) int {
 
 func (m Model) live(c store.Comment) bool {
 	return c.GenerationID == m.gen
+}
+
+func holds(h diff.Hunk, c store.Comment) bool {
+	start, lines := h.NewStart, h.NewLines
+	if c.Side == store.SideBase {
+		start, lines = h.OldStart, h.OldLines
+	}
+	return lines > 0 && c.Start >= start && c.Start <= last(start, lines)
 }
 
 func on(c store.Comment, l diff.Line, n int) bool {

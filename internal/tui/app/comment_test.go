@@ -157,7 +157,7 @@ func TestCScopesToWhatIsUnderTheCursor(t *testing.T) {
 		keys []string
 		want string
 	}{
-		{"a hunk heading", nil, `AddComment a.go head:2-2 range "x" gen=2`},
+		{"a hunk heading", nil, `AddComment a.go head:2-2 hunk "x" gen=2`},
 		{"a code row", []string{"j"}, `AddComment a.go head:1-1 line "x" gen=2`},
 		{"a removal", []string{"j", "j"}, `AddComment a.go base:2-2 line "x" gen=2`},
 
@@ -356,7 +356,7 @@ func TestCFallsBackToTheBoxOverTheFrame(t *testing.T) {
 	}
 
 	s.press("h", "i", "ctrl+s")
-	want := `AddComment a.go head:2-2 range "hi" gen=2`
+	want := `AddComment a.go head:2-2 hunk "hi" gen=2`
 	if got := wrote(t, s); got != want {
 		t.Errorf("the box over the frame wrote %q, want %q", got, want)
 	}

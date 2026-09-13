@@ -64,6 +64,12 @@ func Responded(c store.Comment, response string) store.Comment {
 	return c
 }
 
+// OnHunk scopes c to the hunk holding its first line. Its lines stay what they were.
+func OnHunk(c store.Comment) store.Comment {
+	c.Scope = store.ScopeHunk
+	return c
+}
+
 // OnBase moves c to the base side. Its path must already be the file's base-side name.
 func OnBase(c store.Comment) store.Comment {
 	c.Side = store.SideBase
