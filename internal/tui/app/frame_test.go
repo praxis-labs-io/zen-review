@@ -31,6 +31,7 @@ type source struct {
 	wrote []string
 
 	wroteErr   error
+	moveTo     func(review.Note) (review.Note, bool)
 	candidates review.BaseCandidates
 	baseReads  int
 
@@ -87,6 +88,14 @@ func (s *source) AddComment(g review.Generation, n review.Note) (app.Reload, err
 		where = fmt.Sprintf("%s %s:%d-%d", n.Path, n.Side, n.Range.Start, n.Range.End)
 	}
 	return s.write(fmt.Sprintf("AddComment %s %s %s gen=%d", where, n.Scope, strconv.Quote(n.Body), g.Seq))
+}
+
+func (s *source) Reanchor(n review.Note, _, _ review.Generation) (review.Note, bool, error) {
+	if s.moveTo == nil {
+		return n, true, nil
+	}
+	now, held := s.moveTo(n)
+	return now, held, nil
 }
 
 func (s *source) ResolveComment(g review.Generation, id string) (app.Reload, error) {

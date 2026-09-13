@@ -14,6 +14,7 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/review"
 	"github.com/praxis-labs-io/zen-review/internal/store"
 	"github.com/praxis-labs-io/zen-review/internal/testchangeset"
+	"github.com/praxis-labs-io/zen-review/internal/tui/app"
 	"github.com/praxis-labs-io/zen-review/internal/tui/testtheme"
 )
 
@@ -1004,6 +1005,24 @@ func TestAFailedReloadLeavesTheChangesetAlone(t *testing.T) {
 	}
 	if got := s.bar(); !strings.Contains(got, "another zen-review refreshed this session first") {
 		t.Errorf("the bar reads %q, want the reason the reload failed", got)
+	}
+}
+
+func TestAReloadOvertakenByAnotherInstanceSaysToReloadAgain(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16).press("}")
+
+	before := s.lines()
+	s.src.err = app.ErrOvertaken
+	s.press("s")
+
+	after := s.lines()
+	for i := range before[:len(before)-1] {
+		if before[i] != after[i] {
+			t.Fatalf("an overtaken reload moved row %d:\n%q\n%q", i, before[i], after[i])
+		}
+	}
+	if got := s.bar(); !strings.Contains(got, "moved this session during the reload: press s") {
+		t.Errorf("the bar reads %q, want it to say who moved the session and which key reloads", got)
 	}
 }
 

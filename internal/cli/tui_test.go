@@ -1,11 +1,13 @@
 package cli
 
 import (
+	"errors"
 	"io"
 	"testing"
 
 	"github.com/praxis-labs-io/zen-review/internal/review"
 	"github.com/praxis-labs-io/zen-review/internal/testrepo"
+	"github.com/praxis-labs-io/zen-review/internal/tui/app"
 )
 
 func TestInteractive(t *testing.T) {
@@ -104,5 +106,66 @@ func TestAReloadQueuedPastTheCloseDoesNothing(t *testing.T) {
 
 	if _, err := src.Reload(); err == nil {
 		t.Error("a reload after the close went ahead")
+	}
+}
+
+func TestAReloadRefusedByAnotherInstanceIsOvertaken(t *testing.T) {
+	repo := testrepo.New(t)
+	repo.Write("a.txt", "one\n")
+	repo.Commit("first")
+	repo.TrackOrigin("main")
+	repo.Git("checkout", "-q", "-b", "feature")
+	repo.Write("a.txt", "two\n")
+
+	s, err := review.Open(t.Context(), repo.Dir(), review.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := &reloader{ctx: t.Context(), s: s}
+	defer func() {
+		if err := src.close(io.Discard); err != nil {
+			t.Error(err)
+		}
+	}()
+
+	first, err := src.Reload()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	other, err := review.Open(t.Context(), repo.Dir(), review.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := other.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	repo.Write("a.txt", "three\n")
+	if _, err := other.Refresh(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+
+	_, stale := src.at(first.Generation)
+	broken := errors.New("git is gone")
+
+	for _, tt := range []struct {
+		name string
+		err  error
+		want error
+	}{
+		{"the ref moved under the build", errOvertaken, app.ErrOvertaken},
+		{"the generation moved under the read", stale, app.ErrOvertaken},
+		{"anything else", broken, broken},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.err == nil {
+				t.Fatal("the case has no error to map")
+			}
+			if got := overtaken(tt.err); !errors.Is(got, tt.want) {
+				t.Errorf("overtaken(%v) = %v, want %v", tt.err, got, tt.want)
+			}
+		})
 	}
 }

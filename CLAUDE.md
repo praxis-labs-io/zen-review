@@ -247,6 +247,8 @@ to keep true:
 - The box comes down when the write lands, not when the key is pressed. A write
   that committed and could not be read back closes it anyway, because saving
   again writes a second comment, which is why the Source names that failure.
+  That failure wins over a stale read-back wrapped inside it, or the refusal
+  path carries a comment that already landed into a box saved a second time.
 - The replaced block is the translation the remap runs, not the two sides read at
   the same numbers. The comment's blob is diffed against the file's blob now, the
   creation range goes through `Translate`, and a range that comes back whole took

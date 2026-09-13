@@ -12,9 +12,29 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/tui/comp"
 )
 
-type commentedMsg struct{ r Reload }
+type commentedMsg struct {
+	r   Reload
+	box review.Note
+}
 
-type editedMsg struct{ r Reload }
+type editedMsg struct {
+	r  Reload
+	id string
+}
+
+type reanchoredMsg struct {
+	r   Reload
+	box review.Note
+	now review.Note
+}
+
+type anchorGoneMsg struct {
+	r   Reload
+	box review.Note
+	was review.Note
+}
+
+type reanchorFailedMsg struct{ err error }
 
 func (m Model) commenting() (review.Note, bool) {
 	if as, on := m.diff.Selected(); on {
@@ -70,13 +90,66 @@ func (m *Model) commentOn() (tea.Cmd, bool) {
 		return nil, false
 	}
 
+	cmd := m.openComment(n, m.stranded)
+	m.stranded = ""
+	return cmd, true
+}
+
+func (m *Model) openComment(n review.Note, body string) tea.Cmd {
 	m.pending = n
 	c := boxed(n)
-	if cmd, up := m.diff.Compose(c); up {
-		return cmd, true
+	if cmd, up := m.diff.Compose(c, body); up {
+		return cmd
+	}
+	return m.compose.Open(commentTitle(c), body)
+}
+
+func (m Model) boxBody() string {
+	if m.diff.Composing() {
+		return m.diff.Draft()
+	}
+	return m.compose.Value()
+}
+
+func (m *Model) reopen(msg reanchoredMsg) tea.Cmd {
+	if m.pending != msg.box {
+		m.moveOn(msg.r)
+		return nil
 	}
 
-	return m.compose.Open(commentTitle(c), ""), true
+	body := m.boxBody()
+	m.shut()
+	m.apply(msg.r)
+
+	if msg.now.Path != m.diff.Path() {
+		if s, ok := m.firstOf(msg.now.Path); ok {
+			m.land(s)
+		}
+	}
+
+	m.note = notice{text: "generation " + strconv.Itoa(m.gen.Seq) + " landed before the save: the box is on " +
+		where(boxed(msg.now)) + " now"}
+	return m.openComment(msg.now, body)
+}
+
+func (m *Model) strand(msg anchorGoneMsg) {
+	if m.pending != msg.box {
+		m.moveOn(msg.r)
+		return
+	}
+
+	body := m.boxBody()
+	m.shut()
+	m.apply(msg.r)
+
+	m.stranded = body
+	m.note = notice{text: where(boxed(msg.was)) + " went at generation " + strconv.Itoa(m.gen.Seq) +
+		": c on the lines it belongs to brings the words back", bad: true}
+}
+
+func (m *Model) moveOn(r Reload) {
+	was, d, moved := m.apply(r)
+	m.note = said(was, d, m.gen.Seq, moved)
 }
 
 func (m *Model) editOn() (tea.Cmd, bool) {
@@ -204,7 +277,7 @@ func (m *Model) saveEdit(body string) tea.Cmd {
 		if err != nil {
 			return failed(err)
 		}
-		return editedMsg{r: r}
+		return editedMsg{r: r, id: id}
 	}
 }
 
@@ -214,15 +287,40 @@ func (m *Model) saveComment(body string) tea.Cmd {
 		return nil
 	}
 
-	src, g, n := m.src, m.gen, m.pending
+	src, g, box := m.src, m.gen, m.pending
+	n := box
 	n.Body = body
 	m.busy = true
 
 	return func() tea.Msg {
 		r, err := src.AddComment(g, n)
-		if err != nil {
-			return failed(err)
+		if err == nil {
+			return commentedMsg{r: r, box: box}
 		}
-		return commentedMsg{r: r}
+		if msg := failed(err); !refused(msg) {
+			return msg
+		}
+		return reanchor(src, g, box, n)
 	}
+}
+
+func refused(msg tea.Msg) bool {
+	_, stale := msg.(staleMsg)
+	return stale
+}
+
+func reanchor(src Source, from review.Generation, box, n review.Note) tea.Msg {
+	r, err := src.Reload()
+	if err != nil {
+		return reanchorFailedMsg{err: err}
+	}
+
+	now, held, err := src.Reanchor(n, from, r.Generation)
+	if err != nil {
+		return reanchorFailedMsg{err: err}
+	}
+	if !held {
+		return anchorGoneMsg{r: r, box: box, was: n}
+	}
+	return reanchoredMsg{r: r, box: box, now: now}
 }

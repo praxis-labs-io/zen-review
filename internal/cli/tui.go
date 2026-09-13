@@ -46,9 +46,19 @@ func (r *reloader) Reload() (app.Reload, error) {
 
 	g, err := build(r.ctx, r.s)
 	if err != nil {
-		return app.Reload{}, err
+		return app.Reload{}, overtaken(err)
 	}
-	return r.at(g)
+
+	rel, err := r.at(g)
+	return rel, overtaken(err)
+}
+
+func overtaken(err error) error {
+	var stale *review.StaleGenerationError
+	if errors.Is(err, errOvertaken) || errors.As(err, &stale) {
+		return app.ErrOvertaken
+	}
+	return err
 }
 
 func (r *reloader) Candidates() (review.BaseCandidates, error) {
@@ -99,6 +109,16 @@ func (r *reloader) AddComment(g review.Generation, n review.Note) (app.Reload, e
 		_, err := r.s.AddComment(r.ctx, g, n)
 		return err
 	})
+}
+
+func (r *reloader) Reanchor(n review.Note, from, to review.Generation) (review.Note, bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.shut {
+		return review.Note{}, false, errors.New("the reader closed the session before the comment could move")
+	}
+	return r.s.Reanchor(r.ctx, n, from, to)
 }
 
 func (r *reloader) ResolveComment(g review.Generation, id string) (app.Reload, error) {

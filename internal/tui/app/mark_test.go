@@ -265,3 +265,16 @@ func equal(got, want []string) bool {
 }
 
 func lines(frame string) []string { return strings.Split(frame, "\n") }
+
+func TestAStaleWriteUnderANoteBoxNamesTheKeysPastIt(t *testing.T) {
+	s := open(t, 100, 24)
+	s.src.wroteErr = &review.StaleGenerationError{Seq: 2, Current: 3}
+
+	marking := s.hold(keystroke("r"))
+	s.press("C")
+	s.drain(marking)
+
+	if got := s.bar(); !strings.Contains(got, "esc, then s") {
+		t.Errorf("the bar reads %q, want the keys that reach the reload past the box", got)
+	}
+}

@@ -46,11 +46,13 @@ func runRefresh(cmd *cobra.Command, opts *options) (err error) {
 	return emit(cmd.OutOrStdout(), generationView(s, g, files), opts.asJSON)
 }
 
+var errOvertaken = errors.New("another zen-review refreshed this session first, so nothing was built: run it again")
+
 // No retry on ErrRefMoved: an immediate second swap can land two rows in an order the ref disagrees with.
 func build(ctx context.Context, s *review.Session) (review.Generation, error) {
 	g, err := s.Refresh(ctx)
 	if errors.Is(err, git.ErrRefMoved) {
-		return review.Generation{}, errors.New("another zen-review refreshed this session first, so nothing was built: run it again")
+		return review.Generation{}, errOvertaken
 	}
 	return g, err
 }
