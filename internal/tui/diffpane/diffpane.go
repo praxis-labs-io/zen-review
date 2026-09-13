@@ -313,13 +313,10 @@ func (m *Model) moveTo(i int) {
 	}
 
 	if c := m.cardOf(i); c != nil && i != c.at {
-		switch {
-		case i < m.cursor:
-			i = c.at
-		case c.end() < len(m.rows):
+		leaving := m.cursor == c.at && i > m.cursor && c.end() < len(m.rows)
+		i = c.at
+		if leaving {
 			i = c.end()
-		default:
-			i = c.at
 		}
 	}
 
@@ -336,19 +333,64 @@ func (m Model) blank(i int) bool {
 }
 
 func (m *Model) page(by int) {
+	if m.scrollCard(by) {
+		return
+	}
 	m.moveTo(m.cursor + by)
 	m.place(m.middle())
+	if by < 0 {
+		m.showCardEnd()
+	}
+}
+
+func (m *Model) step(by int) {
+	if !m.scrollCard(by) {
+		m.moveTo(m.cursor + by)
+	}
+}
+
+func (m *Model) scrollCard(by int) bool {
+	c := m.cardOf(m.cursor)
+	if c == nil || m.height <= 0 {
+		return false
+	}
+
+	switch {
+	case by > 0 && c.end() > m.offset+m.height:
+		m.offset = min(m.offset+by, c.end()-m.height)
+	case by < 0 && c.at < m.offset:
+		m.offset = max(m.offset+by, c.at)
+	default:
+		return false
+	}
+	m.clampOffset()
+	return true
+}
+
+func (m *Model) showCardEnd() {
+	if c := m.cardOf(m.cursor); c != nil && m.height > 0 {
+		m.offset = max(m.offset, c.end()-m.height)
+		m.clampOffset()
+	}
 }
 
 func (m Model) middle() int { return (m.height - 1) / 2 }
 
 func (m *Model) reveal() {
 	if m.cursor >= 0 && m.height > 0 {
-		m.offset = min(m.offset, m.cursor)
+		m.offset = min(m.offset, m.lowestTop())
 		m.offset = max(m.offset, m.cursor-m.height+1)
 	}
 	m.clampOffset()
 	m.clearPin()
+}
+
+// lowestTop keeps a tall card's end on screen rather than its first row, so k onto it from below skips nothing.
+func (m Model) lowestTop() int {
+	if c := m.cardOf(m.cursor); c != nil {
+		return max(c.at, c.end()-m.height)
+	}
+	return m.cursor
 }
 
 func (m *Model) clearPin() {
@@ -584,9 +626,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	case key.Matches(press, m.Keys.Jump):
 		m.jump()
 	case key.Matches(press, m.Keys.Down):
-		m.moveTo(m.cursor + 1)
+		m.step(1)
 	case key.Matches(press, m.Keys.Up):
-		m.moveTo(m.cursor - 1)
+		m.step(-1)
 	case key.Matches(press, m.Keys.HalfDown):
 		m.page(m.half())
 	case key.Matches(press, m.Keys.HalfUp):
@@ -595,6 +637,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.moveTo(0)
 	case key.Matches(press, m.Keys.Bottom):
 		m.moveTo(len(m.rows) - 1)
+		m.showCardEnd()
 	}
 	return m, nil
 }

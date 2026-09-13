@@ -285,7 +285,10 @@ to keep true:
 - The cursor bar sits in a leading cell every row holds open, so nothing shifts
   as it passes. A selection shares the fill but not the bar, which marks where
   the next key moves from.
-- A comment card is one stop for the cursor, not one per row.
+- A comment card is one stop for the cursor, not one per row. One taller than the
+  window scrolls under the cursor before the cursor leaves it, and `reveal` keeps
+  its end on screen rather than its first row, or `k` onto it from below skips
+  the middle.
 - `was` on a card's label is for numbers naming no code the pane could draw, an
   orphan or a comment frozen at another generation. It keys off the anchor, not
   off whether the layout found a row, because a comment written outside a hunk

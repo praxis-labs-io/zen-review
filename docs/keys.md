@@ -224,6 +224,11 @@ A comment draws as a bordered card indented to the code column, hanging under th
 last line it is about. It is one stop for the cursor rather than one per row: `j`
 steps onto it and the next `j` clears the whole thing.
 
+A card taller than the window is still one stop, but the window scrolls through
+it first. `j` and `k` move a row at a time and `ctrl+d` and `ctrl+u` half a
+page, and the cursor only leaves the card once its far edge is on screen. A page
+that lands inside a card stops on it, and `G` onto one shows its end.
+
 State is a badge in its top border and focus is the border's colour, because four
 states and one focus cannot share a channel.
 
