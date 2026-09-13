@@ -46,9 +46,19 @@ func (r *reloader) Reload() (app.Reload, error) {
 
 	g, err := build(r.ctx, r.s)
 	if err != nil {
-		return app.Reload{}, err
+		return app.Reload{}, overtaken(err)
 	}
-	return r.at(g)
+
+	rel, err := r.at(g)
+	return rel, overtaken(err)
+}
+
+func overtaken(err error) error {
+	var stale *review.StaleGenerationError
+	if errors.Is(err, errOvertaken) || errors.As(err, &stale) {
+		return app.ErrOvertaken
+	}
+	return err
 }
 
 func (r *reloader) Candidates() (review.BaseCandidates, error) {

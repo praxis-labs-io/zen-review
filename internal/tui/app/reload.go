@@ -15,6 +15,10 @@ import (
 // so the reader is not offered a retry that would write twice.
 var ErrSaved = errors.New("the write was saved and the screen is behind it")
 
+// ErrOvertaken marks a reload refused because another instance moved the session under it.
+// A Source returns it so the reader is told to reload again rather than shown a failure.
+var ErrOvertaken = errors.New("another zen-review moved this session during the reload")
+
 // Reload is the session as it stands at one generation. Every field is read at that generation.
 type Reload struct {
 	Base       review.Base
@@ -81,7 +85,10 @@ func (m Model) reload() tea.Cmd {
 	src := m.src
 	return func() tea.Msg {
 		r, err := src.Reload()
-		if err != nil {
+		switch {
+		case errors.Is(err, ErrOvertaken):
+			return staleMsg{err: err}
+		case err != nil:
 			return reloadFailedMsg{err: err}
 		}
 		return reloadedMsg{r: r}
