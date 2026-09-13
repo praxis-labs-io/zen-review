@@ -113,10 +113,10 @@ func (m Model) write(do func(Source) (Reload, error), at stop, row int, advance 
 func failed(err error) tea.Msg {
 	var stale *review.StaleGenerationError
 	switch {
-	case errors.As(err, &stale):
-		return staleMsg{err: err}
 	case errors.Is(err, ErrSaved):
 		return savedMsg{err: err}
+	case errors.As(err, &stale):
+		return staleMsg{err: err}
 	}
 	return writeFailedMsg{err: err}
 }

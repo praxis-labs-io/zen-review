@@ -416,6 +416,19 @@ func TestAWriteSavedAndNotReadBackTakesTheBoxDown(t *testing.T) {
 	}
 }
 
+func TestAWriteSavedAndReadBackStaleIsNotWrittenAgain(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24).press("j", "c", "h", "i")
+	s.src.wroteErr = fmt.Errorf("%w: %w", app.ErrSaved, &review.StaleGenerationError{Seq: 2, Current: 3})
+	s.press("ctrl+s")
+
+	if got := s.frame(); strings.Contains(got, "◇ new") {
+		t.Errorf("the box stayed up over a write that landed:\n%s", got)
+	}
+	if got := s.bar(); !strings.Contains(got, "the screen is behind it") {
+		t.Errorf("the bar reads %q, want it to say the write was saved", got)
+	}
+}
+
 func TestARefusedWriteNamesAKeyTheBoxWouldEat(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24).press("j", "c", "h", "i")
 	s.src.wroteErr = &review.StaleGenerationError{Seq: 2, Current: 3}
