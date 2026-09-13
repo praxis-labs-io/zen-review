@@ -378,19 +378,15 @@ func (m Model) middle() int { return (m.height - 1) / 2 }
 
 func (m *Model) reveal() {
 	if m.cursor >= 0 && m.height > 0 {
-		m.offset = min(m.offset, m.lowestTop())
-		m.offset = max(m.offset, m.cursor-m.height+1)
+		first, last := m.cursor, m.cursor
+		if c := m.cardOf(m.cursor); c != nil {
+			last = c.end() - 1
+		}
+		m.offset = min(m.offset, max(first, last-m.height+1))
+		m.offset = max(m.offset, first-m.height+1)
 	}
 	m.clampOffset()
 	m.clearPin()
-}
-
-// lowestTop keeps a tall card's end on screen rather than its first row, so k onto it from below skips nothing.
-func (m Model) lowestTop() int {
-	if c := m.cardOf(m.cursor); c != nil {
-		return max(c.at, c.end()-m.height)
-	}
-	return m.cursor
 }
 
 func (m *Model) clearPin() {
