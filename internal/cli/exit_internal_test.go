@@ -5,13 +5,6 @@ import (
 	"testing"
 )
 
-// The status and whether the error is printed are one decision, and a close
-// failure travelling with the matched sentinel is a failure.
-//
-// This test is in the package because the sentinel is: the thing under test is
-// ExitCode and Quiet, and there is no way to hand them a joined sentinel from
-// outside. Every command returns it through a deferred close today, which is
-// what keeps it alone, and nothing about that is enforced by the compiler.
 func TestTheMatchedStatusDoesNotCoverAnErrorTravellingWithIt(t *testing.T) {
 	closed := errors.New("closing the database: disk full")
 

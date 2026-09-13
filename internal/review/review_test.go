@@ -15,10 +15,6 @@ import (
 
 func TestMain(m *testing.M) { os.Exit(testrepo.Main(m)) }
 
-// fixture is a real repository with a real database under it, plus the two
-// helpers only this package wants. Nothing is mocked: what these tests check is
-// the resolution order and the candidate rule, and both are answers about a
-// repository's actual shape.
 type fixture struct {
 	*testrepo.Repo
 	t *testing.T
@@ -29,8 +25,6 @@ func newFixture(t *testing.T) *fixture {
 	return &fixture{Repo: testrepo.New(t), t: t}
 }
 
-// commit writes the message into a file first, so each call is a distinct commit
-// rather than one git refuses as empty.
 func (f *fixture) commit(message string) string {
 	f.t.Helper()
 
@@ -58,8 +52,6 @@ func (f *fixture) mustOpen(base string) *review.Session {
 	return s
 }
 
-// branched is the common shape: a commit on main tracked as origin/main, then a
-// feature branch with a commit on it.
 func branched(t *testing.T) *fixture {
 	t.Helper()
 
@@ -71,9 +63,6 @@ func branched(t *testing.T) *fixture {
 	return f
 }
 
-// The whole point of a session: come back three days later, same branch, same
-// state. The id has to be the same both times or nothing above this can find
-// what was reviewed.
 func TestASessionResumesAcrossOpens(t *testing.T) {
 	f := branched(t)
 
@@ -99,9 +88,6 @@ func TestASessionResumesAcrossOpens(t *testing.T) {
 	}
 }
 
-// The base is set once per branch and sticks. Re-detecting it on every run is
-// how a base moves under a half-finished review, and every range already
-// reviewed was measured from the old one.
 func TestTheBaseSticksEvenWhenDetectionWouldNowDisagree(t *testing.T) {
 	f := branched(t)
 
@@ -113,8 +99,6 @@ func TestTheBaseSticksEvenWhenDetectionWouldNowDisagree(t *testing.T) {
 		t.Fatalf("closing the first session: %v", err)
 	}
 
-	// origin/HEAD moves to a different branch, so a fresh detection would answer
-	// origin/develop.
 	f.Git("update-ref", "refs/remotes/origin/develop", f.Git("rev-parse", "main"))
 	f.Git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/develop")
 
@@ -123,7 +107,6 @@ func TestTheBaseSticksEvenWhenDetectionWouldNowDisagree(t *testing.T) {
 	}
 }
 
-// The flag replaces whatever was stuck, and the replacement sticks in its turn.
 func TestTheBaseFlagOverridesAndThenSticks(t *testing.T) {
 	f := branched(t)
 	f.Git("branch", "other", "main")
@@ -139,8 +122,6 @@ func TestTheBaseFlagOverridesAndThenSticks(t *testing.T) {
 	}
 }
 
-// Measuring a stacked branch from origin/main shows the parent branch's commits
-// as this branch's work, so the nearest branch under it wins instead.
 func TestAStackedBranchTakesTheNearestBranchUnderIt(t *testing.T) {
 	f := newFixture(t)
 	f.commit("first")
@@ -153,7 +134,6 @@ func TestAStackedBranchTakesTheNearestBranchUnderIt(t *testing.T) {
 	f.Git("checkout", "-q", "-b", "stack-top")
 	f.commit("top")
 
-	// Nearest first: the branch it was actually cut from beats the one under that.
 	base := f.mustOpen("").Base()
 	if base.Ref != "stack-middle" {
 		t.Errorf("base = %s, want stack-middle", base.Ref)
@@ -162,15 +142,12 @@ func TestAStackedBranchTakesTheNearestBranchUnderIt(t *testing.T) {
 		t.Errorf("fallback = %q, want it tagged stacked", base.Fallback)
 	}
 
-	// The flag still settles it, and what it settles on is not a fallback.
 	chosen := f.mustOpen("stack-bottom").Base()
 	if chosen.Ref != "stack-bottom" || chosen.Fallback != "" {
 		t.Errorf("base = %+v, want stack-bottom with nothing to explain", chosen)
 	}
 }
 
-// TestCandidatesAreEveryLocalBranchAndTheActiveBase. Every remote shares a merge
-// base with HEAD, so keeping them is 295 rows on a real checkout.
 func TestCandidatesAreEveryLocalBranchAndTheActiveBase(t *testing.T) {
 	f := newFixture(t)
 	main := f.commit("main")
@@ -188,8 +165,6 @@ func TestCandidatesAreEveryLocalBranchAndTheActiveBase(t *testing.T) {
 		t.Fatalf("listing candidates: %v", err)
 	}
 
-	// child is the branch HEAD is on, and measuring it against itself is an
-	// empty review. upstream/parent is a remote nobody is measuring from.
 	wantLocal := []review.Candidate{
 		{Branch: "parent", SHA: parent, Ahead: 1},
 		{Branch: "main", SHA: main, Ahead: 2},
@@ -204,8 +179,6 @@ func TestCandidatesAreEveryLocalBranchAndTheActiveBase(t *testing.T) {
 	}
 }
 
-// TestCandidatesKeepABaseMergedIntoTheBranch. A merge puts what it brought in on
-// a second parent, where the first-parent walk that used to run cannot see it.
 func TestCandidatesKeepABaseMergedIntoTheBranch(t *testing.T) {
 	f := newFixture(t)
 	f.Write("a.txt", "one\n")
@@ -241,8 +214,6 @@ func TestCandidatesKeepABaseMergedIntoTheBranch(t *testing.T) {
 	}
 }
 
-// TestCandidatesOfferTheRemoteDefaultBesideTheBase. Detection prefers it because
-// a local main goes stale, so a picker hiding it offers the stale one instead.
 func TestCandidatesOfferTheRemoteDefaultBesideTheBase(t *testing.T) {
 	f := branched(t)
 	f.Git("checkout", "-q", "-b", "stacked")
@@ -262,8 +233,6 @@ func TestCandidatesOfferTheRemoteDefaultBesideTheBase(t *testing.T) {
 	}
 }
 
-// TestCandidatesDropABranchWithNothingBehindHEAD. A branch stacked on this one
-// takes the merge base to HEAD, which is the review with its commits gone.
 func TestCandidatesDropABranchWithNothingBehindHEAD(t *testing.T) {
 	f := branched(t)
 	f.Git("checkout", "-q", "-b", "ahead")
@@ -284,8 +253,6 @@ func TestCandidatesDropABranchWithNothingBehindHEAD(t *testing.T) {
 	}
 }
 
-// TestCandidatesDropTheBranchEvenWhenItIsTheBase. A session stored on its own
-// branch is an empty review, and offering the branch again is no way out.
 func TestCandidatesDropTheBranchEvenWhenItIsTheBase(t *testing.T) {
 	f := branched(t)
 	s := f.mustOpen("feature")
@@ -387,14 +354,10 @@ func TestSetBaseRetriesPersistenceAfterASaveFails(t *testing.T) {
 	}
 }
 
-// A local main left behind origin/main is an ancestor of HEAD and is nothing
-// anyone stacked on. In a workflow where local main is never checked out this is
-// the common case, so reading it as a stack would refuse on every branch.
 func TestALocalBranchAlreadyInTheBaseIsNotACandidate(t *testing.T) {
 	f := newFixture(t)
 	f.commit("first")
 
-	// stale sits where main was before the remote moved on.
 	f.Git("branch", "stale", "main")
 	f.commit("second")
 	f.TrackOrigin("main")
@@ -413,13 +376,6 @@ func TestALocalBranchAlreadyInTheBaseIsNotACandidate(t *testing.T) {
 	}
 }
 
-// TestRepoNamesTheRepository. It is what the reader is shown to say which
-// repository is on screen, so it has to be a name rather than the path to one.
-//
-// A linked worktree gets the same name as the checkout it came from: the two
-// share one session, keyed on the common directory, and one review answering to
-// two names depending on where it was opened is worse than a name that is not
-// the directory you are standing in.
 func TestRepoNamesTheRepository(t *testing.T) {
 	f := branched(t)
 	want := filepath.Base(f.Dir())
@@ -448,10 +404,6 @@ func TestRepoNamesTheRepository(t *testing.T) {
 	}
 }
 
-// A branch merged into HEAD is an ancestor of HEAD and not of the base, which is
-// every test ancestry alone can apply, and it is not a stack. Merging local main
-// into a feature branch to catch up is the everyday version, and reading it as a
-// stack refuses to open a branch there is nothing wrong with.
 func TestABranchMergedIntoHeadIsNotACandidate(t *testing.T) {
 	f := branched(t)
 
@@ -471,8 +423,6 @@ func TestABranchMergedIntoHeadIsNotACandidate(t *testing.T) {
 	}
 }
 
-// Measuring from a branch sitting exactly at HEAD leaves an empty changeset, so
-// it is not something to offer.
 func TestABranchTipAtHeadIsNotACandidate(t *testing.T) {
 	f := branched(t)
 	f.Git("branch", "alias")
@@ -488,8 +438,6 @@ func TestABranchTipAtHeadIsNotACandidate(t *testing.T) {
 	}
 }
 
-// A detached HEAD has no branch to key on, so it keys on the sha and gets a
-// session of its own rather than borrowing the branch's.
 func TestADetachedHeadGetsItsOwnSession(t *testing.T) {
 	f := branched(t)
 
@@ -515,15 +463,12 @@ func TestADetachedHeadGetsItsOwnSession(t *testing.T) {
 		t.Fatalf("closing: %v", err)
 	}
 
-	// And going back returns the branch's session rather than a third one.
 	f.Git("checkout", "-q", "feature")
 	if got := f.mustOpen("").ID(); got != branchID {
 		t.Errorf("id = %s, want the branch's %s", got, branchID)
 	}
 }
 
-// The database lives under the common dir, so reviewing in a throwaway worktree
-// and deleting it does not take the review with it.
 func TestALinkedWorktreeWritesToItsParentsDatabase(t *testing.T) {
 	f := branched(t)
 
@@ -541,7 +486,6 @@ func TestALinkedWorktreeWritesToItsParentsDatabase(t *testing.T) {
 		t.Fatalf("the worktree's review is not in the parent's database: %v", err)
 	}
 
-	// And the row is really there, not just the file.
 	db, err := store.Open(t.Context(), parent)
 	if err != nil {
 		t.Fatalf("opening the parent's database: %v", err)
@@ -560,9 +504,6 @@ func TestStartupFailuresSayWhatToDo(t *testing.T) {
 		}
 	})
 
-	// A database that will not open is not always a permissions problem. A corrupt
-	// file and one written by a newer build both arrive here, and blaming
-	// permissions tells the reader to fix something that is already fine.
 	t.Run("with a database that is not a database", func(t *testing.T) {
 		f := branched(t)
 
@@ -587,13 +528,10 @@ func TestStartupFailuresSayWhatToDo(t *testing.T) {
 	})
 }
 
-// Every way a base fails to name a fork point drops a rung and says so, rather
-// than refusing: a reader who cannot open the tool cannot change the base.
 func TestABaseThatCannotBeUsedFallsBackAndSaysWhy(t *testing.T) {
 	tests := []struct {
 		name string
 
-		// setup runs on a branched fixture and returns the base to open with.
 		setup func(f *fixture) string
 
 		want string
@@ -616,8 +554,6 @@ func TestABaseThatCannotBeUsedFallsBackAndSaysWhy(t *testing.T) {
 			tag:  "not chosen",
 		},
 		{
-			// origin/HEAD is symbolic and outlives what it points at, so renaming
-			// the remote's default branch leaves it naming a ref that is gone.
 			name: "an origin/HEAD pointing at nothing",
 			setup: func(f *fixture) string {
 				f.Git("update-ref", "-d", "refs/remotes/origin/main")
@@ -627,7 +563,6 @@ func TestABaseThatCannotBeUsedFallsBackAndSaysWhy(t *testing.T) {
 			tag:  "origin/main gone",
 		},
 		{
-			// A base force-push that loses the fork point looks like this from here.
 			name: "a base sharing no history with the branch",
 			setup: func(f *fixture) string {
 				f.Git("checkout", "-q", "--orphan", "unrelated")
@@ -657,8 +592,6 @@ func TestABaseThatCannotBeUsedFallsBackAndSaysWhy(t *testing.T) {
 	}
 }
 
-// With no origin/HEAD the ladder tries a local default branch, then HEAD, where
-// the changeset is whatever has not been committed.
 func TestARepositoryWithNoRemoteFallsToTheLocalDefaultThenHead(t *testing.T) {
 	t.Run("to a local main", func(t *testing.T) {
 		f := newFixture(t)
@@ -685,16 +618,12 @@ func TestARepositoryWithNoRemoteFallsToTheLocalDefaultThenHead(t *testing.T) {
 		if base.Ref != "HEAD" {
 			t.Errorf("base = %s, want HEAD", base.Ref)
 		}
-		// The bottom rung reads as what the changeset is rather than as what the
-		// repository lacks, which the rung above it already said.
 		if base.Fallback != "uncommitted" {
 			t.Errorf("fallback = %q, want it tagged uncommitted", base.Fallback)
 		}
 	})
 }
 
-// A repository whose first commit has not landed has nothing to measure from,
-// so the other side is the empty tree and every file reads as new.
 func TestAnUnbornHeadIsMeasuredFromTheEmptyTree(t *testing.T) {
 	f := newFixture(t)
 	f.Write("a.txt", "one\n")
@@ -704,7 +633,6 @@ func TestAnUnbornHeadIsMeasuredFromTheEmptyTree(t *testing.T) {
 	if !s.Base().EmptyTree() {
 		t.Fatalf("base = %+v, want the empty tree", s.Base())
 	}
-	// No tag: "empty tree" is the whole of what there is to say.
 	if s.Base().Fallback != "" {
 		t.Errorf("fallback = %q, want the name to be the whole answer", s.Base().Fallback)
 	}
@@ -721,8 +649,6 @@ func TestAnUnbornHeadIsMeasuredFromTheEmptyTree(t *testing.T) {
 	}
 }
 
-// A branch stacked on another local branch is measured from the branch under it.
-// origin/main would read the parent's commits as this branch's work.
 func TestAStackedBranchIsMeasuredFromTheBranchBelowIt(t *testing.T) {
 	f := branched(t)
 	f.Git("checkout", "-q", "-b", "child")
@@ -738,8 +664,6 @@ func TestAStackedBranchIsMeasuredFromTheBranchBelowIt(t *testing.T) {
 	}
 }
 
-// A fallback is a guess made because the base asked for was not there, so it is
-// made again once the repository moves rather than kept.
 func TestAFallbackBaseIsNotStored(t *testing.T) {
 	f := branched(t)
 	f.Git("update-ref", "-d", "refs/remotes/origin/main")
@@ -759,8 +683,6 @@ func TestAFallbackBaseIsNotStored(t *testing.T) {
 	}
 }
 
-// A failed resolution must not cost the session the base it had. The stored ref
-// is what everything already reviewed was measured from.
 func TestAFallbackLeavesTheStoredBaseAlone(t *testing.T) {
 	f := branched(t)
 	f.Git("branch", "stable", "main")
@@ -769,7 +691,6 @@ func TestAFallbackLeavesTheStoredBaseAlone(t *testing.T) {
 		t.Fatalf("base = %s, want stable", got)
 	}
 
-	// A typo is one invocation, not a decision about the session.
 	typo := f.mustOpen("stabel").Base()
 	if typo.Ref != "origin/main" || typo.Fallback != "not stabel" {
 		t.Errorf("base = %+v, want origin/main tagged not stabel", typo)
@@ -780,8 +701,6 @@ func TestAFallbackLeavesTheStoredBaseAlone(t *testing.T) {
 	}
 }
 
-// The tag stands on every run rather than on the first. status and refresh are
-// two processes, and the second must not read as a base somebody chose.
 func TestAFallbackTagSurvivesTheNextOpen(t *testing.T) {
 	f := branched(t)
 	f.Git("branch", "chosen", "main")
@@ -796,8 +715,6 @@ func TestAFallbackTagSurvivesTheNextOpen(t *testing.T) {
 	}
 }
 
-// The stack picked the rung, so it owns the tag. A missing or dangling remote
-// would have landed on the same branch, so naming one misstates the cause.
 func TestAStackedBranchIsTaggedStackedWhateverTheRemoteDid(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -832,8 +749,6 @@ func TestAStackedBranchIsTaggedStackedWhateverTheRemoteDid(t *testing.T) {
 	}
 }
 
-// A repository whose trunk is not called main has no rung above HEAD to bound
-// the stack walk, and the branch's own commits are what the reader came for.
 func TestAStackIsFoundWithNoRemoteAndNoDefaultBranch(t *testing.T) {
 	f := newFixture(t)
 	f.Git("checkout", "-q", "-b", "develop")
@@ -851,9 +766,6 @@ func TestAStackIsFoundWithNoRemoteAndNoDefaultBranch(t *testing.T) {
 	}
 }
 
-// On a default branch nothing under it is a stack. A tip left behind on this
-// branch's own history is a branch nobody deleted, and measuring from it would
-// hide every commit since.
 func TestADefaultBranchDoesNotStackOnATipLeftBehindOnIt(t *testing.T) {
 	f := newFixture(t)
 	f.commit("first")

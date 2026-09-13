@@ -7,9 +7,6 @@ import (
 	"testing"
 )
 
-// The changeset is the merge base through the working tree, and every way a
-// file can arrive in it has to show up: committed, staged, unstaged, and never
-// added at all.
 func TestTheChangesetListsEveryChangedFile(t *testing.T) {
 	f := newFixture(t)
 	f.Write("kept.txt", "one\n")
@@ -51,9 +48,6 @@ func TestTheChangesetListsEveryChangedFile(t *testing.T) {
 	}
 }
 
-// One diff against a snapshot tree sees the untracked file and the deleted one
-// together, so it pairs them. The composition this replaced ran two diffs and
-// could only report an unrelated delete beside an unrelated add.
 func TestAnUntrackedFileReplacingATrackedOnePairsAsARename(t *testing.T) {
 	f := newFixture(t)
 	f.Write("old-name.txt", "one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\n")
@@ -61,8 +55,6 @@ func TestAnUntrackedFileReplacingATrackedOnePairsAsARename(t *testing.T) {
 	f.TrackOrigin("HEAD")
 	f.Git("checkout", "-q", "-b", "feature")
 
-	// Deleted from the index and replaced by a file git has never been told
-	// about, which is what an agent renaming a file leaves behind.
 	f.Git("rm", "-q", "old-name.txt")
 	f.Write("new-name.txt", "one\ntwo\nthree\nfour\nfive\nsix\nseven\nCHANGED\n")
 
@@ -79,7 +71,6 @@ func TestAnUntrackedFileReplacingATrackedOnePairsAsARename(t *testing.T) {
 	}
 }
 
-// The first refresh writes generation 1 and the ref that carries it.
 func TestTheFirstRefreshBuildsGenerationOne(t *testing.T) {
 	f := edited(t)
 
@@ -102,8 +93,6 @@ func TestTheFirstRefreshBuildsGenerationOne(t *testing.T) {
 	}
 }
 
-// Refreshing with nothing touched builds nothing. Without that check every
-// invocation would write a commit, and the ref is what proves it did not.
 func TestARefreshWithNothingTouchedBuildsNothing(t *testing.T) {
 	f := edited(t)
 
@@ -120,7 +109,6 @@ func TestARefreshWithNothingTouchedBuildsNothing(t *testing.T) {
 	}
 }
 
-// An edit after a refresh builds the next generation.
 func TestAnEditAfterARefreshBuildsTheNextGeneration(t *testing.T) {
 	f := edited(t)
 	f.mustRun("refresh")
@@ -136,8 +124,6 @@ func TestAnEditAfterARefreshBuildsTheNextGeneration(t *testing.T) {
 	}
 }
 
-// Bare zen-review is the refresh command until the TUI takes the slot, and it
-// has to be the same function rather than a copy of its body.
 func TestBareZenReviewIsTheRefreshCommand(t *testing.T) {
 	f := edited(t)
 
@@ -152,7 +138,6 @@ func TestBareZenReviewIsTheRefreshCommand(t *testing.T) {
 	}
 }
 
-// An empty changeset is an empty state, not an error.
 func TestNothingChangedIsNotAnError(t *testing.T) {
 	f := branched(t)
 
@@ -163,8 +148,6 @@ func TestNothingChangedIsNotAnError(t *testing.T) {
 	}
 }
 
-// An empty list has to marshal as one. A caller iterating the result should not
-// have to special-case the quiet answer.
 func TestAnEmptyChangesetIsAnEmptyArray(t *testing.T) {
 	f := branched(t)
 
@@ -177,11 +160,7 @@ func TestAnEmptyChangesetIsAnEmptyArray(t *testing.T) {
 	}
 }
 
-// A repository embedded in the work tree is two different things depending on
-// whether it has a commit, and both have to be visible rather than dropped.
 func TestAnEmbeddedRepositoryIsReportedRatherThanDropped(t *testing.T) {
-	// Until it commits there is no gitlink to record, so add refuses it outright.
-	// Unnamed it would take every command down with it.
 	t.Run("with no commit yet, it is a skipped path", func(t *testing.T) {
 		f := branched(t)
 		f.Git("init", "-q", "-b", "main", "vendored")
@@ -197,8 +176,6 @@ func TestAnEmbeddedRepositoryIsReportedRatherThanDropped(t *testing.T) {
 		}
 	})
 
-	// With one, git records a mode 160000 gitlink and it diffs as an ordinary
-	// added file carrying a single Subproject commit line.
 	t.Run("with a commit, it is an ordinary row", func(t *testing.T) {
 		f := branched(t)
 		f.Git("init", "-q", "-b", "main", "vendored")
@@ -213,16 +190,12 @@ func TestAnEmbeddedRepositoryIsReportedRatherThanDropped(t *testing.T) {
 		if len(w.Skipped) != 0 {
 			t.Errorf("skipped = %v, want nothing skipped once it has a commit", w.Skipped)
 		}
-		// No trailing slash: this is a tree entry now, not a directory listing.
 		if got := w.files()["vendored"]; got != "added" {
 			t.Errorf("files = %+v, want vendored as an added row", w.Files)
 		}
 	})
 }
 
-// A symlink is diffed rather than skipped. git stores the target path as the
-// content and hands back the blob it would record on commit, so one added line
-// naming the target is the whole change.
 func TestAnUntrackedSymlinkIsDiffedAsItsTargetPath(t *testing.T) {
 	f := branched(t)
 
@@ -240,12 +213,6 @@ func TestAnUntrackedSymlinkIsDiffedAsItsTargetPath(t *testing.T) {
 	}
 }
 
-// A path git could not read has to be named in both outputs.
-//
-// The tracked case is the dangerous one and the reason this is a list rather
-// than a count: the snapshot index is seeded from HEAD, so a tracked file add
-// gave up on keeps the blob that was already there and reads as unchanged
-// rather than as missing.
 func TestPathsGitCouldNotReadAreNamedInBothOutputs(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("root reads a file with no permissions, so there is nothing to skip")

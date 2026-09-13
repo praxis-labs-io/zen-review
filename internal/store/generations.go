@@ -10,8 +10,6 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/diff"
 )
 
-// Generation is one snapshot of the changeset, written into git as a real
-// commit under the session's ref.
 type Generation struct {
 	// ID and Seq are assigned by AddGeneration and ignored on the way in.
 	ID  int64
@@ -19,21 +17,15 @@ type Generation struct {
 
 	SessionID string
 
-	// BaseSha is the merge base the changeset was measured from, HeadSha the
-	// branch tip at the time, and CommitSha the generation commit itself.
 	BaseSha   string
 	HeadSha   string
 	CommitSha string
 
-	// CreatedAt is stored to the second, as on Session.
 	CreatedAt time.Time
 }
 
-// GenFile is one file in the changeset at one generation. Its blob shas are
-// real objects, because the generation commit wrote them.
 type GenFile struct {
-	// GenerationID is ignored on the way in, because AddGeneration writes the
-	// generation it just numbered. GenFiles sets it on what it reads back.
+	// GenerationID is ignored on the way in.
 	GenerationID int64
 
 	Path string
@@ -44,61 +36,37 @@ type GenFile struct {
 	Status diff.Status
 
 	// BaseBlob and HeadBlob are empty on the side the file does not exist on.
-	//
-	// An embedded repository is the exception to their name: git records one as a
-	// mode 160000 gitlink, so the sha here is that repository's commit and is not
-	// an object in this one. It is kept because it is the identity that changed,
-	// and a caller resolving these has to allow for one that does not.
+	// For an embedded repository they are that repository's commit, not an object in this one.
 	BaseBlob string
 	HeadBlob string
 
-	// Cut is the refresh that wrote this generation reporting that it took
-	// reviewed lines off the file. It is set from Carry.Cut and ignored on the
-	// way in, the way GenerationID is.
+	// Cut is set from Carry.Cut and ignored on the way in.
 	Cut bool
 }
 
-// Carry is the review state moved into a generation as it is written.
-//
-// Its rows arrive without a generation id, because AddGeneration stamps the one
-// it just numbered.
 type Carry struct {
 	Ranges []ReviewedRange
 
-	// Cut names the files the translation took reviewed lines off, keyed by the
-	// head-side path they have in the generation being written. A key naming a
-	// path the generation does not hold is ignored.
+	// Cut is keyed by head-side path. A path the generation does not hold is ignored.
 	Cut map[string]bool
 
-	// Comments are the open comments' anchors after the translation. They are
-	// updates to rows that already exist, where the ranges above are new rows,
-	// because a comment is one row that moves rather than a copy per generation.
 	Comments []CommentMove
 }
 
-// Prior is the outgoing generation's review state, read inside the transaction
-// that writes the incoming one.
 type Prior struct {
 	Ranges   []ReviewedRange
 	Files    []GenFile
 	Comments []Comment
 }
 
-// Advance is how a generation takes over from the one before it: which
-// generation that is, and the translation that moves its state forward.
 type Advance struct {
-	// From is the generation being carried out of, and 0 on the first one, which
-	// has nothing behind it to read.
+	// From is the generation carried out of, or 0 for a session with none.
 	From int64
 
-	// Carry translates Prior onto the generation being written, and nil carries
-	// nothing. It runs inside the transaction, holding the pool's only
-	// connection, so it must not touch the database itself.
+	// Carry runs inside the writing transaction and must not touch the database. Nil carries nothing and asserts nothing.
 	Carry func(Prior) Carry
 }
 
-// LatestGeneration is the highest-numbered generation of a session. A session
-// with none comes back as (Generation{}, false, nil).
 func (db *DB) LatestGeneration(ctx context.Context, sessionID string) (Generation, bool, error) {
 	const q = `
 		SELECT id, session_id, seq, base_sha, head_sha, commit_sha, created_at
@@ -125,22 +93,8 @@ func (db *DB) LatestGeneration(ctx context.Context, sessionID string) (Generatio
 	return g, true, nil
 }
 
-// AddGeneration writes a generation, its files and the review state carried
-// into it together, and returns it with ID and Seq filled in.
-//
-// All of it goes in one transaction, the outgoing generation's state read inside
-// it. A generation whose files are missing is one a remap would run through and
-// find nothing in, one whose carried ranges are missing reads as a review nobody
-// did, and one whose comments moved without it leaves every anchor pointing at a
-// generation that is no longer the latest. Seq is assigned here rather than by
-// the caller: _txlock=immediate takes the write lock at BEGIN, so reading the
-// previous number and writing the next cannot interleave with another instance
-// doing the same.
-//
-// That lock is also what closes the window a mark used to be lost in. A write
-// committed before this transaction begins is read by the carry below and moves
-// forward; one arriving after it waits, and then names a generation that is no
-// longer the latest, which every write refuses.
+// AddGeneration writes g, its files and the carried state in one transaction and returns g with ID and Seq set.
+// Returns ErrStaleGeneration when adv.From is no longer the session's latest.
 func (db *DB) AddGeneration(ctx context.Context, g Generation, files []GenFile, adv Advance) (_ Generation, err error) {
 	tx, err := db.handle.BeginTx(ctx, nil)
 	if err != nil {
@@ -207,23 +161,8 @@ func (db *DB) AddGeneration(ctx context.Context, g Generation, files []GenFile, 
 	return g, nil
 }
 
-// ErrStaleGeneration means a write named a generation that is no longer its
-// session's latest.
-//
-// Every write asserts this inside its own transaction rather than before it. A
-// refresh committing between a check and a write is the race worth catching: the
-// row lands on a generation the carry has already read past, and nothing reads
-// it again.
 var ErrStaleGeneration = errors.New("the generation is no longer the session's latest")
 
-// assertLatest refuses a write aimed at a generation that is not the session's
-// current one.
-//
-// Zero is a session with none, which is what the first generation is written
-// against. It is a claim like any other and is asserted like one: a session that
-// grew a generation between the caller reading none and writing is a caller
-// about to write a second first generation. No row can name generation zero, so
-// nothing else can reach that arm.
 func assertLatest(ctx context.Context, tx *sql.Tx, sessionID string, generationID int64) error {
 	const q = "SELECT id FROM generations WHERE session_id = ? ORDER BY seq DESC LIMIT 1"
 
@@ -238,22 +177,7 @@ func assertLatest(ctx context.Context, tx *sql.Tx, sessionID string, generationI
 	return nil
 }
 
-// carried reads the outgoing generation's state and hands it to the translation,
-// inside the transaction that writes the incoming one.
-//
-// The reads are here rather than in the caller because the caller has git work
-// to do between them and the write, and a mark, a comment or a state change
-// committed during that work would be read past. Nothing the git work depends on
-// is a row, so the rows can be left until the transaction holds the write lock.
-//
-// From has to still be the session's current generation, or something advanced
-// it while this one was being built and this one is carrying out of a generation
-// two behind. That drops every write made against the one in between, comments
-// included, and those are left pinned to a generation nothing reads again. A
-// From of zero says the session had none, and asserts exactly that.
-//
-// A nil Carry asserts nothing and writes the generation as it stands, which is
-// what a caller assembling rows by hand wants and nothing in the engine does.
+// carried reads the prior state inside the writing transaction so a write committed during the git work is not read past.
 func carried(ctx context.Context, tx *sql.Tx, sessionID string, adv Advance) (Carry, error) {
 	if adv.Carry == nil {
 		return Carry{}, nil
@@ -279,8 +203,6 @@ func carried(ctx context.Context, tx *sql.Tx, sessionID string, adv Advance) (Ca
 	return adv.Carry(p), nil
 }
 
-// GenFile is one file of a generation, and reports false when the generation
-// does not hold that path.
 func (db *DB) GenFile(ctx context.Context, generationID int64, path string) (GenFile, bool, error) {
 	const q = `
 		SELECT generation_id, path, old_path, status, base_blob, head_blob, cut
@@ -300,8 +222,7 @@ func (db *DB) GenFile(ctx context.Context, generationID int64, path string) (Gen
 	return f, true, nil
 }
 
-// GenFiles is every file in a generation, ordered by path so a listing and a
-// golden file get the same sequence without the caller sorting.
+// GenFiles returns a generation's files ordered by path.
 func (db *DB) GenFiles(ctx context.Context, generationID int64) ([]GenFile, error) {
 	return genFiles(ctx, db.handle, generationID)
 }

@@ -16,13 +16,9 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/tui/testtheme"
 )
 
-// mark is the caret the pane puts on the heading the ring is on, written as an
-// escape: a Nerd Font glyph does not survive every editor and pipe, and an empty
-// string is contained in every row there is.
+// mark is an escape because a Nerd Font glyph does not survive every editor and pipe.
 const mark = "\uf0da"
 
-// The fixture's two-hunk file, which is what the scrolling is measured against.
-// Sixteen rows: a header and six lines, a blank, a header and seven lines.
 const twoHunks = "internal/review/state.go"
 
 func pane(t *testing.T, path string, width, height int) diffpane.Model {
@@ -30,8 +26,6 @@ func pane(t *testing.T, path string, width, height int) diffpane.Model {
 	return commented(t, path, width, height)
 }
 
-// commented is a pane over the fixture with comments on it, which is what every
-// card assertion drives. No comments is the same pane with none of them matching.
 func commented(t *testing.T, path string, width, height int, comments ...store.Comment) diffpane.Model {
 	t.Helper()
 
@@ -82,8 +76,6 @@ var (
 	halfUp   = tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl}
 )
 
-// TestAFileIsItsLines: the numbers on both sides, the marker between them, and
-// the code. The header alone was the placeholder this replaces.
 func TestAFileIsItsLines(t *testing.T) {
 	got := joined(t, pane(t, "README.md", 60, 10))
 
@@ -100,8 +92,6 @@ func TestAFileIsItsLines(t *testing.T) {
 	}
 }
 
-// TestAFileWithNoHunksSaysWhy. A binary file is one thing to read, and a pane
-// left blank on it reads as a pane that failed.
 func TestAFileWithNoHunksSaysWhy(t *testing.T) {
 	got := rows(t, pane(t, "assets/logo.png", 60, 10))
 	if !strings.Contains(got[0], "binary") {
@@ -109,9 +99,6 @@ func TestAFileWithNoHunksSaysWhy(t *testing.T) {
 	}
 }
 
-// TestEveryRowIsExactlyThePane, at widths where a line of code cannot fit. A
-// pane clips overflow silently, losing trailing cells mid-cell with no
-// ellipsis, and a width test on the unclipped row still passes.
 func TestEveryRowIsExactlyThePane(t *testing.T) {
 	for _, width := range []int{80, 40, 24, 12} {
 		m := pane(t, twoHunks, width, 10)
@@ -123,8 +110,6 @@ func TestEveryRowIsExactlyThePane(t *testing.T) {
 	}
 }
 
-// TestALineTooWideIsMarkedWhereItWasCut, so the reader can tell a clipped line
-// from a short one.
 func TestALineTooWideIsMarkedWhereItWasCut(t *testing.T) {
 	got := rows(t, pane(t, twoHunks, 40, 10))
 
@@ -139,9 +124,6 @@ func TestALineTooWideIsMarkedWhereItWasCut(t *testing.T) {
 	}
 }
 
-// TestATabKeepsTheColumnsInStep. A raw tab is a variable number of cells, and
-// one anywhere in a line puts every column after it out of step with the line
-// above. The fixture's Go lines are tab-indented.
 func TestATabKeepsTheColumnsInStep(t *testing.T) {
 	got := joined(t, pane(t, twoHunks, 80, 20))
 	if strings.Contains(got, "\t") {
@@ -152,9 +134,6 @@ func TestATabKeepsTheColumnsInStep(t *testing.T) {
 	}
 }
 
-// TestSourceCannotWriteToTheTerminal. A repository holds whatever it holds, and
-// this one holds escape sequences in its own test fixtures. An escape reaching
-// the pane is run by the terminal and takes the row's width arithmetic with it.
 func TestSourceCannotWriteToTheTerminal(t *testing.T) {
 	patch := "diff --git a/loud.go b/loud.go\n" +
 		"index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1b039aafb 100644\n" +
@@ -175,10 +154,6 @@ func TestSourceCannotWriteToTheTerminal(t *testing.T) {
 	}
 }
 
-// TestAMissingTrailingNewlineIsSaidSoAndNotShown. Git carries it as an
-// annotation on the line rather than as a line, and a pane that drops it draws
-// a removal and an addition of identical text with nothing to tell the reader
-// what moved.
 func TestAMissingTrailingNewlineIsSaidSoAndNotShown(t *testing.T) {
 	const patch = `diff --git a/eof.go b/eof.go
 index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1b039aafb 100644
@@ -207,9 +182,6 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 	}
 }
 
-// TestARenameLexesEachSideByItsOwnName. A rename that changes the extension is
-// a different language on the base, and lexing its removals as the head's
-// colours them by a grammar they were never written in.
 func TestARenameLexesEachSideByItsOwnName(t *testing.T) {
 	const comment = "# the old script"
 
@@ -230,9 +202,6 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 		t.Fatalf("the theme names a Chroma style Chroma does not have: %q", testtheme.Dark.Syntax)
 	}
 
-	// Python reads the line as one comment. Go has no comment starting with a
-	// hash, so it breaks the same text into a run per word and paints the hash
-	// as the error it is, which is why one run of the whole line is the proof.
 	tokens := s.Lines("run.py", comment)[0]
 	if len(tokens) != 1 {
 		t.Fatalf("the Python lexer no longer reads %q as one token: %+v", comment, tokens)
@@ -253,8 +222,6 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 	}
 }
 
-// TestCodeIsHighlighted, on a context row so the kind's own tint is not in the
-// way. A stripped frame cannot see a colour, so this reads the raw one.
 func TestCodeIsHighlighted(t *testing.T) {
 	s, ok := syntax.New(testtheme.Dark.Syntax)
 	if !ok {
@@ -272,10 +239,6 @@ func TestCodeIsHighlighted(t *testing.T) {
 	}
 }
 
-// TestAChangedRowIsNotPaddedInPlainSpaces. Every styled run ends in a reset
-// that clears the background with it, so the pane's own padding on the end of a
-// tinted row would tear a hole in it. The painter runs a tint out to the full
-// width for that reason, and the pane finishes only the rows it left short.
 func TestAChangedRowIsNotPaddedInPlainSpaces(t *testing.T) {
 	m := pane(t, "README.md", 60, 10)
 
@@ -291,8 +254,6 @@ func TestAChangedRowIsNotPaddedInPlainSpaces(t *testing.T) {
 	t.Error("the added row is not on the pane")
 }
 
-// TestScrollingStopsAtBothEnds, so a key held down cannot walk the content off
-// the pane.
 func TestScrollingStopsAtBothEnds(t *testing.T) {
 	m := pane(t, twoHunks, 60, 4)
 
@@ -313,8 +274,6 @@ func TestScrollingStopsAtBothEnds(t *testing.T) {
 	}
 }
 
-// TestChangingFileTakesTheReaderToTheTop. A pane left at the old offset opens a
-// new file part-way down it.
 func TestChangingFileTakesTheReaderToTheTop(t *testing.T) {
 	c := testchangeset.Nested(t)
 
@@ -327,9 +286,6 @@ func TestChangingFileTakesTheReaderToTheTop(t *testing.T) {
 	}
 }
 
-// TestTheGutterFitsTheLastLineAndNoMore. Start plus Lines is the line after the
-// hunk, not its last, so a file ending at 99 sized off 100 buys a third column
-// it never fills and shifts every row of the file right of its neighbours.
 func TestTheGutterFitsTheLastLineAndNoMore(t *testing.T) {
 	const patch = `diff --git a/near.go b/near.go
 index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1b039aafb 100644
@@ -345,20 +301,13 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 	m.SetSize(60, 4)
 	m.SetFile(&c.Files[0], nil, nil, 2)
 
-	// The hunk's last line is 99, so two columns hold it. paint.HunkHeader
-	// indents to gutter*2+5, which is 9 at a gutter of 2 and 11 at 3.
 	got := rows(t, m)[0]
 	if indent := lipgloss.Width(got[:strings.Index(got, "@@")]); indent != 9 {
 		t.Errorf("the header indents %d columns, want 9: %q", indent, got)
 	}
 }
 
-// TestSelectingAHunkPutsItsHeadingOnTheTopRow. A key that lands on a block is
-// taking the reader somewhere, and the shortest scroll leaves the heading
-// wherever the last one happened to end.
 func TestSelectingAHunkPutsItsHeadingOnTheTopRow(t *testing.T) {
-	// Eight rows over sixteen, so the second hunk can reach the top row with
-	// room to spare below it.
 	m := pane(t, twoHunks, 60, 8)
 	m.Select(store.SideHead, 124)
 
@@ -367,24 +316,16 @@ func TestSelectingAHunkPutsItsHeadingOnTheTopRow(t *testing.T) {
 	}
 }
 
-// TestAHunkAlreadyOnScreenWholeDoesNotMoveTheWindow. Moving a block the reader
-// can already read is movement for nothing, and it costs them the lines above
-// it they were using for context.
 func TestAHunkAlreadyOnScreenWholeDoesNotMoveTheWindow(t *testing.T) {
-	// Tall enough for the whole file, so neither hunk has anywhere to go.
 	m := pane(t, twoHunks, 60, 20)
 	before := rows(t, m)[0]
 
-	// The top row rather than the whole frame: Select marks the heading it lands
-	// on, so the frame changes whether the window moved or not.
 	m.Select(store.SideHead, 124)
 	if after := rows(t, m)[0]; after != before {
 		t.Errorf("the top row moved from %q to %q", before, after)
 	}
 }
 
-// TestTheHeadingOfTheSelectedHunkIsTheOnlyOneMarked, so the mark answers which
-// hunk rather than which file.
 func TestTheHeadingOfTheSelectedHunkIsTheOnlyOneMarked(t *testing.T) {
 	m := pane(t, twoHunks, 60, 20)
 	m.Select(store.SideHead, 13)
@@ -403,8 +344,6 @@ func TestTheHeadingOfTheSelectedHunkIsTheOnlyOneMarked(t *testing.T) {
 	}
 }
 
-// TestSelectingAHunkTheFileDoesNotHoldMarksNothing, which is the state the pane
-// is in between a file arriving and the root naming a hunk in it.
 func TestSelectingAHunkTheFileDoesNotHoldMarksNothing(t *testing.T) {
 	m := pane(t, twoHunks, 60, 20)
 	before := m.View()
@@ -420,15 +359,10 @@ func TestSelectingAHunkTheFileDoesNotHoldMarksNothing(t *testing.T) {
 	}
 }
 
-// TestAResizeKeepsTheReaderWhereTheyScrolledTo. The first sizing puts the reader
-// on the cursor, because the size arrives after the model is built. Every one
-// after it is the terminal changing shape under someone who has scrolled
-// somewhere, and yanking them back to the cursor throws that away.
 func TestAResizeKeepsTheReaderWhereTheyScrolledTo(t *testing.T) {
 	m := pane(t, twoHunks, 60, 8)
 	m.Select(store.SideHead, 13)
 
-	// Down into the second hunk, well past the heading the cursor is on.
 	m = press(t, m, down, down, down, down, down, down, down, down)
 	before := rows(t, m)[0]
 
@@ -438,13 +372,9 @@ func TestAResizeKeepsTheReaderWhereTheyScrolledTo(t *testing.T) {
 	}
 }
 
-// TestTheFirstSizingScrollsToTheCursor, which is the case the reader opening on
-// a hunk part way down a file depends on.
 func TestTheFirstSizingScrollsToTheCursor(t *testing.T) {
 	c := testchangeset.Nested(t)
 
-	// Sized after the cursor is set, the way the root builds it: New, then the
-	// terminal says how big it is.
 	m := diffpane.New(testtheme.Dark)
 	m.SetFile(fileAt(t, c, twoHunks), nil, nil, 2)
 	m.Select(store.SideHead, 124)
@@ -455,8 +385,6 @@ func TestTheFirstSizingScrollsToTheCursor(t *testing.T) {
 	}
 }
 
-// filled is the row wearing the cursor's fill, stripped and unpadded, and empty
-// when none does. Its parameters match bare: lipgloss puts the foreground first.
 func filled(t *testing.T, m diffpane.Model) string {
 	t.Helper()
 
@@ -466,8 +394,6 @@ func filled(t *testing.T, m diffpane.Model) string {
 	return ""
 }
 
-// filledRows is every row wearing that fill, in the order the pane draws them, which
-// is what a selection covering a run of rows is asserted against.
 func filledRows(t *testing.T, m diffpane.Model) []string {
 	t.Helper()
 
@@ -482,8 +408,6 @@ func filledRows(t *testing.T, m diffpane.Model) []string {
 	return out
 }
 
-// content is a row past its leading cell, which is where the cursor's bar goes.
-// A window that has not moved draws the same rows whatever the cursor marks.
 func content(row string) string {
 	if r := []rune(row); len(r) > 0 {
 		return string(r[1:])
@@ -491,8 +415,6 @@ func content(row string) string {
 	return row
 }
 
-// TestJMovesTheCursorAndNotTheWindow, while the row it lands on is on screen. A
-// pane that scrolls on every j takes the reader off the line they are reading.
 func TestJMovesTheCursorAndNotTheWindow(t *testing.T) {
 	m := pane(t, twoHunks, 60, 8)
 	m.Select(store.SideHead, 13)
@@ -508,14 +430,10 @@ func TestJMovesTheCursorAndNotTheWindow(t *testing.T) {
 	}
 }
 
-// TestTheWindowFollowsTheCursorOffTheEdge, by as little as it takes. The reader
-// is already looking at the row; the window is what has fallen behind.
 func TestTheWindowFollowsTheCursorOffTheEdge(t *testing.T) {
 	m := pane(t, twoHunks, 60, 4)
 	m.Select(store.SideHead, 13)
 
-	// The row under the heading, which scrolling has to carry off the top. The
-	// heading itself pins there, so it cannot say whether the window moved.
 	first := rows(t, m)[1]
 	m = press(t, m, down, down, down, down)
 
@@ -528,7 +446,6 @@ func TestTheWindowFollowsTheCursorOffTheEdge(t *testing.T) {
 	}
 }
 
-// TestTheCursorStopsAtBothEndsOfTheFile, so a key held down cannot walk it off.
 func TestTheCursorStopsAtBothEndsOfTheFile(t *testing.T) {
 	m := pane(t, twoHunks, 60, 20)
 	m.Select(store.SideHead, 13)
@@ -544,8 +461,6 @@ func TestTheCursorStopsAtBothEndsOfTheFile(t *testing.T) {
 	}
 }
 
-// TestTheHeadingKeepsTheCaretWhileTheCursorIsInsideTheHunk. Once j walks off the
-// heading, the caret and the fill are on different rows and both are wanted.
 func TestTheHeadingKeepsTheCaretWhileTheCursorIsInsideTheHunk(t *testing.T) {
 	m := pane(t, twoHunks, 60, 20)
 	m.Select(store.SideHead, 13)
@@ -560,8 +475,6 @@ func TestTheHeadingKeepsTheCaretWhileTheCursorIsInsideTheHunk(t *testing.T) {
 	}
 }
 
-// TestTheCursorNamesTheHunkItWalkedInto, which is how the root keeps the ring on
-// what the reader is looking at.
 func TestTheCursorNamesTheHunkItWalkedInto(t *testing.T) {
 	m := pane(t, twoHunks, 60, 20)
 	m.Select(store.SideHead, 13)
@@ -571,7 +484,6 @@ func TestTheCursorNamesTheHunkItWalkedInto(t *testing.T) {
 		t.Fatalf("the cursor names %s:%d (%v), want head:13", side, line, ok)
 	}
 
-	// The heading, its six lines, and the blank between the two hunks.
 	for range 8 {
 		m = press(t, m, down)
 	}
@@ -580,8 +492,6 @@ func TestTheCursorNamesTheHunkItWalkedInto(t *testing.T) {
 	}
 }
 
-// TestTheHalfPageKeyTakesTheCursorWithIt. One left behind is paged off the pane,
-// and the next j hauls the window back to it.
 func TestTheHalfPageKeyTakesTheCursorWithIt(t *testing.T) {
 	m := pane(t, twoHunks, 60, 4)
 	m.Select(store.SideHead, 13)
@@ -597,8 +507,6 @@ func TestTheHalfPageKeyTakesTheCursorWithIt(t *testing.T) {
 	}
 }
 
-// params is the escape parameters a style renders with, stripped of the escape
-// around them: lipgloss packs foreground and background into one run.
 func params(t *testing.T, s lipgloss.Style) string {
 	t.Helper()
 
@@ -610,8 +518,6 @@ func params(t *testing.T, s lipgloss.Style) string {
 	return probe[a+1 : b]
 }
 
-// TestTheHeadingPinsToTheTopOnceItScrollsOff. Deep in a long hunk there is
-// otherwise nothing on screen saying which hunk a mark would take.
 func TestTheHeadingPinsToTheTopOnceItScrollsOff(t *testing.T) {
 	m := pane(t, twoHunks, 60, 4)
 	m.Select(store.SideHead, 13)
@@ -621,21 +527,15 @@ func TestTheHeadingPinsToTheTopOnceItScrollsOff(t *testing.T) {
 	if !strings.Contains(got[0], "@@ -10,5") {
 		t.Errorf("the top row is %q, want the cursor's hunk heading", got[0])
 	}
-	// The pin covers a row rather than adding one. A pane taller than its window
-	// is a frame that overruns the one below it.
 	if len(got) != 4 {
 		t.Errorf("the pane drew %d rows, want 4", len(got))
 	}
 }
 
-// TestTheCursorStepsOverTheBlankBetweenHunks, going either way. The blank is
-// the pane's own spacing and there is nothing on it to put a cursor on.
 func TestTheCursorStepsOverTheBlankBetweenHunks(t *testing.T) {
 	m := pane(t, twoHunks, 60, 20)
 	m.Select(store.SideHead, 13)
 
-	// Row six is the first hunk's last line, seven the blank, eight the heading.
-	// Read live: the row gains a caret as the cursor arrives on it.
 	last := func(m diffpane.Model) string { return strings.TrimRight(rows(t, m)[6], " ") }
 
 	for range 6 {
@@ -656,14 +556,10 @@ func TestTheCursorStepsOverTheBlankBetweenHunks(t *testing.T) {
 	}
 }
 
-// TestThePinFollowsTheWindowAndNotTheCursor. A heading names the lines under
-// it, so pinning the cursor's would label them with a hunk they are not in.
 func TestThePinFollowsTheWindowAndNotTheCursor(t *testing.T) {
 	m := pane(t, twoHunks, 60, 8)
 	m.Select(store.SideHead, 124)
 
-	// zb drops the second hunk's heading to the bottom row, so the window shows
-	// the tail of the first hunk with the cursor still in the second.
 	m = press(t, m, tea.KeyPressMsg{Code: 'z', Text: "z"}, tea.KeyPressMsg{Code: 'b', Text: "b"})
 
 	got := rows(t, m)
@@ -675,8 +571,6 @@ func TestThePinFollowsTheWindowAndNotTheCursor(t *testing.T) {
 	}
 }
 
-// TestTheHeadingIsNotDrawnTwiceWhileItIsOnScreen, which is what a pin reading
-// the cursor without reading the window would do.
 func TestTheHeadingIsNotDrawnTwiceWhileItIsOnScreen(t *testing.T) {
 	m := pane(t, twoHunks, 60, 8)
 	m.Select(store.SideHead, 13)
@@ -693,13 +587,9 @@ func TestTheHeadingIsNotDrawnTwiceWhileItIsOnScreen(t *testing.T) {
 	}
 }
 
-// TestZPlacesTheCursorInTheWindow. These move the window under the cursor
-// rather than the cursor through the file, which is why they are not ring keys.
 func TestZPlacesTheCursorInTheWindow(t *testing.T) {
 	z := tea.KeyPressMsg{Code: 'z', Text: "z"}
 
-	// The second heading, row eight of sixteen over an eight-row window: the one
-	// place all three have somewhere to go, since the window clamps at both ends.
 	at := func() diffpane.Model {
 		m := pane(t, twoHunks, 60, 8)
 		m.Select(store.SideHead, 124)
@@ -725,8 +615,6 @@ func TestZPlacesTheCursorInTheWindow(t *testing.T) {
 	}
 }
 
-// TestZOnItsOwnDoesNothing, and spends the key after it rather than leaving the
-// pane armed for a press the reader has forgotten about.
 func TestZOnItsOwnDoesNothing(t *testing.T) {
 	m := pane(t, twoHunks, 60, 8)
 	m.Select(store.SideHead, 124)
@@ -744,8 +632,6 @@ func TestZOnItsOwnDoesNothing(t *testing.T) {
 	}
 }
 
-// TestAShorterTerminalKeepsTheCursorOnScreen. A window that only clamps leaves
-// the cursor below it, and a mark then takes a hunk nothing on screen names.
 func TestAShorterTerminalKeepsTheCursorOnScreen(t *testing.T) {
 	m := pane(t, twoHunks, 60, 16)
 	m.Select(store.SideHead, 13)
@@ -759,8 +645,6 @@ func TestAShorterTerminalKeepsTheCursorOnScreen(t *testing.T) {
 	}
 }
 
-// TestAFileWithNoHunksLandsUnderTheCursor. It is one stop on the ring like any
-// other, and a pane with no fill on it reads as a pane the ring skipped.
 func TestAFileWithNoHunksLandsUnderTheCursor(t *testing.T) {
 	m := pane(t, "assets/logo.png", 60, 10)
 	m.Select("", 0)
@@ -773,8 +657,6 @@ func TestAFileWithNoHunksLandsUnderTheCursor(t *testing.T) {
 	}
 }
 
-// TestRestorePutsTheCursorBackWithTheWindow. Landing takes the reader to the
-// heading, and a reload that changed nothing owes them their own row back.
 func TestRestorePutsTheCursorBackWithTheWindow(t *testing.T) {
 	c := testchangeset.Nested(t)
 
@@ -784,8 +666,6 @@ func TestRestorePutsTheCursorBackWithTheWindow(t *testing.T) {
 
 	at, off := m.Cursor(), m.Scroll().Offset
 
-	// What a reload of the same bytes does: the file back in the pane, the
-	// cursor on the heading, then the reader's own place handed back.
 	m.SetFile(fileAt(t, c, twoHunks), nil, nil, 2)
 	m.Select(store.SideHead, 13)
 	m.Restore(at, off)
@@ -798,13 +678,11 @@ func TestRestorePutsTheCursorBackWithTheWindow(t *testing.T) {
 	}
 }
 
-// cards is the fixture's comments, which every card assertion drives.
 func cards(t *testing.T, path string, width, height int) diffpane.Model {
 	t.Helper()
 	return commented(t, path, width, height, testchangeset.NestedComments()...)
 }
 
-// under is the row after the one containing want, which is where a card hangs.
 func under(t *testing.T, m diffpane.Model, want string) string {
 	t.Helper()
 
@@ -818,8 +696,6 @@ func under(t *testing.T, m diffpane.Model, want string) string {
 	return ""
 }
 
-// TestACardHangsUnderTheLineItAnswers. A comment about a line the reader cannot
-// see beside it is an assertion about nothing.
 func TestACardHangsUnderTheLineItAnswers(t *testing.T) {
 	m := cards(t, twoHunks, 76, 30)
 
@@ -831,9 +707,6 @@ func TestACardHangsUnderTheLineItAnswers(t *testing.T) {
 	}
 }
 
-// TestAResponseHangsOffTheCardOnARail. A box says the words below are not the
-// reader's, where a change of weight inside one border says only that somebody
-// trailed off.
 func TestAResponseHangsOffTheCardOnARail(t *testing.T) {
 	got := rows(t, cards(t, twoHunks, 76, 60))
 
@@ -847,8 +720,6 @@ func TestAResponseHangsOffTheCardOnARail(t *testing.T) {
 		t.Fatalf("no card is addressed:\n%s", strings.Join(got, "\n"))
 	}
 
-	// The card's own two borders and its one row of body, then the rail: down
-	// past the box's top border, into the elbow on its first row of words.
 	for _, want := range []struct {
 		row  int
 		text string
@@ -866,12 +737,9 @@ func TestAResponseHangsOffTheCardOnARail(t *testing.T) {
 	}
 }
 
-// TestTheResponseBoxIsTwoColumnsInsideTheCard. The rail is drawn in the gap, so
-// a box the card's own width has nowhere to hang from.
 func TestTheResponseBoxIsTwoColumnsInsideTheCard(t *testing.T) {
 	got := rows(t, cards(t, twoHunks, 76, 60))
 
-	// Measured in cells, not bytes: the rail's own glyphs are three bytes each.
 	corner := func(row string) int { return lipgloss.Width(row[:strings.Index(row, "\u256d")]) }
 
 	card, box := -1, -1
@@ -892,9 +760,6 @@ func TestTheResponseBoxIsTwoColumnsInsideTheCard(t *testing.T) {
 	}
 }
 
-// TestTheResponseBoxNeverLights. A lit border says a key reaches here, and
-// nothing reaches a response: no cursor stops on it and there is nothing to do
-// on it. A stripped frame cannot see a colour, so this reads the escapes.
 func TestTheResponseBoxNeverLights(t *testing.T) {
 	m := cards(t, twoHunks, 76, 60)
 	accent := params(t, lipgloss.NewStyle().Foreground(testtheme.Dark.Accent))
@@ -904,8 +769,6 @@ func TestTheResponseBoxNeverLights(t *testing.T) {
 
 		flat, raw := rows(t, m), strings.Split(m.View(), "\n")
 		for i, row := range flat {
-			// The addressed card is the one with a box under it, and the row is
-			// its footer, which only a lit card draws.
 			if !strings.Contains(row, "x resolve") || i+1 >= len(flat) {
 				continue
 			}
@@ -925,8 +788,6 @@ func TestTheResponseBoxNeverLights(t *testing.T) {
 	t.Fatal("the cursor never landed on the addressed card")
 }
 
-// TestACommentWithNoResponseDrawsNoBox. Every state but addressed reaches the
-// card with nothing to say, and an empty box claims words it has none of.
 func TestACommentWithNoResponseDrawsNoBox(t *testing.T) {
 	got := joined(t, commented(t, "README.md", 76, 30,
 		testchangeset.Comment("aaaaaaaaaaaa", "README.md", 0, 0, "Does this still read right?")))
@@ -936,8 +797,6 @@ func TestACommentWithNoResponseDrawsNoBox(t *testing.T) {
 	}
 }
 
-// TestAFoldedCardTakesItsResponseWithIt. One row is what folding means, and a
-// box still hanging off it says the card is open.
 func TestAFoldedCardTakesItsResponseWithIt(t *testing.T) {
 	settled := testchangeset.Responded(
 		testchangeset.In(testchangeset.Comment("aaaaaaaaaaaa", "README.md", 1, 1, "Does this read right?"),
@@ -949,8 +808,6 @@ func TestAFoldedCardTakesItsResponseWithIt(t *testing.T) {
 	}
 }
 
-// TestARangeCardSaysWhereItStarted. It hangs under the last line of the run, and
-// nothing on that row can say the run began two lines above.
 func TestARangeCardSaysWhereItStarted(t *testing.T) {
 	m := cards(t, twoHunks, 76, 30)
 
@@ -960,8 +817,6 @@ func TestARangeCardSaysWhereItStarted(t *testing.T) {
 	}
 }
 
-// TestACardUnderItsOwnLineSaysNoNumber. The gutter beside it already has one,
-// and a card repeating it is a label saying what the reader can see.
 func TestACardUnderItsOwnLineSaysNoNumber(t *testing.T) {
 	m := cards(t, twoHunks, 76, 30)
 
@@ -971,8 +826,6 @@ func TestACardUnderItsOwnLineSaysNoNumber(t *testing.T) {
 	}
 }
 
-// TestAFileCommentHeadsTheFile. It names the whole file rather than a line in
-// it, the way a whole-file reviewed range covers one.
 func TestAFileCommentHeadsTheFile(t *testing.T) {
 	got := rows(t, cards(t, "README.md", 76, 20))
 
@@ -984,8 +837,6 @@ func TestAFileCommentHeadsTheFile(t *testing.T) {
 	}
 }
 
-// TestACommentTheDiffHasNoLineForStillDraws, and says so rather than hanging
-// under a line it was never about. Dropping it loses what was asked.
 func TestACommentTheDiffHasNoLineForStillDraws(t *testing.T) {
 	got := joined(t, cards(t, twoHunks, 76, 30))
 
@@ -994,13 +845,9 @@ func TestACommentTheDiffHasNoLineForStillDraws(t *testing.T) {
 	}
 }
 
-// TestAResolvedCommentIsOneRowUntilSpaceOpensIt. Settled work burying live work
-// is what folding is for, and a fold with no way back loses a mistaken resolve.
 func TestAResolvedCommentIsOneRowUntilSpaceOpensIt(t *testing.T) {
 	m := cards(t, "README.md", 76, 20)
 
-	// It keeps its box. Without one it is a line of grey text in a column of
-	// diff, which is what the diff's own notes look like.
 	got := joined(t, m)
 	if !strings.Contains(got, "╭─ ◆ resolved") {
 		t.Errorf("the resolved comment lost its box:\n%s", got)
@@ -1012,8 +859,6 @@ func TestAResolvedCommentIsOneRowUntilSpaceOpensIt(t *testing.T) {
 		t.Errorf("the folded card is %d rows, want a border, one row and a border", h)
 	}
 
-	// Onto its row, then open it. The file card is the first stop, the heading
-	// and the five lines the next six, and the resolved card the one after.
 	m = press(t, m, down)
 	for range 7 {
 		m = press(t, m, down)
@@ -1029,8 +874,6 @@ func TestAResolvedCommentIsOneRowUntilSpaceOpensIt(t *testing.T) {
 	}
 }
 
-// boxHeight is how many rows a card spans, found from the border its label is
-// in down to the one that closes it, and 0 when the label is not on screen.
 func boxHeight(t *testing.T, m diffpane.Model, label string) int {
 	t.Helper()
 
@@ -1048,8 +891,6 @@ func boxHeight(t *testing.T, m diffpane.Model, label string) int {
 	return 0
 }
 
-// TestEveryCardRowIsExactlyThePane, at widths where a card loses its border. A
-// pane clips silently and a width test on the unclipped row still passes.
 func TestEveryCardRowIsExactlyThePane(t *testing.T) {
 	for _, width := range []int{80, 40, 24, 12, 8} {
 		m := cards(t, twoHunks, width, 30)
@@ -1061,11 +902,6 @@ func TestEveryCardRowIsExactlyThePane(t *testing.T) {
 	}
 }
 
-// TestTheScrollCounterCountsCardRows. add appends one entry per call and every
-// offset assumes row equals line, so one multi-line push and the counter lies.
-//
-// The pane is deep enough to draw every row, because the ceiling is what the
-// pane drew and a counter over a clipped view proves nothing.
 func TestTheScrollCounterCountsCardRows(t *testing.T) {
 	const deep = 60
 
@@ -1080,8 +916,6 @@ func TestTheScrollCounterCountsCardRows(t *testing.T) {
 	}
 }
 
-// TestJStepsOverACardInOnePress. A card is one block and one stop; walking its
-// border and its prose a row at a time is a tax on the burn-down.
 func TestJStepsOverACardInOnePress(t *testing.T) {
 	m := cards(t, "README.md", 76, 20)
 
@@ -1090,7 +924,6 @@ func TestJStepsOverACardInOnePress(t *testing.T) {
 		t.Fatalf("the first j landed on row %d, want the card's own row", got)
 	}
 
-	// Three rows of card, and the next press clears all of them.
 	m = press(t, m, down)
 	if got := m.Cursor(); got != 3 {
 		t.Errorf("the next j landed on row %d, want the row after the card", got)
@@ -1102,14 +935,10 @@ func TestJStepsOverACardInOnePress(t *testing.T) {
 	}
 }
 
-// TestACardTakesTheAccentBorderUnderTheCursor. A stripped golden cannot see a
-// colour, and the border is the only thing saying where the keys are.
 func TestACardTakesTheAccentBorderUnderTheCursor(t *testing.T) {
 	m := cards(t, "README.md", 76, 20)
 	accent := params(t, lipgloss.NewStyle().Foreground(testtheme.Dark.Accent))
 
-	// The bottom border, because the top one carries the badge and an open
-	// comment's badge is the accent whether the cursor is on it or not.
 	if lit(m.View(), accent, "╰─") {
 		t.Errorf("the card is lit with the cursor off it:\n%s", joined(t, m))
 	}
@@ -1118,7 +947,6 @@ func TestACardTakesTheAccentBorderUnderTheCursor(t *testing.T) {
 	}
 }
 
-// lit is whether a row holding want carries the escape parameters.
 func lit(view, params, want string) bool {
 	for _, line := range strings.Split(view, "\n") {
 		if strings.Contains(ansi.Strip(line), want) && strings.Contains(line, params) {
@@ -1128,8 +956,6 @@ func lit(view, params, want string) bool {
 	return false
 }
 
-// TestSelectCommentLeavesTheAnchorOnScreen. A block that answers the line above
-// it cannot go to the top row, or the code it answers scrolls away.
 func TestSelectCommentLeavesTheAnchorOnScreen(t *testing.T) {
 	m := cards(t, twoHunks, 76, 6)
 	m.SelectComment("cccccccccccc")
@@ -1143,8 +969,6 @@ func TestSelectCommentLeavesTheAnchorOnScreen(t *testing.T) {
 	}
 }
 
-// TestEnterGoesToTheLineACardAnswers, which on a range is where the run starts
-// rather than the line the card happens to hang under.
 func TestEnterGoesToTheLineACardAnswers(t *testing.T) {
 	m := cards(t, twoHunks, 76, 30)
 	m.SelectComment("cccccccccccc")
@@ -1155,8 +979,6 @@ func TestEnterGoesToTheLineACardAnswers(t *testing.T) {
 	}
 }
 
-// TestAResizeKeepsTheCursorOnTheSameCard. A card's height moves with the width,
-// so every row index after one moves with it and a stored row is the wrong card.
 func TestAResizeKeepsTheCursorOnTheSameCard(t *testing.T) {
 	m := cards(t, twoHunks, 76, 30)
 	m.SelectComment("cccccccccccc")
@@ -1167,15 +989,11 @@ func TestAResizeKeepsTheCursorOnTheSameCard(t *testing.T) {
 		t.Errorf("the resize left the cursor on %q, want the card it was on", got)
 	}
 
-	// Without this the test passes on a row that never moved, which proves
-	// nothing about carrying the cursor over a relayout.
 	if m.Cursor() == was {
 		t.Fatalf("the card is on row %d at both widths, so the narrower one wrapped nothing", was)
 	}
 }
 
-// TestABaseSideCommentMatchesThroughTheOldPath. A rename gives the file a name
-// the base side never had, and matching on the new one loses the comment.
 func TestABaseSideCommentMatchesThroughTheOldPath(t *testing.T) {
 	const patch = `diff --git a/run.py b/run.go
 similarity index 40%
@@ -1205,10 +1023,6 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 	}
 }
 
-// TestACardSaysWasOnlyOfNumbersTheCodeHasLeft. A card with no row to hang under
-// is not the same as one whose code has gone: a comment written outside a hunk
-// has no row the moment the whole file comes back out, and its line is still
-// there. The two read apart or the reader is told live code has vanished.
 func TestACardSaysWasOnlyOfNumbersTheCodeHasLeft(t *testing.T) {
 	tests := []struct {
 		name string
@@ -1246,16 +1060,11 @@ func TestACardSaysWasOnlyOfNumbersTheCodeHasLeft(t *testing.T) {
 	}
 }
 
-// frozenAt stops a comment at a generation other than the one on screen, which
-// is what leaves its numbers naming whatever is there now.
 func frozenAt(gen int64, c store.Comment) store.Comment {
 	c.GenerationID = gen
 	return c
 }
 
-// TestEveryBadgeIsOneCell. A two-cell glyph puts every row after it out of step
-// where a font missing a one-cell one only draws a box, so this is measured
-// rather than assumed.
 func TestEveryBadgeIsOneCell(t *testing.T) {
 	for _, glyph := range []string{"◇", "◈", "◆", "✕", "▸", mark} {
 		if got := lipgloss.Width(glyph); got != 1 {
@@ -1264,9 +1073,6 @@ func TestEveryBadgeIsOneCell(t *testing.T) {
 	}
 }
 
-// TestACommentFrozenAtAnOlderGenerationDrawsWhereItPointed. It stopped moving
-// and kept the anchor it stopped at, so those line numbers now name whatever is
-// there rather than the code it was about.
 func TestACommentFrozenAtAnOlderGenerationDrawsWhereItPointed(t *testing.T) {
 	stale := testchangeset.In(
 		testchangeset.Comment("aaaaaaaaaaaa", twoHunks, 13, 13, "this was about the old line"),
@@ -1283,8 +1089,6 @@ func TestACommentFrozenAtAnOlderGenerationDrawsWhereItPointed(t *testing.T) {
 	}
 }
 
-// TestACommentFrozenAtThisGenerationStaysWhereItIs, so resolving one does not
-// make its card jump to the foot of the file under the reader.
 func TestACommentFrozenAtThisGenerationStaysWhereItIs(t *testing.T) {
 	settled := testchangeset.In(
 		testchangeset.Comment("aaaaaaaaaaaa", twoHunks, 13, 13, "just settled"),
@@ -1300,8 +1104,6 @@ func TestACommentFrozenAtThisGenerationStaysWhereItIs(t *testing.T) {
 	}
 }
 
-// TestACardKeepsTheParagraphsOfItsBody. comp.Safe reads a newline as the control
-// character it is, so sanitizing a whole body first collapses it into one run.
 func TestACardKeepsTheParagraphsOfItsBody(t *testing.T) {
 	body := "the first paragraph\n\n- a bullet\n- another"
 	on := testchangeset.Comment("aaaaaaaaaaaa", "README.md", 2, 2, body)
@@ -1320,11 +1122,7 @@ func TestACardKeepsTheParagraphsOfItsBody(t *testing.T) {
 	}
 }
 
-// TestSelectCommentLeavesRoomForThePin. The heading pins to the top row, so an
-// anchor put there is covered by the thing meant to keep it in context.
 func TestSelectCommentLeavesRoomForThePin(t *testing.T) {
-	// Four rows: a taller window is clamped off the anchor by the card's own
-	// last row and never lands the offset on it.
 	m := cards(t, twoHunks, 76, 4)
 	m.SelectComment("bbbbbbbbbbbb")
 
@@ -1333,9 +1131,6 @@ func TestSelectCommentLeavesRoomForThePin(t *testing.T) {
 	}
 }
 
-// TestTheHeadingHoldsThroughAPagingKey. ctrl+d moves the cursor and the window
-// by the same amount, so a pin that stood down for a cursor on the top row
-// stood down on every press and the rows on screen went unlabelled.
 func TestTheHeadingHoldsThroughAPagingKey(t *testing.T) {
 	for _, key := range []tea.KeyPressMsg{halfDown, halfUp} {
 		m := pane(t, twoHunks, 70, 5)
@@ -1349,8 +1144,6 @@ func TestTheHeadingHoldsThroughAPagingKey(t *testing.T) {
 	}
 }
 
-// TestThePinDoesNotCoverTheCursor. It owns the top line, so the window opens a
-// row higher rather than drawing the heading over the row the reader is on.
 func TestThePinDoesNotCoverTheCursor(t *testing.T) {
 	m := pane(t, twoHunks, 70, 5)
 	m.Select(store.SideHead, 13)
@@ -1364,8 +1157,6 @@ func TestThePinDoesNotCoverTheCursor(t *testing.T) {
 	}
 }
 
-// TestZtLandsUnderTheHeadingItAsksToSee. The top row is the pin's, so a cursor
-// put there is drawn over by the very heading zt was pressed to keep in view.
 func TestZtLandsUnderTheHeadingItAsksToSee(t *testing.T) {
 	m := pane(t, twoHunks, 70, 6)
 	m.Select(store.SideHead, 13)
@@ -1381,11 +1172,6 @@ func TestZtLandsUnderTheHeadingItAsksToSee(t *testing.T) {
 	}
 }
 
-// TestAPagingKeyParksTheCursorMidWindow, so the file runs past a cursor that
-// stays put and the eye keeps one place to read from.
-//
-// Three phases: the cursor reaches the middle without the window moving, then
-// the window carries it, then the window stops and it goes on to the last row.
 func TestAPagingKeyParksTheCursorMidWindow(t *testing.T) {
 	const height = 7
 
@@ -1413,8 +1199,6 @@ func TestAPagingKeyParksTheCursorMidWindow(t *testing.T) {
 	}
 }
 
-// TestAPagingKeyParksGoingUpToo, and lands the cursor on the first row once the
-// window has run out of file above it.
 func TestAPagingKeyParksGoingUpToo(t *testing.T) {
 	const height = 7
 
@@ -1437,9 +1221,6 @@ func TestAPagingKeyParksGoingUpToo(t *testing.T) {
 	}
 }
 
-// TestAOneRowPaneKeepsTheCursorOverThePin. The pane gets exactly one row at the
-// app's own minimum height, and there the pin and the cursor want the same line.
-// The heading is a label; a reader who cannot see their own row has lost more.
 func TestAOneRowPaneKeepsTheCursorOverThePin(t *testing.T) {
 	m := pane(t, twoHunks, 60, 1)
 	m.Select(store.SideHead, 13)
@@ -1453,17 +1234,13 @@ func TestAOneRowPaneKeepsTheCursorOverThePin(t *testing.T) {
 	}
 }
 
-// respondedCard is the fixture's addressed comment, which is the one a block
-// hangs under.
 const respondedCard = "dddddddddddd"
 
-// replacing is the fixture's cards with the code one response replaced.
 func replacing(t *testing.T, width, height int, block ...string) diffpane.Model {
 	t.Helper()
 	return blocked(t, testchangeset.NestedComments(), width, height, block...)
 }
 
-// blocked is any set of comments with a block on the responded card.
 func blocked(t *testing.T, comments []store.Comment, width, height int, block ...string) diffpane.Model {
 	t.Helper()
 
@@ -1474,8 +1251,6 @@ func blocked(t *testing.T, comments []store.Comment, width, height int, block ..
 	return m
 }
 
-// TestAResponseCarriesTheCodeItReplaced. The words say what was done and the
-// block is what a reader confirms them against.
 func TestAResponseCarriesTheCodeItReplaced(t *testing.T) {
 	got := rows(t, replacing(t, 76, 60, "files := d.Files()", "sort.Strings(files)"))
 
@@ -1489,8 +1264,6 @@ func TestAResponseCarriesTheCodeItReplaced(t *testing.T) {
 		t.Fatalf("the response drew no words:\n%s", strings.Join(got, "\n"))
 	}
 
-	// A blank row between the words and the code, so the two do not read as one
-	// paragraph, then the block in the order it was handed over.
 	for _, want := range []struct {
 		row  int
 		text string
@@ -1507,8 +1280,6 @@ func TestAResponseCarriesTheCodeItReplaced(t *testing.T) {
 	}
 }
 
-// TestABlockIsTruncatedUntilTheKeyIsPressed. On a queue of answered comments the
-// whole of every rewrite is the pane, so a card opens with enough to recognise.
 func TestABlockIsTruncatedUntilTheKeyIsPressed(t *testing.T) {
 	block := []string{"one", "two", "three", "four", "five"}
 	got := joined(t, replacing(t, 76, 60, block...))
@@ -1528,13 +1299,10 @@ func TestABlockIsTruncatedUntilTheKeyIsPressed(t *testing.T) {
 	}
 }
 
-// TestExpandDrawsTheWholeBlock. The key behind it is the root's, the way the
-// card's other verbs are; what the pane owns is the card's size.
 func TestExpandDrawsTheWholeBlock(t *testing.T) {
 	block := []string{"one", "two", "three", "four", "five"}
 	m := replacing(t, 76, 60, block...)
 
-	// Walk onto the card, which is what the key acts through.
 	for range 60 {
 		if id, ok := m.Comment(); ok && id == respondedCard {
 			break
@@ -1565,8 +1333,6 @@ func TestExpandDrawsTheWholeBlock(t *testing.T) {
 	}
 }
 
-// TestABareAddressGrowsABoxForTheBlock. The code is the whole of what a bare
-// address has to say, and a box is what says the contents are the agent's.
 func TestABareAddressGrowsABoxForTheBlock(t *testing.T) {
 	bare := testchangeset.In(
 		testchangeset.Comment(respondedCard, twoHunks, 126, 126, "Derive takes the rows now."),
@@ -1581,8 +1347,6 @@ func TestABareAddressGrowsABoxForTheBlock(t *testing.T) {
 	}
 }
 
-// TestAFoldedCardTakesItsBlockWithIt. One row is what folding means, and the
-// block goes with the box that holds it.
 func TestAFoldedCardTakesItsBlockWithIt(t *testing.T) {
 	settled := testchangeset.Responded(
 		testchangeset.In(testchangeset.Comment(respondedCard, twoHunks, 126, 126, "Derive takes the rows now."),
@@ -1594,8 +1358,6 @@ func TestAFoldedCardTakesItsBlockWithIt(t *testing.T) {
 	}
 }
 
-// TestABlockStaysInsideTheBox. A raw tab is a variable number of cells and a
-// line wider than the box would take the border off the rows it runs through.
 func TestABlockStaysInsideTheBox(t *testing.T) {
 	long := strings.Repeat("wide", 40)
 	m := replacing(t, 76, 60, "\tif x {", long)
@@ -1615,8 +1377,6 @@ func TestABlockStaysInsideTheBox(t *testing.T) {
 	}
 }
 
-// TestTheBlockIsPaintedAsTheRemovalsItIs. A stripped frame cannot see a colour,
-// so the tint is asserted against the theme beside the golden that holds the row.
 func TestTheBlockIsPaintedAsTheRemovalsItIs(t *testing.T) {
 	m := replacing(t, 76, 60, "files := d.Files()")
 	removed := params(t, lipgloss.NewStyle().Background(testtheme.Dark.RemovedBackground))
@@ -1636,8 +1396,6 @@ func TestTheBlockIsPaintedAsTheRemovalsItIs(t *testing.T) {
 	t.Fatalf("the block did not draw:\n%s", joined(t, m))
 }
 
-// A blank line inside a block is a removed blank line. It still takes a full
-// row of tint, or the block reads as two blocks with a hole between them.
 func TestABlankLineInABlockStillFills(t *testing.T) {
 	m := replacing(t, 76, 60, "type cutter struct {", "", "}")
 	removed := params(t, lipgloss.NewStyle().Background(testtheme.Dark.RemovedBackground))
@@ -1659,8 +1417,6 @@ func TestABlankLineInABlockStillFills(t *testing.T) {
 	t.Fatalf("the block did not draw:\n%s", joined(t, m))
 }
 
-// The footer's count and the rows drawn come off the same slice. Chroma drops a
-// trailing blank line, so a block ending in one used to offer more and show all.
 func TestABlockEndingInABlankStillCountsIt(t *testing.T) {
 	m := replacing(t, 76, 60, "one", "two", "three", "")
 
@@ -1673,19 +1429,15 @@ func TestABlockEndingInABlankStillCountsIt(t *testing.T) {
 	}
 }
 
-// A pane too narrow for a box draws the card bare, where the fill was the only
-// thing saying which card the cursor is on.
 func TestABareCardStandsWithoutAFill(t *testing.T) {
 	const path = "internal/review/state.go"
 
 	c := testchangeset.Nested(t)
 	m := diffpane.New(testtheme.Bare)
 
-	// Narrow enough to reach the bare form.
 	m.SetSize(18, 20)
 	m.SetFile(fileAt(t, c, path), testchangeset.NestedComments(), nil, 2)
 
-	// The card is one stop for the cursor, so walking the pane lands on it.
 	seen := map[string]bool{}
 	for range 40 {
 		if row, ok := bareCardRow(m); ok {

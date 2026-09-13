@@ -13,58 +13,39 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/tui/syntax"
 )
 
-// The comment states as glyphs: a diamond, where a hunk's badge is a circle.
-// The two ladders mean different things and cannot share a shape.
+// Comment states are diamonds, not the hunk badge's circles: the two ladders mean different things.
 const (
-	// Hollow, centred and filled is the progression the circles make too, so a
-	// column of either still reads at a glance.
 	openGlyph      = "◇"
 	addressedGlyph = "◈"
 	resolvedGlyph  = "◆"
 
-	// Orphaned leaves the family. It is a loss rather than a stage.
-	orphanedGlyph = "✕"
+	orphanedGlyph = "✕" // a loss, not a stage
 )
 
-// cardMin is the narrowest a bordered card gets, which is room for a few words.
-// Under it a card is a box round an ellipsis, so the indent goes then the border.
+// cardMin is the narrowest a bordered card gets; under it the box holds little but an ellipsis.
 const cardMin = 20
 
-// foldGlyph opens a folded card's one row. It is zen-octo's, which marks a
-// folded block the same way.
+// foldGlyph matches zen-octo's folded-block marker.
 const foldGlyph = "▸"
 
-// cardGutter is the space between a card's border and what it holds. Text
-// against the border reads as a rendering fault rather than as a box.
 const cardGutter = 1
 
-// noWords stands in for a body that has none. The engine refuses an empty one,
-// so this is the card saying the row is not a rendering fault.
 const noWords = "no words"
 
-// replacedShown is how much of the block a card draws before the key takes over.
-// Enough to recognise the lines, short enough that a queue still scrolls.
 const replacedShown = 3
 
-// responseRail is the gutter the response's box hangs in. The rail is drawn in
-// it, so the box is that much narrower and that much further in.
 const responseRail = 2
 
-// The rail, read down: past the box's top border, into its first row of words,
-// then clear. There is only ever one answer, so the elbow is never a tee.
+// The elbow is never a tee, because a comment has only one response.
 const (
 	railDown  = "│ "
 	railElbow = "╰─"
 	railClear = "  "
 )
 
-// card is one comment on screen, and both the ways it draws. The cursor moving
-// in or out changes its whole border, and layout is where that is paid for.
 type card struct {
 	id string
 
-	// at is the card's first row and the only one the cursor lands on. anchor is
-	// the first row of the code it answers, and -1 when the diff has none.
 	at     int
 	anchor int
 
@@ -72,10 +53,8 @@ type card struct {
 	lit   []string
 }
 
-// end is one past the card's last row.
 func (c card) end() int { return c.at + len(c.plain) }
 
-// cardOf is the card a row belongs to, and nil for a row outside every one.
 func (m Model) cardOf(i int) *card {
 	if i < 0 || i >= len(m.rows) {
 		return nil
@@ -86,16 +65,13 @@ func (m Model) cardOf(i int) *card {
 	return nil
 }
 
-// LeaveCard takes the cursor off whatever card it is on and onto the nearest
-// code, above by preference. It is where a delete leaves the reader.
+// LeaveCard moves the cursor off its card onto the nearest code row, above first.
 func (m *Model) LeaveCard() {
 	c := m.cardOf(m.cursor)
 	if c == nil {
 		return
 	}
 
-	// The card that went is gone from the rows, so the cursor is left on the one
-	// that slid up into them, and the next press of the key takes that.
 	for i := c.at - 1; i >= 0; i-- {
 		if m.rows[i].card < 0 {
 			m.point(i)
@@ -112,24 +88,16 @@ func (m *Model) LeaveCard() {
 	}
 }
 
-// folds is whether a comment draws folded: settled by default, and flipped by
-// whatever the reader last pressed space on.
 func (m Model) folds(c store.Comment) bool {
 	return (c.State == store.CommentResolved) != m.folded[c.ID]
 }
 
-// cardBox is where a card starts and how wide it is. It hangs at the column the
-// code starts in, and gives that up rather than shrink past what a border needs.
 func (m Model) cardBox() (int, int) {
 	at := min(m.codeColumn(), max(m.width-cardMin, 0))
 
-	// It stops at what prose reads at, where the code beside it runs the whole
-	// pane. A wide box around one column of words reads as a fault, not a card.
 	return at, min(m.width-at, comp.BodyWidth+2+2*cardGutter)
 }
 
-// addCard renders one comment into rows and records where they landed. The rows
-// carry the drawn text; the card carries both drawings and is what lands.
 func (m *Model) addCard(c store.Comment, hunk, anchor int) {
 	plain, lit := m.drawCard(c, m.replacedTokens(c), anchor >= 0)
 
@@ -141,8 +109,7 @@ func (m *Model) addCard(c store.Comment, hunk, anchor int) {
 	}
 }
 
-// replacedTokens is the block a card carries, highlighted as one body so the
-// lexer holds its state across the lines the way it does down a file.
+// replacedTokens is sized to the block, not to Chroma's output, which drops a trailing blank line.
 func (m *Model) replacedTokens(c store.Comment) [][]syntax.Token {
 	block := m.replaced[c.ID]
 	if len(block) == 0 {
@@ -154,15 +121,11 @@ func (m *Model) replacedTokens(c store.Comment) [][]syntax.Token {
 		safe[i] = comp.Code(line)
 	}
 
-	// Sized to the block rather than to what came back. Chroma drops a trailing
-	// blank line, and the count the footer offers is taken off this slice.
 	out := make([][]syntax.Token, len(block))
 	copy(out, m.syntax.Lines(c.Path, strings.Join(safe, "\n")))
 	return out
 }
 
-// drawCard is a comment as its rows, unlit and lit. A pane with no width yet
-// gets one blank row, and the first resize gives the card its real height.
 func (m Model) drawCard(c store.Comment, block [][]syntax.Token, placed bool) ([]string, []string) {
 	if m.width <= 0 {
 		return []string{""}, []string{""}
@@ -170,14 +133,11 @@ func (m Model) drawCard(c store.Comment, block [][]syntax.Token, placed bool) ([
 
 	at, width := m.cardBox()
 	if width < cardMin {
-		// The bare form has no border to light, so weight carries a missing fill.
 		return m.bareRow(c, placed, at, lipgloss.NewStyle()),
 			m.bareRow(c, placed, at, lipgloss.NewStyle().
 				Background(m.theme.SelectedBackground).Bold(true))
 	}
 
-	// The box being typed in is always lit and names its own two keys, because
-	// it holds every key on the keyboard while it is up.
 	if c.ID == draftID {
 		box := comp.NewPane(m.theme).Label(m.cardLabel(c, placed)).
 			Size(width, m.draft.area.Height()+2)
@@ -190,12 +150,8 @@ func (m Model) drawCard(c store.Comment, block [][]syntax.Token, placed bool) ([
 		return rows, rows
 	}
 
-	// A folded card keeps its box. Without one it is a line of grey text in a
-	// column of diff, which is what the diff's own notes look like.
 	folded := m.folds(c)
 
-	// Built one way or the other, never both: either sanitises the whole body,
-	// and the loser's pass is work every relayout pays for nothing.
 	var body []string
 	if folded {
 		body = m.foldedBody(c, width)
@@ -209,9 +165,6 @@ func (m Model) drawCard(c store.Comment, block [][]syntax.Token, placed bool) ([
 	lit := lines(box.Focus(true).Footer("", m.cardHints(c, width, placed, folded)).
 		Render(strings.Join(body, "\n")))
 
-	// A folded card takes its response with it. One row is what folding means,
-	// and a box hanging off it says the card is open. One drawing serves both:
-	// the response has no lit form.
 	if !folded {
 		box := m.responseBox(c, block, width)
 		plain = append(plain, box...)
@@ -225,7 +178,6 @@ func (m Model) drawCard(c store.Comment, block [][]syntax.Token, placed bool) ([
 	return plain, lit
 }
 
-// cardBody is the comment's words, and the stand-in when it has none.
 func (m Model) cardBody(c store.Comment, width int) []string {
 	out := m.boxBody(c.Body, width)
 	if len(out) == 0 {
@@ -234,8 +186,6 @@ func (m Model) cardBody(c store.Comment, width int) []string {
 	return out
 }
 
-// boxBody is words folded to what a box leaves them and set in off the border.
-// Prose is capped: a card on a wide terminal still reads.
 func (m Model) boxBody(words string, width int) []string {
 	room := max(width-2-2*cardGutter, 1)
 
@@ -249,8 +199,6 @@ func (m Model) boxBody(words string, width int) []string {
 	return out
 }
 
-// responseBox is what an address left behind, on a rail: the words and the code
-// they replaced. Nil for a comment with neither, and it never lights.
 func (m Model) responseBox(c store.Comment, block [][]syntax.Token, width int) []string {
 	inner := width - responseRail
 	if (c.Response == "" && len(block) == 0) || inner < cardMin {
@@ -283,16 +231,12 @@ func (m Model) responseBox(c store.Comment, block [][]syntax.Token, width int) [
 	return rows
 }
 
-// replacedBody is the code the response replaced, painted as the removals it is:
-// the diff's own marker and tint, so the eye pairs it with the rows above.
 func (m Model) replacedBody(block [][]syntax.Token, width int, expanded bool) []string {
 	shown := block
 	if !expanded && len(block) > replacedShown {
 		shown = block[:replacedShown]
 	}
 
-	// The full inner width, so the tint runs border to border. A row that stopped
-	// where the code does would read as ragged rather than as a block.
 	out := make([]string, 0, len(shown)+1)
 	for _, tokens := range shown {
 		out = append(out, m.painter.Body(paint.Line{Kind: paint.Removed, Tokens: tokens}, max(width-2, 1)))
@@ -307,8 +251,6 @@ func (m Model) replacedBody(block [][]syntax.Token, width int, expanded bool) []
 	return out
 }
 
-// foldedBody is a settled card's one row: the mark saying it is folded, and
-// enough of the body to know which comment the box is standing for.
 func (m Model) foldedBody(c store.Comment, width int) []string {
 	room := max(width-2-2*cardGutter, 1)
 
@@ -320,15 +262,11 @@ func (m Model) foldedBody(c store.Comment, width int) []string {
 		comp.Clip(m.subtle().Render(line), room, m.subtle())}
 }
 
-// bareRow is the one-row form finished to the pane, its indent painted in the
-// row's own style so a lit one fills from the edge the way a code row does.
 func (m Model) bareRow(c store.Comment, placed bool, at int, base lipgloss.Style) []string {
 	lead := base.Render(strings.Repeat(" ", max(at, 0)))
 	return []string{m.pad(lead+m.bareCard(c, placed, base), base)}
 }
 
-// bareCard is the borderless form: the badge, the state, and enough of the body
-// to recall it. Only a pane too narrow for a box takes it.
 func (m Model) bareCard(c store.Comment, placed bool, base lipgloss.Style) string {
 	row := m.cardHead(c, placed, base)
 	if first := firstLine(c.Body); first != "" {
@@ -337,19 +275,13 @@ func (m Model) bareCard(c store.Comment, placed bool, base lipgloss.Style) strin
 	return row
 }
 
-// cardLabel is the top border's text: the badge for the glance and the word for
-// the scan. One weight down a column cannot say which state a card is in.
 func (m Model) cardLabel(c store.Comment, placed bool) string {
 	return " " + m.cardHead(c, placed, lipgloss.NewStyle()) + " "
 }
 
-// cardHead is the badge, the state and whatever the card's own position cannot
-// say, over whatever background the row is painted on.
 func (m Model) cardHead(c store.Comment, placed bool, base lipgloss.Style) string {
 	glyph, on := m.commentBadge(c.State)
 
-	// The box is not a comment yet, and open is a state it reaches by landing.
-	// One being retyped keeps its badge, because its state is not what changes.
 	word := string(c.State)
 	if c.ID == draftID {
 		word = "new"
@@ -366,7 +298,6 @@ func (m Model) cardHead(c store.Comment, placed bool, base lipgloss.Style) strin
 	return head
 }
 
-// commentBadge is a comment's state as a glyph and the weight it reads at.
 func (m Model) commentBadge(s store.CommentState) (string, color.Color) {
 	switch s {
 	case store.CommentAddressed:
@@ -380,22 +311,12 @@ func (m Model) commentBadge(s store.CommentState) (string, color.Color) {
 	}
 }
 
-// commentWhere is the part of a comment's anchor the card's own position cannot
-// say. A card under its line needs no number: the gutter beside it has one.
-//
-// `was` is for numbers naming no code the pane could draw: an orphan, whose
-// anchor is gone, and one frozen at another generation, whose numbers name
-// whatever is there now. A live comment with no row is a different thing. The
-// line is in the file and the diff is not showing it, which is every comment
-// written outside a hunk the moment the whole file comes back out, and saying it
-// was anywhere would tell the reader it had gone.
+// commentWhere says "was" only for an orphan or a comment frozen at another generation.
 func commentWhere(c store.Comment, placed, live bool) string {
 	if c.Scope == store.ScopeFile {
 		return "file"
 	}
 
-	// A placed line needs nothing at all. A range says the run it covers wherever
-	// it is drawn, the gutter naming one row of it and not the span.
 	if placed && c.Start == c.End {
 		return ""
 	}
@@ -415,11 +336,7 @@ func span(c store.Comment) string {
 	return strconv.Itoa(c.Start) + "-" + strconv.Itoa(c.End)
 }
 
-// cardHints is what the lit card answers to, dropped from the tail until it
-// fits. x, e and D are the root's, named here because the card is what they reach.
 func (m Model) cardHints(c store.Comment, width int, placed, folded bool) string {
-	// The word is the direction the key goes, not the state it is in. A folded
-	// card naming the fold says the press would do what has been done.
 	word := "space fold"
 	if folded {
 		word = "space open"
@@ -427,8 +344,6 @@ func (m Model) cardHints(c store.Comment, width int, placed, folded bool) string
 
 	parts := []string{word}
 
-	// Offered only where the block has something left to show, and naming the
-	// direction the key goes the way the fold hint does.
 	if !folded && len(m.replaced[c.ID]) > replacedShown {
 		hint := "> more"
 		if m.expanded[c.ID] {
@@ -437,8 +352,6 @@ func (m Model) cardHints(c store.Comment, width int, placed, folded bool) string
 		parts = append(parts, hint)
 	}
 
-	// Last, so a card too narrow for all of them keeps the three it had. They
-	// reach a comment in any state: a typo in a resolved one is still a typo.
 	parts = append(parts, "e edit", "D delete")
 
 	if c.State != store.CommentResolved {
@@ -459,8 +372,6 @@ func (m Model) cardHints(c store.Comment, width int, placed, folded bool) string
 	return ""
 }
 
-// pad fits a row to the pane, finishing it in the style it was drawn in so a
-// filled one runs its background all the way across.
 func (m Model) pad(row string, style lipgloss.Style) string {
 	row = comp.Clip(row, m.width, style)
 	if gap := m.width - lipgloss.Width(row); gap > 0 {
@@ -473,7 +384,6 @@ func (m Model) subtle() lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(m.theme.Subtle)
 }
 
-// indent sets a rendered row in by n columns.
 func indent(row string, n int) string {
 	if n <= 0 {
 		return row
@@ -483,7 +393,6 @@ func indent(row string, n int) string {
 
 func lines(block string) []string { return strings.Split(block, "\n") }
 
-// firstLine is enough of a body to recall which comment it is, on one row.
 func firstLine(body string) string {
 	for _, line := range strings.Split(comp.Prose(body), "\n") {
 		if s := strings.TrimSpace(line); s != "" {

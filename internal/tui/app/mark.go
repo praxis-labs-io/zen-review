@@ -10,8 +10,6 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/review"
 )
 
-// wroteMsg is a write that landed, with the changeset re-derived after it. at
-// and row are where r was pressed, because the reader moves while it is out.
 type wroteMsg struct {
 	r       Reload
 	at      stop
@@ -19,30 +17,19 @@ type wroteMsg struct {
 	advance bool
 }
 
-// staleMsg is a write refused because a refresh landed first. Nothing was
-// written and nothing was lost.
 type staleMsg struct{ err error }
 
-// savedMsg is a write that committed and could not be read back. What is on
-// screen is behind the review, which is the one failure a retry would double.
 type savedMsg struct{ err error }
 
-// intent is a mark key's ask, kept rather than the closure it builds. A press
-// held while a write is out is run against the cursor the write left behind.
 type intent struct {
 	whole bool
 	undo  bool
 }
 
-// advances is whether this ask moves on afterwards, which r and R do and taking
-// a mark back does not.
 func (i intent) advances() bool { return !i.undo }
 
-// writeFailedMsg is a write that did not happen. The changeset is left alone.
 type writeFailedMsg struct{ err error }
 
-// marking is the write a mark key asks for, or false when the cursor has
-// nothing under it. A file with no hunks is one stop and is marked whole.
 func (m Model) marking(i intent) (func(Source) (Reload, error), bool) {
 	whole, undo := i.whole, i.undo
 
@@ -59,10 +46,6 @@ func (m Model) marking(i intent) (func(Source) (Reload, error), bool) {
 		return func(s Source) (Reload, error) { return s.MarkFile(g, *f) }, true
 	}
 
-	// A line outside every hunk is a row only the whole file drawn around them has.
-	// The ring stop still names the hunk the reader arrived on, and this key takes
-	// the hunk the cursor is in, so reading the stop there would mark work nobody
-	// read. The tree has no row to ask about and keeps the stop.
 	if m.focus == focusDiff && m.diff.OffHunk() {
 		return nil, false
 	}
@@ -77,8 +60,6 @@ func (m Model) marking(i intent) (func(Source) (Reload, error), bool) {
 	return func(s Source) (Reload, error) { return s.MarkHunk(g, f.Diff.Path, h) }, true
 }
 
-// marked is the write a press asks for. The third value says whether the press
-// was a mark key at all, which tells "nothing to write" from "not mine".
 func (m Model) marked(msg tea.KeyPressMsg) (intent, bool) {
 	switch {
 	case key.Matches(msg, m.keys.Mark):
@@ -93,8 +74,7 @@ func (m Model) marked(msg tea.KeyPressMsg) (intent, bool) {
 	return intent{}, false
 }
 
-// applyWrite puts a write on screen, then moves on if the key asked to. It
-// advances only from the row r was pressed on: a reader who moved has spoken.
+// applyWrite advances only from the row r was pressed on, because a reader who moved has chosen where to be.
 func (m *Model) applyWrite(msg wroteMsg) {
 	m.apply(msg.r)
 
@@ -106,13 +86,10 @@ func (m *Model) applyWrite(msg wroteMsg) {
 	m.note = notice{text: m.progress()}
 }
 
-// progress is how far down the burn-down the write left the reader.
 func (m Model) progress() string {
 	return strconv.Itoa(m.changeset.Reviewed) + "/" + strconv.Itoa(m.changeset.Items) + " read"
 }
 
-// hunkAt is the hunk the cursor names, found by identity the way the ring finds
-// everything else.
 func (m Model) hunkAt(f review.File) (review.Hunk, bool) {
 	for _, h := range f.Hunks {
 		if side, line := h.Name(); side == m.cursor.side && line == m.cursor.line {
@@ -122,8 +99,6 @@ func (m Model) hunkAt(f review.File) (review.Hunk, bool) {
 	return review.Hunk{}, false
 }
 
-// write runs a write off the update loop, the same way a reload runs. The
-// source is lifted out first, because Update goes on writing the model.
 func (m Model) write(do func(Source) (Reload, error), at stop, row int, advance bool) tea.Cmd {
 	src := m.src
 	return func() tea.Msg {
@@ -135,8 +110,6 @@ func (m Model) write(do func(Source) (Reload, error), at stop, row int, advance 
 	}
 }
 
-// failed is what a write that did not land comes back as. A refresh landing
-// mid-press is answered with the reload key, not by pressing the same one again.
 func failed(err error) tea.Msg {
 	var stale *review.StaleGenerationError
 	switch {
@@ -148,8 +121,6 @@ func failed(err error) tea.Msg {
 	return writeFailedMsg{err: err}
 }
 
-// start is the command a mark asks for, and false when the cursor names
-// nothing to write against.
 func (m *Model) start(i intent) (tea.Cmd, bool) {
 	do, ok := m.marking(i)
 	if !ok {

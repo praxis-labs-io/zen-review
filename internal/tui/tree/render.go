@@ -33,18 +33,9 @@ func (m Model) View() string {
 	return strings.Join(lines, "\n")
 }
 
-// render is one row: the indent, the glyph, the name, and the churn against the
-// right edge.
-//
-// The row under the cursor is a filled background and nothing else. On an
-// unfocused pane the fill stays, so the reader can still see where the tree is,
-// and the text goes quiet so it does not read as the thing the keys are pointed
-// at.
 func (m Model) render(r row, cursor bool) string {
 	fill := m.theme.Background
 
-	// A directory is the shape of the changeset rather than a thing to read, so
-	// it takes the accent and the files under it stay in the reading colour.
 	text := m.theme.Text
 	if r.n.dir() {
 		text = m.theme.Accent
@@ -61,30 +52,20 @@ func (m Model) render(r row, cursor bool) string {
 		base = base.Background(fill)
 	}
 
-	// The name on the cursor row is bold as well as filled. A terminal that
-	// drops colour keeps bold, and the fill is the only other thing marking the
-	// row: under NO_COLOR the reader would press j and watch nothing move.
 	nameStyle := base.Foreground(text).Bold(cursor)
 
 	subtle := base.Foreground(m.theme.Subtle)
 	glyph, glyphColor := m.glyph(r.n)
 
-	// The indent gives way before the name does. A branching tree eleven deep
-	// would otherwise spend the whole pane saying how deep it is.
 	depth := min(r.depth*indent, max(m.width-gutter*2-nameMin-2, 0))
 
 	room := m.width - gutter*2 - depth - lipgloss.Width(glyph) - 1
 
-	// The trailing cell takes what is left over the name's share, not the other
-	// way round. "renamed, contents unchanged" is 27 columns and would leave a
-	// 32-column pane naming no file at all.
 	trailing := comp.Clip(m.trailing(r.n, base), max(room-nameMin-1, 0), subtle)
 	if trailing != "" {
 		room -= lipgloss.Width(trailing) + 1
 	}
 
-	// A clipped path still names the file, so the name is what gives up the last
-	// columns to the churn beside it.
 	name := comp.Clip(comp.Safe(r.n.name), max(room, 0), subtle)
 
 	row := base.Render(strings.Repeat(" ", gutter+depth)) +
@@ -102,18 +83,7 @@ func (m Model) render(r row, cursor bool) string {
 	return comp.Clip(row+base.Render(strings.Repeat(" ", gutter)), m.width, subtle)
 }
 
-// glyph is the row's mark: which way a directory is folded, or how much of a
-// file has been read.
-//
-// A file's three states are zen-linear's status icons, glyph for glyph: an
-// empty ring is untouched, a ring with a centre is started, a filled one is
-// done. They come from one circle family so every state is one cell at the
-// same weight, and a burn-down here reads the way a ticket board does.
-//
-// The folders are Nerd Font, which is the one thing on screen that asks
-// anything of the terminal's font. Both render one cell wide, so a font
-// without them draws a replacement box rather than putting every row after it
-// out of step.
+// glyph uses zen-linear's status icons for files, so a burn-down reads the way a ticket board does.
 func (m Model) glyph(n *node) (string, color.Color) {
 	if n.dir() {
 		if n.open {
@@ -132,11 +102,6 @@ func (m Model) glyph(n *node) (string, color.Color) {
 	}
 }
 
-// trailing is the cell against the right edge: what a file changed, or why
-// there is nothing to count. A directory has neither.
-//
-// It comes back styled, so the churn can say which way the file went. base
-// carries the row's background into every piece of it.
 func (m Model) trailing(n *node, base lipgloss.Style) string {
 	if n.dir() {
 		return ""

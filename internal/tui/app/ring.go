@@ -5,15 +5,7 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
-// stop is one thing the ring lands on: a hunk, or a whole file that has none.
-//
-// It names the hunk the way review does, by the side and the first line it
-// touches, and never by position. An agent inserting a hunk above the cursor
-// would otherwise leave it on different code wearing the same number.
-//
-// A file with no hunks is one stop with no line. Changeset.Items counts a binary
-// file as one item, so a ring that stepped over it would leave n unable to walk
-// the burn-down to zero.
+// stop names a hunk by side and first line rather than position, so an inserted hunk cannot shift it onto other code.
 type stop struct {
 	path  string
 	side  store.Side
@@ -21,17 +13,12 @@ type stop struct {
 	state review.State
 }
 
-// unread is whether this is a stop the n key is looking for.
 func (s stop) unread() bool { return s.state != review.Reviewed }
 
-// same is whether two stops name the same hunk. State is not identity: a mark
-// changes it, and the hunk the reader was on is still the hunk they were on.
 func (s stop) same(o stop) bool {
 	return s.path == o.path && s.side == o.side && s.line == o.line
 }
 
-// stops is every landing place in the changeset, in the order the tree draws
-// them, which is the order review.Derive hands the files back in.
 func (m Model) stops() []stop {
 	out := make([]stop, 0, m.changeset.Items)
 	for _, f := range m.changeset.Files {
@@ -47,9 +34,6 @@ func (m Model) stops() []stop {
 	return out
 }
 
-// at is where the cursor sits in a list of stops, resolved from its identity
-// every time rather than stored. It is 0 for a cursor the changeset no longer
-// holds, so a ring key still moves rather than doing nothing.
 func at(stops []stop, cur stop) int {
 	for i, s := range stops {
 		if s.same(cur) {
@@ -59,12 +43,6 @@ func at(stops []stop, cur stop) int {
 	return 0
 }
 
-// ring steps from the cursor to the next stop matching want, wrapping. It comes
-// back false when there is nowhere to go: an empty changeset, or an n press with
-// nothing left unread.
-//
-// The walk starts one past the cursor and takes in the cursor itself last, so a
-// ring of one stop lands back on it rather than reporting no such stop.
 func (m Model) ring(by int, want func(stop) bool) (stop, bool) {
 	stops := m.stops()
 	if len(stops) == 0 {
@@ -81,11 +59,7 @@ func (m Model) ring(by int, want func(stop) bool) (stop, bool) {
 	return stop{}, false
 }
 
-// onward is the next stop matching want after the cursor, and does not wrap.
-//
-// It is what a mark advances by. The ring wraps because hunting for something
-// unread is what n is for; a walk that came back to the top would let one held
-// key claim the whole changeset had been read.
+// onward does not wrap, so one held mark key cannot claim the whole changeset was read.
 func (m Model) onward(want func(stop) bool) (stop, bool) {
 	stops := m.stops()
 	if len(stops) == 0 {
@@ -100,15 +74,9 @@ func (m Model) onward(want func(stop) bool) (stop, bool) {
 	return stop{}, false
 }
 
-// wrap is i modulo n, brought back into range from either end. Go's % keeps the
-// sign of its left operand, so a step back off the front lands negative.
 func wrap(i, n int) int { return ((i % n) + n) % n }
 
-// file steps to the next or previous file and lands on its first hunk.
-//
-// It is not ring with a path test: stepping back that way finds the previous
-// file's last hunk, and a key that moves a whole file should open it at the top
-// the same way going forward does.
+// file is not ring with a path test, which stepping back would land on the previous file's last hunk.
 func (m Model) file(by int) (stop, bool) {
 	s, ok := m.ring(by, func(s stop) bool { return s.path != m.cursor.path })
 	if !ok {
@@ -117,13 +85,6 @@ func (m Model) file(by int) (stop, bool) {
 	return m.firstOf(s.path)
 }
 
-// land puts the cursor on a stop: the file into the pane and the tree, and the
-// hunk under the pane's own cursor.
-//
-// The tree follows the pane rather than the other way round, so the two never
-// disagree about which file is open. It is selected on every landing and not
-// only when the file changes, because the tree's cursor can be somewhere the
-// pane is not: a directory row leaves the pane on the file before it.
 func (m *Model) land(s stop) {
 	m.cursor = s
 	m.tree.Select(s.path)
@@ -134,8 +95,6 @@ func (m *Model) land(s stop) {
 	m.diff.Select(s.side, s.line)
 }
 
-// unresolved is every comment somebody still has to answer, in review's order.
-// This ring is the comments' half of the burn-down, the way n is the hunks'.
 func (m Model) unresolved() []store.Comment {
 	out := make([]store.Comment, 0, len(m.comments))
 	for _, c := range m.comments {
@@ -146,8 +105,6 @@ func (m Model) unresolved() []store.Comment {
 	return out
 }
 
-// reachable is the unresolved comments the changeset still holds a file for. One
-// whose file was reverted out is a stop that lands nowhere and never moves past.
 func (m Model) reachable() []store.Comment {
 	out := make([]store.Comment, 0, len(m.comments))
 	for _, c := range m.unresolved() {
@@ -158,16 +115,12 @@ func (m Model) reachable() []store.Comment {
 	return out
 }
 
-// commentRing steps from the comment the cursor is on to the next, wrapping. It
-// is false when there is nothing to step to.
 func (m Model) commentRing(by int) (store.Comment, bool) {
 	all := m.reachable()
 	if len(all) == 0 {
 		return store.Comment{}, false
 	}
 
-	// A cursor on no card at all is most presses of these two keys, and there is
-	// no place to step from. Forward takes the first and back takes the last.
 	from, on := 0, false
 	if id, ok := m.diff.Comment(); ok {
 		for i, c := range all {
@@ -186,8 +139,6 @@ func (m Model) commentRing(by int) (store.Comment, bool) {
 	return all[wrap(from+by, len(all))], true
 }
 
-// landComment puts the file holding a comment in the pane and the cursor on its
-// card. The ring follows the row, the same way it follows j.
 func (m *Model) landComment(c store.Comment) {
 	f := m.fileOwning(c)
 	if f == nil {
@@ -200,22 +151,16 @@ func (m *Model) landComment(c store.Comment) {
 	m.tree.Select(f.Diff.Path)
 	m.diff.SelectComment(c.ID)
 
-	// A file comment and a stray sit outside every hunk, so there is none under
-	// the cursor to follow and the ring takes the file's first instead.
 	if _, _, ok := m.diff.Hunk(); ok {
 		m.syncCursor()
 		return
 	}
 
-	// Left alone the ring stays in the file just left, where r marks something
-	// nothing on screen names.
 	if s, ok := m.firstOf(f.Diff.Path); ok {
 		m.cursor = s
 	}
 }
 
-// fileOwning is the changeset file a comment was written against, and nil when
-// the changeset no longer holds it.
 func (m *Model) fileOwning(c store.Comment) *review.File {
 	for i := range m.changeset.Files {
 		if m.changeset.Files[i].Owns(c) {
@@ -225,11 +170,6 @@ func (m *Model) fileOwning(c store.Comment) *review.File {
 	return nil
 }
 
-// opening is where the reader starts: the first stop that has not been read, or
-// the first stop when the whole thing has been.
-//
-// Vacuously done is still done, and dropping the reader at the top of a finished
-// changeset is the same place they would go to check it.
 func (m Model) opening() (stop, bool) {
 	stops := m.stops()
 	if len(stops) == 0 {
@@ -244,11 +184,6 @@ func (m Model) opening() (stop, bool) {
 	return stops[0], true
 }
 
-// firstOf is the file's own first stop, which is where the tree's cursor moving
-// onto a file puts the ring.
-//
-// Its first, not its first unread: the reader picked the file to read it, and n
-// is the key that walks the burn-down.
 func (m Model) firstOf(path string) (stop, bool) {
 	for _, s := range m.stops() {
 		if s.path == path {
@@ -258,9 +193,6 @@ func (m Model) firstOf(path string) (stop, bool) {
 	return stop{}, false
 }
 
-// anyStop matches every stop, for the keys that step by hunk rather than by
-// what has been read.
 func anyStop(stop) bool { return true }
 
-// unreadStop matches a stop the reader has not finished, which is what n walks.
 func unreadStop(s stop) bool { return s.unread() }

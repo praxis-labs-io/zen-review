@@ -27,8 +27,6 @@ func newRefresh(opts *options) *cobra.Command {
 	}
 }
 
-// runRefresh is what a bare zen-review runs when there is no terminal to open
-// the reader on. One function rather than one body copied twice.
 func runRefresh(cmd *cobra.Command, opts *options) (err error) {
 	s, err := open(cmd.Context(), opts)
 	if err != nil {
@@ -48,18 +46,7 @@ func runRefresh(cmd *cobra.Command, opts *options) (err error) {
 	return emit(cmd.OutOrStdout(), generationView(s, g, files), opts.asJSON)
 }
 
-// build refreshes, and says what a lost ref means rather than passing the
-// plumbing up.
-//
-// ErrRefMoved means something else refreshed this session first, which is a
-// normal Tuesday with a TUI open in the next pane. Nothing was written, so the
-// answer is to run it again.
-//
-// Retrying here rather than asking would be wrong, not merely lazy. Refresh
-// promises the loser of the swap writes no row at all, and an immediate second
-// attempt clears the swap against the winner's own commit while the winner is
-// still inserting its row, which is how two rows land in an order the ref does
-// not agree with. A reader running it again seconds later is past that window.
+// No retry on ErrRefMoved: an immediate second swap can land two rows in an order the ref disagrees with.
 func build(ctx context.Context, s *review.Session) (review.Generation, error) {
 	g, err := s.Refresh(ctx)
 	if errors.Is(err, git.ErrRefMoved) {

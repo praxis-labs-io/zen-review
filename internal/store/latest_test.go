@@ -7,8 +7,6 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
-// writes is every write that names a generation, so a case below runs each of
-// them against the same superseded one rather than picking a favourite.
 var writes = map[string]func(t *testing.T, db *store.DB, s store.Session, generationID int64) error{
 	"a mark": func(t *testing.T, db *store.DB, s store.Session, generationID int64) error {
 		t.Helper()
@@ -26,10 +24,6 @@ var writes = map[string]func(t *testing.T, db *store.DB, s store.Session, genera
 	},
 }
 
-// A write aimed at a generation that is no longer the latest is inert: the carry
-// runs from the latest, so nothing would read the row again. It is refused
-// inside the writing transaction, which is what makes a refresh committing a
-// moment earlier refuse it rather than swallow it.
 func TestAWriteAgainstASupersededGenerationIsRefused(t *testing.T) {
 	for name, write := range writes {
 		t.Run(name, func(t *testing.T) {
@@ -50,8 +44,6 @@ func TestAWriteAgainstASupersededGenerationIsRefused(t *testing.T) {
 	}
 }
 
-// A session with none at all refuses everything, because there is nothing to aim
-// at. Marking before the first refresh is the way in.
 func TestAWriteAgainstASessionWithNoGenerationIsRefused(t *testing.T) {
 	for name, write := range writes {
 		t.Run(name, func(t *testing.T) {
@@ -67,8 +59,6 @@ func TestAWriteAgainstASessionWithNoGenerationIsRefused(t *testing.T) {
 	}
 }
 
-// The refusal leaves nothing behind. Half of a refused write is worse than the
-// write, because the row is there for a reader and gone for the carry.
 func TestARefusedWriteLeavesNoRowBehind(t *testing.T) {
 	db := open(t)
 	s, first := generation(t, db, "rolled-back")

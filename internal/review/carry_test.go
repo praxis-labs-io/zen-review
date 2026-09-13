@@ -10,8 +10,6 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
-// numbered is a file whose every line names itself, so a diff of two of them
-// says exactly which lines moved and an assertion can name them back.
 func numbered(from, to int) string {
 	var b strings.Builder
 	for i := from; i <= to; i++ {
@@ -20,7 +18,6 @@ func numbered(from, to int) string {
 	return b.String()
 }
 
-// shown is what the tables below read: one string per range, path first.
 func shown(rs []store.ReviewedRange) []string {
 	out := make([]string, 0, len(rs))
 	for _, r := range rs {
@@ -29,9 +26,6 @@ func shown(rs []store.ReviewedRange) []string {
 	return out
 }
 
-// storedRanges reads through a second handle on the database rather than through
-// the session that wrote, so a method returning the right value while writing
-// nothing cannot pass.
 func (f *fixture) storedRanges(g review.Generation) []string {
 	f.t.Helper()
 
@@ -63,8 +57,6 @@ func assertRanges(t *testing.T, got, want []string) {
 	}
 }
 
-// marked is the state every carry case starts from: a committed file of twenty
-// numbered lines in the changeset, generation one built, and lines 5 to 9 read.
 func marked(t *testing.T) (*fixture, *review.Session, review.Generation) {
 	t.Helper()
 
@@ -93,9 +85,6 @@ func TestAMarkLandsAgainstTheGenerationItNames(t *testing.T) {
 	}
 }
 
-// The whole feature: a mark is line ranges, and a new generation is where those
-// lines went. What is never true is a line the edit introduced sitting inside a
-// range that survived.
 func TestAMarkFollowsItsLinesIntoTheNextGeneration(t *testing.T) {
 	tests := []struct {
 		name string
@@ -155,8 +144,6 @@ func TestAMarkFollowsItsLinesIntoTheNextGeneration(t *testing.T) {
 	}
 }
 
-// A rebase replays the same lines onto a newer upstream. Nothing about the file
-// changed, so the review of it comes through whole.
 func TestARebaseCarriesEveryMark(t *testing.T) {
 	f, s, first := marked(t)
 
@@ -174,9 +161,6 @@ func TestARebaseCarriesEveryMark(t *testing.T) {
 	assertRanges(t, f.storedRanges(next), []string{"code.txt head 5:9"})
 }
 
-// A deletion-only hunk has no head-side lines and anchors to the base blob, so
-// the base moving is what moves the mark. It is the only reason the base diff
-// runs at all.
 func TestABaseSideMarkTranslatesWhenTheBaseMoves(t *testing.T) {
 	f := newFixture(t)
 	f.Write("code.txt", numbered(1, 20))
@@ -191,8 +175,6 @@ func TestABaseSideMarkTranslatesWhenTheBaseMoves(t *testing.T) {
 	first := f.refresh(s)
 	f.mark(s, first, "code.txt", store.SideBase, review.Range{Start: 10, End: 12})
 
-	// Upstream inserts a line at the top of the same file and the branch replays
-	// onto it, so every base-side line the mark names moved down one.
 	f.Git("checkout", "-q", "main")
 	f.Write("code.txt", "upstream\n"+numbered(1, 20))
 	f.Commit("upstream")
@@ -207,9 +189,6 @@ func TestABaseSideMarkTranslatesWhenTheBaseMoves(t *testing.T) {
 	assertRanges(t, f.storedRanges(next), []string{"code.txt base 11:13"})
 }
 
-// A rename gives a file two names, and its base blob sits under the old one. A
-// base-side mark keyed by the head name would never be found in the base diff,
-// and would sit unmoved on top of lines that shifted underneath it.
 func TestABaseSideMarkOnARenamedFileIsKeyedByTheBaseName(t *testing.T) {
 	f := newFixture(t)
 	f.Write("old.txt", numbered(1, 20))
@@ -224,7 +203,6 @@ func TestABaseSideMarkOnARenamedFileIsKeyedByTheBaseName(t *testing.T) {
 	s := f.mustOpen("")
 	first := f.refresh(s)
 
-	// Marked under the name the changeset lists the file by, which is the new one.
 	f.mark(s, first, "new.txt", store.SideBase, review.Range{Start: 10, End: 12})
 	assertRanges(t, f.storedRanges(first), []string{"old.txt base 10:12"})
 
@@ -242,10 +220,6 @@ func TestABaseSideMarkOnARenamedFileIsKeyedByTheBaseName(t *testing.T) {
 	assertRanges(t, f.storedRanges(next), []string{"old.txt base 11:13"})
 }
 
-// A whole-file mark says the file's entry in the changeset had nothing to read.
-// A base change can give that entry real lines without the head bytes moving at
-// all, and there is no diff between the two head trees for a translation to
-// catch it in.
 func TestAWholeFileMarkGoesWhenTheFileGainsHunks(t *testing.T) {
 	f := newFixture(t)
 	f.Write("code.txt", numbered(1, 20))
@@ -258,8 +232,6 @@ func TestAWholeFileMarkGoesWhenTheFileGainsHunks(t *testing.T) {
 	f.Git("mv", "code.txt", "moved.txt")
 	f.Commit("move it")
 
-	// Measured from the commit below it, the file only moved, so it has no hunks
-	// and the whole of it is one mark.
 	near := f.mustOpen("feature~1")
 	first := f.refresh(near)
 	f.mark(near, first, "moved.txt", store.SideHead, review.Range{})
@@ -268,7 +240,6 @@ func TestAWholeFileMarkGoesWhenTheFileGainsHunks(t *testing.T) {
 		t.Fatalf("closing: %v", err)
 	}
 
-	// Measured from the base, the same bytes carry a line nobody has read.
 	far := f.mustOpen("origin/main")
 	next := f.refresh(far)
 	if next.ID == first.ID {
@@ -277,8 +248,6 @@ func TestAWholeFileMarkGoesWhenTheFileGainsHunks(t *testing.T) {
 	assertRanges(t, f.storedRanges(next), nil)
 }
 
-// The fork point going away drops the refresh onto a base that still has one.
-// What it must not do is leave the review reading as unreviewed.
 func TestABaseForcePushThatLosesTheForkPointKeepsTheMarks(t *testing.T) {
 	f, s, _ := marked(t)
 
@@ -303,8 +272,6 @@ func TestABaseForcePushThatLosesTheForkPointKeepsTheMarks(t *testing.T) {
 	assertRanges(t, f.storedRanges(next), []string{"code.txt head 5:9"})
 }
 
-// A mark against an old generation is not merely stale, it is inert: the carry
-// runs from the latest, so nothing would ever pick the row up.
 func TestAMarkAgainstAnOldGenerationIsRefused(t *testing.T) {
 	f, s, first := marked(t)
 
@@ -334,16 +301,10 @@ func TestUnmarkingCutsOnlyTheLinesItNames(t *testing.T) {
 	}
 	assertRanges(t, f.storedRanges(g), []string{"code.txt head 5:6", "code.txt head 17:18"})
 
-	// Marking the same lines back joins all three into one, because the pieces
-	// either side of the gap now touch it.
 	f.mark(s, g, "code.txt", store.SideHead, review.Range{Start: 7, End: 16})
 	assertRanges(t, f.storedRanges(g), []string{"code.txt head 5:18"})
 }
 
-// A whole-file mark names the file rather than any line in it, so a line range
-// neither clips it nor is clipped by it. Unmarking a file's lines and finding it
-// no longer marked as a whole would be the mark disappearing for a reason nobody
-// asked for.
 func TestAWholeFileMarkComesOffOnlyToAWholeFileUnmark(t *testing.T) {
 	f, s, g := marked(t)
 
@@ -361,8 +322,6 @@ func TestAWholeFileMarkComesOffOnlyToAWholeFileUnmark(t *testing.T) {
 	assertRanges(t, f.storedRanges(g), nil)
 }
 
-// A file with no hunks is marked as a whole, and a whole-file mark is not lines,
-// so it comes through on the file's content rather than on any arithmetic.
 func TestAWholeFileMarkSurvivesARefreshThatLeavesTheFileAlone(t *testing.T) {
 	f := branched(t)
 	f.Write("blob.bin", "\x00\x01binary\n")

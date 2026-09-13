@@ -1,5 +1,4 @@
-// Package testtheme is the surface the render tests derive from. Named rather
-// than queried: a terminal answers one way here and another in CI.
+// Package testtheme is the fixed surface render tests derive from, so a terminal and CI agree.
 package testtheme
 
 import (
@@ -16,8 +15,6 @@ var Surface = theme.Surface{
 	Green:      lipgloss.Color("#a6e3a1"),
 }
 
-// Dark is the shipped derivation over Surface.
 var Dark = theme.Terminal(Surface)
 
-// Bare is what a terminal that answered nothing gets: no surfaces at all.
 var Bare = theme.Terminal(theme.Surface{})

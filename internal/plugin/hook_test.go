@@ -1,8 +1,4 @@
-// Package plugin tests the artifacts the Claude Code plugin ships.
-//
-// What is under test is a shell script, not Go, so the tests drive it the way a
-// hook runner does: a real repository, a real zen-review binary on PATH, and an
-// assertion on the status it left with.
+// Package plugin tests the shipped Claude Code hook script against a real repository and binary.
 package plugin
 
 import (
@@ -32,8 +28,6 @@ func binDir(t *testing.T) string {
 	return dir
 }
 
-// run executes the hook in dir and reports its status and what it wrote to
-// stderr. withBin says whether zen-review can be found.
 func run(t *testing.T, dir, bin string, withBin bool) (int, string) {
 	t.Helper()
 
@@ -73,7 +67,6 @@ func zen(t *testing.T, dir, bin string, args ...string) string {
 	cmd.Env = append(os.Environ(), "PATH="+bin+":/usr/bin:/bin")
 
 	out, err := cmd.CombinedOutput()
-	// --exit-code leaves 1 on a match, which is an answer and not a failure.
 	if exit, ok := err.(*exec.ExitError); ok && exit.ExitCode() == 1 {
 		return string(out)
 	}
@@ -100,7 +93,6 @@ func openID(t *testing.T, dir, bin string) string {
 	return listing.Comments[0].ID
 }
 
-// changed is a repository on a branch with one unreviewed hunk on it.
 func changed(t *testing.T) *testrepo.Repo {
 	t.Helper()
 
@@ -179,7 +171,6 @@ func TestHookReleasesOnceAddressed(t *testing.T) {
 		t.Fatalf("status = %d, want 0 once every comment is answered; stderr:\n%s", status, stderr)
 	}
 
-	// Addressed is still unresolved, so a gate on unresolved would hold here.
 	if unresolved := zen(t, r.Dir(), bin, "comments", "--state", "unresolved", "--exit-code"); unresolved == "" {
 		t.Error("expected the addressed comment to still be unresolved")
 	}

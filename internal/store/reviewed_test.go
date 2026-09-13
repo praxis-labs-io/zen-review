@@ -12,7 +12,6 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
-// generation is a session and one generation to hang ranges off.
 func generation(t *testing.T, db *store.DB, id string) (store.Session, store.Generation) {
 	t.Helper()
 
@@ -26,14 +25,10 @@ func generation(t *testing.T, db *store.DB, id string) (store.Session, store.Gen
 	return s, g
 }
 
-// keep is the change function for a write that does not care what was there.
 func keep(rs ...store.LineRange) func([]store.LineRange) []store.LineRange {
 	return func([]store.LineRange) []store.LineRange { return rs }
 }
 
-// writeSide is a write covering one file and one side, which is what these cases
-// make except where covering more than one is the point. It keeps them reading
-// as the arithmetic they are about rather than a slice literal per call.
 func writeSide(
 	ctx context.Context,
 	db *store.DB,
@@ -99,8 +94,6 @@ func TestReviewedRangesComeBackOrderedByPathSideAndLine(t *testing.T) {
 	}
 }
 
-// The change function is handed what is stored and its return is what replaces
-// it, so one call can add, remove and rewrite in the same breath.
 func TestAnUpdateReplacesWhatTheChangeFunctionWasHanded(t *testing.T) {
 	db := open(t)
 	s, g := generation(t, db, "replace")
@@ -130,8 +123,6 @@ func TestAnUpdateReplacesWhatTheChangeFunctionWasHanded(t *testing.T) {
 	}
 }
 
-// Returning nothing is how the last mark on a file comes off, and it has to
-// leave no row rather than the row it was handed.
 func TestAnUpdateReturningNothingClearsTheFile(t *testing.T) {
 	db := open(t)
 	s, g := generation(t, db, "cleared")
@@ -149,8 +140,6 @@ func TestAnUpdateReturningNothingClearsTheFile(t *testing.T) {
 	}
 }
 
-// An update touches one file on one side and leaves every other key alone, or
-// marking a.go would quietly unmark b.go.
 func TestAnUpdateLeavesTheOtherKeysAlone(t *testing.T) {
 	db := open(t)
 	s, g := generation(t, db, "scoped")
@@ -178,13 +167,6 @@ func TestAnUpdateLeavesTheOtherKeysAlone(t *testing.T) {
 	}
 }
 
-// The whole reason the arithmetic runs inside the transaction. Read-then-write
-// from above leaves two instances merging against the same pre-state and both
-// inserting, and there is no UNIQUE constraint to catch it afterwards.
-//
-// Every instance takes its own handle. One pool caps itself at a single
-// connection and serialises the calls before they reach SQLite, so a test
-// sharing one would pass whether or not _txlock=immediate is set.
 func TestTwoInstancesMarkingOneFileBothSurvive(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "zen-review", "state.db")
 
@@ -214,8 +196,6 @@ func TestTwoInstancesMarkingOneFileBothSurvive(t *testing.T) {
 			defer wg.Done()
 			start.Wait()
 
-			// Each instance marks its own two lines, well clear of every other
-			// so nothing merges and a lost write is a missing row.
 			mine := store.LineRange{Start: i*10 + 1, End: i*10 + 2}
 			errs[i] = writeSide(t.Context(), db, s.ID, g.ID, "a.go", store.SideHead, epoch, "",
 				func(cur []store.LineRange) []store.LineRange { return append(cur, mine) })
@@ -242,8 +222,6 @@ func TestTwoInstancesMarkingOneFileBothSurvive(t *testing.T) {
 	}
 }
 
-// A base-side mark has to find the name the file had on the base, which is one
-// row rather than the whole changeset.
 func TestGenFileFindsOnePathAndSaysWhenItIsNotThere(t *testing.T) {
 	db := open(t)
 	s := session(t, db, "onefile")
@@ -266,8 +244,6 @@ func TestGenFileFindsOnePathAndSaysWhenItIsNotThere(t *testing.T) {
 		t.Errorf("file = %+v, found = %v, want the rename off old.go", got, found)
 	}
 
-	// The old name is not a path the generation holds, so looking it up says so
-	// rather than answering about the file that replaced it.
 	if _, found, err = db.GenFile(t.Context(), g.ID, "old.go"); err != nil {
 		t.Fatalf("reading old.go: %v", err)
 	}
@@ -276,9 +252,6 @@ func TestGenFileFindsOnePathAndSaysWhenItIsNotThere(t *testing.T) {
 	}
 }
 
-// created_at is when the lines were read. Stamping the whole set on every write
-// would make marking line 40 reset when line 5 was read, and the carry reads
-// these stamps to decide what a translated range carries forward.
 func TestAMarkKeepsTheReadTimeOfTheRangesItDoesNotTouch(t *testing.T) {
 	db := open(t)
 	s, g := generation(t, db, "stamps")
@@ -306,8 +279,6 @@ func TestAMarkKeepsTheReadTimeOfTheRangesItDoesNotTouch(t *testing.T) {
 		}
 	}
 
-	// A range that swallows an older one inherits its time, because those lines
-	// have been read since then whatever shape the range now has.
 	if err := writeSide(t.Context(), db, s.ID, g.ID, "a.go", store.SideHead, friday, "",
 		keep(store.LineRange{Start: 1, End: 50})); err != nil {
 		t.Fatalf("widening: %v", err)
@@ -317,9 +288,6 @@ func TestAMarkKeepsTheReadTimeOfTheRangesItDoesNotTouch(t *testing.T) {
 	}
 }
 
-// A generation whose carried ranges are missing reads as a review nobody did, so
-// they land with it or neither does. Two files at one path break the primary key,
-// which is the cheapest way to fail the write partway.
 func TestAGenerationAndItsCarriedRangesLandTogetherOrNotAtAll(t *testing.T) {
 	db := open(t)
 	s := session(t, db, "carried")
@@ -364,15 +332,10 @@ func TestAGenerationAndItsCarriedRangesLandTogetherOrNotAtAll(t *testing.T) {
 	}
 }
 
-// Reading a hunk means reading both of the sides it touches, so a write covers
-// them together. A caller told the write failed must not be looking at half of
-// it applied, which is what two calls would leave.
 func TestEverySideOfOneWriteLandsOrNoneDoes(t *testing.T) {
 	db := open(t)
 	s, g := generation(t, db, "sides")
 
-	// The base side is refused by the CHECK on side, and it goes second, so the
-	// head side is already written inside the transaction when it fails.
 	err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, epoch, "", []store.SideChange{
 		{Path: "a.go", Side: store.SideHead, Change: keep(store.LineRange{Start: 1, End: 5})},
 		{Path: "a.go", Side: store.Side("neither"), Change: keep(store.LineRange{Start: 1, End: 5})},
@@ -386,14 +349,10 @@ func TestEverySideOfOneWriteLandsOrNoneDoes(t *testing.T) {
 	}
 }
 
-// Both sides of one hunk, written together, come back as two rows keyed by the
-// side each was measured on.
 func TestAWriteCoveringTwoSidesRecordsBoth(t *testing.T) {
 	db := open(t)
 	s, g := generation(t, db, "both")
 
-	// The base row carries the file's base-side name, which a rename makes a
-	// different one from the head's.
 	if err := db.UpdateReviewedRanges(t.Context(), s.ID, g.ID, epoch, "", []store.SideChange{
 		{Path: "new.go", Side: store.SideHead, Change: keep(store.LineRange{Start: 10, End: 12})},
 		{Path: "old.go", Side: store.SideBase, Change: keep(store.LineRange{Start: 4, End: 4})},
@@ -413,8 +372,6 @@ func TestAWriteCoveringTwoSidesRecordsBoth(t *testing.T) {
 	}
 }
 
-// side carries a CHECK, so a value outside the vocabulary is a write that fails
-// rather than a row every read has to allow for.
 func TestASideOutsideTheVocabularyIsRefused(t *testing.T) {
 	db := open(t)
 	s, g := generation(t, db, "side")

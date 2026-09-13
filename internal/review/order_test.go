@@ -9,9 +9,6 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/review"
 )
 
-// TestDeriveOrdersTheFilesTheWayATreeReads over the shapes the rule has to
-// answer for. Each case is given to Derive shuffled, so a case that happens to
-// arrive in order proves nothing.
 func TestDeriveOrdersTheFilesTheWayATreeReads(t *testing.T) {
 	cases := []struct {
 		name string
@@ -34,14 +31,10 @@ func TestDeriveOrdersTheFilesTheWayATreeReads(t *testing.T) {
 			want: []string{".github/ci.yml", "cmd/main.go", ".gitignore", "CLAUDE.md"},
 		},
 		{
-			// The joined strings would answer the other way round: "/" is below
-			// "-", so "z/deep.go" would sort above "z-x.go".
 			name: "a directory is placed by its own name, not the path under it",
 			want: []string{"z/deep.go", "z-x.go"},
 		},
 		{
-			// A file turning into the directory that took its name. Git emits
-			// both, and the directory is still a directory.
 			name: "a path that is another's prefix is the file, and goes second",
 			want: []string{"src/foo/bar.go", "src/foo"},
 		},
@@ -70,8 +63,6 @@ func TestDeriveOrdersTheFilesTheWayATreeReads(t *testing.T) {
 	}
 }
 
-// shuffled is the files in the one order that is wrong for every case: the
-// reverse of the wanted one.
 func shuffled(want []string) []diff.File {
 	in := slices.Clone(want)
 	slices.Reverse(in)

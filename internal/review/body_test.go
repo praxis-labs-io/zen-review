@@ -9,9 +9,6 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
-// lines is a file of numbered lines, long enough that what the diff shows of it
-// is a fraction of what the whole of it is. Each line names its own number, so a
-// body asserts against the line it came from.
 func lines(n int) string {
 	out := make([]string, n)
 	for i := range out {
@@ -20,8 +17,6 @@ func lines(n int) string {
 	return strings.Join(out, "\n") + "\n"
 }
 
-// bodied is a session over a file of twenty lines with one of them rewritten, so
-// the changeset shows three lines of context and the file has seventeen more.
 func bodied(t *testing.T) (*fixture, *review.Session, review.Generation) {
 	t.Helper()
 
@@ -36,8 +31,6 @@ func bodied(t *testing.T) (*fixture, *review.Session, review.Generation) {
 	return f, s, f.refresh(s)
 }
 
-// TestBodyIsTheWholeFile. Three lines of context are what the read exists to get
-// past, so what it hands back is every line and not the ones the diff showed.
 func TestBodyIsTheWholeFile(t *testing.T) {
 	f, s, g := bodied(t)
 
@@ -60,8 +53,6 @@ func TestBodyIsTheWholeFile(t *testing.T) {
 	}
 }
 
-// TestBodyIsTheGenerationAndNotTheWorkTree. A generation is a snapshot, and a
-// read measured against the working tree would move under a reader mid-hunk.
 func TestBodyIsTheGenerationAndNotTheWorkTree(t *testing.T) {
 	f, s, g := bodied(t)
 	f.Write("long.txt", "everything else\n")
@@ -75,8 +66,6 @@ func TestBodyIsTheGenerationAndNotTheWorkTree(t *testing.T) {
 	}
 }
 
-// TestBodyOfADeletedFileIsItsBase. A deleted file has no head bytes, and the
-// side a whole-file mark lands on is the side its text is read from.
 func TestBodyOfADeletedFileIsItsBase(t *testing.T) {
 	f := newFixture(t)
 	f.Write("gone.txt", lines(12))
@@ -100,8 +89,6 @@ func TestBodyOfADeletedFileIsItsBase(t *testing.T) {
 	}
 }
 
-// TestBodyFollowsARename. The text is read by the name the changeset lists the
-// file under, which a rename makes a different one from the base's.
 func TestBodyFollowsARename(t *testing.T) {
 	f := newFixture(t)
 	f.Write("was.txt", lines(14))
@@ -123,8 +110,6 @@ func TestBodyFollowsARename(t *testing.T) {
 	}
 }
 
-// TestBodyOfAFileTheGenerationHasNotGot. Nothing answered is not a failure: the
-// reader asked about a file, and the answer is that there is nothing to draw.
 func TestBodyOfAFileTheGenerationHasNotGot(t *testing.T) {
 	f, s, g := bodied(t)
 
@@ -137,8 +122,6 @@ func TestBodyOfAFileTheGenerationHasNotGot(t *testing.T) {
 	}
 }
 
-// TestBodyOfABinaryFile. The bytes come back as they are. Nothing here is a text
-// file, and the pane is what refuses to draw one.
 func TestBodyOfABinaryFile(t *testing.T) {
 	f := newFixture(t)
 	f.commit("first")

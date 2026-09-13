@@ -36,8 +36,6 @@ func newSummary(opts *options) *cobra.Command {
 func runSummary(cmd *cobra.Command, opts *options, set string) (err error) {
 	ctx := cmd.Context()
 
-	// A read takes --base the way every other read does. A write does not, for the
-	// reason refuseBase gives: the move sticks, and this call was not about it.
 	writing := cmd.Flags().Changed("set")
 	if writing {
 		if err := refuseBase(cmd); err != nil {
@@ -45,9 +43,6 @@ func runSummary(cmd *cobra.Command, opts *options, set string) (err error) {
 		}
 	}
 
-	// Read before the database is opened. A note arriving on stdin is somebody
-	// still typing, and holding the session open across that is holding it open
-	// for as long as they take.
 	text, err := body(cmd, set, "summary")
 	if err != nil {
 		return err
@@ -83,21 +78,14 @@ func runSummary(cmd *cobra.Command, opts *options, set string) (err error) {
 	return emit(cmd.OutOrStdout(), v, opts.asJSON)
 }
 
-// summaryView is the session and the note written against it, which is what a
-// read and a write both answer with. A write answering with what it wrote is the
-// shape the comment commands take.
 type summaryView struct {
 	header
 
 	Summary string
 
-	// Width is what the note wraps into, measured by the caller so this stays a
-	// pure function of the view.
 	Width int
 }
 
-// render lays the note out under the session the way a comment body is laid out
-// under the row naming it.
 func (v summaryView) render() string {
 	var b strings.Builder
 	v.write(&b)
@@ -112,8 +100,6 @@ func (v summaryView) render() string {
 	return b.String()
 }
 
-// summaryPayload is the wire shape. The note is a string and not a structure,
-// and the session keys are the ones every other command promises.
 type summaryPayload struct {
 	headerJSON
 

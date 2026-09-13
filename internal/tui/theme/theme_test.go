@@ -15,12 +15,9 @@ var (
 	darkFG  = lipgloss.Color("#e0def4")
 	lightBG = lipgloss.Color("#faf4ed")
 
-	// The shades travel toward the foreground, so most cases need both halves.
 	dark  = theme.Surface{Background: darkBG, Foreground: darkFG}
 	light = theme.Surface{Background: lightBG, Foreground: lipgloss.Color("#575279")}
 
-	// Real palettes: a background bluer than its own green, olive hues, light,
-	// and almost no room between the background and the hues.
 	mocha = theme.Surface{Background: lipgloss.Color("#1e1e2e"), Foreground: lipgloss.Color("#cdd6f4"),
 		Red: lipgloss.Color("#f38ba8"), Green: lipgloss.Color("#a6e3a1")}
 	gruvbox = theme.Surface{Background: lipgloss.Color("#282828"), Foreground: lipgloss.Color("#ebdbb2"),
@@ -31,7 +28,6 @@ var (
 		Red: lipgloss.Color("#5c3030"), Green: lipgloss.Color("#305c30")}
 )
 
-// rgb reads a color the way a terminal will, not the way it was spelled.
 func rgb(c color.Color) (int, int, int) {
 	r, g, b, _ := c.RGBA()
 	return int(r >> 8), int(g >> 8), int(b >> 8)
@@ -43,7 +39,6 @@ func luma(c color.Color) float64 {
 }
 
 func TestHuesStayASlot(t *testing.T) {
-	// Flattened to RGB a slot stops following the reader's palette.
 	th := theme.Terminal(dark)
 	for _, tc := range []struct {
 		name string
@@ -96,8 +91,6 @@ func isNoColor(c color.Color) bool {
 	return ok
 }
 
-// Painting the terminal's own background would cost a translucent terminal its
-// translucency for a fill nobody could see.
 func TestNoThemePaintsABackground(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -117,7 +110,6 @@ func TestShadesLightenADarkBackground(t *testing.T) {
 	th := theme.Terminal(dark)
 	base := luma(darkBG)
 
-	// Dimmest first. Each has to clear the one below it or the weights collapse.
 	for _, step := range []struct {
 		name string
 		c    color.Color
@@ -157,7 +149,7 @@ func TestShadesDarkenALightBackground(t *testing.T) {
 }
 
 func TestShadesTravelTowardTheReportedForeground(t *testing.T) {
-	warm := lipgloss.Color("#e0c0a0") // a foreground well off neutral
+	warm := lipgloss.Color("#e0c0a0")
 	got := theme.Terminal(theme.Surface{Background: darkBG, Foreground: warm})
 	flat := theme.Terminal(theme.Surface{Background: darkBG})
 
@@ -165,15 +157,12 @@ func TestShadesTravelTowardTheReportedForeground(t *testing.T) {
 		t.Error("Subtle ignored the reported foreground, want it derived toward it")
 	}
 
-	// Toward a warm foreground the grey comes out warm: red above blue.
 	r, _, b := rgb(got.Subtle)
 	if r <= b {
 		t.Errorf("Subtle = %d,_,%d, want the warm foreground to lead red over blue", r, b)
 	}
 }
 
-// Far from the background and on the far side of the midpoint from it are two
-// different tests, and a pair failing either is no direction to travel in.
 func TestAForegroundTooCloseToTheBackgroundIsRefused(t *testing.T) {
 	murky := theme.Surface{Background: darkBG, Foreground: lipgloss.Color("#2b2940")}
 	got := theme.Terminal(murky)
@@ -184,8 +173,6 @@ func TestAForegroundTooCloseToTheBackgroundIsRefused(t *testing.T) {
 	}
 }
 
-// Which channel comes out largest is the palette's business: over a background
-// as blue as Catppuccin's, a wash of a real green is still bluer than green.
 func TestATintLiesBetweenTheBackgroundAndItsHue(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -204,7 +191,6 @@ func TestATintLiesBetweenTheBackgroundAndItsHue(t *testing.T) {
 	}
 }
 
-// A tint never overshoots its hue and stays the nearer end of the run.
 func between(t *testing.T, name string, bg, tint, hue color.Color) {
 	t.Helper()
 
@@ -243,7 +229,6 @@ func withPalette(s theme.Surface, red, green string) theme.Surface {
 	return s
 }
 
-// Blending a slot takes its canonical value, which nobody is looking at.
 func TestATintTakesTheReportedHueOverTheSlot(t *testing.T) {
 	reported := theme.Terminal(theme.Surface{Background: darkBG, Foreground: darkFG,
 		Red: lipgloss.Color("#f38ba8"), Green: lipgloss.Color("#a6e3a1")})
@@ -257,8 +242,6 @@ func TestATintTakesTheReportedHueOverTheSlot(t *testing.T) {
 	}
 }
 
-// The same fraction that clears one palette's green leaves the row flat against
-// another's, which is why the lift solves for a distance.
 func TestATintClearsTheBackgroundOnEverySurface(t *testing.T) {
 	const least = 8
 
@@ -292,8 +275,6 @@ func TestATintClearsTheBackgroundOnEverySurface(t *testing.T) {
 	}
 }
 
-// The fallback wash cannot lift the row at all, but it moves a long way in
-// colour, so the floor every surface meets is a channel distance not a luma one.
 func TestATintIsPerceptibleOnEverySurface(t *testing.T) {
 	const least = 10
 
@@ -330,9 +311,6 @@ func TestATintIsPerceptibleOnEverySurface(t *testing.T) {
 	}
 }
 
-// Canonical red sits at a dark page's own weight, so where the terminal answered
-// for no palette the removed tint leans without lifting. This is the fallback
-// the OSC 4 request exists to avoid, and it is pinned rather than asserted away.
 func TestTheCanonicalFallbackLeansWithoutLifting(t *testing.T) {
 	for _, bg := range []string{"#232136", "#282828", "#2b2b2b"} {
 		t.Run(bg, func(t *testing.T) {
@@ -355,7 +333,6 @@ func TestTheCanonicalFallbackLeansWithoutLifting(t *testing.T) {
 	}
 }
 
-// A reader scanning a hunk reads the block before the marker in it.
 func TestTheTwoTintsNeverCollapseTogether(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -380,8 +357,6 @@ func TestTheTwoTintsNeverCollapseTogether(t *testing.T) {
 	}
 }
 
-// Along the shade axis a selection took the foreground's tint, which is a colour
-// the reader never chose.
 func TestTheSelectionIsANeutralLift(t *testing.T) {
 	warm := theme.Surface{Background: darkBG, Foreground: lipgloss.Color("#e0c0a0")}
 	th := theme.Terminal(warm)
@@ -396,7 +371,6 @@ func TestTheSelectionIsANeutralLift(t *testing.T) {
 }
 
 func TestTintsStayUnderTheCode(t *testing.T) {
-	// At full strength a tint buries the source sitting on it.
 	th := theme.Terminal(dark)
 	base, added := luma(darkBG), luma(th.AddedBackground)
 	if added-base > luma(lipgloss.Green)-base {
@@ -406,8 +380,6 @@ func TestTintsStayUnderTheCode(t *testing.T) {
 }
 
 func TestNoBackgroundPaintsNoSurface(t *testing.T) {
-	// Slot 0 is the background on many dark palettes, so a selection painted in
-	// it is invisible exactly where it was needed.
 	th := theme.Terminal(theme.Surface{})
 	for _, tc := range []struct {
 		name string
@@ -422,14 +394,11 @@ func TestNoBackgroundPaintsNoSurface(t *testing.T) {
 		}
 	}
 
-	// Borders are drawn runes rather than fills, so they still take a slot.
 	if _, ok := th.Border.(xansi.BasicColor); !ok {
 		t.Errorf("Border = %T, want a slot when nothing was detected", th.Border)
 	}
 }
 
-// With no background to blend against, a shade pinned to RGB is one the terminal
-// has no say in.
 func TestNoBackgroundPinsNothing(t *testing.T) {
 	th := theme.Terminal(theme.Surface{})
 	for name, c := range map[string]color.Color{
@@ -454,8 +423,6 @@ func TestNoBackgroundPinsNothing(t *testing.T) {
 	}
 }
 
-// Slot 7 disappears into a light background and slot 8 may be undeclared or
-// collapsed onto slot 0, so neither can carry text a reader has to read.
 func TestTextWeightsTakeNoSlotWithoutABackground(t *testing.T) {
 	th := theme.Terminal(theme.Surface{})
 
@@ -467,7 +434,6 @@ func TestTextWeightsTakeNoSlotWithoutABackground(t *testing.T) {
 }
 
 func TestSyntaxIsPairedAgainstTheBackground(t *testing.T) {
-	// Pairing is what stops a light terminal drawing dark-theme source.
 	for _, tc := range []struct {
 		name string
 		s    theme.Surface

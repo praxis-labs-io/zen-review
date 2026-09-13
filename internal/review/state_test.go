@@ -10,8 +10,6 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
-// hunk builds one from the markers of a unified diff, read left to right off the
-// two start lines: a space is context, + is added, - is removed.
 func hunk(oldStart, newStart int, spec string) diff.Hunk {
 	h := diff.Hunk{OldStart: oldStart, NewStart: newStart}
 	old, next := oldStart, newStart
@@ -39,7 +37,6 @@ func row(path string, side store.Side, start, end int) store.ReviewedRange {
 	return store.ReviewedRange{Path: path, Side: side, LineRange: store.LineRange{Start: start, End: end}}
 }
 
-// hunkLines is one line per hunk, naming every side it anchors on.
 func hunkLines(f review.File) []string {
 	out := make([]string, 0, len(f.Hunks))
 	for _, h := range f.Hunks {
@@ -52,8 +49,6 @@ func hunkLines(f review.File) []string {
 	return out
 }
 
-// describe is what the table below reads: a line per file, a line per hunk under
-// it, and the burn-down last. A file the refresh cut says so after its state.
 func describe(c review.Changeset) []string {
 	out := make([]string, 0, len(c.Files)+1)
 	for _, f := range c.Files {
@@ -67,8 +62,6 @@ func describe(c review.Changeset) []string {
 	return append(out, fmt.Sprintf("%d of %d", c.Reviewed, c.Items))
 }
 
-// twoLines is the common shape: one modified file whose single hunk introduces
-// lines 11 and 12 and removes nothing.
 func twoLines() []diff.File {
 	return []diff.File{{
 		Path:   "a.go",
@@ -77,8 +70,6 @@ func twoLines() []diff.File {
 	}}
 }
 
-// binary is the shape with nothing to read line by line, markable only as a
-// whole.
 func binary() []diff.File {
 	return []diff.File{{Path: "logo.png", Status: diff.FileModified, Binary: true, Omitted: "binary"}}
 }
@@ -109,9 +100,6 @@ func TestDeriveReadsStateOutOfTheRanges(t *testing.T) {
 			want:  []string{"a.go unreviewed 0/1", "  head 11:12 unreviewed", "0 of 1"},
 		},
 		{
-			// The lines a hunk removes are not lines it has. Anchor it on its
-			// additions alone and a deletion arriving later hides inside a hunk that
-			// still reads reviewed.
 			name: "a hunk that both adds and removes anchors on both sides",
 			files: []diff.File{{
 				Path:   "a.go",
@@ -155,9 +143,6 @@ func TestDeriveReadsStateOutOfTheRanges(t *testing.T) {
 			want: []string{"gone.go reviewed 1/1", "  base 1:3 reviewed", "1 of 1"},
 		},
 		{
-			// The anchor takes in the context line between the two additions. Cover
-			// only the additions and a line inside the hunk is unread, which is what
-			// this has to say.
 			name: "the anchor spans context between two additions",
 			files: []diff.File{{
 				Path:   "a.go",
@@ -186,8 +171,6 @@ func TestDeriveReadsStateOutOfTheRanges(t *testing.T) {
 			},
 		},
 		{
-			// The base blob of a file the branch moved sits at the old name, and so
-			// does the range anchored to it.
 			name: "a base-side hunk of a renamed file is keyed by the base name",
 			files: []diff.File{{
 				Path:    "b.go",
@@ -205,15 +188,11 @@ func TestDeriveReadsStateOutOfTheRanges(t *testing.T) {
 			want:  []string{"logo.png reviewed 1/1", "1 of 1"},
 		},
 		{
-			// It counts as one item rather than none, or a changeset carrying it
-			// reads complete while it sits unopened.
 			name:  "a file with no hunks and no mark",
 			files: binary(),
 			want:  []string{"logo.png unreviewed 0/1", "0 of 1"},
 		},
 		{
-			// carry.go drops a whole-file mark the moment its file has hunks, so
-			// honouring one here would report a review the next refresh deletes.
 			name:  "a whole-file mark on a file that has hunks answers for nothing",
 			files: twoLines(),
 			rows:  []store.ReviewedRange{row("a.go", store.SideHead, 0, 0)},
@@ -244,9 +223,6 @@ func TestDeriveReadsStateOutOfTheRanges(t *testing.T) {
 			want:  []string{"a.go unreviewed changed 0/1", "  head 11:12 unreviewed", "0 of 1"},
 		},
 		{
-			// Reading it end to end answers the record, and waiting for the next
-			// refresh to clear the row would leave the flag on a file with nothing
-			// left to point at.
 			name:  "a file the refresh cut and the reader has since finished",
 			files: twoLines(),
 			rows:  []store.ReviewedRange{row("a.go", store.SideHead, 11, 12)},

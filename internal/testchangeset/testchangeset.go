@@ -1,10 +1,4 @@
-// Package testchangeset builds changesets for the render tests.
-//
-// It runs no git and opens no database. diff.Parse and review.Derive are both
-// pure, so a patch and a list of ranges are the whole fixture, and a test that
-// wants a repository behind it uses internal/testrepo instead.
-//
-// Test-only.
+// Package testchangeset builds changesets for render tests from a patch, without git or a database.
 package testchangeset
 
 import (
@@ -16,9 +10,7 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
-// Derive is the changeset a patch and a set of read ranges make. No file reads
-// as changed after review: that fact comes from a refresh, and there is none
-// here.
+// Derive is the changeset patch and reviewed make. No file reads as changed after review.
 func Derive(t *testing.T, patch string, reviewed ...store.ReviewedRange) review.Changeset {
 	t.Helper()
 
@@ -29,7 +21,6 @@ func Derive(t *testing.T, patch string, reviewed ...store.ReviewedRange) review.
 	return review.Derive(files, reviewed, nil)
 }
 
-// Head is one read range on the head side.
 func Head(path string, start, end int) store.ReviewedRange {
 	return store.ReviewedRange{
 		Path:      path,
@@ -38,8 +29,8 @@ func Head(path string, start, end int) store.ReviewedRange {
 	}
 }
 
-// Comment is one open head-side comment. The scope follows the lines: 0:0 names
-// the file, a run of them is a range, and anything else is one line.
+// Comment is an open head-side comment. 0:0 scopes it to the file, start != end to a range,
+// anything else to a line.
 func Comment(id, path string, start, end int, body string) store.Comment {
 	scope := store.ScopeLine
 	switch {
@@ -63,27 +54,22 @@ func Comment(id, path string, start, end int, body string) store.Comment {
 	}
 }
 
-// In is a comment in a state other than open, for the ladder the card draws.
 func In(c store.Comment, s store.CommentState) store.Comment {
 	c.State = s
 	return c
 }
 
-// Answered gives a comment the response an address left behind.
 func Responded(c store.Comment, response string) store.Comment {
 	c.Response = response
 	return c
 }
 
-// OnBase moves a comment to the base side, where it is recorded under the name
-// the file has on the base rather than the one the changeset lists it under.
+// OnBase moves c to the base side. Its path must already be the file's base-side name.
 func OnBase(c store.Comment) store.Comment {
 	c.Side = store.SideBase
 	return c
 }
 
-// NestedComments is one of every shape a card takes, against NestedPatch: a
-// line, a range, the file itself, a stray, and one of each settled state.
 func NestedComments() []store.Comment {
 	const state = "internal/review/state.go"
 
@@ -101,11 +87,7 @@ func NestedComments() []store.Comment {
 	}
 }
 
-// Body is a file's whole text for a preview, as lines that name their own
-// number, so a row proves the number in its gutter against the text beside it.
-//
-// It is not the fixture patch's own content. A gap row and a hunk row then read
-// differently, which is what a test asserting the boundary between them needs.
+// Body is a preview body whose lines name their own number, deliberately unlike NestedPatch.
 func Body(lines int) review.Body {
 	out := make([]string, lines)
 	for i := range out {
@@ -114,15 +96,7 @@ func Body(lines int) review.Body {
 	return review.Body{Side: store.SideHead, Lines: out}
 }
 
-// Nested is the fixture the tree and the panes are drawn from. It holds every
-// shape a row can take:
-//
-//   - a file at the repository root
-//   - a chain of directories nothing branches off, which folds into one row
-//   - three directories under one parent, which does not fold
-//   - a path far wider than the tree pane
-//   - a file with two hunks, one of them read, so the file is partial
-//   - a binary file, which has no hunks and no churn to print
+// Nested is NestedPatch with two reviewed ranges, one of them leaving a file partial.
 func Nested(t *testing.T) review.Changeset {
 	t.Helper()
 
@@ -132,11 +106,7 @@ func Nested(t *testing.T) review.Changeset {
 	)
 }
 
-// NestedPatch is unified diff text in the shape git writes it.
-//
-// Every context line carries text. A context line for a blank source line is a
-// lone space, which an editor trimming trailing whitespace would eat, and the
-// fixture would then fail somewhere far from the edit that broke it.
+// NestedPatch gives every context line text, since trimming whitespace would eat a lone space.
 const NestedPatch = `diff --git a/README.md b/README.md
 index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1b039aafb 100644
 --- a/README.md

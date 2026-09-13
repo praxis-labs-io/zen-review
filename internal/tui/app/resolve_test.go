@@ -8,14 +8,10 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/testchangeset"
 )
 
-// answered is the same comment settled, which is what the engine hands back
-// after x and what the source has to answer the next reload with.
 func answered(c store.Comment) store.Comment {
 	return testchangeset.In(c, store.CommentResolved)
 }
 
-// TestResolveNamesTheCardTheCursorIsOn. A golden cannot show that x named the
-// right comment, and that is the whole of what the key does.
 func TestResolveNamesTheCardTheCursorIsOn(t *testing.T) {
 	first := testchangeset.Comment("aaaaaaaaaaaa", "README.md", 2, 2, "the first one")
 	second := testchangeset.Comment("bbbbbbbbbbbb", "internal/review/state.go", 13, 13, "the second one")
@@ -29,8 +25,6 @@ func TestResolveNamesTheCardTheCursorIsOn(t *testing.T) {
 	}
 }
 
-// TestResolveOnNoCardWritesNothing. The reader opens on a hunk, so most presses
-// of this key have nothing to act on rather than a refusal to report.
 func TestResolveOnNoCardWritesNothing(t *testing.T) {
 	on := testchangeset.Comment("aaaaaaaaaaaa", "README.md", 2, 2, "somewhere else")
 
@@ -45,8 +39,6 @@ func TestResolveOnNoCardWritesNothing(t *testing.T) {
 	}
 }
 
-// TestTheCursorStaysOnTheCardItSettled. A card that folded is not the height it
-// was, so a cursor put back by row would land on the code under it.
 func TestTheCursorStaysOnTheCardItSettled(t *testing.T) {
 	on := testchangeset.Comment("aaaaaaaaaaaa", "README.md", 2, 2, "answer this one")
 
@@ -59,8 +51,6 @@ func TestTheCursorStaysOnTheCardItSettled(t *testing.T) {
 		t.Fatalf("the card did not come back settled:\n%s", got)
 	}
 
-	// Only a lit card names its keys, and a folded one names the way out of the
-	// fold. So this is the cursor still on the card it acted on.
 	if !strings.Contains(got, "space open") {
 		t.Errorf("the cursor left the card it settled:\n%s", got)
 	}
@@ -72,8 +62,6 @@ func TestTheCursorStaysOnTheCardItSettled(t *testing.T) {
 	}
 }
 
-// TestASettledCardTakesNoSecondPress. ResolveComment refuses one already
-// resolved, so sending it puts a red error under a key the card stopped offering.
 func TestASettledCardTakesNoSecondPress(t *testing.T) {
 	on := testchangeset.Comment("aaaaaaaaaaaa", "README.md", 2, 2, "answer this one")
 
@@ -89,8 +77,6 @@ func TestASettledCardTakesNoSecondPress(t *testing.T) {
 	}
 }
 
-// TestAnOrphanIsStillTheReadersToSettle. The code it was about is gone, and
-// saying so is the only thing left that anyone can do with it.
 func TestAnOrphanIsStillTheReadersToSettle(t *testing.T) {
 	lost := testchangeset.In(
 		testchangeset.Comment("aaaaaaaaaaaa", "README.md", 2, 2, "the code went away"),

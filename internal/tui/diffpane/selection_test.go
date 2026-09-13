@@ -20,13 +20,11 @@ var (
 	cancel = tea.KeyPressMsg{Code: tea.KeyEscape}
 )
 
-// selected is the pane's spans as the cases below read them, side first.
 func selected(t *testing.T, m diffpane.Model) []string {
 	t.Helper()
 	return spans(m.Selected())
 }
 
-// spans is what Selected and Line hand back, written out, and nil for neither.
 func spans(as []review.Anchor, on bool) []string {
 	if !on {
 		return nil
@@ -39,7 +37,6 @@ func spans(as []review.Anchor, on bool) []string {
 	return out
 }
 
-// equal is two lists of spans, which is all these cases compare.
 func equal(got, want []string) bool {
 	if len(got) != len(want) {
 		return false
@@ -52,8 +49,6 @@ func equal(got, want []string) bool {
 	return true
 }
 
-// atFirstHunk is the pane on the fixture's mixed hunk, cursor three rows down
-// on the last context line above the change. Nothing is selected yet.
 func atFirstHunk(t *testing.T, comments ...store.Comment) diffpane.Model {
 	t.Helper()
 
@@ -62,8 +57,6 @@ func atFirstHunk(t *testing.T, comments ...store.Comment) diffpane.Model {
 	return press(t, m, down, down, down)
 }
 
-// TestVFillsTheRowsItCovers. The whole point of the key is on screen and only
-// in colour, so this reads the raw frame rather than a golden.
 func TestVFillsTheRowsItCovers(t *testing.T) {
 	m := press(t, atFirstHunk(t), sel, down, down, down)
 
@@ -81,8 +74,6 @@ func TestVFillsTheRowsItCovers(t *testing.T) {
 	}
 }
 
-// TestOnlyCodeFillsUnderASelection. A heading and the blank between two hunks
-// are the pane's own rows, and neither is a line anything marks.
 func TestOnlyCodeFillsUnderASelection(t *testing.T) {
 	m := press(t, atFirstHunk(t), sel, down, down, down, down, down, down)
 
@@ -97,8 +88,6 @@ func TestOnlyCodeFillsUnderASelection(t *testing.T) {
 	}
 }
 
-// TestAPagingKeyFillsEverythingItCrossed. point repaints the row it left and
-// the row it took, which is every row a j moved over and not a ctrl+d.
 func TestAPagingKeyFillsEverythingItCrossed(t *testing.T) {
 	m := press(t, atFirstHunk(t), sel, halfDown)
 
@@ -108,8 +97,6 @@ func TestAPagingKeyFillsEverythingItCrossed(t *testing.T) {
 	}
 }
 
-// TestASelectionComesBackOffTwoKeys. esc is the way out, and v is the same key
-// that opened it.
 func TestASelectionComesBackOffTwoKeys(t *testing.T) {
 	for _, tt := range []struct {
 		name string
@@ -132,8 +119,6 @@ func TestASelectionComesBackOffTwoKeys(t *testing.T) {
 	}
 }
 
-// TestASelectionNamesBothSidesItCovers. A reader dragging over a rewritten
-// block read the removal as well as what replaced it.
 func TestASelectionNamesBothSidesItCovers(t *testing.T) {
 	m := press(t, atFirstHunk(t), sel, down, down, down)
 
@@ -143,8 +128,6 @@ func TestASelectionNamesBothSidesItCovers(t *testing.T) {
 	}
 }
 
-// TestASelectionCrossesAHunk, and says so as one span per side. review is what
-// cuts each back to the lines a hunk holds.
 func TestASelectionCrossesAHunk(t *testing.T) {
 	m := press(t, atFirstHunk(t), down, down, sel, down, down, down, down, down, down, down)
 
@@ -154,22 +137,16 @@ func TestASelectionCrossesAHunk(t *testing.T) {
 	}
 }
 
-// TestNothingSelectedIsNotAnEmptySelection. r has to tell a press that aimed
-// from one that did not, and both hold no spans.
 func TestNothingSelectedIsNotAnEmptySelection(t *testing.T) {
 	if _, on := atFirstHunk(t).Selected(); on {
 		t.Error("a pane nobody pressed v on reports a selection")
 	}
 }
 
-// TestAResizeKeepsTheSelectionOnItsLines. A card's height moves with the width,
-// so every row after it renumbers and a stored row index lands on other code.
 func TestAResizeKeepsTheSelectionOnItsLines(t *testing.T) {
 	card := testchangeset.Comment("bbbbbbbbbbbb", twoHunks, 11, 11,
 		"this card sits above the selection and wraps to a different number of rows at every width it is drawn at")
 
-	// Selected in the hunk below the card, which is where a row index goes wrong
-	// by however many rows the card's body gained.
 	m := commented(t, twoHunks, 70, 24, card)
 	m.Select(store.SideHead, 124)
 
@@ -183,8 +160,6 @@ func TestAResizeKeepsTheSelectionOnItsLines(t *testing.T) {
 	}
 }
 
-// TestARelayoutKeepsTheSelectionOnScreen. layout repaints with no cursor, so a
-// span it did not know about draws as bare code while Selected still names it.
 func TestARelayoutKeepsTheSelectionOnScreen(t *testing.T) {
 	card := testchangeset.Comment("bbbbbbbbbbbb", twoHunks, 11, 11,
 		"this card sits above the selection and wraps to a different number of rows at every width it is drawn at")
@@ -203,8 +178,6 @@ func TestARelayoutKeepsTheSelectionOnScreen(t *testing.T) {
 			func(m *diffpane.Model) { m.SetSize(40, 24) },
 		},
 		{
-			// Folded from the card itself, which the cursor reaches while the
-			// selection is open because a card is one stop like any other row.
 			"folding a card inside the span",
 			func(m diffpane.Model) diffpane.Model {
 				m.Select(store.SideHead, 13)
@@ -229,8 +202,6 @@ func TestARelayoutKeepsTheSelectionOnScreen(t *testing.T) {
 	}
 }
 
-// TestASpanOverNoCodeNamesNothing. A heading is one stop the cursor lands on, so
-// v there is a press a reader makes, and an empty list of anchors is not a scope.
 func TestASpanOverNoCodeNamesNothing(t *testing.T) {
 	m := commented(t, twoHunks, 70, 20)
 	m.Select(store.SideHead, 13)
@@ -240,8 +211,6 @@ func TestASpanOverNoCodeNamesNothing(t *testing.T) {
 	}
 }
 
-// TestTheCursorsOwnRowNamesItsLines, which is what c scopes to with nothing
-// selected. A context row is on both sides and a changed row is on one.
 func TestTheCursorsOwnRowNamesItsLines(t *testing.T) {
 	card := testchangeset.Comment("cccccccccccc", twoHunks, 13, 13, "unreviewed is the clearer word.")
 
@@ -276,8 +245,6 @@ func TestTheCursorsOwnRowNamesItsLines(t *testing.T) {
 	}
 }
 
-// TestTheRootMovingTheCursorClearsTheSelection. A span anchored in a file the
-// reader has left is one nobody can see the ends of.
 func TestTheRootMovingTheCursorClearsTheSelection(t *testing.T) {
 	card := testchangeset.Comment("bbbbbbbbbbbb", twoHunks, 13, 13, "unreviewed is the clearer word.")
 
@@ -300,8 +267,6 @@ func TestTheRootMovingTheCursorClearsTheSelection(t *testing.T) {
 	}
 }
 
-// With no fill, nothing marks the selected rows the cursor is not on. Both panes
-// end on the same row, so the selection is all that can tell them apart.
 func TestASelectionStandsWithoutAFill(t *testing.T) {
 	bare := func(t *testing.T) diffpane.Model {
 		t.Helper()

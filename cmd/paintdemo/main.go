@@ -1,5 +1,4 @@
-// Command paintdemo paints a canned diff to stdout and exits. Golden files hold
-// the painter still; this is where a rendering change is judged.
+// Command paintdemo paints a canned diff to stdout, for judging a rendering change.
 package main
 
 import (
@@ -14,12 +13,9 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/tui/theme"
 )
 
-// width is a pane narrow enough that one row overflows it. A truncating change
-// only shows at a width where something has to be cut.
+// width is narrow enough that a row overflows, since truncation only shows where something is cut.
 const width = 76
 
-// row is one line of the canned diff. Old and New are 0 on the side the line is
-// not on; Cursor is the selected row, which is what Fill is for.
 type row struct {
 	Kind     paint.Kind
 	Old, New int
@@ -30,23 +26,16 @@ type row struct {
 type hunk struct {
 	Header string
 
-	// Cursor marks the hunk a caller has landed on, which is what the header's
-	// own Marker and Fill are for. Badged is the state beside it.
 	Cursor bool
 	Badged bool
 	Rows   []row
 
-	// Pairs is the rows the side-by-side half of the demo draws, written out
-	// rather than computed: the pane owns that arrangement and this only shows it.
 	Pairs []pair
 }
 
-// pair is the rows one side-by-side row draws, by index into a hunk's own, and
-// -1 for a column with no line.
 type pair struct{ left, right int }
 
-// Two hunks, four-digit numbers in the second. One gutter serves a whole file,
-// so a demo that never leaves two digits proves nothing about the alignment.
+// hunks reach four-digit line numbers, since two digits prove nothing about gutter alignment.
 var hunks = []hunk{
 	{
 		Header: "@@ -41,8 +41,9 @@ func (p Painter) Line",
@@ -84,7 +73,6 @@ var hunks = []hunk{
 }
 
 func main() {
-	// The real derivation: a light terminal and a dark one show different screens.
 	t := theme.Terminal(theme.Query(os.Stdin, os.Stdout))
 
 	s, ok := syntax.New(t.Syntax)
@@ -96,8 +84,6 @@ func main() {
 	gutter := paint.Gutter(widest())
 	half := (width - 1) / 2
 
-	// Each side whole and the two apart: a lexer carries state across lines, and
-	// run together it reads a file holding both halves of every change.
 	oldSide := s.Lines("paint.go", source(paint.Removed))
 	newSide := s.Lines("paint.go", source(paint.Added))
 
@@ -115,8 +101,6 @@ func main() {
 		}
 	}
 
-	// The same rows side by side, where the painter has half the columns and two
-	// chances to lose a cell. A blank half faces a change with no pair.
 	out = append(out, "", lipgloss.NewStyle().Foreground(t.Subtle).
 		Render(fmt.Sprintf("side by side, %d columns each", half)))
 
@@ -136,7 +120,6 @@ func main() {
 	fmt.Println(strings.Join(out, "\n"))
 }
 
-// header is one hunk's @@ line, the cursor and the state glyph on it.
 func header(t theme.Theme, h hunk) paint.Header {
 	head := paint.Header{Text: h.Header}
 	if h.Cursor {
@@ -150,8 +133,6 @@ func header(t theme.Theme, h hunk) paint.Header {
 	return head
 }
 
-// painted is every canned row as a paint.Line, in file order. A context line
-// takes its colour from the new side and advances both.
 func painted(t theme.Theme, oldSide, newSide [][]syntax.Token) []paint.Line {
 	var out []paint.Line
 	oldAt, newAt := 0, 0
@@ -181,7 +162,6 @@ func painted(t theme.Theme, oldSide, newSide [][]syntax.Token) []paint.Line {
 	return out
 }
 
-// blank is the line at an index, and a zero one for a column with none.
 func blank(lines []paint.Line, base, i int) paint.Line {
 	if i < 0 {
 		return paint.Line{}
@@ -189,8 +169,6 @@ func blank(lines []paint.Line, base, i int) paint.Line {
 	return lines[base+i]
 }
 
-// source is one side of the diff as a file, context lines included. A side
-// missing its unchanged lines does not read as source to a lexer.
 func source(kind paint.Kind) string {
 	var lines []string
 	for _, h := range hunks {

@@ -8,9 +8,6 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/review"
 )
 
-// The patches below are what a generation-to-generation diff looks like for one
-// file. Real diff text parsed by the real parser, because what is under test is
-// whether a range lands where git says the lines went.
 const (
 	insertAbove = `diff --git a/a.go b/a.go
 index aaaaaaa..bbbbbbb 100644
@@ -45,7 +42,6 @@ index aaaaaaa..bbbbbbb 100644
  sixteen
 `
 
-	// Lines 13 to 15 go, which leaves two separate reviewed ranges touching.
 	closeTheGap = `diff --git a/a.go b/a.go
 index aaaaaaa..bbbbbbb 100644
 --- a/a.go
@@ -60,7 +56,6 @@ index aaaaaaa..bbbbbbb 100644
  eighteen
 `
 
-	// Everything from 10 to 20 replaced.
 	rewritten = `diff --git a/a.go b/a.go
 index aaaaaaa..bbbbbbb 100644
 --- a/a.go
@@ -84,8 +79,6 @@ index aaaaaaa..bbbbbbb 100644
  twentyone
 `
 
-	// The agent decided half of its own change was wrong and put 14 to 20 back.
-	// This is the case all-or-nothing survival gets wrong: 10 to 13 never moved.
 	middleReverted = `diff --git a/a.go b/a.go
 index aaaaaaa..bbbbbbb 100644
 --- a/a.go
@@ -107,9 +100,6 @@ index aaaaaaa..bbbbbbb 100644
  twentyone
 `
 
-	// No context at all, which is the shape the remap's own diff runs at and the
-	// only one where git names the line an insertion follows rather than one
-	// inside the hunk.
 	insertOnly = `diff --git a/a.go b/a.go
 index aaaaaaa..bbbbbbb 100644
 --- a/a.go
@@ -120,8 +110,6 @@ index aaaaaaa..bbbbbbb 100644
 +gamma
 `
 
-	// An insertion, then a deletion below it, so the offset a range takes depends
-	// on which side of the second hunk it sits.
 	twoHunks = `diff --git a/a.go b/a.go
 index aaaaaaa..bbbbbbb 100644
 --- a/a.go
@@ -403,10 +391,6 @@ func TestACommentAnchorClampsToWhatSurvived(t *testing.T) {
 	}
 }
 
-// A whole-file comment anchor and a whole-file reviewed mark take opposite rules
-// through the same patch, and this is the pair that says so. A mark is a claim
-// about bytes somebody read and an edit voids it; a comment is a remark about
-// the file and an edit is what it asked for.
 func TestAWholeFileMarkAndCommentPartOnAnEdit(t *testing.T) {
 	whole := review.Range{Start: 0, End: 0}
 
@@ -422,8 +406,6 @@ func TestAWholeFileMarkAndCommentPartOnAnEdit(t *testing.T) {
 	}
 }
 
-// A file with no hunks is marked as a whole, and that mark follows the content
-// rather than any line: it survives a move and dies when the bytes change.
 func TestAFileMarkedAsAWholeFollowsItsContent(t *testing.T) {
 	whole := []review.Range{{Start: 0, End: 0}}
 
@@ -449,9 +431,6 @@ func TestAFileMarkedAsAWholeFollowsItsContent(t *testing.T) {
 	}
 }
 
-// A whole-file mark ends at line 0, so a range starting at line 1 looks like it
-// touches it. Joining the two would report the file from its first line to its
-// last as read, which is the worst thing this can get wrong.
 func TestAWholeFileMarkDoesNotSwallowTheRangeBelowIt(t *testing.T) {
 	in := []review.Range{{Start: 0, End: 0}, {Start: 1, End: 5}}
 	want := []review.Range{{Start: 0, End: 0}, {Start: 1, End: 5}}
@@ -472,9 +451,6 @@ func parseOne(t *testing.T, patch string) diff.File {
 	return files[0]
 }
 
-// noChangedLineInside is the safety property the whole feature rests on. A line
-// the new side introduces is one nobody has read, and a surviving reviewed range
-// covering it would report it as read.
 func noChangedLineInside(t *testing.T, f diff.File, ranges []review.Range) {
 	t.Helper()
 

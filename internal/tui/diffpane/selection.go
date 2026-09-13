@@ -5,12 +5,9 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
-// Selecting is whether v has a range open, which is what the status bar reads to
-// name the keys that end one.
 func (m Model) Selecting() bool { return m.anchor.comment != "" || m.anchor.seq >= 0 }
 
-// Selected is the lines under the selection, one span per side, and false when
-// there is none. review clips these to the lines the file's hunks hold.
+// Selected returns the selected lines, one anchor per side, not yet clipped to the hunks.
 func (m Model) Selected() ([]review.Anchor, bool) {
 	lo, hi, ok := m.span()
 	if !ok {
@@ -19,8 +16,7 @@ func (m Model) Selected() ([]review.Anchor, bool) {
 	return anchorsOver(m.rows[lo:hi+1], m.scope())
 }
 
-// Line is the anchors the cursor's own row names, and false on a row that is
-// not code. A context row names a line on both sides.
+// Line returns the anchors the cursor's row names, and false off code. A unified context row names both sides.
 func (m Model) Line() ([]review.Anchor, bool) {
 	if m.cursor < 0 || m.cursor >= len(m.rows) {
 		return nil, false
@@ -28,8 +24,6 @@ func (m Model) Line() ([]review.Anchor, bool) {
 	return anchorsOver(m.rows[m.cursor:m.cursor+1], m.scope())
 }
 
-// anchorsOver is the lines a run of rows names, one span per side and the head
-// first. An empty side is a unified row, which names both at once.
 func anchorsOver(rows []row, side store.Side) ([]review.Anchor, bool) {
 	var head, base review.Range
 	for i := range rows {
@@ -56,13 +50,9 @@ func anchorsOver(rows []row, side store.Side) ([]review.Anchor, bool) {
 		out = append(out, review.Anchor{Side: store.SideBase, Range: base})
 	}
 
-	// A run over a heading or a card alone names nothing, which a caller has to
-	// tell from a run of lines rather than reach for an empty list of them.
 	return out, len(out) > 0
 }
 
-// grow takes one more line into a span, ignoring the 0 a row without that side
-// carries. A span starting at 0 has not started, which no line number can be.
 func grow(r review.Range, line int) review.Range {
 	if line == 0 {
 		return r
@@ -74,8 +64,6 @@ func grow(r review.Range, line int) review.Range {
 	return r
 }
 
-// span is the rows the selection covers, lowest first, and false when there is
-// none or the row v was pressed on has gone.
 func (m Model) span() (int, int, bool) {
 	if !m.Selecting() || m.cursor < 0 {
 		return 0, 0, false
@@ -87,16 +75,11 @@ func (m Model) span() (int, int, bool) {
 	return min(at, m.cursor), max(at, m.cursor), true
 }
 
-// inSelection is whether a row draws filled. Only code fills: a heading, the
-// blank between two hunks and a comment card are not lines anything marks. A
-// row the focused column has no line on still fills, so the run reads unbroken.
 func (m Model) inSelection(i int) bool {
 	lo, hi, ok := m.span()
 	return ok && i >= lo && i <= hi && m.rows[i].kind == codeRow
 }
 
-// selectRange anchors a selection at the cursor, or takes back the one already
-// open. A pane with no cursor has nothing to anchor to.
 func (m *Model) selectRange() {
 	if m.Selecting() {
 		m.clearSelection()
@@ -108,8 +91,6 @@ func (m *Model) selectRange() {
 	m.anchor = m.placeOf(m.cursor)
 }
 
-// clearSelection takes the fill off the rows it lit. Nothing else moves, so the
-// rows have to be told the selection went.
 func (m *Model) clearSelection() {
 	lo, hi, ok := m.span()
 	m.anchor = place{seq: -1}

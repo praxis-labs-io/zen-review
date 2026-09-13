@@ -6,12 +6,6 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/tui/comp"
 )
 
-// KeyMap is what the root answers to, whichever pane has focus.
-//
-// The ring is here rather than on the diff pane because it crosses files: it
-// moves the tree's selection as well as the diff's cursor, and a pane reaching
-// into its sibling is the thing the layout rules forbid. It also answers from
-// either pane, the same as the paging keys.
 type KeyMap struct {
 	NextHunk key.Binding
 	PrevHunk key.Binding
@@ -48,20 +42,11 @@ type KeyMap struct {
 	Close key.Binding
 	Quit  key.Binding
 
-	// Interrupt is the half of Quit that reaches out of the composer. q is a
-	// letter while a body is being typed and ctrl+c is never one.
 	Interrupt key.Binding
 }
 
-// NewKeyMap is the bindings and the help text they carry.
 func NewKeyMap() KeyMap {
 	return KeyMap{
-		// A hunk is the block a paragraph motion moves by, which is what } and {
-		// do everywhere else. Vim's own diff mode says ]c and [c, and the bracket
-		// pair is spoken for: ] and [ are next and previous comment.
-		//
-		// Nothing in vim moves a whole file in one key. tab is the TUI answer
-		// rather than the editor one, and the tree does the same job by hand.
 		NextHunk: key.NewBinding(key.WithKeys("}"), key.WithHelp("}", "next hunk")),
 		PrevHunk: key.NewBinding(key.WithKeys("{"), key.WithHelp("{", "previous hunk")),
 		NextRead: key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "next unread")),
@@ -69,48 +54,31 @@ func NewKeyMap() KeyMap {
 		NextFile: key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "next file")),
 		PrevFile: key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "previous file")),
 
-		// They walk what is unresolved, the way n walks what is unread. A ring
-		// stepping through settled work is a ring nobody holds down.
 		NextComment: key.NewBinding(key.WithKeys("]"), key.WithHelp("]", "next comment")),
 		PrevComment: key.NewBinding(key.WithKeys("["), key.WithHelp("[", "previous comment")),
 
-		// r advances after marking, so r r r r walks the whole thing. It does not
-		// toggle: advancing off a hunk just unmarked is a key with two jobs.
 		Mark:       key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "mark read")),
 		MarkFile:   key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "mark file")),
 		Unmark:     key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "unmark")),
 		UnmarkFile: key.NewBinding(key.WithKeys("U"), key.WithHelp("U", "unmark file")),
 
-		// c writes one and x settles it, from the card's own footer: that is where
-		// a key reaching one row on the screen belongs. C is the session's note.
 		Comment: key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comment")),
 		Resolve: key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "resolve comment")),
 
-		// e opens the box holding what the card says, and D takes the card away at
-		// once: the capital does the whole of the thing, the way R and U do.
 		Edit:   key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit comment")),
 		Delete: key.NewBinding(key.WithKeys("D"), key.WithHelp("D", "delete comment")),
 
-		// > reaches the card from either pane, the way x, e and D do. No help of
-		// its own: the card's footer names it, and the overlay has no row to give.
 		Expand: key.NewBinding(key.WithKeys(">")),
 
 		Note: key.NewBinding(key.WithKeys("C"), key.WithHelp("C", "note")),
 
-		// These session actions reach past the screen to the repository.
 		Reload: key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "reload")),
 		Base:   key.NewBinding(key.WithKeys("b"), key.WithHelp("b", "change base")),
 
-		// A rendering choice and nothing the engine holds, so it answers from
-		// either pane and never waits on a reload.
 		Split: key.NewBinding(key.WithKeys("|"), key.WithHelp("|", "split view")),
 
-		// Preview reads the file, so it is the one rendering choice that waits on
-		// git, and only the first press on a file does.
 		Preview: key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "full file")),
 
-		// The digits are the badges the panes carry in their borders, and their own
-		// bindings because a badge is a jump to a frame where h and l are a step.
 		Left:  key.NewBinding(key.WithKeys("h", "left")),
 		Right: key.NewBinding(key.WithKeys("l", "right")),
 		Tree:  key.NewBinding(key.WithKeys("1")),
@@ -119,17 +87,10 @@ func NewKeyMap() KeyMap {
 		Close: key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "close help")),
 		Quit:  key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
 
-		// No help of its own. Quit's entry names the key a reader looks for, and
-		// this one only exists to get out of a box that eats every other key.
 		Interrupt: key.NewBinding(key.WithKeys("ctrl+c")),
 	}
 }
 
-// ShortHelp is the line on the status bar: what the pane holding the keys can
-// do, then the two that answer from anywhere.
-//
-// It changes with focus, because the point of the line is what the next press
-// would do. The rest is one keypress away.
 func (m Model) ShortHelp() []key.Binding {
 	if m.diff.Composing() {
 		return m.composeKeys()
@@ -137,36 +98,16 @@ func (m Model) ShortHelp() []key.Binding {
 	return append(m.paneKeys(), m.wayOut()...)
 }
 
-// composeKeys is what the bar carries while the box in the pane is up: its two,
-// and no way out, because q and ? are keystrokes in a body being typed.
 func (m Model) composeKeys() []key.Binding {
 	return []key.Binding{m.compose.Keys.Save, m.compose.Keys.Discard}
 }
 
-// paneKeys is what the pane holding the keys can do, then what the ring can do
-// from either. The bar drops from the tail, so the last of these is the first
-// to go.
-//
-// n comes before the rest of the ring because a review is a burn-down and n is
-// the key held until the count reaches zero.
-//
-// The file keys are last, so a hundred columns drops them and a wider terminal
-// keeps them. They are the ring's least-used pair and the only one whose job the
-// tree beside it already does. The reload goes above them and below the paging
-// keys, which are pressed far more often.
-//
-// A hundred columns with the tree focused drops the reload too, so the overlay
-// is where a reader on that frame finds it. The two keys the bar never drops
-// are the way out, and a third would take the room the ring needs at
-// fifty-six.
 func (m Model) paneKeys() []key.Binding {
 	own := m.diff.Keys.Hints()
 	if m.focus == focusTree {
 		own = m.tree.Keys.Hints()
 	}
 
-	// A selection is the one thing on screen with an end to it, so the bar names
-	// the keys that end it. j extends only in the pane the selection is drawn in.
 	if m.diff.Selecting() {
 		if m.focus == focusDiff {
 			own = []key.Binding{comp.Pair(m.diff.Keys.Down, m.diff.Keys.Up, "j/k", "extend")}
@@ -190,8 +131,6 @@ func (m Model) paneKeys() []key.Binding {
 	)
 }
 
-// markKeys is what changes what has been read, in the order the overlay lists
-// them. The undo pair is one entry: this column is the tallest and has to fit.
 func (m Model) markKeys() []key.Binding {
 	return []key.Binding{
 		m.keys.Mark, m.keys.MarkFile,
@@ -199,57 +138,39 @@ func (m Model) markKeys() []key.Binding {
 	}
 }
 
-// ringKeys is what the ring answers to, in the order the overlay lists them. The
-// hunk pair is one entry the way ]/[ is: this column is the tallest and has to fit.
 func (m Model) ringKeys() []key.Binding {
 	return []key.Binding{
-		// n and N keep a row each, being the pair a burn-down is held down on, and
-		// the file pair keeps two: tab/shift+tab as one label is wider than the rest.
 		m.keys.NextRead, m.keys.PrevRead,
 		comp.Pair(m.keys.NextHunk, m.keys.PrevHunk, "}/{", "hunk"),
 		m.keys.NextFile, m.keys.PrevFile,
 	}
 }
 
-// wayOut is the two the bar never drops. They are the only thing on screen
-// saying the overlay exists, and the reader who needs that is the one on the
-// terminal too narrow for the rest.
 func (m Model) wayOut() []key.Binding {
 	return []key.Binding{m.keys.Help, m.keys.Quit}
 }
 
-// FullHelp is the overlay, in three columns: a fourth clips against the eighty
-// cells it fits in. Its bindings come off the pane that would match them.
 func (m Model) FullHelp() [][]key.Binding {
 	panes := []key.Binding{
 		comp.Pair(m.keys.Left, m.keys.Tree, "h/1", "tree pane"),
 		comp.Pair(m.keys.Right, m.keys.Diff, "l/2", "diff pane"),
 	}
 
-	// The diff pane adds nothing to the pane column: everything it answers to is
-	// movement. The tree has keys of its own.
 	movement := m.diff.Keys.Bindings()
 	if m.focus == focusTree {
 		movement = m.tree.Keys.Movement.Bindings()
 		panes = append(panes, m.tree.Keys.Bindings()...)
 	}
 
-	// The half-page keys are listed under whichever pane has the keys, because
-	// they answer from both.
 	movement = append(movement, m.diff.Keys.Scrolling()...)
 
-	// The comment ring only moves, where the ring column acts on what it lands
-	// on. One entry, because this column is the tallest at sixteen rows.
 	movement = append(movement, comp.Pair(m.keys.NextComment, m.keys.PrevComment, "]/[", "comment"))
 
-	// The z keys move the window under the cursor and the card keys act on the
-	// card it is on, so both reach one pane and are listed only where they work.
 	if m.focus == focusDiff {
 		movement = append(movement, m.diff.Keys.Place, m.diff.Keys.Select)
 		movement = append(movement, m.diff.Keys.Cards()...)
 	}
 
-	// These verbs act from either pane, so they sit beside the shared ring.
 	verbs := append(m.markKeys(), m.keys.Comment, m.keys.Resolve,
 		comp.Pair(m.keys.Edit, m.keys.Delete, "e/D", "edit, delete"))
 

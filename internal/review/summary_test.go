@@ -6,7 +6,6 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/review"
 )
 
-// summary is the note a session reads back, or the test that failed reading it.
 func summary(t *testing.T, s *review.Session) string {
 	t.Helper()
 
@@ -17,7 +16,6 @@ func summary(t *testing.T, s *review.Session) string {
 	return note
 }
 
-// The note is what a review concluded, so it outlives the process that wrote it.
 func TestTheSummaryOutlivesTheSession(t *testing.T) {
 	f := branched(t)
 
@@ -42,8 +40,6 @@ func TestTheSummaryOutlivesTheSession(t *testing.T) {
 	}
 }
 
-// A reader open for an hour is not a snapshot. Without this the composer opens
-// over what the session started with and the next save puts that back.
 func TestASessionReadsANoteAnotherWrote(t *testing.T) {
 	f := branched(t)
 
@@ -63,7 +59,6 @@ func TestASessionReadsANoteAnotherWrote(t *testing.T) {
 	}
 }
 
-// Empty clears it, which is the only way to take a note back.
 func TestAnEmptySummaryClearsTheNote(t *testing.T) {
 	f := branched(t)
 	s := f.mustOpen("")
@@ -80,8 +75,6 @@ func TestAnEmptySummaryClearsTheNote(t *testing.T) {
 	}
 }
 
-// Moving the base is a write of the same row and leaves the note where it was.
-// The two have different writers so resuming cannot lose what it concluded.
 func TestMovingTheBaseKeepsTheSummary(t *testing.T) {
 	f := branched(t)
 	f.Git("branch", "other", "main")

@@ -10,16 +10,10 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/git"
 )
 
-// headRef is the bottom of the ladder: nothing above HEAD to measure from, so
-// the changeset is whatever has not been committed.
 const headRef = "HEAD"
 
-// defaultNames are the branches a repository with no origin/HEAD falls back to,
-// best first.
 var defaultNames = []string{"main", "master"}
 
-// The tags a fallback base wears. They name what the base is, because the row
-// carrying one already says which ref it is.
 const (
 	tagNoRemote    = "no remote"
 	tagUncommitted = "uncommitted"
@@ -28,7 +22,6 @@ const (
 	tagNotFmt      = "not %s"
 )
 
-// Candidate is a branch HEAD sits on top of, and how far back it is.
 type Candidate struct {
 	Branch string
 	SHA    string
@@ -37,15 +30,14 @@ type Candidate struct {
 	Ahead int
 }
 
-// BaseCandidates are the branches the picker offers. The groups stay apart
-// because one name can exist in both and mean different things.
+// BaseCandidates keeps local and remote apart because one name can exist in both.
 type BaseCandidates struct {
 	Local  []Candidate
 	Remote []Candidate
 }
 
-// Candidates is every local branch, nearest first, plus the remote rows worth
-// keeping. Every other revision is reached by naming it.
+// Candidates is every local branch but HEAD's, nearest first, plus the session's remote base and
+// origin/HEAD. A branch with nothing behind HEAD is left out unless it is the base.
 func (s *Session) Candidates(ctx context.Context) (BaseCandidates, error) {
 	head, err := s.repo.Head(ctx)
 	if err != nil {
@@ -62,7 +54,6 @@ func (s *Session) Candidates(ctx context.Context) (BaseCandidates, error) {
 
 	offered := make([]git.Branch, 0, len(branches))
 	for _, b := range branches {
-		// A branch measured against itself has no answer worth rendering.
 		if b.Name == head.Branch {
 			continue
 		}
@@ -85,17 +76,12 @@ func (s *Session) Candidates(ctx context.Context) (BaseCandidates, error) {
 	return BaseCandidates{Local: locals, Remote: remotes}, nil
 }
 
-// remotes are the two remote-tracking branches worth a row: the base the session
-// measures from, and the default branch detection prefers. Every remote shares a
-// merge base with HEAD, so all of them is no list.
 func (s *Session) remotes(ctx context.Context) ([]git.Branch, error) {
 	wanted := make([]string, 0, 2)
 	if s.base.Ref != "" && s.base.Ref != headRef {
 		wanted = append(wanted, s.base.Ref)
 	}
 
-	// A local main goes stale within a day of nobody checking it out, which is
-	// why detection prefers this one. Hiding it invites the branch beside it.
 	def, err := s.repo.DefaultRemoteBranch(ctx)
 	if err != nil && !errors.Is(err, git.ErrNoDefaultBranch) {
 		return nil, err
@@ -112,8 +98,6 @@ func (s *Session) remotes(ctx context.Context) ([]git.Branch, error) {
 		return nil, err
 	}
 
-	// A dangling origin/HEAD names a branch that is gone, and one gone is one
-	// nothing here lists.
 	var offered []git.Branch
 	for _, b := range branches {
 		if slices.Contains(wanted, b.Name) {
@@ -123,11 +107,7 @@ func (s *Session) remotes(ctx context.Context) ([]git.Branch, error) {
 	return offered, nil
 }
 
-// resolveBase settles what the changeset is measured from: the flag, then what
-// the session had, then the ladder. Nothing here refuses.
 func (s *Session) resolveBase(ctx context.Context, head git.Head, stored, flag string) (Base, error) {
-	// No commit to measure from, so the other side is the empty tree and every
-	// file in the work tree reads as new. A ref cannot mean anything here.
 	if head.Unborn() {
 		tree, err := s.repo.EmptyTree(ctx)
 		if err != nil {
@@ -154,8 +134,6 @@ func (s *Session) resolveBase(ctx context.Context, head git.Head, stored, flag s
 	return s.detect(ctx, head, why)
 }
 
-// tryBase turns a ref into a fork point, or into the sentence saying why it is
-// not one. Only a git that broke under us is an error.
 func (s *Session) tryBase(ctx context.Context, ref, headSHA string) (Base, string, error) {
 	tip, ok, err := s.repo.Resolve(ctx, ref)
 	if err != nil {
@@ -165,8 +143,6 @@ func (s *Session) tryBase(ctx context.Context, ref, headSHA string) (Base, strin
 		return Base{}, fmt.Sprintf(tagNotFmt, ref), nil
 	}
 
-	// Against the commit that just resolved rather than the ref again. A ref is
-	// mutable, and an agent in another worktree is entitled to move it.
 	sha, err := s.repo.MergeBase(ctx, tip, headSHA)
 	if err != nil {
 		if errors.Is(err, git.ErrNoMergeBase) {
@@ -177,8 +153,6 @@ func (s *Session) tryBase(ctx context.Context, ref, headSHA string) (Base, strin
 	return Base{Ref: ref, SHA: sha}, "", nil
 }
 
-// rebase re-derives the fork point. base_ref is what sticks; base_sha follows
-// the branch, or a rebase reads what it brought in as this branch's work.
 func (s *Session) rebase(ctx context.Context, head git.Head) error {
 	was := s.base
 	base, err := s.resolveBase(ctx, head, was.Ref, "")
@@ -186,8 +160,6 @@ func (s *Session) rebase(ctx context.Context, head git.Head) error {
 		return err
 	}
 
-	// The sentence belongs to the ref, and this only moved the sha under it.
-	// Open stepped off a ref a second walk of the ladder cannot see.
 	if base.Ref == was.Ref && base.Fallback == "" {
 		base.Fallback = was.Fallback
 	}
@@ -195,8 +167,6 @@ func (s *Session) rebase(ctx context.Context, head git.Head) error {
 	return nil
 }
 
-// detect walks the ladder and always reaches the bottom of it. why is what went
-// wrong above it, and the first reason recorded is the one a reader can act on.
 func (s *Session) detect(ctx context.Context, head git.Head, why string) (Base, error) {
 	rungs, skipped, err := s.ladder(ctx, head)
 	if err != nil {
@@ -221,13 +191,9 @@ func (s *Session) detect(ctx context.Context, head git.Head, why string) (Base, 
 		return base, nil
 	}
 
-	// Unreachable: HEAD ends every ladder, and a HEAD that is not unborn
-	// resolves and is its own merge base.
 	return Base{}, fmt.Errorf("nothing in this repository to measure %s from", head.Branch)
 }
 
-// tagOf is the tag the landed base wears. Only the remoteless one reads
-// differently at the bottom rung, where the changeset is the uncommitted work.
 func tagOf(why, ref string) string {
 	if why == tagNoRemote && ref == headRef {
 		return tagUncommitted
@@ -235,8 +201,6 @@ func tagOf(why, ref string) string {
 	return why
 }
 
-// ladder is every ref detection will try, best first, and why the ones missing
-// from it were passed over.
 func (s *Session) ladder(ctx context.Context, head git.Head) ([]string, string, error) {
 	remote, why, err := s.remoteDefault(ctx)
 	if err != nil {
@@ -257,8 +221,6 @@ func (s *Session) ladder(ctx context.Context, head git.Head) ([]string, string, 
 	}
 	rungs = append(rungs, headRef)
 
-	// The rung above bounds the stack walk, and an empty bound walks the whole
-	// chain. On a default branch nothing under it is a stack, so it does not run.
 	bound := rungs[0]
 	if bound == headRef {
 		if slices.Contains(defaultNames, head.Branch) {
@@ -267,15 +229,11 @@ func (s *Session) ladder(ctx context.Context, head git.Head) ([]string, string, 
 		bound = ""
 	}
 
-	// A branch stacked on another local branch is not measured from what sits
-	// under both: that reads the parent's commits as this branch's work.
 	candidates, err := s.stack(ctx, head, bound)
 	if err != nil {
 		return nil, "", err
 	}
 
-	// The stack picked the rung, so it owns the tag. A remote that is missing or
-	// dangling would have landed on the same branch anyway.
 	if len(candidates) > 0 {
 		why = tagStacked
 		rungs = append([]string{candidates[0].Branch}, rungs...)
@@ -283,8 +241,6 @@ func (s *Session) ladder(ctx context.Context, head git.Head) ([]string, string, 
 	return rungs, why, nil
 }
 
-// remoteDefault is origin/HEAD where it is set and still names something, and
-// the reason it is not otherwise.
 func (s *Session) remoteDefault(ctx context.Context) (string, string, error) {
 	detected, err := s.repo.DefaultRemoteBranch(ctx)
 	if errors.Is(err, git.ErrNoDefaultBranch) {
@@ -294,8 +250,6 @@ func (s *Session) remoteDefault(ctx context.Context) (string, string, error) {
 		return "", "", err
 	}
 
-	// origin/HEAD is symbolic and outlives what it points at: rename the
-	// remote's default branch and it names a ref that is gone.
 	_, ok, err := s.repo.Resolve(ctx, detected)
 	if err != nil {
 		return "", "", err
@@ -306,8 +260,6 @@ func (s *Session) remoteDefault(ctx context.Context) (string, string, error) {
 	return detected, "", nil
 }
 
-// localDefault is a local main or master to fall back to, and empty when there
-// is none or it is the branch HEAD is already on.
 func (s *Session) localDefault(ctx context.Context, head git.Head) (string, error) {
 	branches, err := s.repo.LocalBranches(ctx)
 	if err != nil {
@@ -316,8 +268,6 @@ func (s *Session) localDefault(ctx context.Context, head git.Head) (string, erro
 
 	for _, name := range defaultNames {
 		for _, b := range branches {
-			// The branch HEAD is on gives HEAD back, which the bottom rung
-			// already says more plainly.
 			if b.Name == name && b.Name != head.Branch {
 				return name, nil
 			}
@@ -326,24 +276,7 @@ func (s *Session) localDefault(ctx context.Context, head git.Head) (string, erro
 	return "", nil
 }
 
-// stack is every local branch HEAD was branched from, nearest first.
-//
-// A tip qualifies when it sits on HEAD's first-parent chain above the detected
-// base, which is one `rev-list` for the whole question rather than two
-// ancestry calls per branch. A checkout in an agentic workflow accumulates
-// branches, and 200 of them was 600 processes before the first frame.
-//
-// The chain is doing two jobs. Being above the base is what keeps a local main
-// left behind origin/main out: it is an ancestor of HEAD and nothing anyone
-// stacked on, and where local main is never checked out that is the common case
-// rather than the odd one. Being on the *first-parent* chain is what keeps a
-// branch merged into HEAD out: `git merge --no-ff side` leaves side an ancestor
-// of HEAD and not of the base, so ancestry alone reads it as a stack and
-// measuring from it gives a changeset nobody asked for.
-//
-// The current branch is excluded because HEAD is trivially on top of itself, and
-// a tip sitting exactly at HEAD is excluded because measuring from it leaves an
-// empty changeset.
+// stack walks HEAD's first-parent chain, so a branch merged into HEAD is not read as one it was cut from.
 func (s *Session) stack(ctx context.Context, head git.Head, detected string) ([]Candidate, error) {
 	chain, err := s.repo.FirstParents(ctx, detected, head.SHA)
 	if err != nil {
@@ -365,8 +298,6 @@ func (s *Session) stack(ctx context.Context, head git.Head, detected string) ([]
 
 	offered := make([]git.Branch, 0, len(branches))
 	for _, b := range branches {
-		// The active base is kept wherever its tip is: it is where the session
-		// measures from already, so dropping it would take the way back.
 		active := b.Name == s.base.Ref
 		if b.Name == head.Branch || (!active && !mainline[b.SHA]) {
 			continue
@@ -376,8 +307,6 @@ func (s *Session) stack(ctx context.Context, head git.Head, detected string) ([]
 	return s.rank(ctx, head, offered)
 }
 
-// rank costs each branch its distance from HEAD and sorts nearest first: of two
-// branches HEAD sits on, the one fewer commits back is the one it came from.
 func (s *Session) rank(ctx context.Context, head git.Head, branches []git.Branch) ([]Candidate, error) {
 	var candidates []Candidate
 	for _, b := range branches {
@@ -386,16 +315,12 @@ func (s *Session) rank(ctx context.Context, head git.Head, branches []git.Branch
 			return nil, err
 		}
 
-		// Nothing back is nothing to read: a tip at HEAD or above it takes the
-		// merge base to HEAD. The base itself stays, to say where the session is.
 		if ahead == 0 && b.Name != s.base.Ref {
 			continue
 		}
 		candidates = append(candidates, Candidate{Branch: b.Name, SHA: b.SHA, Ahead: ahead})
 	}
 
-	// Ties break on name, so the order a reader sees does not depend on how git
-	// happened to list the refs.
 	slices.SortFunc(candidates, func(a, b Candidate) int {
 		if a.Ahead != b.Ahead {
 			return a.Ahead - b.Ahead

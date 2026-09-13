@@ -10,7 +10,6 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
-// note writes a comment and hands the row back.
 func (f *fixture) note(s *review.Session, g review.Generation, n review.Note) store.Comment {
 	f.t.Helper()
 
@@ -21,9 +20,6 @@ func (f *fixture) note(s *review.Session, g review.Generation, n review.Note) st
 	return c
 }
 
-// storedComments reads through a second handle on the database rather than
-// through the session that wrote, so a method returning the right value while
-// writing nothing cannot pass.
 func (f *fixture) storedComments(s *review.Session) []string {
 	f.t.Helper()
 
@@ -39,7 +35,6 @@ func (f *fixture) storedComments(s *review.Session) []string {
 	return out
 }
 
-// storedComment is one comment, whole, off the same second handle.
 func (f *fixture) storedComment(id string) store.Comment {
 	f.t.Helper()
 
@@ -66,8 +61,6 @@ func assertComments(t *testing.T, got, want []string) {
 	}
 }
 
-// commented is the state most of these start from: twenty numbered lines in the
-// changeset, generation one built, and a line comment on line 10.
 func commented(t *testing.T) (*fixture, *review.Session, review.Generation, store.Comment) {
 	t.Helper()
 
@@ -87,8 +80,6 @@ func commented(t *testing.T) (*fixture, *review.Session, review.Generation, stor
 	return f, s, g, c
 }
 
-// The whole point of the anchor. Five lines arrive above the comment and it is
-// still on the line it was written about, under a number that has moved.
 func TestACommentMovesWithTheLinesItIsOn(t *testing.T) {
 	f, s, first, c := commented(t)
 
@@ -108,17 +99,11 @@ func TestACommentMovesWithTheLinesItIsOn(t *testing.T) {
 		t.Errorf("createdGenerationID = %d, want the one it was written at, %d", got.CreatedGenerationID, first.ID)
 	}
 
-	// A line comment is on one line however far it travels. The scope and the
-	// lines disagreeing is a comment that cannot be translated as what it says it
-	// is, and the schema refuses the write outright.
 	if got.Scope != store.ScopeLine || got.Start != got.End {
 		t.Errorf("comment = %s %d:%d, want one line", got.Scope, got.Start, got.End)
 	}
 }
 
-// The line it was about is gone, so the comment is not about anything any more.
-// It keeps its text and where it was, because a rewrite never silently swallows
-// something somebody said.
 func TestACommentWhoseLineIsRewrittenOrphans(t *testing.T) {
 	f, s, _, c := commented(t)
 
@@ -136,10 +121,6 @@ func TestACommentWhoseLineIsRewrittenOrphans(t *testing.T) {
 	}
 }
 
-// A comment on ten lines is about a region, and the agent rewriting a line in
-// the middle of that region is usually the comment being acted on. This is where
-// an anchor and a reviewed range part company: the range is cut into the pieces
-// either side, and the comment stays whole.
 func TestARangeCommentSurvivesALineRewrittenInsideIt(t *testing.T) {
 	f := branched(t)
 	f.Write("code.txt", numbered(1, 20))
@@ -161,8 +142,6 @@ func TestARangeCommentSurvivesALineRewrittenInsideIt(t *testing.T) {
 	assertComments(t, f.storedComments(s), []string{"code.txt head 5:9 open"})
 }
 
-// A rename moves the file without touching a line of it, so the comment follows
-// it under the new name.
 func TestAFileCommentFollowsARename(t *testing.T) {
 	f := branched(t)
 	f.Write("code.txt", numbered(1, 20))
@@ -183,16 +162,6 @@ func TestAFileCommentFollowsARename(t *testing.T) {
 	assertComments(t, f.storedComments(s), []string{"moved.txt head 0:0 open"})
 }
 
-// A file comment names the file rather than any line in it, so it comes through
-// while the content does and is lost when the bytes change. That is the rule a
-// whole-file reviewed mark takes, and for the same reason.
-// A file comment is a remark about the file rather than a claim about its bytes,
-// so editing the file is not an answer to it. The body below is the case: where
-// a file belongs stays true, and stays outstanding, through every edit until
-// somebody moves it.
-//
-// The rule it does not take is Ranges'. A whole-file reviewed mark dies on the
-// same patch, because that one does say somebody read these bytes.
 func TestAFileCommentSurvivesTheFileChanging(t *testing.T) {
 	f := branched(t)
 	f.Write("code.txt", numbered(1, 20))
@@ -213,8 +182,6 @@ func TestAFileCommentSurvivesTheFileChanging(t *testing.T) {
 	assertComments(t, f.storedComments(s), []string{"code.txt head 0:0 open"})
 }
 
-// The file going is the one thing that does leave a file comment with nothing to
-// be about.
 func TestAFileCommentOrphansWhenTheFileGoes(t *testing.T) {
 	f := branched(t)
 	f.Write("code.txt", numbered(1, 20))
@@ -235,9 +202,6 @@ func TestAFileCommentOrphansWhenTheFileGoes(t *testing.T) {
 	assertComments(t, f.storedComments(s), []string{"code.txt head 0:0 orphaned"})
 }
 
-// A deletion-only hunk has no head-side lines and anchors to the base blob, so
-// the base moving is what moves the comment. It is the only reason the base diff
-// runs at all.
 func TestABaseSideCommentTranslatesWhenTheBaseMoves(t *testing.T) {
 	f := newFixture(t)
 	f.Write("code.txt", numbered(1, 20))
@@ -258,8 +222,6 @@ func TestABaseSideCommentTranslatesWhenTheBaseMoves(t *testing.T) {
 		Body:  "these three were load bearing",
 	})
 
-	// Upstream inserts a line at the top of the same file and the branch replays
-	// onto it, so every base-side line the comment names moved down one.
 	f.Git("checkout", "-q", "main")
 	f.Write("code.txt", "upstream\n"+numbered(1, 20))
 	f.Commit("upstream")
@@ -274,9 +236,6 @@ func TestABaseSideCommentTranslatesWhenTheBaseMoves(t *testing.T) {
 	assertComments(t, f.storedComments(s), []string{"code.txt base 11:13 open"})
 }
 
-// A rename gives a file two names, and its base blob sits under the old one. A
-// base-side comment keyed by the head name would never be found in the base
-// diff, and would sit unmoved on top of lines that shifted underneath it.
 func TestABaseSideCommentOnARenamedFileIsKeyedByTheBaseName(t *testing.T) {
 	f := newFixture(t)
 	f.Write("old.txt", numbered(1, 20))
@@ -291,8 +250,6 @@ func TestABaseSideCommentOnARenamedFileIsKeyedByTheBaseName(t *testing.T) {
 	s := f.mustOpen("")
 	g := f.refresh(s)
 
-	// Written against the name the changeset lists the file by, which is the new
-	// one.
 	f.note(s, g, review.Note{
 		Path:  "new.txt",
 		Side:  store.SideBase,
@@ -303,9 +260,6 @@ func TestABaseSideCommentOnARenamedFileIsKeyedByTheBaseName(t *testing.T) {
 	assertComments(t, f.storedComments(s), []string{"old.txt base 10:12 open"})
 }
 
-// A comment stops moving the moment it is addressed or resolved. Carrying one
-// forward would move a claim onto code nobody made it about, and reopen a
-// question somebody closed.
 func TestACommentThatHasStoppedMovingStaysWhereItWas(t *testing.T) {
 	for _, tc := range []struct {
 		state store.CommentState
@@ -349,9 +303,6 @@ func TestACommentThatHasStoppedMovingStaysWhereItWas(t *testing.T) {
 	}
 }
 
-// The claim and the confirmation are different facts. An agent marks a comment
-// addressed and the queue shows it as a claim, which is what it is, and nothing
-// an agent can reach closes it.
 func TestAnAgentCannotReachResolved(t *testing.T) {
 	_, s, _, c := commented(t)
 
@@ -376,10 +327,6 @@ func TestAnAgentCannotReachResolved(t *testing.T) {
 	}
 }
 
-// An orphan is where an answer is most wanted, not least. The anchor went because
-// the agent rewrote the lines the comment asked it to rewrite, and the only
-// account of why is the one the agent writes. Refusing it there leaves the reader
-// resolving a comment blind.
 func TestAnOrphanCanStillBeAnswered(t *testing.T) {
 	f := branched(t)
 	f.Write("code.txt", numbered(1, 20))
@@ -395,8 +342,6 @@ func TestAnOrphanCanStillBeAnswered(t *testing.T) {
 		Body:  "these three lines duplicate the loop above",
 	})
 
-	// The lines the comment named, rewritten wholesale, which is what answering
-	// it looks like and what takes its anchor away.
 	f.Write("code.txt", numbered(1, 9)+"deduplicated\n"+numbered(13, 20))
 	f.refresh(s)
 
@@ -419,9 +364,6 @@ func TestAnOrphanCanStillBeAnswered(t *testing.T) {
 	}
 }
 
-// The state is a claim, and the response is what a reader confirms it against.
-// Without one the only way to check the claim is to re-read the code, which is
-// the work the state was meant to save.
 func TestAddressingCarriesTheWordsThatBackIt(t *testing.T) {
 	f, s, _, c := commented(t)
 
@@ -441,8 +383,6 @@ func TestAddressingCarriesTheWordsThatBackIt(t *testing.T) {
 	}
 }
 
-// Half a queue is change requests where the diff is the response. Demanding a
-// sentence there gets "done" typed into every one of them.
 func TestAddressingTakesNoAnswerAtAll(t *testing.T) {
 	f, s, _, c := commented(t)
 
@@ -458,8 +398,6 @@ func TestAddressingTakesNoAnswerAtAll(t *testing.T) {
 	}
 }
 
-// A response is words, not an anchor. A refresh carries the columns a translation
-// moves and this is not one of them.
 func TestAResponseSurvivesARefreshAndAResolve(t *testing.T) {
 	f, s, _, c := commented(t)
 
@@ -483,8 +421,6 @@ func TestAResponseSurvivesARefreshAndAResolve(t *testing.T) {
 	}
 }
 
-// The code an orphan was about is gone, and saying it is dealt with is the
-// reader's call. Nothing else clears it out of the queue.
 func TestResolvingClosesAnOrphan(t *testing.T) {
 	f, s, _, c := commented(t)
 
@@ -497,8 +433,6 @@ func TestResolvingClosesAnOrphan(t *testing.T) {
 	assertComments(t, f.storedComments(s), []string{"code.txt head 10:10 resolved"})
 }
 
-// The database holds every session in the repository, and one session's ids are
-// not another's business.
 func TestAnUnknownCommentIsRefusedByBothVerbs(t *testing.T) {
 	_, s, _, _ := commented(t)
 
@@ -515,9 +449,6 @@ func TestAnUnknownCommentIsRefusedByBothVerbs(t *testing.T) {
 	}
 }
 
-// A comment anchored to an older generation is never picked up by the carry, so
-// it would sit there never moving again. The refusal is the same one a mark
-// gets, for the same reason.
 func TestACommentAgainstAStaleGenerationIsRefused(t *testing.T) {
 	f, s, first, _ := commented(t)
 
@@ -537,8 +468,6 @@ func TestACommentAgainstAStaleGenerationIsRefused(t *testing.T) {
 	}
 }
 
-// The blob is the exact bytes the comment was about, held alive by the session
-// ref and immune to every rename after it.
 func TestACommentRecordsTheBlobItWasWrittenAgainst(t *testing.T) {
 	f, _, g, c := commented(t)
 
@@ -554,7 +483,6 @@ func TestACommentRecordsTheBlobItWasWrittenAgainst(t *testing.T) {
 	}
 }
 
-// Nothing anchors it, no blob describes it, and no listing would ever show it.
 func TestACommentOnAPathTheGenerationDoesNotHoldIsRefused(t *testing.T) {
 	_, s, g, _ := commented(t)
 
@@ -572,10 +500,6 @@ func TestACommentOnAPathTheGenerationDoesNotHoldIsRefused(t *testing.T) {
 	}
 }
 
-// An added file has no base blob and a deleted one has no head blob. A note on
-// the side it is missing from anchors to no bytes at all, and it cannot even
-// orphan: that side's diff never lists a file it does not have, so the anchor
-// would come through untouched on every refresh forever.
 func TestACommentOnASideTheFileIsNotOnIsRefused(t *testing.T) {
 	f := newFixture(t)
 	f.Write("gone.txt", numbered(1, 20))
@@ -615,9 +539,6 @@ func TestACommentOnASideTheFileIsNotOnIsRefused(t *testing.T) {
 	}
 }
 
-// A scope is a claim about what the comment is on, and the lines are how it is
-// kept. The two disagreeing gets a sentence here rather than a constraint
-// violation from three layers down.
 func TestANoteThatDisagreesWithItselfIsRefused(t *testing.T) {
 	_, s, g, _ := commented(t)
 
@@ -672,8 +593,6 @@ func TestANoteThatDisagreesWithItselfIsRefused(t *testing.T) {
 	}
 }
 
-// A hunk is commented on at the side and lines it is named by, so the CLI and
-// the TUI both write the same anchor rather than each deriving one.
 func TestCommentingOnAHunkAnchorsToWhatItIsNamedBy(t *testing.T) {
 	f := branched(t)
 	f.Write("code.txt", numbered(1, 20))
@@ -691,10 +610,6 @@ func TestCommentingOnAHunkAnchorsToWhatItIsNamedBy(t *testing.T) {
 	assertComments(t, f.storedComments(s), []string{"code.txt head 1:20 open"})
 }
 
-// The listing reads in the order the changeset does. The store orders by path
-// and that is bytewise, where a changeset puts a directory above the files
-// beside it, so without a sort here the two disagree about what comes first the
-// moment a changeset has a directory in it.
 func TestCommentsComeBackInTheOrderTheChangesetDoes(t *testing.T) {
 	f := branched(t)
 	f.Write("main.go", numbered(1, 5))
@@ -704,8 +619,6 @@ func TestCommentsComeBackInTheOrderTheChangesetDoes(t *testing.T) {
 	s := f.mustOpen("")
 	g := f.refresh(s)
 
-	// One on every file, so the two lists are the same set and comparing them
-	// position by position is comparing the orderings.
 	files := f.changeset(s, g).Files
 	for _, file := range files {
 		f.note(s, g, review.Note{
@@ -732,8 +645,6 @@ func TestCommentsComeBackInTheOrderTheChangesetDoes(t *testing.T) {
 	}
 }
 
-// The scope of a comment on lines falls out of the lines rather than out of how
-// a caller spelled them, so one place decides it and no two callers disagree.
 func TestCommentingOnLinesTakesItsScopeFromThem(t *testing.T) {
 	f := branched(t)
 	f.Write("code.txt", numbered(1, 20))
@@ -764,9 +675,6 @@ func TestCommentingOnLinesTakesItsScopeFromThem(t *testing.T) {
 	}
 }
 
-// A file comment is anchored on the side the file has bytes on. A deleted file
-// has none on the head, and an anchor there would name bytes that are not there
-// and survive every rewrite of the ones it actually removed.
 func TestCommentingOnAFileTakesTheSideItHasBytesOn(t *testing.T) {
 	f := branched(t)
 	f.Write("added.txt", "brand new\n")
@@ -803,8 +711,6 @@ func TestCommentingOnAFileTakesTheSideItHasBytesOn(t *testing.T) {
 	}
 }
 
-// The words are the whole of an edit. Moving the anchor would be a second remap
-// path with none of the translation rules behind it.
 func TestAnEditRewritesTheBodyAndLeavesTheAnchor(t *testing.T) {
 	f, s, _, c := commented(t)
 
@@ -829,8 +735,6 @@ func TestAnEditRewritesTheBodyAndLeavesTheAnchor(t *testing.T) {
 	}
 }
 
-// An edit is refused on the same sentence a write is, because a comment with
-// nothing in it says nothing whichever way it got that way.
 func TestAnEditRefusesAnEmptyBody(t *testing.T) {
 	f, s, _, c := commented(t)
 
@@ -842,8 +746,6 @@ func TestAnEditRefusesAnEmptyBody(t *testing.T) {
 	}
 }
 
-// A comment goes for good. A deleted state would have to be filtered out of
-// every count, every ring and every export forever.
 func TestADeleteTakesTheCommentOutOfTheSession(t *testing.T) {
 	f, s, _, c := commented(t)
 
@@ -857,8 +759,6 @@ func TestADeleteTakesTheCommentOutOfTheSession(t *testing.T) {
 	assertComments(t, f.storedComments(s), nil)
 }
 
-// Both reach a comment in any state, because a typo in a resolved comment is
-// still a typo and one nobody meant to write is a record of nothing.
 func TestEditAndDeleteReachASettledComment(t *testing.T) {
 	for _, tt := range []struct {
 		name string
@@ -888,8 +788,6 @@ func TestEditAndDeleteReachASettledComment(t *testing.T) {
 	}
 }
 
-// TestAnUnknownCommentIsRefusedByEditAndDelete, for the reason the state verbs
-// refuse one: the database holds every session and their ids are not shared.
 func TestAnUnknownCommentIsRefusedByEditAndDelete(t *testing.T) {
 	_, s, _, _ := commented(t)
 
@@ -906,8 +804,6 @@ func TestAnUnknownCommentIsRefusedByEditAndDelete(t *testing.T) {
 	}
 }
 
-// An edit names no generation, so a refresh landing between reading a comment
-// and rewriting it costs nothing: the body is true at every generation.
 func TestAnEditLandsAfterTheGenerationMoved(t *testing.T) {
 	f, s, _, c := commented(t)
 

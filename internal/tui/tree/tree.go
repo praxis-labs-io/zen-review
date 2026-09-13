@@ -1,5 +1,4 @@
-// Package tree is the left pane: the changeset's files under the directories
-// that hold them, with how much of each has been read.
+// Package tree is the file pane: changeset files under their directories, with review progress.
 package tree
 
 import (
@@ -12,43 +11,27 @@ import (
 )
 
 const (
-	// indent is one level of nesting, in columns.
 	indent = 2
 
-	// gutter is the column kept clear at each edge of the pane, so a glyph does
-	// not sit against the border and the churn does not either.
 	gutter = 1
 
-	// topPad and bottomPad are the blank lines at the ends of the list. They are
-	// content rather than chrome, so they scroll: the reader sees one when they
-	// reach that end of the list and rows run to the border everywhere between.
 	topPad    = 1
 	bottomPad = 1
 
-	// nameMin is the columns a name keeps whatever else wants them. A row that
-	// names no file names nothing.
 	nameMin = 10
 )
 
-// OpenMsg says the reader picked the file under the cursor and wants to be
-// reading it.
-//
-// It carries no path. The root reads Path off the model, which is where the
-// answer already is, and a message that carries one can be delivered after the
-// cursor has moved off the row it was about.
+// OpenMsg asks the root to open the file under the cursor. It carries no path, which could
+// arrive stale; read Path.
 type OpenMsg struct{}
 
-// KeyMap is what the tree answers to on top of the shared movement keys.
 type KeyMap struct {
 	comp.Movement
 
-	// Toggle folds a directory. Open reads as "go there", which on a directory
-	// is the same fold, so the two share the row and differ only on a file.
 	Toggle key.Binding
 	Open   key.Binding
 }
 
-// NewKeyMap is the bindings and the help text they carry.
 func NewKeyMap() KeyMap {
 	return KeyMap{
 		Movement: comp.NewMovement(),
@@ -57,14 +40,12 @@ func NewKeyMap() KeyMap {
 	}
 }
 
-// Bindings is the tree's own keys, without the movement it shares.
+// Bindings returns the tree's own keys, without the shared movement.
 func (k KeyMap) Bindings() []key.Binding {
 	return []key.Binding{k.Toggle, k.Open}
 }
 
-// Hints is what the status bar says this pane can do while it holds the keys,
-// most worth saying first. The bar is one line for the whole frame, so a pane
-// names the few keys that are its own rather than everything it answers to.
+// Hints returns the keys the status bar names while the tree has focus, most useful first.
 func (k KeyMap) Hints() []key.Binding {
 	return []key.Binding{
 		comp.Pair(k.Down, k.Up, "j/k", "move"),
@@ -73,8 +54,6 @@ func (k KeyMap) Hints() []key.Binding {
 	}
 }
 
-// Model is the tree pane. It renders the changeset it was built from and holds
-// no review state of its own.
 type Model struct {
 	Keys KeyMap
 
@@ -91,8 +70,7 @@ type Model struct {
 	focused bool
 }
 
-// New builds the tree over a changeset. Its rows point into the changeset's
-// files, so the caller has to keep them where they are.
+// New builds the tree over c. Rows point into c's files, which must outlive the model.
 func New(t theme.Theme, c review.Changeset) Model {
 	m := Model{
 		Keys:  NewKeyMap(),
@@ -103,13 +81,7 @@ func New(t theme.Theme, c review.Changeset) Model {
 	return m
 }
 
-// SetChangeset rebuilds the tree over a new generation of the same review,
-// carrying across which directories the reader had folded and staying on the
-// file the cursor was on where the changeset still holds it.
-//
-// The rows point into the new changeset's files, so the caller has to keep it
-// where it is, the same as New. Nothing is resized: a reload does not move the
-// pane.
+// SetChangeset rebuilds over c, keeping folds and the cursor's file. c's files must outlive the model.
 func (m *Model) SetChangeset(c review.Changeset) {
 	was := m.Path()
 
@@ -126,8 +98,7 @@ func (m *Model) SetChangeset(c review.Changeset) {
 	}
 }
 
-// SetSize gives the pane the room it draws into, which is the inside of the
-// frame and not the frame.
+// SetSize sets the area inside the frame the pane draws into.
 func (m *Model) SetSize(width, height int) {
 	m.width, m.height = width, height
 	m.scrollToCursor()
@@ -136,17 +107,11 @@ func (m *Model) SetSize(width, height int) {
 func (m *Model) Focus() { m.focused = true }
 func (m *Model) Blur()  { m.focused = false }
 
-// total is the lines the pane scrolls over: the rows plus the blank one at
-// each end of them.
 func (m Model) total() int { return len(m.rows) + topPad + bottomPad }
 
-// maxOffset is as far down as the window goes, which is the last line of the
-// list on the bottom row and not one further.
 func (m Model) maxOffset() int { return max(m.total()-m.height, 0) }
 
-// First is the path of the file the tree shows first, which is the changeset's
-// first file with the directory rows above it skipped. Empty when there are no
-// files.
+// First returns the path of the first file row, or "" when there are no files.
 func (m Model) First() string {
 	for _, r := range m.rows {
 		if !r.n.dir() {
@@ -156,7 +121,7 @@ func (m Model) First() string {
 	return ""
 }
 
-// Path is the selected file's path, and is empty on a directory row.
+// Path returns the selected file's path, or "" on a directory row.
 func (m Model) Path() string {
 	n := m.node()
 	if n == nil || n.dir() {
@@ -165,8 +130,7 @@ func (m Model) Path() string {
 	return n.path
 }
 
-// Select puts the cursor on a path, opening whatever directories hold it. It
-// reports whether the path is in the changeset.
+// Select moves the cursor to path, unfolding its directories. Reports whether path is present.
 func (m *Model) Select(path string) bool {
 	if !m.reveal(m.roots, path) {
 		return false
@@ -230,8 +194,6 @@ func (m *Model) move(by int) {
 	m.scrollToCursor()
 }
 
-// toggle folds the directory under the cursor. The cursor stays on it: folding
-// only removes rows below, so the index it sits at still names the same row.
 func (m *Model) toggle() {
 	n := m.node()
 	if n == nil || !n.dir() {
@@ -243,8 +205,6 @@ func (m *Model) toggle() {
 	m.scrollToCursor()
 }
 
-// reveal opens every directory above a path, so a selection made from outside
-// the pane has a row to land on.
 func (m *Model) reveal(nodes []*node, path string) bool {
 	for _, n := range nodes {
 		if !n.dir() {
@@ -262,9 +222,7 @@ func (m *Model) reveal(nodes []*node, path string) bool {
 	return false
 }
 
-// scrollToCursor moves the window the least it can, which is right for a key
-// that steps. A key that jumps says where it wants the row and moves the
-// offset itself.
+// scrollToCursor takes the shortest scroll, which suits only a key that steps one row.
 func (m *Model) scrollToCursor() {
 	if m.height <= 0 {
 		return
@@ -274,12 +232,6 @@ func (m *Model) scrollToCursor() {
 	m.offset = min(m.offset, at)
 	m.offset = max(m.offset, at-m.height+1)
 
-	// A pad belongs to the end of the list it sits at, so landing on the first
-	// or last row brings its pad back on screen. Without this the reader walks
-	// back up to the top row and the pane stays one line short of the top.
-	//
-	// A pane with one line has no room for both, and the row is the half that
-	// carries the meaning: snapping to the pad there draws an empty tree.
 	if m.height > 1 {
 		switch {
 		case m.cursor == 0:

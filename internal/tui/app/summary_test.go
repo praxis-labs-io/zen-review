@@ -9,8 +9,6 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// TestTheNoteOpensOverWhatTheSessionSays. A session resumed days later already
-// has a note, and C is how it is added to rather than replaced.
 func TestTheNoteOpensOverWhatTheSessionSays(t *testing.T) {
 	s := noting(t, "the remap is the part to look at", 100, 24)
 	s.press("C")
@@ -27,8 +25,6 @@ func TestTheNoteOpensOverWhatTheSessionSays(t *testing.T) {
 	}
 }
 
-// TestTheSaveKeyWritesTheNote through the same seam every other write goes
-// through, and says so on the bar.
 func TestTheSaveKeyWritesTheNote(t *testing.T) {
 	s := noting(t, "", 100, 24)
 	s.press("C", "h", "i")
@@ -41,14 +37,11 @@ func TestTheSaveKeyWritesTheNote(t *testing.T) {
 		t.Errorf("the bar reads %q, want the write reported", got)
 	}
 
-	// The box is down, so the next key is the reader's again.
 	if got := s.frame(); strings.Contains(got, "Session note") {
 		t.Errorf("the box stayed up after the save:\n%s", got)
 	}
 }
 
-// TestAnEmptiedNoteReportsItself. Empty is the only way to take a note back, so
-// it is a thing that happened rather than a write that did nothing.
 func TestAnEmptiedNoteReportsItself(t *testing.T) {
 	s := noting(t, "x", 100, 24)
 	s.press("C", "backspace", "ctrl+s")
@@ -61,8 +54,6 @@ func TestAnEmptiedNoteReportsItself(t *testing.T) {
 	}
 }
 
-// TestDiscardingTheNoteWritesNothing, and leaves what the session says where it
-// was: esc is the way out that costs nothing.
 func TestDiscardingTheNoteWritesNothing(t *testing.T) {
 	s := noting(t, "what the session says", 100, 24)
 	s.press("C", "n", "o", "esc")
@@ -81,8 +72,6 @@ func TestDiscardingTheNoteWritesNothing(t *testing.T) {
 	}
 }
 
-// TestAFailedSaveKeepsTheWords. The write is a local transaction that landed or
-// did not, and the only thing it can cost is what the reader typed.
 func TestAFailedSaveKeepsTheWords(t *testing.T) {
 	s := noting(t, "", 100, 24)
 	s.src.wroteErr = errors.New("the database is locked")
@@ -99,7 +88,6 @@ func TestAFailedSaveKeepsTheWords(t *testing.T) {
 		t.Errorf("the words went with it:\n%s", got)
 	}
 
-	// And the retry writes them, rather than the reader typing them again.
 	s.src.wroteErr = nil
 	s.press("ctrl+s")
 
@@ -108,13 +96,10 @@ func TestAFailedSaveKeepsTheWords(t *testing.T) {
 	}
 }
 
-// TestTypingOnThroughASaveKeepsTheBox. The write is out for as long as it takes,
-// and a close landing on top of it would drop what was added meanwhile.
 func TestTypingOnThroughASaveKeepsTheBox(t *testing.T) {
 	s := noting(t, "", 100, 24)
 	s.press("C", "h", "i")
 
-	// Held, so the write is still out when the next key lands.
 	saving := s.hold(keystroke("ctrl+s"))
 	s.press("!")
 	s.drain(saving)
@@ -128,8 +113,6 @@ func TestTypingOnThroughASaveKeepsTheBox(t *testing.T) {
 	}
 }
 
-// TestCtrlCReachesOutOfTheBox. Raw mode sends no interrupt, so the box would
-// otherwise be the one place in the program with no way out but esc.
 func TestCtrlCReachesOutOfTheBox(t *testing.T) {
 	s := noting(t, "", 100, 24)
 	s.press("C")
@@ -143,8 +126,6 @@ func TestCtrlCReachesOutOfTheBox(t *testing.T) {
 	}
 }
 
-// TestAPasteReachesTheBox. Bracketed paste arrives as a message of its own
-// rather than as keys, and a note is the one thing here anybody pastes.
 func TestAPasteReachesTheBox(t *testing.T) {
 	s := noting(t, "", 100, 24)
 	s.press("C")
@@ -157,8 +138,6 @@ func TestAPasteReachesTheBox(t *testing.T) {
 	}
 }
 
-// TestTheBoxDrawsOnAFrameTooSmallForThePanes. It owns the keys wherever it is
-// up, and one that is not on screen is a reader pressing q into nothing.
 func TestTheBoxDrawsOnAFrameTooSmallForThePanes(t *testing.T) {
 	s := noting(t, "what the session says", 50, 10)
 
@@ -175,8 +154,6 @@ func TestTheBoxDrawsOnAFrameTooSmallForThePanes(t *testing.T) {
 		t.Errorf("the way out is not on screen:\n%s", got)
 	}
 
-	// The composite pads what it trimmed, and this frame is built by a different
-	// path from the one the size table walks.
 	for i, line := range s.lines() {
 		if w := lipgloss.Width(line); w != 50 {
 			t.Errorf("line %d is %d columns, want 50: %q", i, w, line)
@@ -184,8 +161,6 @@ func TestTheBoxDrawsOnAFrameTooSmallForThePanes(t *testing.T) {
 	}
 }
 
-// TestTheBoxTakesTheKeysTheReaderOtherwiseOwns. q ends the session everywhere
-// else, and a note lost to the letter q cannot be taken back.
 func TestTheBoxTakesTheKeysTheReaderOtherwiseOwns(t *testing.T) {
 	s := noting(t, "", 100, 24)
 	s.press("C", "q", "?")

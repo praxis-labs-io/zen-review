@@ -11,13 +11,11 @@ import (
 	"time"
 )
 
-// reply drives the decode half of Query, which is all but the raw-mode dance.
 func reply(t *testing.T, answer string) Surface {
 	t.Helper()
 	return collect(strings.NewReader(answer), queryTimeout)
 }
 
-// Drives Query's own dispatch rather than a copy of it.
 func collect(in io.Reader, timeout time.Duration) Surface {
 	var s Surface
 	read(in, &bytes.Buffer{}, "", timeout, s.take)
@@ -54,7 +52,6 @@ func TestQueryReadsThePaletteSlots(t *testing.T) {
 	}
 }
 
-// A terminal may answer for slots nobody asked about.
 func TestQueryIgnoresPaletteSlotsItDidNotAskFor(t *testing.T) {
 	got := reply(t, "\x1b]4;4;rgb:0000/0000/ffff\x1b\\\x1b[?62;c")
 
@@ -63,7 +60,6 @@ func TestQueryIgnoresPaletteSlotsItDidNotAskFor(t *testing.T) {
 	}
 }
 
-// A terminal that reports its background may still say nothing about slot 1.
 func TestQueryTakesTheSurfaceWithoutThePalette(t *testing.T) {
 	got := reply(t, "\x1b]11;rgb:2323/2121/3636\x1b\\\x1b[?62;c")
 
@@ -75,7 +71,6 @@ func TestQueryTakesTheSurfaceWithoutThePalette(t *testing.T) {
 	}
 }
 
-// Components come back at varying width and a short one scales up.
 func TestQueryScalesShortComponents(t *testing.T) {
 	got := reply(t, "\x1b]11;rgb:1c/1c/1c\x1b\\\x1b[?62;c")
 	if want := "#1c1c1c"; hexOf(got.Background) != want {
@@ -83,7 +78,6 @@ func TestQueryScalesShortComponents(t *testing.T) {
 	}
 }
 
-// Half an answer is the common case, and that half has to survive.
 func TestQueryTakesWhicheverAnswered(t *testing.T) {
 	got := reply(t, "\x1b]11;rgb:2323/2121/3636\x1b\\\x1b[?62;c")
 
@@ -95,7 +89,6 @@ func TestQueryTakesWhicheverAnswered(t *testing.T) {
 	}
 }
 
-// Left in the buffer, the attributes are echoed the moment raw mode ends.
 func TestTheDeviceAttributesEndTheRead(t *testing.T) {
 	done := make(chan Surface, 1)
 	go func() { done <- reply(t, "\x1b]11;rgb:2323/2121/3636\x1b\\\x1b[?62;c") }()
@@ -110,8 +103,7 @@ func TestTheDeviceAttributesEndTheRead(t *testing.T) {
 	}
 }
 
-// An os.Pipe, not any blocking reader: the cancel reader interrupts a file
-// descriptor and cannot interrupt an arbitrary Read.
+// An os.Pipe, because the cancel reader can interrupt a file descriptor and not an arbitrary Read.
 func TestASilentTerminalGivesUpAndReportsNothing(t *testing.T) {
 	silent, w, err := os.Pipe()
 	if err != nil {
@@ -133,8 +125,6 @@ func TestASilentTerminalGivesUpAndReportsNothing(t *testing.T) {
 	}
 }
 
-// The decoder carries acc and state across reads, which only a reader that
-// really answers in more than one Read exercises.
 func TestASplitReplyStillParses(t *testing.T) {
 	full := "\x1b]11;rgb:2323/2121/3636\x1b\\\x1b[?62;c"
 
@@ -144,7 +134,7 @@ func TestASplitReplyStillParses(t *testing.T) {
 	}
 }
 
-// One piece per Read, which strings.Reader will not do.
+// chunked answers one part per Read, which strings.Reader will not.
 type chunked struct{ parts []string }
 
 func (c *chunked) Read(p []byte) (int, error) {

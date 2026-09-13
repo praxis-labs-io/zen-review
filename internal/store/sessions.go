@@ -8,7 +8,6 @@ import (
 	"time"
 )
 
-// Kind is what a session is keyed on.
 type Kind string
 
 const (
@@ -17,10 +16,7 @@ const (
 	KindDetached Kind = "detached"
 )
 
-// Session is one repository plus one thing to review in it.
 type Session struct {
-	// ID is opaque and derived above this package. A branch name can hold
-	// anything a ref can, and two of them cannot both become a ref path.
 	ID string
 
 	// RepoPath is the resolved git common dir.
@@ -29,26 +25,17 @@ type Session struct {
 	Kind   Kind
 	Branch string
 
-	// RangeSpec is the key for a session that is not a branch.
 	RangeSpec string
 
-	// BaseRef is what the changeset is measured from. It is never re-detected: a
-	// saved session keeps the base it has until the reader names another one,
-	// which SaveSession then writes over the old value.
 	BaseRef string
 
-	// Summary is the session-level note.
 	Summary string
 
-	// CreatedAt and UpdatedAt are stored to the second. A value read back is the
-	// one written truncated, so compare with Time.Equal against a truncated time
-	// rather than against what was passed in.
+	// CreatedAt and UpdatedAt round-trip truncated to the second.
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
 
-// Session reads one session. One that is not there comes back as
-// (Session{}, false, nil): absence is an answer, not a failure.
 func (db *DB) Session(ctx context.Context, id string) (Session, bool, error) {
 	const q = `
 		SELECT id, repo_path, kind, branch, range_spec, base_ref, summary, created_at, updated_at
@@ -77,16 +64,7 @@ func (db *DB) Session(ctx context.Context, id string) (Session, bool, error) {
 	return s, true, nil
 }
 
-// SaveSession writes a session, creating it or updating it in place.
-//
-// CreatedAt is left where it was on an update, because a session resumed three
-// days later is the same session. Both times come off s rather than a clock
-// here: this package holds none, which is what keeps its callers testable.
-//
-// The summary is written on the insert and never on the update, because
-// SetSessionSummary owns it. Every caller here holds the summary it read when
-// it opened, and an instance that opened before the note was written would
-// erase it the next time it moved the base.
+// SaveSession inserts or updates s. An update keeps the stored CreatedAt and Summary, which SetSessionSummary owns.
 func (db *DB) SaveSession(ctx context.Context, s Session) error {
 	const q = `
 		INSERT INTO sessions (id, repo_path, kind, branch, range_spec, base_ref, summary, created_at, updated_at)
@@ -109,12 +87,7 @@ func (db *DB) SaveSession(ctx context.Context, s Session) error {
 	return nil
 }
 
-// SetSessionSummary writes the session-level note and nothing else.
-//
-// A session with no row is a failure rather than a silent no-op. The row is
-// written when the session is opened, so reaching here without one means it was
-// deleted underneath, and answering with the note that was never stored is the
-// one thing worse than saying so.
+// SetSessionSummary writes the summary alone, and errors when the session has no row.
 func (db *DB) SetSessionSummary(ctx context.Context, id, summary string, at time.Time) error {
 	const q = `UPDATE sessions SET summary = ?, updated_at = ? WHERE id = ?`
 

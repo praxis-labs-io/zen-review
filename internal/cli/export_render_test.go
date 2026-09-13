@@ -8,12 +8,6 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/store"
 )
 
-// The lines under the heading are what a paste has to carry: it lands in front
-// of somebody who cannot see the repository, so anything making the references
-// below less true than they look has to travel with them.
-//
-// Over literals, with no repository behind them, for the reason the prose tests
-// beside these give: what is under test is the sentence.
 func TestTheReportSaysWhatItsReferencesAreWorth(t *testing.T) {
 	reported := func(v exportView) exportView {
 		v.header = opened()
@@ -85,16 +79,11 @@ func TestTheReportSaysWhatItsReferencesAreWorth(t *testing.T) {
 			absent: []string{"The base has moved"},
 		},
 		{
-			// An edit nobody can see is the failure this tool exists to prevent, and a
-			// report counting what it read without naming what it could not is that
-			// failure with a number beside it.
 			name: "a path git could not read",
 			v:    partial,
 			want: []string{"git could not read 2 paths just now", "vendored/, locked.txt"},
 		},
 		{
-			// The one case with no earlier warning that a file is missing from what is
-			// being reported, so it is the one that has to carry it.
 			name: "nothing built yet, and a path git could not read",
 			v:    unbuilt,
 			want: []string{
@@ -115,9 +104,6 @@ func TestTheReportSaysWhatItsReferencesAreWorth(t *testing.T) {
 			absent: []string{"nothing unresolved", "stopped moving"},
 		},
 		{
-			// The line is where the anchor was when the comment settled, which is not
-			// where the generation named above puts that file. The reader of a paste
-			// cannot check, and the state word beside it does not say so.
 			name: "a comment that has stopped moving",
 			v:    stopped,
 			want: []string{

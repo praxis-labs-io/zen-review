@@ -8,9 +8,6 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/golden"
 )
 
-// The report is what somebody still has to answer, so a resolved comment is not
-// in it and everything else is: an orphan included, because the code moving
-// under a comment is not a response to it.
 func TestTheExportCarriesEverythingUnresolved(t *testing.T) {
 	f, ids := queue(t)
 
@@ -32,9 +29,6 @@ func TestTheExportCarriesEverythingUnresolved(t *testing.T) {
 	}
 }
 
-// One heading per file, and the reference repeated on every entry under it. The
-// heading is not a location somebody can paste, and going to the code is what a
-// reader does with a report.
 func TestTheExportGroupsByFileAndKeepsTheReferences(t *testing.T) {
 	f, _ := queue(t)
 
@@ -52,8 +46,6 @@ func TestTheExportGroupsByFileAndKeepsTheReferences(t *testing.T) {
 	}
 }
 
-// The burn-down is what makes this a report rather than a comment dump, and it
-// is the same count zen-review files prints.
 func TestTheExportCountsWhatHasBeenRead(t *testing.T) {
 	f := clean(t)
 	f.mustRun("review", "code.txt", "--all")
@@ -73,8 +65,6 @@ func TestTheExportCountsWhatHasBeenRead(t *testing.T) {
 	}
 }
 
-// The note the review concluded with opens the report, verbatim. Markdown is
-// laid out by whatever renders it, so nothing is folded on the way out.
 func TestTheExportOpensOnTheSummary(t *testing.T) {
 	f := clean(t)
 	f.mustRun("summary", "--set", "held the store changes until the migration lands")
@@ -86,8 +76,6 @@ func TestTheExportOpensOnTheSummary(t *testing.T) {
 	}
 }
 
-// A paste lands in front of somebody who cannot see the repository, so what the
-// lines below no longer describe has to travel with them.
 func TestTheExportSaysWhenTheLinesHaveMoved(t *testing.T) {
 	f := clean(t)
 	f.comment("code.txt", "--hunk", "3", "--body", "here")
@@ -100,8 +88,6 @@ func TestTheExportSaysWhenTheLinesHaveMoved(t *testing.T) {
 	}
 }
 
-// A session with nothing built yet has nothing to count and says so, rather than
-// reporting zero of zero as though that were a response.
 func TestTheExportSaysWhenThereIsNoGeneration(t *testing.T) {
 	f := edited(t)
 
@@ -117,8 +103,6 @@ func TestTheExportSaysWhenThereIsNoGeneration(t *testing.T) {
 	}
 }
 
-// --json is persistent and reaches every command. Honouring it here would be a
-// second wire shape saying what comments --json already says.
 func TestTheExportRefusesJSON(t *testing.T) {
 	f := clean(t)
 
@@ -131,12 +115,6 @@ func TestTheExportRefusesJSON(t *testing.T) {
 	}
 }
 
-// The report's shape is a contract with whatever it is pasted into, and it is
-// the one output of this tool a person reads somewhere other than a terminal.
-//
-// It is a golden here rather than in golden_test.go, which locks the JSON
-// schema with every value normalised out and says not to assert values in it.
-// What this locks is the values: the prose, the ordering and the layout.
 func TestTheExportedReportIsTheContract(t *testing.T) {
 	f, _ := queue(t)
 	f.mustRun("summary", "--set", "held the store changes until the migration lands")
@@ -149,8 +127,6 @@ func TestTheExportedReportIsTheContract(t *testing.T) {
 	golden.Compare(t, "export", []byte(scrub(out, w.wireHeader, subs...)))
 }
 
-// A paste lands in front of somebody who cannot open the repository, so the
-// words backing a claim have to travel with it.
 func TestTheExportCarriesTheResponse(t *testing.T) {
 	f, _ := queue(t)
 

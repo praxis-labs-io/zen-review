@@ -13,24 +13,17 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/tui/testtheme"
 )
 
-// splitRule is the divider the pane draws between the two columns.
 const splitRule = "│"
 
-// selectKey opens a range at the cursor, which is what v does.
 var selectKey = tea.KeyPressMsg{Code: 'v', Text: "v"}
 
-// splitWide is wide enough for two halves over the fixture's three-digit line
-// numbers, which is what the minimum is measured against.
 const splitWide = 80
 
-// splitting is whether the pane is drawing two columns, which is the rule it
-// draws between them and nothing the model has to be asked for.
 func splitting(t *testing.T, m diffpane.Model) bool {
 	t.Helper()
 	return strings.Contains(strings.Join(rows(t, m), "\n"), splitRule)
 }
 
-// split is a pane already in side-by-side, and fails the test if it refused.
 func split(t *testing.T, path string, width, height int) diffpane.Model {
 	t.Helper()
 
@@ -44,8 +37,6 @@ func split(t *testing.T, path string, width, height int) diffpane.Model {
 	return m
 }
 
-// onto walks the cursor down to a row, which is how a reader reaches one. It
-// counts landings rather than presses: a column with no line on a row is skipped.
 func onto(t *testing.T, m diffpane.Model, want int) diffpane.Model {
 	t.Helper()
 
@@ -61,8 +52,6 @@ func onto(t *testing.T, m diffpane.Model, want int) diffpane.Model {
 	return m
 }
 
-// paired is the row a removal and its replacement share, and -1 for a file with
-// no rewrite in it.
 func paired(t *testing.T, m diffpane.Model) int {
 	t.Helper()
 
@@ -74,8 +63,6 @@ func paired(t *testing.T, m diffpane.Model) int {
 	return -1
 }
 
-// A row wider than the pane loses its trailing columns with no ellipsis, and two
-// halves have two chances to get the arithmetic wrong.
 func TestEverySideBySideRowIsExactlyThePane(t *testing.T) {
 	for _, width := range []int{splitWide, splitWide + 1, 96, 121} {
 		m := split(t, twoHunks, width, 16)
@@ -88,8 +75,6 @@ func TestEverySideBySideRowIsExactlyThePane(t *testing.T) {
 	}
 }
 
-// A removal and the addition that replaced it share a row, so both numbers are
-// on it. The two columns are what a reader compares, and one number is half of it.
 func TestAPairedRowCarriesBothNumbers(t *testing.T) {
 	m := split(t, twoHunks, splitWide, 16)
 
@@ -99,15 +84,11 @@ func TestAPairedRowCarriesBothNumbers(t *testing.T) {
 	}
 	found := rows(t, m)[at]
 
-	// The fixture rewrites line 13 into line 13, so the number is on both sides
-	// of the rule and one occurrence would mean a column lost its own.
 	if got := strings.Count(found, "13"); got != 2 {
 		t.Errorf("want the line number in both columns, got %d in %q", got, found)
 	}
 }
 
-// An addition with no removal to face draws a blank column rather than shifting
-// up to fill it, which would put the two sides out of step for the rest of the file.
 func TestAnUnpairedChangeFacesABlank(t *testing.T) {
 	const patch = `diff --git a/one.go b/one.go
 index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1b039aafb 100644
@@ -144,8 +125,6 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 	}
 }
 
-// A deletion-only hunk has no head side at all, so its rows stay left-only and
-// still name the base. That is the base-only comment side-by-side keeps.
 func TestADeletionOnlyRowNamesTheBaseAlone(t *testing.T) {
 	const patch = `diff --git a/gone.go b/gone.go
 index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1b039aafb 100644
@@ -165,12 +144,10 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 		t.Fatalf("refused side-by-side, %d columns short", short)
 	}
 
-	// Removals live in the base column, and the head has nothing on those rows.
 	if !m.Column(store.SideBase) {
 		t.Fatal("the pane would not go into the base column")
 	}
 
-	// The heading, one context line, then the two removals.
 	m = onto(t, m, 2)
 	m = press(t, m, selectKey, down)
 
@@ -186,8 +163,6 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 	}
 }
 
-// seq counts rows and the two modes do not have the same ones, so a cursor
-// carried by it would land somewhere else every time the key is pressed.
 func TestTheCursorHoldsItsLineAcrossTheToggle(t *testing.T) {
 	m := pane(t, twoHunks, splitWide, 16)
 
@@ -220,8 +195,6 @@ func TestTheCursorHoldsItsLineAcrossTheToggle(t *testing.T) {
 	}
 }
 
-// A pane too narrow keeps the reader's answer and draws unified, so widening
-// brings it back rather than making them press the key twice.
 func TestANarrowPaneRefusesAndAWiderOneRelents(t *testing.T) {
 	m := pane(t, twoHunks, 40, 16)
 
@@ -240,8 +213,6 @@ func TestANarrowPaneRefusesAndAWiderOneRelents(t *testing.T) {
 		t.Errorf("no rule between the columns:\n%s", strings.Join(rows(t, m), "\n"))
 	}
 
-	// Back under the minimum and out again, with no key pressed between. The rows
-	// go unified and the answer stands, which is the second widening proving it.
 	m.SetSize(40, 16)
 	if splitting(t, m) {
 		t.Errorf("still two columns at forty:\n%s", strings.Join(rows(t, m), "\n"))
@@ -253,8 +224,6 @@ func TestANarrowPaneRefusesAndAWiderOneRelents(t *testing.T) {
 	}
 }
 
-// Two change blocks in one hunk pair inside themselves. Run together they would
-// pair a removal against an addition from the block after it.
 func TestTwoChangeBlocksPairSeparately(t *testing.T) {
 	const patch = `diff --git a/two.go b/two.go
 index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1b039aafb 100644
@@ -276,8 +245,6 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 		t.Fatalf("refused side-by-side, %d columns short", short)
 	}
 
-	// b belongs to the first block and has nothing to face; d opens the second and
-	// takes e. Running the two together would put b against e.
 	for _, row := range rows(t, m) {
 		if strings.Contains(row, "const b") && strings.Contains(row, "const e") {
 			t.Errorf("a removal paired with an addition from the block after it: %q", row)
@@ -295,8 +262,6 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 	}
 }
 
-// The lit half is the only thing saying which side the next key takes, so a
-// cursor lighting both would leave a reader on a rewrite with no way to know.
 func TestOnlyTheFocusedColumnLights(t *testing.T) {
 	m := split(t, twoHunks, splitWide, 16)
 
@@ -337,8 +302,6 @@ func TestOnlyTheFocusedColumnLights(t *testing.T) {
 	}
 }
 
-// The point of a side: a comment on a removal that has an addition beside it,
-// which the head-first rule alone can never reach.
 func TestTheFocusedColumnScopesTheAnchor(t *testing.T) {
 	m := split(t, twoHunks, splitWide, 16)
 
@@ -368,12 +331,9 @@ func TestTheFocusedColumnScopesTheAnchor(t *testing.T) {
 	}
 }
 
-// A unified pane names both sides off one row, which is the rule every mode but
-// side-by-side answers to. The side only exists while two columns are drawn.
 func TestAUnifiedRowStillNamesBothSides(t *testing.T) {
 	m := pane(t, twoHunks, splitWide, 16)
 
-	// The hunk heading, then its first context line.
 	m = onto(t, m, 1)
 	got, ok := m.Line()
 	if !ok {
@@ -384,8 +344,6 @@ func TestAUnifiedRowStillNamesBothSides(t *testing.T) {
 	}
 }
 
-// A column with no line on a row has nothing to scope, so the cursor goes on
-// rather than sitting somewhere c would have to refuse.
 func TestTheCursorSkipsARowItsColumnHasNoLineOn(t *testing.T) {
 	const patch = `diff --git a/skip.go b/skip.go
 index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1b039aafb 100644
@@ -410,16 +368,13 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 		t.Fatal("the pane would not go into the base column")
 	}
 
-	// Row 2 is the only removal, and rows 3 and 4 are additions facing a blank.
 	m = onto(t, m, 2)
 
-	// Nothing below has a base line, so j turns back rather than landing on one.
 	m = press(t, m, down)
 	if got := m.Cursor(); got != 2 {
 		t.Errorf("the cursor moved to row %d over rows the base column has no line on", got)
 	}
 
-	// The head column has all three, and the cursor walks them.
 	if !m.Column(store.SideHead) {
 		t.Fatal("the pane would not go into the head column")
 	}
@@ -429,13 +384,9 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 	}
 }
 
-// Changing column on a row the new one has no line on moves the cursor to one it
-// does, so the pane is never focused somewhere it cannot act.
 func TestChangingColumnBringsTheCursorWithIt(t *testing.T) {
 	m := split(t, twoHunks, splitWide, 16)
 
-	// The fixture's second hunk adds two lines with nothing to face them, which
-	// is a row the base column has no line on.
 	at := -1
 	for i, row := range rows(t, m) {
 		if half, _, _ := strings.Cut(row, splitRule); strings.TrimSpace(half) == "" && strings.Contains(row, "+") {
@@ -464,11 +415,8 @@ func TestChangingColumnBringsTheCursorWithIt(t *testing.T) {
 	}
 }
 
-// barGlyph is the cursor's bar as the pane draws it, in the leading cell.
 const barGlyph = "▌"
 
-// The fill is shared with a selection, so inside one the bar is the only thing
-// saying which row the next key moves from.
 func TestOnlyTheCursorRowCarriesTheBar(t *testing.T) {
 	m := pane(t, twoHunks, 60, 10)
 	m.Select(store.SideHead, 13)
@@ -492,8 +440,6 @@ func TestOnlyTheCursorRowCarriesTheBar(t *testing.T) {
 	}
 }
 
-// The bar marks the column as well as the row, so it moves to the head half's
-// leading cell rather than staying at the pane's edge.
 func TestTheBarSitsInTheFocusedColumn(t *testing.T) {
 	m := split(t, twoHunks, splitWide, 16)
 	m = onto(t, m, paired(t, m))
@@ -515,8 +461,6 @@ func TestTheBarSitsInTheFocusedColumn(t *testing.T) {
 	}
 }
 
-// The pane opens on a heading, so a toggle pressed there is the common case. A
-// heading names no line, and the cursor used to fall to the top of the file.
 func TestTheToggleFromAHeadingKeepsTheHunk(t *testing.T) {
 	f := fileAt(t, testchangeset.Nested(t), twoHunks)
 	side, line := f.Hunks[1].Name()
@@ -535,8 +479,6 @@ func TestTheToggleFromAHeadingKeepsTheHunk(t *testing.T) {
 	}
 }
 
-// h and l step between columns. A hunk ending in unpaired additions has no base
-// line to seek forward to, and the step used to leave the hunk r marks.
 func TestAColumnStepStaysInTheHunk(t *testing.T) {
 	const patch = `diff --git a/two.go b/two.go
 index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1b039aafb 100644
@@ -561,8 +503,6 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 		t.Fatalf("refused side-by-side, %d columns short", short)
 	}
 
-	// The heading, the context line, the paired rewrite, then the addition with
-	// nothing facing it, which is the last row of the hunk.
 	m = onto(t, m, 3)
 	_, was, ok := m.Hunk()
 	if !ok {

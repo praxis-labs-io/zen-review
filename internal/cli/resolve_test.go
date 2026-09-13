@@ -5,8 +5,6 @@ import (
 	"testing"
 )
 
-// address is the agent's verb and resolve is the reader's, and each answers with
-// the comment it moved so a script does not need a second command to see it.
 func TestAddressThenResolveWalksAComment(t *testing.T) {
 	f := clean(t)
 	id := f.comment("code.txt", "--hunk", "3", "--body", "here")
@@ -22,8 +20,6 @@ func TestAddressThenResolveWalksAComment(t *testing.T) {
 	}
 }
 
-// The claim and the confirmation are different facts, so nothing an agent runs
-// reaches resolved and nothing re-opens a comment that has stopped.
 func TestAnAgentCannotReachResolved(t *testing.T) {
 	f := clean(t)
 	id := f.comment("code.txt", "--hunk", "3", "--body", "here")
@@ -38,8 +34,6 @@ func TestAnAgentCannotReachResolved(t *testing.T) {
 	}
 }
 
-// Resolve reaches everything not already closed, an orphan included: the code it
-// was about is gone, and saying that settles it is the reader's call.
 func TestResolvingClosesAnOrphan(t *testing.T) {
 	f, ids := queue(t)
 
@@ -50,10 +44,6 @@ func TestResolvingClosesAnOrphan(t *testing.T) {
 	}
 }
 
-// An id this session does not hold is a sentence, and the same one whichever
-// verb was reaching for it. A comment belonging to another session is not found
-// rather than refused: the database is shared by every session in the repository
-// and one session's ids are not another's business.
 func TestAnUnknownIdIsRefusedByBothVerbs(t *testing.T) {
 	for _, verb := range []string{"address", "resolve"} {
 		t.Run(verb, func(t *testing.T) {

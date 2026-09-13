@@ -1,9 +1,4 @@
-// Package app is the root model: two panes, a status bar, and the keys that
-// move between them.
-//
-// It routes and it lays out. Every state change is a call into review, and the
-// model renders what review returned rather than its own guess at what the
-// call did.
+// Package app is the reader's root model, routing keys between the panes.
 package app
 
 import (
@@ -24,7 +19,6 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/tui/tree"
 )
 
-// focus is the pane the keys are pointed at.
 type focus int
 
 const (
@@ -32,19 +26,14 @@ const (
 	focusDiff
 )
 
-// Model is the whole screen.
 type Model struct {
 	keys  KeyMap
 	theme theme.Theme
 
-	// src is what the reload and mark keys reach. It is called off the update
-	// loop, and busy is what keeps two calls from being in flight at once.
 	src  Source
 	busy bool
 
-	// reading is the path whose text is out, and empty when none is. It is its
-	// own flag and not busy: the read writes nothing, so it neither blocks a
-	// write nor is blocked by one.
+	// reading is separate from busy because a read neither blocks a write nor is blocked by one.
 	reading string
 
 	repo      string
@@ -52,27 +41,16 @@ type Model struct {
 	gen       review.Generation
 	changeset review.Changeset
 
-	// comments are every comment of the session, read at the generation the
-	// changeset was derived at. The diff pane draws the ones on the file it holds.
 	comments []store.Comment
 
-	// replaced is the code each answered comment was written against, by comment
-	// id. Only the cards read it, and only where the bytes moved.
 	replaced map[string][]string
 
-	// summary is the session note. Nothing draws it: C opens the composer over
-	// it, and the report is where it is read back.
 	summary string
 
-	// pending is what c scoped when the box went up, and empty while the box is
-	// down or holding the session note. It is what the save key branches on.
 	pending review.Note
 
-	// editing is the comment the box is standing in for, and empty for one being
-	// written. The save key branches on it before it reads pending.
 	editing string
 
-	// note is what the last reload found, until the next key clears it.
 	note notice
 
 	tree    tree.Model
@@ -81,13 +59,9 @@ type Model struct {
 	compose compose.Model
 	picker  basePicker
 
-	// The frames the two panes are drawn in. They hold the size, so the model
-	// asks them what is left inside rather than subtracting the border twice.
 	treePane comp.Pane
 	diffPane comp.Pane
 
-	// cursor is the hunk the ring is on, held as an identity and resolved to a
-	// position on every move. The diff pane draws it; nothing else owns it.
 	cursor stop
 
 	focus   focus
@@ -97,15 +71,8 @@ type Model struct {
 	height int
 }
 
-// New builds the screen over a changeset, open on the first hunk of it that has
-// not been read, with the diff pane holding the keys.
-//
-// zen-octo's conversation opens unfocused because the reader came to read. You
-// came here to burn a review down, and the first thing to press is a ring key.
-//
-// The changeset is held by value and the panes point into its files, so it
-// must not be appended to after this. A reload replaces it wholesale and
-// re-points both panes rather than growing the one they hold.
+// New builds the screen over r, focused on the diff pane at the first unread hunk.
+// The panes point into r.Changeset's files, so it must not be appended to afterwards.
 func New(t theme.Theme, src Source, repo string, r Reload) Model {
 	m := Model{
 		keys:      NewKeyMap(),
@@ -134,14 +101,9 @@ func New(t theme.Theme, src Source, repo string, r Reload) Model {
 	return m
 }
 
-// Run opens the reader on the terminal and returns when it closes.
-//
-// It can return with a reload still in git. Bubble Tea does not wait for a
-// command it started, so a caller holding the session has to before it lets go
-// of it.
+// Run opens the reader on the terminal and returns when it closes. It can return
+// with a Source call still running, so the caller must wait before releasing the session.
 func Run(ctx context.Context, src Source, repo string, r Reload) error {
-	// The query owns the tty for a round trip and has to give it back before
-	// Bubble Tea takes it.
 	t := theme.Terminal(theme.Query(os.Stdin, os.Stdout))
 
 	if _, err := tea.NewProgram(New(t, src, repo, r), tea.WithContext(ctx)).Run(); err != nil {
@@ -158,15 +120,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return next, cmd
 }
 
-// asking adds the read the diff pane is waiting on to whatever else the update
-// left to run.
-//
-// It sits over the whole of update rather than at the key, because the file in
-// the pane changes on a reload and on every write as well as on a press, and a
-// body is the bytes of one path at one generation.
-//
-// reading is the path already out. Without it every key pressed while the read
-// is in flight starts another one.
+// asking wraps all of update because the pane's file changes on reloads and writes, not only on keys.
 func (m *Model) asking(cmd tea.Cmd) tea.Cmd {
 	path, want := m.diff.NeedsBody()
 	if !want || path == m.reading {
@@ -181,8 +135,6 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.resize(msg.Width, msg.Height)
 
-		// Called before the return rather than in it: the order of a plain operand
-		// against a call beside it is the spec's to choose, not ours.
 		cmd := m.crossOver()
 		return m, cmd
 
@@ -234,8 +186,6 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		m.summary = msg.text
 		m.note = noted(msg.text)
 
-		// Down here and not at the key, so a write that failed leaves the box up
-		// holding the words. Typing on while it was out keeps it up too.
 		if m.compose.Value() == msg.text {
 			m.shut()
 		}
@@ -246,8 +196,6 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		m.apply(msg.r)
 		m.note = notice{text: "comment saved"}
 
-		// Down whatever was typed while it was out, where a note keeps the box
-		// and adds to it. A second save would write a second comment.
 		m.shut()
 		return m, nil
 
@@ -262,15 +210,11 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		m.busy = false
 		m.apply(msg.r)
 
-		// Off the card the cursor is restored onto, which is the next one sliding
-		// up into the rows the deleted one had. D writes at once and cannot be undone.
 		m.diff.LeaveCard()
 		m.note = notice{text: "comment deleted"}
 		return m, nil
 
 	case savedMsg:
-		// The write committed and the read-back did not, so the box comes down:
-		// what it holds is written, and pressing save again would write it twice.
 		m.busy = false
 		m.shut()
 		m.note = notice{text: msg.err.Error() + ": press s", bad: true}
@@ -291,8 +235,6 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 			m.reading = ""
 		}
 
-		// A body read at a generation the screen has moved past is bytes under a
-		// path that now holds others. SetFile already dropped the cache for it.
 		if msg.gen != m.gen.ID {
 			return m, nil
 		}
@@ -306,8 +248,6 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 			m.reading = ""
 		}
 
-		// Gated the way the loaded case is. A read that failed for a file the reader
-		// has left says nothing about the one they are on.
 		if msg.gen != m.gen.ID || msg.path != m.diff.Path() {
 			return m, nil
 		}
@@ -316,9 +256,6 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, nil
 
 	case reloadFailedMsg:
-		// The changeset on screen is left alone. These writes are a local
-		// transaction that committed or did not, and there is no half-applied
-		// state to paint over.
 		m.busy = false
 		m.note = notice{text: msg.err.Error(), bad: true}
 		return m, nil
@@ -327,8 +264,6 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m.press(msg)
 	}
 
-	// A paste arrives as a message of its own rather than as keys, so a box
-	// routed by press alone would silently drop one.
 	if m.diff.Composing() {
 		return m.drafting(msg)
 	}
@@ -344,8 +279,6 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 }
 
 func (m Model) press(msg tea.KeyPressMsg) (Model, tea.Cmd) {
-	// Either box takes every key, quit and help included. A q mid-sentence is a
-	// q, and one key let out is one more thing to keep in mind while typing.
 	if m.diff.Composing() {
 		return m.drafting(msg)
 	}
@@ -356,7 +289,6 @@ func (m Model) press(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		return m.picking(msg)
 	}
 
-	// The diff pane owns every second key after z, including root bindings.
 	if m.focus == focusDiff && m.diff.Placing() {
 		var cmd tea.Cmd
 		m.diff, cmd = m.diff.Update(msg)
@@ -364,9 +296,6 @@ func (m Model) press(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		return m, cmd
 	}
 
-	// One press long, so it goes before the press that ends it is read. A reload
-	// still in git is the exception: the press did not end that, and the bar is
-	// the only thing saying it is happening.
 	if !m.busy {
 		m.note = notice{}
 	}
@@ -380,8 +309,6 @@ func (m Model) press(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// The overlay covers the panes, so it takes the keys too. Routing them
-	// underneath would scroll a pane the reader cannot see.
 	if m.showing {
 		if key.Matches(msg, m.keys.Close) {
 			m.showing = false
@@ -389,8 +316,6 @@ func (m Model) press(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// h and l step, and the diff pane in two columns has one more place to step
-	// to. A pane that took the key keeps the focus it already had.
 	switch {
 	case key.Matches(msg, m.keys.Tree):
 		m.setFocus(focusTree)
@@ -414,20 +339,12 @@ func (m Model) press(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// The bar names esc from either pane while a selection is up, so it is routed
-	// before the focus is. The tree would otherwise swallow it.
 	if m.diff.Selecting() && key.Matches(msg, m.diff.Keys.Cancel) {
 		var cmd tea.Cmd
 		m.diff, cmd = m.diff.Update(msg)
 		return m, cmd
 	}
 
-	// The reload runs off the update loop, one at a time. Two refreshes on one
-	// session race the ref swap against itself, and the loser of that race is a
-	// generation the database never hears about.
-	//
-	// The notice is set either way, so the second press does not blank the bar
-	// while the first is still in git.
 	if key.Matches(msg, m.keys.Reload) {
 		if m.busy {
 			return m, nil
@@ -446,13 +363,7 @@ func (m Model) press(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		return m, m.loadBases()
 	}
 
-	// The mark keys go through the same one-at-a-time gate. A write is a local
-	// transaction, but the source it goes through may be held by a refresh.
 	if i, mine := m.marked(msg); mine {
-		// The note goes up either way, so a press refused while the last one is
-		// still in git leaves the bar saying what is happening rather than blank.
-		// A refused press loses nothing: nothing was written and the cursor did
-		// not move, so the next press acts on the same hunk.
 		m.note = notice{text: "marking"}
 		if m.busy {
 			return m, nil
@@ -464,11 +375,7 @@ func (m Model) press(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		return m, cmd
 	}
 
-	// Routed before the focus, because a selection is what c comments on from
-	// either pane. Nothing under the cursor is a press with nothing to do.
 	if key.Matches(msg, m.keys.Comment) {
-		// Refused while a reload is out: it would land under the open box and move
-		// the lines the box was scoped to. The bar already says why.
 		if m.busy {
 			return m, nil
 		}
@@ -480,17 +387,11 @@ func (m Model) press(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		return m, cmd
 	}
 
-	// The note is the session's rather than a hunk's, so it sits with the reload
-	// rather than in a pane. Opening it writes nothing and waits on nothing.
 	if key.Matches(msg, m.keys.Note) {
-		// Called before the return rather than in it: the order of a plain
-		// operand against a call beside it is the spec's to choose, not ours.
 		cmd := m.composing()
 		return m, cmd
 	}
 
-	// A press with nothing to settle under it is most presses of this key, and it
-	// has nothing to act on rather than something to refuse.
 	if key.Matches(msg, m.keys.Resolve) {
 		id, on := m.settling()
 		if !on {
@@ -504,8 +405,6 @@ func (m Model) press(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		return m, cmd
 	}
 
-	// e and D reach the card the cursor is on, whatever state it is in: a typo in
-	// a resolved comment is still a typo.
 	if key.Matches(msg, m.keys.Edit) {
 		if m.busy {
 			return m, nil
@@ -517,15 +416,11 @@ func (m Model) press(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		return m, cmd
 	}
 
-	// The card's own size and nothing the engine holds, so it neither waits on a
-	// reload nor raises a notice. A press with no card under it does nothing.
 	if key.Matches(msg, m.keys.Expand) {
 		m.diff.Expand()
 		return m, nil
 	}
 
-	// The read it may start is added over the whole of update, so nothing is
-	// returned here. A file with no lines is a fact about the file, not a failure.
 	if key.Matches(msg, m.keys.Preview) {
 		if !m.diff.TogglePreview() {
 			m.note = notice{text: "no lines to show in " + comp.Safe(m.diff.Path())}
@@ -534,7 +429,6 @@ func (m Model) press(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// A fact about the frame rather than a failure, so it is not a bad notice.
 	if key.Matches(msg, m.keys.Split) {
 		if short := m.diff.ToggleSplit(); short > 0 {
 			m.note = notice{text: fmt.Sprintf("side-by-side needs %d more columns in the pane", short)}
@@ -556,8 +450,6 @@ func (m Model) press(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		return m, cmd
 	}
 
-	// The comment ring crosses files the way the hunk ring does, so it is routed
-	// here rather than in the pane that holds the cards.
 	if by, mine := m.stepping(msg); mine {
 		if c, ok := m.commentRing(by); ok {
 			m.landComment(c)
@@ -565,9 +457,6 @@ func (m Model) press(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// The ring answers from either pane and moves both, so it is routed before
-	// the focus is. A key that found nowhere to go leaves everything alone: n on
-	// a changeset with nothing left unread is a press that has done its job.
 	if s, ok, moved := m.walk(msg); moved {
 		if ok {
 			m.land(s)
@@ -577,10 +466,6 @@ func (m Model) press(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 
 	var cmd tea.Cmd
 
-	// The half-page keys page the diff from either pane, so they are routed
-	// before the focus is. Walking the tree is how the reader gets to a file;
-	// reading it is what they came for, and the pane they are reading is the one
-	// worth paging.
 	if key.Matches(msg, m.diff.Keys.Scrolling()...) {
 		m.diff, cmd = m.diff.Update(msg)
 		m.syncCursor()
@@ -624,16 +509,12 @@ func (m Model) picking(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	return m, m.picker.update(msg)
 }
 
-// typing routes a key into the composer, answering the two it owns first. The
-// box stays up when the save is refused, or the press would lose what was typed.
 func (m Model) typing(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	if !m.busy {
 		m.note = notice{}
 	}
 
 	switch {
-	// The way out of anywhere. Raw mode sends no interrupt, so without this the
-	// box is the one place in the program where ctrl+c does nothing at all.
 	case key.Matches(msg, m.keys.Interrupt):
 		return m, tea.Quit
 
@@ -642,13 +523,11 @@ func (m Model) typing(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		return m, nil
 
 	case key.Matches(msg, m.compose.Keys.Save):
-		// Neutral, because busy covers a mark and a resolve as well as a reload.
 		if m.busy {
 			m.note = notice{text: "still writing"}
 			return m, nil
 		}
 
-		// Which box is up. c and e hold what they were pointed at, C holds nothing.
 		if m.pending.Path != "" || m.editing != "" {
 			cmd := m.save(m.compose.Value())
 			return m, cmd
@@ -663,12 +542,8 @@ func (m Model) typing(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	return m, cmd
 }
 
-// boxUp is whether either box has the keys, which is what makes a key named on
-// the bar a letter instead.
 func (m Model) boxUp() bool { return m.diff.Composing() || m.compose.Active() }
 
-// wayBack is the keys that answer a refused write. A box up takes s as a letter
-// and has to come down first, which costs what was typed into it.
 func (m Model) wayBack() string {
 	if m.boxUp() {
 		return "esc, then s"
@@ -676,15 +551,12 @@ func (m Model) wayBack() string {
 	return "press s"
 }
 
-// shut takes down whichever box is up and drops what it was scoped to.
 func (m *Model) shut() {
 	m.compose.Close()
 	m.diff.CloseDraft()
 	m.pending, m.editing = review.Note{}, ""
 }
 
-// syncCursor puts the ring on the hunk the diff pane's cursor is in, so a mark
-// takes the hunk the reader is looking at. It reads the pane, as syncDiff does.
 func (m *Model) syncCursor() {
 	side, line, ok := m.diff.Hunk()
 	if !ok {
@@ -700,8 +572,6 @@ func (m *Model) syncCursor() {
 	}
 }
 
-// stepping is the direction a comment key asks for, and whether the press was
-// one at all.
 func (m Model) stepping(msg tea.KeyPressMsg) (by int, mine bool) {
 	switch {
 	case key.Matches(msg, m.keys.NextComment):
@@ -712,8 +582,6 @@ func (m Model) stepping(msg tea.KeyPressMsg) (by int, mine bool) {
 	return 0, false
 }
 
-// walk is the stop a ring key asks for. The third value says whether the press
-// was a ring key at all, which is what tells "nowhere to go" from "not mine".
 func (m Model) walk(msg tea.KeyPressMsg) (s stop, ok, mine bool) {
 	switch {
 	case key.Matches(msg, m.keys.NextHunk):
@@ -734,22 +602,7 @@ func (m Model) walk(msg tea.KeyPressMsg) (s stop, ok, mine bool) {
 	return s, ok, true
 }
 
-// syncDiff points the diff pane at whatever the tree is on.
-//
-// The tree does not send the path in a message. Bubble Tea runs the commands a
-// model returns concurrently, so two of them raced by a held-down j can land
-// out of order and leave the pane on a file the cursor has already left. The
-// path is on the model, and reading it needs no message at all.
-//
-// A directory row leaves the pane alone. Blanking it on the way past one would
-// punish walking the tree.
-//
-// The ring goes to the file's first hunk, not its first unread one. The reader
-// picked the file to read it, and n is the key that walks the burn-down.
-//
-// A cursor already on the file in the pane has not moved onto it, so the ring
-// stays where it is. Pressing enter on the file being read is not a move, and
-// putting the ring back at the top would throw away where the reader had got to.
+// syncDiff reads the tree's path off the model because Bubble Tea runs commands concurrently and a held j could land them out of order.
 func (m *Model) syncDiff() {
 	path := m.tree.Path()
 	if path == "" || path == m.diff.Path() {
@@ -763,11 +616,7 @@ func (m *Model) syncDiff() {
 	}
 }
 
-// setFocus points the keys at a pane.
-//
-// Only the tree is told. The diff pane draws its cursor whichever pane has the
-// keys, because the ring moves it from both and a mark that came and went with
-// focus would leave the reader hunting for where n put them.
+// setFocus tells only the tree, because the ring moves the diff pane's cursor from either pane.
 func (m *Model) setFocus(f focus) {
 	m.focus = f
 	if f == focusTree {
@@ -777,9 +626,6 @@ func (m *Model) setFocus(f focus) {
 	m.tree.Blur()
 }
 
-// fileAt resolves a path to the file the panes share. It returns nil for a
-// path the changeset does not hold, which empties the diff pane rather than
-// leaving it showing a file nobody asked for.
 func (m *Model) fileAt(path string) *review.File {
 	for i := range m.changeset.Files {
 		if m.changeset.Files[i].Diff.Path == path {

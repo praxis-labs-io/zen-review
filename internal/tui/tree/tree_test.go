@@ -30,33 +30,23 @@ func themed(t *testing.T, th theme.Theme, width, height int) tree.Model {
 	return m
 }
 
-// lines is every line the pane drew, the blank pads at the ends included.
 func lines(t *testing.T, m tree.Model) []string {
 	t.Helper()
 	return strings.Split(ansi.Strip(m.View()), "\n")
 }
 
-// rows drops the pad above the list, so a test indexes the tree the way it
-// reads. Every caller sits at the top of a list that fits.
 func rows(t *testing.T, m tree.Model) []string {
 	t.Helper()
 	return lines(t, m)[topPadLines:]
 }
 
-// topPadLines mirrors the pane's own blank line above the first row.
 const topPadLines = 1
 
-// fill is the SGR parameters lipgloss writes for a background colour.
-//
-// The cursor row is a fill and nothing else, so a test looks for the colour
-// inside whatever style the row is wearing. A stripped frame cannot see it, and
-// there is no glyph left to look for.
 func fill(c color.Color) string {
 	rendered := lipgloss.NewStyle().Background(c).Render("x")
 	return rendered[len("\x1b["):strings.Index(rendered, "m")]
 }
 
-// cursored reports whether a row is the one under the cursor.
 func cursored(t *testing.T, m tree.Model, i int) bool {
 	t.Helper()
 	raw := strings.Split(m.View(), "\n")[topPadLines:]
@@ -73,9 +63,6 @@ func press(t *testing.T, m tree.Model, keys ...string) (tree.Model, tea.Cmd) {
 	return m, last
 }
 
-// TestADirectoryChainIsOneRow. A directory holding one directory and nothing
-// else costs a row and says nothing, and four of them in a line push every
-// file off the pane.
 func TestADirectoryChainIsOneRow(t *testing.T) {
 	got := rows(t, pane(t, 32, 20))
 
@@ -104,12 +91,7 @@ func TestADirectoryChainIsOneRow(t *testing.T) {
 	}
 }
 
-// TestALevelSortsLikeAFileTree: directories above files, by byte within each
-// group, which is zen-octo's rule. Git's order is the order it walked the index
-// in, which drops a root file above every directory holding the rest.
 func TestALevelSortsLikeAFileTree(t *testing.T) {
-	// Deliberately the wrong way round in the patch, so a tree that kept git's
-	// order fails every line of this.
 	patch := ""
 	for _, p := range []string{
 		"go.sum", "CLAUDE.md", ".gitignore",
@@ -122,8 +104,6 @@ func TestALevelSortsLikeAFileTree(t *testing.T) {
 	m := tree.New(testtheme.Dark, testchangeset.Derive(t, patch))
 	m.SetSize(40, 20)
 
-	// Byte order does the work: "." sorts below every letter and upper case
-	// below lower, so the dotted names lead each group with no rule of their own.
 	want := []string{
 		".github/workflows", "ci.yml",
 		"cmd", "a.go",
@@ -141,12 +121,6 @@ func TestALevelSortsLikeAFileTree(t *testing.T) {
 	}
 }
 
-// TestTheCursorSurvivesATerminalWithoutColour. The row is a filled background,
-// and a terminal that drops colour drops the fill with it: the reader presses j
-// and watches nothing move. Bold is not a colour and comes through.
-//
-// Without a surface, bold is the whole of the cursor rather than a second
-// signal beside the fill.
 func TestTheCursorSurvivesATerminalWithoutColour(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -173,9 +147,6 @@ func TestTheCursorSurvivesATerminalWithoutColour(t *testing.T) {
 	}
 }
 
-// TestOneRowShowsTheRowAndNotAPad. The pads are the ends of the list, and a
-// pane with a single line has no room for a pad and the row it belongs to.
-// Snapping to one there draws an empty tree on the smallest terminal that runs.
 func TestOneRowShowsTheRowAndNotAPad(t *testing.T) {
 	const patch = `diff --git a/a.go b/a.go
 --- a/a.go
@@ -197,8 +168,6 @@ func TestOneRowShowsTheRowAndNotAPad(t *testing.T) {
 	}
 }
 
-// TestFoldingKeepsTheCursorWhereItWas. Folding removes rows below the one under
-// the cursor, so the index it sits at still names the same row.
 func TestFoldingKeepsTheCursorWhereItWas(t *testing.T) {
 	m := pane(t, 32, 20)
 	m, _ = press(t, m, "j", "j", "j", "j")
@@ -222,9 +191,6 @@ func TestFoldingKeepsTheCursorWhereItWas(t *testing.T) {
 	}
 }
 
-// TestWalkingSaysWhereItLanded. The path is read off the model rather than sent
-// in a message, so the root cannot be handed a stale one by two commands that
-// landed out of order.
 func TestWalkingSaysWhereItLanded(t *testing.T) {
 	tests := []struct {
 		name string
@@ -249,8 +215,6 @@ func TestWalkingSaysWhereItLanded(t *testing.T) {
 	}
 }
 
-// TestEnterOpensAFileAndFoldsADirectory. Enter reads as "go there", and on a
-// directory that is the fold.
 func TestEnterOpensAFileAndFoldsADirectory(t *testing.T) {
 	m := pane(t, 32, 20)
 
@@ -276,8 +240,6 @@ func TestEnterOpensAFileAndFoldsADirectory(t *testing.T) {
 	}
 }
 
-// TestSelectReachesIntoAFoldedDirectory, so a selection made from outside the
-// pane has a row to land on.
 func TestSelectReachesIntoAFoldedDirectory(t *testing.T) {
 	m := pane(t, 32, 20)
 	m, _ = press(t, m, "j", "j", "j", "j", " ")
@@ -297,9 +259,6 @@ func TestSelectReachesIntoAFoldedDirectory(t *testing.T) {
 	}
 }
 
-// TestEveryRowIsExactlyThePane, at a width where the longest path cannot fit.
-// A pane clips overflow silently, so a row that overran would look tidy in a
-// golden and lose its trailing cells on the screen.
 func TestEveryRowIsExactlyThePane(t *testing.T) {
 	for _, width := range []int{32, 24, 16, 8} {
 		m := pane(t, width, 20)
@@ -311,8 +270,6 @@ func TestEveryRowIsExactlyThePane(t *testing.T) {
 	}
 }
 
-// TestTheChurnSurvivesANarrowPane. A clipped "+12 -3" misstates the file, and a
-// clipped path still names it, so the name is what gives up the columns.
 func TestTheChurnSurvivesANarrowPane(t *testing.T) {
 	m := pane(t, 24, 20)
 	for _, row := range rows(t, m) {
@@ -327,9 +284,6 @@ func TestTheChurnSurvivesANarrowPane(t *testing.T) {
 	t.Fatalf("no row holds state.go")
 }
 
-// TestALongOmissionReasonDoesNotEatTheFilename. "renamed, contents unchanged"
-// is 27 columns, and a 32-column pane spending all of them on the reason names
-// no file at all: two renames become the same row.
 func TestALongOmissionReasonDoesNotEatTheFilename(t *testing.T) {
 	const patch = `diff --git a/old_name_here.go b/new_name_here.go
 similarity index 100%
@@ -350,10 +304,6 @@ rename to new_name_here.go
 	}
 }
 
-// TestAControlCharacterInAPathCannotBreakTheRow. Git allows a newline and an
-// escape sequence in a filename, and the parser unquotes both. A newline
-// splits the row in two and puts the other pane out of step with it; an escape
-// is run by the terminal.
 func TestAControlCharacterInAPathCannotBreakTheRow(t *testing.T) {
 	const patch = "diff --git \"a/we\\ntwo.go\" \"b/we\\ntwo.go\"\n" +
 		"new file mode 100644\n" +
@@ -381,13 +331,6 @@ func TestAControlCharacterInAPathCannotBreakTheRow(t *testing.T) {
 	}
 }
 
-// TestTheTreeDrawsTheOrderItWasGiven. Ordering belongs to review.Derive, which
-// hands back directories above the files beside them. The tree sorts nothing,
-// and this is what says so: handed a list out of that order, it draws it out of
-// order rather than quietly putting it right.
-//
-// It is here so a caller building a subset by hand, a filter or a rebuild, finds
-// the rule written down instead of a pane that reads wrong at some later width.
 func TestTheTreeDrawsTheOrderItWasGiven(t *testing.T) {
 	c := testchangeset.Nested(t)
 	slices.Reverse(c.Files)
@@ -395,8 +338,6 @@ func TestTheTreeDrawsTheOrderItWasGiven(t *testing.T) {
 	m := tree.New(testtheme.Dark, c)
 	m.SetSize(40, 20)
 
-	// The top level of the reversed list, in the order it arrived. Sorted, it
-	// would read assets, docs, internal, README.md.
 	want := []string{"README.md", "internal", "docs", "assets"}
 
 	var got []string
@@ -412,8 +353,6 @@ func TestTheTreeDrawsTheOrderItWasGiven(t *testing.T) {
 	}
 }
 
-// branchedPatch gives docs/superpowers/specs a sibling at the top, so the chain
-// the nested fixture collapses into one row is four rows here.
 const branchedPatch = `diff --git a/docs/README.md b/docs/README.md
 --- a/docs/README.md
 +++ b/docs/README.md
@@ -426,8 +365,6 @@ diff --git a/docs/superpowers/specs/design.md b/docs/superpowers/specs/design.md
 +design
 `
 
-// prunedPatch is branchedPatch without the file that branched the chain, so the
-// four rows collapse back into one.
 const prunedPatch = `diff --git a/docs/superpowers/specs/design.md b/docs/superpowers/specs/design.md
 --- a/docs/superpowers/specs/design.md
 +++ b/docs/superpowers/specs/design.md
@@ -435,12 +372,9 @@ const prunedPatch = `diff --git a/docs/superpowers/specs/design.md b/docs/superp
 +design
 `
 
-// TestARebuildKeepsWhatTheReaderFolded. A refresh answers a question about the
-// changeset, not about how the reader had arranged it.
 func TestARebuildKeepsWhatTheReaderFolded(t *testing.T) {
 	m := pane(t, 40, 20)
 
-	// The nested fixture's assets directory, folded.
 	if !fold(t, &m, "assets") {
 		t.Fatal("the fixture has no assets directory")
 	}
@@ -454,13 +388,7 @@ func TestARebuildKeepsWhatTheReaderFolded(t *testing.T) {
 	}
 }
 
-// TestAFoldSurvivesTheChainCollapsingUnderIt. collapse merges a directory
-// holding one directory into it and the merged row answers to the deepest name,
-// so a rebuild matching on that name alone loses the fold the moment a file
-// arrives or leaves above it.
 func TestAFoldSurvivesTheChainCollapsingUnderIt(t *testing.T) {
-	// Either way round the reader folded everything under docs, so either way round
-	// one row is left.
 	tests := []struct {
 		name     string
 		from, to string
@@ -490,8 +418,6 @@ func TestAFoldSurvivesTheChainCollapsingUnderIt(t *testing.T) {
 	}
 }
 
-// TestARebuildStaysOnTheFileTheCursorWasOn, so a refresh does not move the
-// reader to whatever sorted into their row.
 func TestARebuildStaysOnTheFileTheCursorWasOn(t *testing.T) {
 	m := pane(t, 40, 20)
 	if !m.Select("internal/cli/render.go") {
@@ -504,8 +430,6 @@ func TestARebuildStaysOnTheFileTheCursorWasOn(t *testing.T) {
 	}
 }
 
-// TestARebuildOntoAShorterListDrawsRows. An offset left past the end of the new
-// list opens the window below everything and the pane draws blanks.
 func TestARebuildOntoAShorterListDrawsRows(t *testing.T) {
 	m := pane(t, 40, 6)
 	m, _ = press(t, m, "G")
@@ -521,8 +445,6 @@ func TestARebuildOntoAShorterListDrawsRows(t *testing.T) {
 	}
 }
 
-// fold puts the cursor on the named row and folds it, reporting whether the row
-// is there at all.
 func fold(t *testing.T, m *tree.Model, name string) bool {
 	t.Helper()
 
@@ -539,7 +461,6 @@ func fold(t *testing.T, m *tree.Model, name string) bool {
 	return false
 }
 
-// drawn is the rows that say something, the pane's blank padding dropped.
 func drawn(t *testing.T, m tree.Model) []string {
 	t.Helper()
 

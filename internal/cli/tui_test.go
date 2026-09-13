@@ -8,8 +8,6 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/testrepo"
 )
 
-// TestInteractive. A pipe and a CI runner get the printed changeset, because a
-// program waiting for keys on the other end of a pipe is a program that hangs.
 func TestInteractive(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -33,9 +31,6 @@ func TestInteractive(t *testing.T) {
 	}
 }
 
-// TestTheReloaderBringsBackWhatARefreshBuilt. The reader's key and the refresh
-// subcommand run the same path, so a behaviour cannot be reachable by one and
-// not the other.
 func TestTheReloaderBringsBackWhatARefreshBuilt(t *testing.T) {
 	repo := testrepo.New(t)
 	repo.Write("a.txt", "one\n")
@@ -70,8 +65,6 @@ func TestTheReloaderBringsBackWhatARefreshBuilt(t *testing.T) {
 		t.Errorf("the reload carries no base: %+v", first.Base)
 	}
 
-	// Nothing moved, so the refresh hands back the generation it already had
-	// rather than building one. That equality is what the bar reads to say so.
 	again, err := src.Reload()
 	if err != nil {
 		t.Fatal(err)
@@ -91,10 +84,6 @@ func TestTheReloaderBringsBackWhatARefreshBuilt(t *testing.T) {
 	}
 }
 
-// TestAReloadQueuedPastTheCloseDoesNothing. Bubble Tea does not wait for a
-// command it started, so s then q leaves one queued behind the close. A refresh
-// there runs `git add -A` over the work tree for an answer nobody is left to
-// read.
 func TestAReloadQueuedPastTheCloseDoesNothing(t *testing.T) {
 	repo := testrepo.New(t)
 	repo.Write("a.txt", "one\n")

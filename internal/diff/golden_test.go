@@ -11,12 +11,6 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/golden"
 )
 
-// Every input under testdata is real git output, captured by
-// testdata/fixtures.sh with the flags internal/git pins. Hand-written diff text
-// would only test the parser against one idea of the format.
-//
-// Add a case to that script, rerun it, then `make golden`. The inputs are
-// discovered here, so there is no list to keep in step.
 func TestGoldenParses(t *testing.T) {
 	inputs, err := filepath.Glob(filepath.Join("testdata", "*.diff"))
 	if err != nil {

@@ -7,8 +7,6 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/testchangeset"
 )
 
-// TestRIgnoresASelection. v scopes a comment, not a mark: the unit of review is
-// the hunk, and r has one job whatever is lit under it.
 func TestRIgnoresASelection(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
 	s.press("v", "j", "r")
@@ -19,8 +17,6 @@ func TestRIgnoresASelection(t *testing.T) {
 	}
 }
 
-// TestRAdvancesOutOfASelection, because it is the same press it always was and
-// r r r r has to keep walking the review down.
 func TestRAdvancesOutOfASelection(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
 
@@ -32,8 +28,6 @@ func TestRAdvancesOutOfASelection(t *testing.T) {
 	}
 }
 
-// TestTheBarNamesTheKeysThatEndASelection. It is the one thing on screen with
-// an end to it, and esc is named nowhere else.
 func TestTheBarNamesTheKeysThatEndASelection(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, ringPatch), 100, 16)
 	s.press("v", "j")
@@ -45,8 +39,6 @@ func TestTheBarNamesTheKeysThatEndASelection(t *testing.T) {
 		}
 	}
 
-	// The tree's own keys, because j walks the tree there. esc stays, because the
-	// selection is still lit in the pane beside it and answers from either.
 	s.press("h")
 
 	got = s.bar()

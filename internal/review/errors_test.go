@@ -7,15 +7,7 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/review"
 )
 
-// Every one of these reaches a terminal through fang, which renders an error
-// with a style carrying Transform(titleFirstWord): it title-cases
-// strings.Fields(s)[0] before printing. A message opening with a ref hands the
-// reader back Origin/Main, mangled inside the sentence telling them which ref to
-// type, and a branch called feature/x becomes Feature/X.
-//
-// So the first word has to be a literal the message chose, never a value the
-// caller supplied. Every field is filled with one marker, and the check is that
-// none of it reached the front.
+// fang title-cases the first word of an error, which would turn origin/main into Origin/Main.
 func TestNoErrorMessageBeginsWithAValueTheCallerSupplied(t *testing.T) {
 	const marker = "zzmarkerzz"
 

@@ -10,8 +10,6 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/tui/testtheme"
 )
 
-// TestTheBoxNeverOutgrowsTheFrame. Over clips what does not fit, and a clipped
-// box loses the border off two of its sides and the way out with it.
 func TestTheBoxNeverOutgrowsTheFrame(t *testing.T) {
 	sizes := []struct{ width, height int }{
 		{200, 40},
@@ -19,8 +17,6 @@ func TestTheBoxNeverOutgrowsTheFrame(t *testing.T) {
 		{56, 6},
 		{20, 5},
 
-		// Narrower than the box spends on its own border and gutter, which is the
-		// width every piece of the arithmetic goes negative at.
 		{6, 4},
 	}
 
@@ -37,8 +33,6 @@ func TestTheBoxNeverOutgrowsTheFrame(t *testing.T) {
 		}
 	}
 
-	// A textarea has a size of its own, so a box opened before the first resize
-	// would draw at that size on a frame with no room reported for it yet.
 	unsized := compose.New(testtheme.Dark)
 	unsized.Open("Session note", body)
 
@@ -47,7 +41,6 @@ func TestTheBoxNeverOutgrowsTheFrame(t *testing.T) {
 	}
 }
 
-// TestAClosedBoxDrawsNothing, so the root can render it without asking first.
 func TestAClosedBoxDrawsNothing(t *testing.T) {
 	m := compose.New(testtheme.Dark)
 	m.SetSize(100, 24)
@@ -67,8 +60,6 @@ func TestAClosedBoxDrawsNothing(t *testing.T) {
 	}
 }
 
-// TestTheCursorStaysInsideTheFrame. A box on a frame with no room for its own
-// chrome would put the terminal's cursor off the screen, where it parks anywhere.
 func TestTheCursorStaysInsideTheFrame(t *testing.T) {
 	m := compose.New(testtheme.Dark)
 	m.SetSize(2, 2)

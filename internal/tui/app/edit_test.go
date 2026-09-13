@@ -12,8 +12,6 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/testchangeset"
 )
 
-// TestEditRewritesTheCardTheCursorIsOn. A golden cannot show that e named the
-// right comment, and that is the whole of what the key does.
 func TestEditRewritesTheCardTheCursorIsOn(t *testing.T) {
 	first := testchangeset.Comment("aaaaaaaaaaaa", "README.md", 2, 2, "the first one")
 	second := testchangeset.Comment("bbbbbbbbbbbb", "internal/review/state.go", 13, 13, "hi")
@@ -27,7 +25,6 @@ func TestEditRewritesTheCardTheCursorIsOn(t *testing.T) {
 	}
 }
 
-// TestTheBoxOpensHoldingWhatTheCardSaid, so a typo is fixed rather than retyped.
 func TestTheBoxOpensHoldingWhatTheCardSaid(t *testing.T) {
 	on := testchangeset.Comment("aaaaaaaaaaaa", "README.md", 2, 2, "unreviewd is the clearer word")
 
@@ -48,8 +45,6 @@ func TestTheBoxOpensHoldingWhatTheCardSaid(t *testing.T) {
 	}
 }
 
-// TestEditOnNoCardOpensNothing. The reader opens on a hunk, so most presses of
-// this key have nothing to act on rather than a refusal to report.
 func TestEditOnNoCardOpensNothing(t *testing.T) {
 	on := testchangeset.Comment("aaaaaaaaaaaa", "README.md", 2, 2, "somewhere else")
 
@@ -64,8 +59,6 @@ func TestEditOnNoCardOpensNothing(t *testing.T) {
 	}
 }
 
-// TestAnEmptyEditWritesNothingAndSaysSo, and the line goes on the next press
-// like every other: one that stayed up would outlive what put it there.
 func TestAnEmptyEditWritesNothingAndSaysSo(t *testing.T) {
 	on := testchangeset.Comment("aaaaaaaaaaaa", "README.md", 2, 2, "hi")
 
@@ -88,8 +81,6 @@ func TestAnEmptyEditWritesNothingAndSaysSo(t *testing.T) {
 	}
 }
 
-// TestAFailedEditKeepsTheBoxAndTheWords. The only thing a local transaction can
-// cost is what was typed into it.
 func TestAFailedEditKeepsTheBoxAndTheWords(t *testing.T) {
 	on := testchangeset.Comment("aaaaaaaaaaaa", "README.md", 2, 2, "hi")
 
@@ -106,8 +97,6 @@ func TestAFailedEditKeepsTheBoxAndTheWords(t *testing.T) {
 	}
 }
 
-// TestEditReachesAnOrphanedCard. A comment whose code went is still a comment
-// somebody wrote, and a typo in it is still a typo.
 func TestEditReachesAnOrphanedCard(t *testing.T) {
 	lost := testchangeset.In(
 		testchangeset.Comment("aaaaaaaaaaaa", "README.md", 2, 2, "hi"), store.CommentOrphaned)
@@ -121,8 +110,6 @@ func TestEditReachesAnOrphanedCard(t *testing.T) {
 	}
 }
 
-// TestDeleteNamesTheCardTheCursorIsOn, and acts at once: the capital does the
-// whole of the thing, the way R and U do.
 func TestDeleteNamesTheCardTheCursorIsOn(t *testing.T) {
 	first := testchangeset.Comment("aaaaaaaaaaaa", "README.md", 2, 2, "the first one")
 	second := testchangeset.Comment("bbbbbbbbbbbb", "internal/review/state.go", 13, 13, "the second one")
@@ -145,8 +132,6 @@ func TestDeleteNamesTheCardTheCursorIsOn(t *testing.T) {
 	}
 }
 
-// TestDeleteOnNoCardWritesNothing, and says nothing: a press with nothing under
-// it has nothing to do rather than something to refuse.
 func TestDeleteOnNoCardWritesNothing(t *testing.T) {
 	on := testchangeset.Comment("aaaaaaaaaaaa", "README.md", 2, 2, "somewhere else")
 
@@ -161,8 +146,6 @@ func TestDeleteOnNoCardWritesNothing(t *testing.T) {
 	}
 }
 
-// TestACardNamesTheKeysThatChangeIt, rather than the status bar: they reach one
-// row. A narrow card drops hints, so this is the width that proves it carries them.
 func TestACardNamesTheKeysThatChangeIt(t *testing.T) {
 	on := testchangeset.Comment("aaaaaaaaaaaa", "README.md", 2, 2, "answer this one")
 
@@ -180,8 +163,6 @@ func TestACardNamesTheKeysThatChangeIt(t *testing.T) {
 	}
 }
 
-// TestEditFallsBackToTheBoxOverTheFrame. It holds every key while it is up, so a
-// pane with no room to draw one beside the card is not a reason to have none.
 func TestEditFallsBackToTheBoxOverTheFrame(t *testing.T) {
 	on := testchangeset.Comment("aaaaaaaaaaaa", "README.md", 2, 2, "hi")
 
@@ -199,8 +180,6 @@ func TestEditFallsBackToTheBoxOverTheFrame(t *testing.T) {
 	}
 }
 
-// TestAnEditCrossesToTheFrameWithItsWords. A terminal shrinking under a reader
-// mid-sentence carries them across with it.
 func TestAnEditCrossesToTheFrameWithItsWords(t *testing.T) {
 	on := testchangeset.Comment("aaaaaaaaaaaa", "README.md", 2, 2, "hi")
 
@@ -223,8 +202,6 @@ func TestAnEditCrossesToTheFrameWithItsWords(t *testing.T) {
 	}
 }
 
-// rowHolding is the frame row a string lands on, which is what a cursor position
-// is checked against.
 func rowHolding(t *testing.T, s *screen, want string) int {
 	t.Helper()
 
@@ -237,8 +214,6 @@ func rowHolding(t *testing.T, s *screen, want string) int {
 	return -1
 }
 
-// TestTheCursorIsTheTerminalsOwn. Nothing is drawn into the body: the root hands
-// the position up and the terminal draws the cursor the reader set up.
 func TestTheCursorIsTheTerminalsOwn(t *testing.T) {
 	for _, tt := range []struct {
 		name string
@@ -255,8 +230,6 @@ func TestTheCursorIsTheTerminalsOwn(t *testing.T) {
 				t.Fatal("the frame carries no cursor while a box is up")
 			}
 
-			// Cells and not bytes: a border rune is three of the second and one of
-			// the first, and a cursor is placed in cells.
 			row := rowHolding(t, s, "hi")
 			line := s.lines()[row]
 			want := lipgloss.Width(line[:strings.Index(line, "hi")]) + len("hi")
@@ -269,8 +242,6 @@ func TestTheCursorIsTheTerminalsOwn(t *testing.T) {
 	}
 }
 
-// TestNothingCarriesACursorWithNoBoxUp, which is every other frame: a terminal
-// cursor parked in a diff is one the reader reads as an edit point.
 func TestNothingCarriesACursorWithNoBoxUp(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24)
 
@@ -279,8 +250,6 @@ func TestNothingCarriesACursorWithNoBoxUp(t *testing.T) {
 	}
 }
 
-// TestASaveDropsTheEnterItWasFinishedOn, the way a body off stdin loses the one
-// a heredoc leaves. The card draws every break, so a stray one is a blank row.
 func TestASaveDropsTheEnterItWasFinishedOn(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24)
 	s.press("j", "c", "h", "i")
@@ -293,8 +262,6 @@ func TestASaveDropsTheEnterItWasFinishedOn(t *testing.T) {
 	}
 }
 
-// TestARefusalReadsFromTheRightOfTheBar, where every other notice is. One thrown
-// to the left is a second place to look for what just happened.
 func TestARefusalReadsFromTheRightOfTheBar(t *testing.T) {
 	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24).press("j", "c", "h", "i")
 	s.src.wroteErr = errors.New("the database is locked")
@@ -309,8 +276,6 @@ func TestARefusalReadsFromTheRightOfTheBar(t *testing.T) {
 	}
 }
 
-// TestASecondDeleteTakesNothing. The card that went leaves its rows to the next
-// one, and D writes at once with no undo behind it.
 func TestASecondDeleteTakesNothing(t *testing.T) {
 	first := testchangeset.Comment("aaaaaaaaaaaa", "internal/review/state.go", 13, 13, "the first one")
 	second := testchangeset.Comment("bbbbbbbbbbbb", "internal/review/state.go", 13, 13, "the second one")

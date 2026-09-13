@@ -15,8 +15,7 @@ import (
 
 const queryTimeout = 500 * time.Millisecond
 
-// Surface is what the terminal reported about itself. Any field is nil where
-// nothing answered.
+// Surface is what the terminal reported. A field is nil where nothing answered.
 type Surface struct {
 	Background color.Color
 	Foreground color.Color
@@ -28,8 +27,8 @@ func requestPalette(slot int) string {
 	return fmt.Sprintf("\x1b]4;%d;?\x07", slot)
 }
 
-// Query asks the terminal for its background, foreground and the two slots the
-// diff tints lean on. It must run before Bubble Tea takes the tty.
+// Query asks the terminal for its foreground, background and slots 1 and 2.
+// Run it before Bubble Tea takes the tty.
 func Query(in, out *os.File) Surface {
 	var s Surface
 	if !term.IsTerminal(in.Fd()) || !term.IsTerminal(out.Fd()) {
@@ -42,8 +41,6 @@ func Query(in, out *os.File) Surface {
 	}
 	defer term.Restore(in.Fd(), state) //nolint:errcheck
 
-	// The attributes go last and are what ends the read: a terminal answers
-	// them and answers them last.
 	query := ansi.RequestForegroundColor + ansi.RequestBackgroundColor +
 		requestPalette(int(slotRed)) + requestPalette(int(slotGreen)) +
 		ansi.RequestPrimaryDeviceAttributes
@@ -52,8 +49,6 @@ func Query(in, out *os.File) Surface {
 	return s
 }
 
-// take files one decoded reply and reports whether to keep reading. A method so
-// the tests drive this dispatch rather than a copy of it.
 func (s *Surface) take(seq string, pa *ansi.Parser) bool {
 	switch {
 	case ansi.HasOscPrefix(seq):
@@ -109,11 +104,7 @@ func afterSemicolon(data string) string {
 	return ""
 }
 
-// read writes the query and feeds decoded sequences to filter until it returns
-// false or the timeout cancels the read.
 func read(in io.Reader, out io.Writer, query string, timeout time.Duration, filter func(string, *ansi.Parser) bool) {
-	// A cancellable reader, or the timeout leaves a goroutine parked on the tty
-	// eating the first key pressed.
 	rd, err := uv.NewCancelReader(in)
 	if err != nil {
 		return
