@@ -291,3 +291,20 @@ func TestTheBoxOpensOnAWrappedBodyWholeAndUnscrolled(t *testing.T) {
 		}
 	}
 }
+
+func TestTheBoxOnAHunkOpensUnderItsHeading(t *testing.T) {
+	m := commented(t, twoHunks, 70, 30)
+	m.Select(store.SideHead, 125)
+
+	if _, ok := m.Compose(store.Comment{
+		Side:      store.SideHead,
+		Scope:     store.ScopeHunk,
+		LineRange: store.LineRange{Start: 124, End: 125},
+	}); !ok {
+		t.Fatal("the pane refused a box on the hunk")
+	}
+
+	if got := under(t, m, "@@ -120,5 +120,7"); !strings.Contains(got, "◇ new") {
+		t.Errorf("the row under the heading is %q, want the box:\n%s", got, joined(t, m))
+	}
+}
