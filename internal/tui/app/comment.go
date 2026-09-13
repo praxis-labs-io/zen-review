@@ -12,9 +12,15 @@ import (
 	"github.com/praxis-labs-io/zen-review/internal/tui/comp"
 )
 
-type commentedMsg struct{ r Reload }
+type commentedMsg struct {
+	r   Reload
+	box review.Note
+}
 
-type editedMsg struct{ r Reload }
+type editedMsg struct {
+	r  Reload
+	id string
+}
 
 type reanchoredMsg struct {
 	r   Reload
@@ -271,7 +277,7 @@ func (m *Model) saveEdit(body string) tea.Cmd {
 		if err != nil {
 			return failed(err)
 		}
-		return editedMsg{r: r}
+		return editedMsg{r: r, id: id}
 	}
 }
 
@@ -289,7 +295,7 @@ func (m *Model) saveComment(body string) tea.Cmd {
 	return func() tea.Msg {
 		r, err := src.AddComment(g, n)
 		if err == nil {
-			return commentedMsg{r: r}
+			return commentedMsg{r: r, box: box}
 		}
 		if msg := failed(err); !refused(msg) {
 			return msg

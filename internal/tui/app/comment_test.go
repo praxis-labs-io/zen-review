@@ -615,3 +615,30 @@ func TestABoxDiscardedWhileItsSaveIsCarriedStaysDiscarded(t *testing.T) {
 		})
 	}
 }
+
+func TestAWriteThatLandsLeavesANoteBoxOpenedMidSave(t *testing.T) {
+	on := testchangeset.Comment("aaaaaaaaaaaa", "README.md", 2, 2, "the card")
+
+	for _, tt := range []struct {
+		name string
+		s    *screen
+		keys []string
+	}{
+		{"a new comment", over(t, testchangeset.Derive(t, mixedPatch), 100, 24), []string{"j", "c", "h", "i"}},
+		{"an edit", commented(t, 100, 24, on), []string{"]", "e", "!"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			s := tt.s
+			s.t = t
+			s.press(tt.keys...)
+
+			saving := s.hold(keystroke("ctrl+s"))
+			s.press("esc", "C", "s", "u", "m")
+			s.drain(saving)
+
+			if got := s.frame(); !strings.Contains(got, "Session note") || !strings.Contains(got, "sum") {
+				t.Errorf("the write landing took down the note box opened after it:\n%s", got)
+			}
+		})
+	}
+}

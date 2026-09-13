@@ -198,7 +198,9 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		m.apply(msg.r)
 		m.note = notice{text: "comment saved"}
 
-		m.shut()
+		if m.pending == msg.box {
+			m.shut()
+		}
 		return m, nil
 
 	case reanchoredMsg:
@@ -220,7 +222,9 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		m.busy = false
 		m.apply(msg.r)
 		m.note = notice{text: "comment updated"}
-		m.shut()
+		if m.editing == msg.id {
+			m.shut()
+		}
 		return m, nil
 
 	case deletedMsg:
