@@ -136,7 +136,7 @@ func (m *Model) typing(msg tea.Msg) tea.Cmd {
 
 	if at := m.rowAt(place{comment: draftID, seq: -1}); at >= 0 {
 		i := m.rows[at].card
-		m.cards[i].plain, m.cards[i].lit = m.drawCard(m.draft.at, nil, m.cards[i].anchor >= 0)
+		m.cards[i].plain, m.cards[i].lit = m.drawCard(m.draft.at, nil, m.placementOf(m.cards[i].anchor))
 		m.repaintCard(at)
 	}
 	return cmd

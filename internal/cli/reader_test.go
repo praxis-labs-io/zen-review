@@ -222,7 +222,7 @@ func TestASessionDrivenFromTheReaderReadsBackOutOfTheCLI(t *testing.T) {
 		path, side, scope, state, body string
 		start, end                     int
 	}{
-		{"alpha.txt", "head", "range", "resolved", "alpha wants a word", 1, 1},
+		{"alpha.txt", "head", "hunk", "resolved", "alpha wants a word", 1, 1},
 		{"beta.txt", "head", "line", "open", "beta wants a word", 1, 1},
 	}
 	for i, w := range want {

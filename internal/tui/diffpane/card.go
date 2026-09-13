@@ -43,6 +43,14 @@ const (
 	railClear = "  "
 )
 
+type placement int
+
+const (
+	unplaced placement = iota
+	underLine
+	underHeading
+)
+
 type card struct {
 	id string
 
@@ -99,13 +107,24 @@ func (m Model) cardBox() (int, int) {
 }
 
 func (m *Model) addCard(c store.Comment, hunk, anchor int) {
-	plain, lit := m.drawCard(c, m.replacedTokens(c), anchor >= 0)
+	plain, lit := m.drawCard(c, m.replacedTokens(c), m.placementOf(anchor))
 
 	at, which := len(m.rows), len(m.cards)
 	m.cards = append(m.cards, card{id: c.ID, at: at, anchor: anchor, plain: plain, lit: lit})
 
 	for _, line := range plain {
 		m.rows = append(m.rows, row{kind: cardRow, hunk: hunk, card: which, seq: -1, text: line})
+	}
+}
+
+func (m Model) placementOf(anchor int) placement {
+	switch {
+	case anchor < 0:
+		return unplaced
+	case m.rows[anchor].kind == headRow:
+		return underHeading
+	default:
+		return underLine
 	}
 }
 
@@ -126,7 +145,7 @@ func (m *Model) replacedTokens(c store.Comment) [][]syntax.Token {
 	return out
 }
 
-func (m Model) drawCard(c store.Comment, block [][]syntax.Token, placed bool) ([]string, []string) {
+func (m Model) drawCard(c store.Comment, block [][]syntax.Token, placed placement) ([]string, []string) {
 	if m.width <= 0 {
 		return []string{""}, []string{""}
 	}
@@ -262,12 +281,12 @@ func (m Model) foldedBody(c store.Comment, width int) []string {
 		comp.Clip(m.subtle().Render(line), room, m.subtle())}
 }
 
-func (m Model) bareRow(c store.Comment, placed bool, at int, base lipgloss.Style) []string {
+func (m Model) bareRow(c store.Comment, placed placement, at int, base lipgloss.Style) []string {
 	lead := base.Render(strings.Repeat(" ", max(at, 0)))
 	return []string{m.pad(lead+m.bareCard(c, placed, base), base)}
 }
 
-func (m Model) bareCard(c store.Comment, placed bool, base lipgloss.Style) string {
+func (m Model) bareCard(c store.Comment, placed placement, base lipgloss.Style) string {
 	row := m.cardHead(c, placed, base)
 	if first := firstLine(c.Body); first != "" {
 		row += base.Foreground(m.theme.Subtle).Render(" · " + first)
@@ -275,11 +294,11 @@ func (m Model) bareCard(c store.Comment, placed bool, base lipgloss.Style) strin
 	return row
 }
 
-func (m Model) cardLabel(c store.Comment, placed bool) string {
+func (m Model) cardLabel(c store.Comment, placed placement) string {
 	return " " + m.cardHead(c, placed, lipgloss.NewStyle()) + " "
 }
 
-func (m Model) cardHead(c store.Comment, placed bool, base lipgloss.Style) string {
+func (m Model) cardHead(c store.Comment, placed placement, base lipgloss.Style) string {
 	glyph, on := m.commentBadge(c.State)
 
 	word := string(c.State)
@@ -312,12 +331,15 @@ func (m Model) commentBadge(s store.CommentState) (string, color.Color) {
 }
 
 // commentWhere says "was" only for an orphan or a comment frozen at another generation.
-func commentWhere(c store.Comment, placed, live bool) string {
+func commentWhere(c store.Comment, placed placement, live bool) string {
 	if c.Scope == store.ScopeFile {
 		return "file"
 	}
+	if placed == underHeading {
+		return "hunk"
+	}
 
-	if placed && c.Start == c.End {
+	if placed == underLine && c.Start == c.End {
 		return ""
 	}
 
@@ -326,7 +348,7 @@ func commentWhere(c store.Comment, placed, live bool) string {
 		what = "lines " + span(c)
 	}
 
-	if !placed && (!live || c.State == store.CommentOrphaned) {
+	if placed == unplaced && (!live || c.State == store.CommentOrphaned) {
 		return "was " + what
 	}
 	return what
@@ -336,7 +358,7 @@ func span(c store.Comment) string {
 	return strconv.Itoa(c.Start) + "-" + strconv.Itoa(c.End)
 }
 
-func (m Model) cardHints(c store.Comment, width int, placed, folded bool) string {
+func (m Model) cardHints(c store.Comment, width int, placed placement, folded bool) string {
 	word := "space fold"
 	if folded {
 		word = "space open"
@@ -357,7 +379,7 @@ func (m Model) cardHints(c store.Comment, width int, placed, folded bool) string
 	if c.State != store.CommentResolved {
 		parts = append([]string{"x resolve"}, parts...)
 	}
-	if placed {
+	if placed != unplaced {
 		parts = append([]string{"⏎ line"}, parts...)
 	}
 

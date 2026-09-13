@@ -313,13 +313,10 @@ func (m *Model) moveTo(i int) {
 	}
 
 	if c := m.cardOf(i); c != nil && i != c.at {
-		switch {
-		case i < m.cursor:
-			i = c.at
-		case c.end() < len(m.rows):
+		leaving := m.cursor == c.at && i > m.cursor && c.end() < len(m.rows)
+		i = c.at
+		if leaving {
 			i = c.end()
-		default:
-			i = c.at
 		}
 	}
 
@@ -336,16 +333,57 @@ func (m Model) blank(i int) bool {
 }
 
 func (m *Model) page(by int) {
+	if m.scrollCard(by) {
+		return
+	}
 	m.moveTo(m.cursor + by)
 	m.place(m.middle())
+	if by < 0 {
+		m.showCardEnd()
+	}
+}
+
+func (m *Model) step(by int) {
+	if !m.scrollCard(by) {
+		m.moveTo(m.cursor + by)
+	}
+}
+
+func (m *Model) scrollCard(by int) bool {
+	c := m.cardOf(m.cursor)
+	if c == nil || m.height <= 0 {
+		return false
+	}
+
+	switch {
+	case by > 0 && c.end() > m.offset+m.height:
+		m.offset = min(m.offset+by, c.end()-m.height)
+	case by < 0 && c.at < m.offset:
+		m.offset = max(m.offset+by, c.at)
+	default:
+		return false
+	}
+	m.clampOffset()
+	return true
+}
+
+func (m *Model) showCardEnd() {
+	if c := m.cardOf(m.cursor); c != nil && m.height > 0 {
+		m.offset = max(m.offset, c.end()-m.height)
+		m.clampOffset()
+	}
 }
 
 func (m Model) middle() int { return (m.height - 1) / 2 }
 
 func (m *Model) reveal() {
 	if m.cursor >= 0 && m.height > 0 {
-		m.offset = min(m.offset, m.cursor)
-		m.offset = max(m.offset, m.cursor-m.height+1)
+		first, last := m.cursor, m.cursor
+		if c := m.cardOf(m.cursor); c != nil {
+			last = c.end() - 1
+		}
+		m.offset = min(m.offset, max(first, last-m.height+1))
+		m.offset = max(m.offset, first-m.height+1)
 	}
 	m.clampOffset()
 	m.clearPin()
@@ -584,9 +622,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	case key.Matches(press, m.Keys.Jump):
 		m.jump()
 	case key.Matches(press, m.Keys.Down):
-		m.moveTo(m.cursor + 1)
+		m.step(1)
 	case key.Matches(press, m.Keys.Up):
-		m.moveTo(m.cursor - 1)
+		m.step(-1)
 	case key.Matches(press, m.Keys.HalfDown):
 		m.page(m.half())
 	case key.Matches(press, m.Keys.HalfUp):
@@ -595,6 +633,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.moveTo(0)
 	case key.Matches(press, m.Keys.Bottom):
 		m.moveTo(len(m.rows) - 1)
+		m.showCardEnd()
 	}
 	return m, nil
 }
@@ -770,6 +809,13 @@ func (m *Model) layout() {
 		m.headAt = append(m.headAt, len(m.rows))
 		add(row{kind: headRow, hunk: i})
 
+		for j, c := range mine {
+			if !placed[j] && c.Scope == store.ScopeHunk && m.live(c) && holds(h.Diff, c) {
+				placed[j] = true
+				m.addCard(c, i, m.headAt[i])
+			}
+		}
+
 		source(h.Diff.Lines, tokens[base:], i)
 
 		base += len(h.Diff.Lines)
@@ -820,6 +866,14 @@ func index(cs []store.Comment, id string) int {
 
 func (m Model) live(c store.Comment) bool {
 	return c.GenerationID == m.gen
+}
+
+func holds(h diff.Hunk, c store.Comment) bool {
+	start, lines := h.NewStart, h.NewLines
+	if c.Side == store.SideBase {
+		start, lines = h.OldStart, h.OldLines
+	}
+	return lines > 0 && c.Start >= start && c.Start <= last(start, lines)
 }
 
 func on(c store.Comment, l diff.Line, n int) bool {
