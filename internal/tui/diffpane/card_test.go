@@ -206,6 +206,14 @@ func TestAHunkCommentDrawsUnderItsHeading(t *testing.T) {
 	}
 }
 
+func TestAHunkCardUnderALineSaysItsLines(t *testing.T) {
+	m := commented(t, twoHunks, 76, 40, hunkCard(115, 124))
+
+	if got := under(t, m, "// Ranges are read off the generation."); !strings.Contains(got, "◇ open · lines 115-124") {
+		t.Errorf("the row under the card's last line is %q, want its lines named:\n%s", got, joined(t, m))
+	}
+}
+
 func TestAHunkCommentWhoseFirstLineLeftEveryHunkGoesToTheFoot(t *testing.T) {
 	m := commented(t, twoHunks, 76, 40, hunkCard(900, 905))
 	got := rows(t, m)
