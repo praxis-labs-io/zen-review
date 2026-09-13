@@ -101,6 +101,16 @@ func (r *reloader) AddComment(g review.Generation, n review.Note) (app.Reload, e
 	})
 }
 
+func (r *reloader) Reanchor(n review.Note, from, to review.Generation) (review.Note, bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.shut {
+		return review.Note{}, false, errors.New("the reader closed the session before the comment could move")
+	}
+	return r.s.Reanchor(r.ctx, n, from, to)
+}
+
 func (r *reloader) ResolveComment(g review.Generation, id string) (app.Reload, error) {
 	return r.wrote(g, func() error {
 		_, err := r.s.ResolveComment(r.ctx, id)

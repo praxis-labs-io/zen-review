@@ -31,10 +31,10 @@ func (m Model) FitsBox() bool {
 	return m.file != nil && width >= cardMin && m.height >= draftRows+4
 }
 
-// Compose opens a box for a new comment at c's anchor, returning its focus command. False when the pane cannot fit a box.
-func (m *Model) Compose(c store.Comment) (tea.Cmd, bool) {
+// Compose opens a box holding body for a new comment at c's anchor, returning its focus command. False when the pane cannot fit a box.
+func (m *Model) Compose(c store.Comment, body string) (tea.Cmd, bool) {
 	c.State = store.CommentOpen
-	return m.open(c, "", "")
+	return m.open(c, body, "")
 }
 
 // Edit opens a box in place of comment c's card, holding its body. False when the pane cannot fit a box.

@@ -22,7 +22,7 @@ func composing(t *testing.T, width, height int) diffpane.Model {
 		Side:      store.SideHead,
 		Scope:     store.ScopeLine,
 		LineRange: store.LineRange{Start: 12, End: 12},
-	}); !ok {
+	}, ""); !ok {
 		t.Fatalf("the pane refused a box at %dx%d", width, height)
 	}
 	return m
@@ -95,7 +95,7 @@ func TestABoxRefusesAPaneWithNoRoomForIt(t *testing.T) {
 		if _, ok := m.Compose(store.Comment{
 			Side: store.SideHead, Scope: store.ScopeLine,
 			LineRange: store.LineRange{Start: 12, End: 12},
-		}); ok {
+		}, ""); ok {
 			t.Errorf("a %dx%d pane took a box", tt.width, tt.height)
 		}
 		if m.Composing() {
@@ -182,7 +182,7 @@ func TestTheBoxOnARangeTallerThanTheWindow(t *testing.T) {
 		Side:      store.SideHead,
 		Scope:     store.ScopeRange,
 		LineRange: store.LineRange{Start: 12, End: 14},
-	}); !ok {
+	}, ""); !ok {
 		t.Fatal("the pane refused a box")
 	}
 
@@ -300,7 +300,7 @@ func TestTheBoxOnAHunkOpensUnderItsHeading(t *testing.T) {
 		Side:      store.SideHead,
 		Scope:     store.ScopeHunk,
 		LineRange: store.LineRange{Start: 124, End: 125},
-	}); !ok {
+	}, ""); !ok {
 		t.Fatal("the pane refused a box on the hunk")
 	}
 

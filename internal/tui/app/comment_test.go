@@ -429,13 +429,105 @@ func TestAWriteSavedAndReadBackStaleIsNotWrittenAgain(t *testing.T) {
 	}
 }
 
-func TestARefusedWriteNamesAKeyTheBoxWouldEat(t *testing.T) {
-	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24).press("j", "c", "h", "i")
+const shiftedPatch = `diff --git a/a.go b/a.go
+--- a/a.go
++++ b/a.go
+@@ -1,3 +1,4 @@
++zero
+ one
+-two
++dos
+ three
+`
+
+func overtaken(s *screen, moveTo func(review.Note) (review.Note, bool)) *screen {
+	s.t.Helper()
+
 	s.src.wroteErr = &review.StaleGenerationError{Seq: 2, Current: 3}
+	s.src.moveTo = moveTo
+	s.reloading(testchangeset.Derive(s.t, shiftedPatch))
+	return s
+}
+
+func downOne(n review.Note) (review.Note, bool) {
+	n.Range = review.Range{Start: n.Range.Start + 1, End: n.Range.End + 1}
+	return n, true
+}
+
+func TestARefusedCommentReopensOnTheGenerationThatLanded(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		width, height int
+		keys          []string
+		box           string
+		barShows      bool
+		want          string
+	}{
+		{"beside the code", 100, 24, []string{"j", "c"}, "◇ new", true, `AddComment a.go head:2-2 line "hi!" gen=3`},
+		{"over the frame", 50, 10, []string{"c"}, "Comment on a.go:3", false, `AddComment a.go head:3-3 hunk "hi!" gen=3`},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			s := over(t, testchangeset.Derive(t, mixedPatch), tt.width, tt.height).press(tt.keys...).press("h", "i")
+			overtaken(s, downOne)
+
+			saving := s.hold(keystroke("ctrl+s"))
+			s.press("!")
+			s.drain(saving)
+
+			if got := s.frame(); !strings.Contains(got, tt.box) || !strings.Contains(got, "hi!") {
+				t.Fatalf("the box did not come back holding the words:\n%s", got)
+			}
+			if got := s.bar(); tt.barShows && !strings.Contains(got, "generation 3") {
+				t.Errorf("the bar reads %q, want it to name the generation that landed", got)
+			}
+			if got := s.calls(); len(got) != 0 {
+				t.Fatalf("the refusal wrote %v, want nothing until the reader saves again", got)
+			}
+
+			s.src.wroteErr = nil
+			s.press("ctrl+s")
+			if got := wrote(t, s); got != tt.want {
+				t.Errorf("the carried box wrote %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestARefusedCommentWhoseLinesWentHoldsTheWordsForTheNextC(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24).press("j", "c", "h", "i")
+	overtaken(s, func(review.Note) (review.Note, bool) { return review.Note{}, false })
 	s.press("ctrl+s")
 
-	if got := s.bar(); !strings.Contains(got, "esc, then s") {
-		t.Errorf("the bar reads %q, want the keys that reach the reload", got)
+	if got := s.frame(); strings.Contains(got, "◇ new") {
+		t.Fatalf("the box stayed up with nothing to attach to:\n%s", got)
+	}
+	if got := s.bar(); !strings.Contains(got, "a.go:1 went at generation 3") {
+		t.Errorf("the bar reads %q, want it to say which lines went", got)
+	}
+
+	s.src.wroteErr = nil
+	s.press("c")
+	if got := s.frame(); !strings.Contains(got, "◇ new") || !strings.Contains(got, "hi") {
+		t.Fatalf("c did not bring the words back:\n%s", got)
+	}
+
+	s.press("esc", "c")
+	if got := s.frame(); strings.Contains(got, "hi") {
+		t.Errorf("the words outlived the box they were discarded from:\n%s", got)
+	}
+}
+
+func TestACommentThatCannotBeCarriedKeepsTheBox(t *testing.T) {
+	s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24).press("j", "c", "h", "i")
+	overtaken(s, downOne)
+	s.src.err = errors.New("git is gone")
+	s.press("ctrl+s")
+
+	if got := s.frame(); !strings.Contains(got, "◇ new") || !strings.Contains(got, "hi") {
+		t.Fatalf("the box went with a reload that failed:\n%s", got)
+	}
+	if got := s.bar(); !strings.Contains(got, "ctrl+s tries again") {
+		t.Errorf("the bar reads %q, want it to name the key that tries again", got)
 	}
 }
 

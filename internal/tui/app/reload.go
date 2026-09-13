@@ -41,6 +41,7 @@ type Source interface {
 	UnmarkFile(g review.Generation, f review.File) (Reload, error)
 
 	AddComment(g review.Generation, n review.Note) (Reload, error)
+	Reanchor(n review.Note, from, to review.Generation) (review.Note, bool, error)
 
 	ResolveComment(g review.Generation, id string) (Reload, error)
 

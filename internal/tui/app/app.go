@@ -51,6 +51,8 @@ type Model struct {
 
 	editing string
 
+	stranded string
+
 	note notice
 
 	tree    tree.Model
@@ -199,6 +201,21 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		m.shut()
 		return m, nil
 
+	case reanchoredMsg:
+		m.busy = false
+		cmd := m.reopen(msg)
+		return m, cmd
+
+	case anchorGoneMsg:
+		m.busy = false
+		m.strand(msg)
+		return m, nil
+
+	case reanchorFailedMsg:
+		m.busy = false
+		m.note = notice{text: msg.err.Error() + ": ctrl+s tries again", bad: true}
+		return m, nil
+
 	case editedMsg:
 		m.busy = false
 		m.apply(msg.r)
@@ -222,7 +239,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case staleMsg:
 		m.busy = false
-		m.note = notice{text: msg.err.Error() + ": " + m.wayBack(), bad: true}
+		m.note = notice{text: msg.err.Error() + ": press s", bad: true}
 		return m, nil
 
 	case writeFailedMsg:
@@ -540,15 +557,6 @@ func (m Model) typing(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.compose, cmd = m.compose.Update(msg)
 	return m, cmd
-}
-
-func (m Model) boxUp() bool { return m.diff.Composing() || m.compose.Active() }
-
-func (m Model) wayBack() string {
-	if m.boxUp() {
-		return "esc, then s"
-	}
-	return "press s"
 }
 
 func (m *Model) shut() {

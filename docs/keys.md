@@ -327,6 +327,14 @@ with it.
 The box comes down when the write lands, not when the key is pressed. A save that
 failed leaves it up holding the words, and so does one you typed past.
 
+A save refused because another zen-review refreshed the session first reloads
+and carries the box onto the generation that landed, the way that refresh would
+have carried the comment had it saved first. The box comes back on the lines it
+was scoped to, clamped to what survived, holding everything typed into it, and
+the bar says where it is now. Nothing is written until `ctrl+s` again. Where none
+of those lines survived the box comes down, and the next `c` opens holding the
+words so they can go on the lines they belong to.
+
 An empty body is a discard from `c`, because nothing was typed. From `e` it
 writes nothing and the bar says so: wiping a box is not saving a comment, and it
 is not deleting one either, which is `D` rather than a second meaning for the

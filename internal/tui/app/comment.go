@@ -16,6 +16,18 @@ type commentedMsg struct{ r Reload }
 
 type editedMsg struct{ r Reload }
 
+type reanchoredMsg struct {
+	r   Reload
+	now review.Note
+}
+
+type anchorGoneMsg struct {
+	r   Reload
+	was review.Note
+}
+
+type reanchorFailedMsg struct{ err error }
+
 func (m Model) commenting() (review.Note, bool) {
 	if as, on := m.diff.Selected(); on {
 		a := head(as)
@@ -70,13 +82,51 @@ func (m *Model) commentOn() (tea.Cmd, bool) {
 		return nil, false
 	}
 
+	cmd := m.openComment(n, m.stranded)
+	m.stranded = ""
+	return cmd, true
+}
+
+func (m *Model) openComment(n review.Note, body string) tea.Cmd {
 	m.pending = n
 	c := boxed(n)
-	if cmd, up := m.diff.Compose(c); up {
-		return cmd, true
+	if cmd, up := m.diff.Compose(c, body); up {
+		return cmd
+	}
+	return m.compose.Open(commentTitle(c), body)
+}
+
+func (m Model) boxBody() string {
+	if m.diff.Composing() {
+		return m.diff.Draft()
+	}
+	return m.compose.Value()
+}
+
+func (m *Model) reopen(msg reanchoredMsg) tea.Cmd {
+	body := m.boxBody()
+	m.shut()
+	m.apply(msg.r)
+
+	if msg.now.Path != m.diff.Path() {
+		if s, ok := m.firstOf(msg.now.Path); ok {
+			m.land(s)
+		}
 	}
 
-	return m.compose.Open(commentTitle(c), ""), true
+	m.note = notice{text: "generation " + strconv.Itoa(m.gen.Seq) + " landed before the save: the box is on " +
+		where(boxed(msg.now)) + " now"}
+	return m.openComment(msg.now, body)
+}
+
+func (m *Model) strand(msg anchorGoneMsg) {
+	body := m.boxBody()
+	m.shut()
+	m.apply(msg.r)
+
+	m.stranded = body
+	m.note = notice{text: where(boxed(msg.was)) + " went at generation " + strconv.Itoa(m.gen.Seq) +
+		": c on the lines it belongs to brings the words back", bad: true}
 }
 
 func (m *Model) editOn() (tea.Cmd, bool) {
@@ -220,9 +270,33 @@ func (m *Model) saveComment(body string) tea.Cmd {
 
 	return func() tea.Msg {
 		r, err := src.AddComment(g, n)
-		if err != nil {
-			return failed(err)
+		if err == nil {
+			return commentedMsg{r: r}
 		}
-		return commentedMsg{r: r}
+		if msg := failed(err); !refused(msg) {
+			return msg
+		}
+		return reanchor(src, g, n)
 	}
+}
+
+func refused(msg tea.Msg) bool {
+	_, stale := msg.(staleMsg)
+	return stale
+}
+
+func reanchor(src Source, from review.Generation, n review.Note) tea.Msg {
+	r, err := src.Reload()
+	if err != nil {
+		return reanchorFailedMsg{err: err}
+	}
+
+	now, held, err := src.Reanchor(n, from, r.Generation)
+	if err != nil {
+		return reanchorFailedMsg{err: err}
+	}
+	if !held {
+		return anchorGoneMsg{r: r, was: n}
+	}
+	return reanchoredMsg{r: r, now: now}
 }
