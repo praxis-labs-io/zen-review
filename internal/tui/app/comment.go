@@ -18,11 +18,13 @@ type editedMsg struct{ r Reload }
 
 type reanchoredMsg struct {
 	r   Reload
+	box review.Note
 	now review.Note
 }
 
 type anchorGoneMsg struct {
 	r   Reload
+	box review.Note
 	was review.Note
 }
 
@@ -104,6 +106,11 @@ func (m Model) boxBody() string {
 }
 
 func (m *Model) reopen(msg reanchoredMsg) tea.Cmd {
+	if m.pending != msg.box {
+		m.moveOn(msg.r)
+		return nil
+	}
+
 	body := m.boxBody()
 	m.shut()
 	m.apply(msg.r)
@@ -120,6 +127,11 @@ func (m *Model) reopen(msg reanchoredMsg) tea.Cmd {
 }
 
 func (m *Model) strand(msg anchorGoneMsg) {
+	if m.pending != msg.box {
+		m.moveOn(msg.r)
+		return
+	}
+
 	body := m.boxBody()
 	m.shut()
 	m.apply(msg.r)
@@ -127,6 +139,11 @@ func (m *Model) strand(msg anchorGoneMsg) {
 	m.stranded = body
 	m.note = notice{text: where(boxed(msg.was)) + " went at generation " + strconv.Itoa(m.gen.Seq) +
 		": c on the lines it belongs to brings the words back", bad: true}
+}
+
+func (m *Model) moveOn(r Reload) {
+	was, d, moved := m.apply(r)
+	m.note = said(was, d, m.gen.Seq, moved)
 }
 
 func (m *Model) editOn() (tea.Cmd, bool) {
@@ -264,7 +281,8 @@ func (m *Model) saveComment(body string) tea.Cmd {
 		return nil
 	}
 
-	src, g, n := m.src, m.gen, m.pending
+	src, g, box := m.src, m.gen, m.pending
+	n := box
 	n.Body = body
 	m.busy = true
 
@@ -276,7 +294,7 @@ func (m *Model) saveComment(body string) tea.Cmd {
 		if msg := failed(err); !refused(msg) {
 			return msg
 		}
-		return reanchor(src, g, n)
+		return reanchor(src, g, box, n)
 	}
 }
 
@@ -285,7 +303,7 @@ func refused(msg tea.Msg) bool {
 	return stale
 }
 
-func reanchor(src Source, from review.Generation, n review.Note) tea.Msg {
+func reanchor(src Source, from review.Generation, box, n review.Note) tea.Msg {
 	r, err := src.Reload()
 	if err != nil {
 		return reanchorFailedMsg{err: err}
@@ -296,7 +314,7 @@ func reanchor(src Source, from review.Generation, n review.Note) tea.Msg {
 		return reanchorFailedMsg{err: err}
 	}
 	if !held {
-		return anchorGoneMsg{r: r, was: n}
+		return anchorGoneMsg{r: r, box: box, was: n}
 	}
-	return reanchoredMsg{r: r, now: now}
+	return reanchoredMsg{r: r, box: box, now: now}
 }

@@ -582,3 +582,36 @@ func TestExpandReachesTheCardFromTheTree(t *testing.T) {
 		t.Errorf("> did not reach the card from the tree pane:\n%s", got)
 	}
 }
+
+func TestABoxDiscardedWhileItsSaveIsCarriedStaysDiscarded(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		moveTo func(review.Note) (review.Note, bool)
+	}{
+		{"its lines moved", downOne},
+		{"its lines went", func(review.Note) (review.Note, bool) { return review.Note{}, false }},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			s := over(t, testchangeset.Derive(t, mixedPatch), 100, 24).press("j", "c", "h", "i")
+			overtaken(s, tt.moveTo)
+
+			saving := s.hold(keystroke("ctrl+s"))
+			s.press("esc", "C", "s", "u", "m")
+			s.drain(saving)
+
+			got := s.frame()
+			if !strings.Contains(got, "Session note") || !strings.Contains(got, "sum") {
+				t.Fatalf("the note box opened mid-save did not survive the carry:\n%s", got)
+			}
+			if strings.Contains(got, "◇ new") {
+				t.Errorf("the discarded comment box came back:\n%s", got)
+			}
+
+			s.src.wroteErr = nil
+			s.press("esc", "c")
+			if got := s.frame(); strings.Contains(got, "hi") || strings.Contains(got, "sum") {
+				t.Errorf("c opened holding words from a box that was discarded:\n%s", got)
+			}
+		})
+	}
+}
