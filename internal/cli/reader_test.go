@@ -281,3 +281,46 @@ func TestACommentFromTheReaderMovesWithARealRefresh(t *testing.T) {
 		t.Errorf("the comment came back at %d-%d, want 15-15", c.Start, c.End)
 	}
 }
+
+func TestASaveRefusedByAnotherInstanceLandsOnTheLinesItMovedTo(t *testing.T) {
+	repo := testrepo.New(t)
+	repo.Write("gamma.txt", lines(1, 20))
+	repo.Commit("first")
+	repo.TrackOrigin("main")
+
+	repo.Git("checkout", "-q", "-b", "feature")
+	repo.Write("gamma.txt", rewritten())
+
+	r := driving(t, repo)
+	r.press("c").typing("carried across the other refresh")
+
+	other, err := review.Open(t.Context(), repo.Dir(), review.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo.Write("gamma.txt", lines(-4, 0)+rewritten())
+	if _, err := other.Refresh(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if err := other.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	r.press("ctrl+s")
+	frame := r.frame()
+	if !strings.Contains(frame, "landed before the save") {
+		t.Fatalf("the save was not refused and carried:\n%s", frame)
+	}
+	if !strings.Contains(frame, "carried across the other refresh") {
+		t.Fatalf("the box came back without the words:\n%s", frame)
+	}
+
+	r.press("ctrl+s")
+	got := r.readBack("comments")
+	if len(got.Comments) != 1 {
+		t.Fatalf("the session holds %d comments, want the one carried box:\n%+v", len(got.Comments), got.Comments)
+	}
+	if c := got.Comments[0]; c.Start != 15 || c.End != 15 || c.Body != "carried across the other refresh" {
+		t.Errorf("the comment landed at %d-%d saying %q, want 15-15 with the words typed", c.Start, c.End, c.Body)
+	}
+}
