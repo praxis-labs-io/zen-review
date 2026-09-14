@@ -42,7 +42,7 @@ func driving(t *testing.T, repo *testrepo.Repo) *reader {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r.m = app.New(testtheme.Dark, src, s.Repo(), first)
+	r.m = app.New(testtheme.Dark, src, s.Repo(), first, app.Launch{})
 
 	r.send(tea.WindowSizeMsg{Width: 120, Height: 40})
 	return r

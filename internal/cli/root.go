@@ -49,6 +49,7 @@ func NewRoot() *cobra.Command {
 		newComment(&opts), newComments(&opts), newAddress(&opts), newResolve(&opts),
 		newEdit(&opts), newDelete(&opts),
 		newSummary(&opts), newExport(&opts),
+		newUpdate(),
 	)
 	return cmd
 }

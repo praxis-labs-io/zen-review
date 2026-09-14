@@ -6,6 +6,9 @@ is what lets an agent read its own review queue and answer it.
 Concepts are in [the guide](guide.md); every flag is in
 [the CLI reference](cli.md). This page is the loop.
 
+None of the commands here touch the network. Only the reader checks for a newer
+release, so an agent loop never makes that request.
+
 ## The gate
 
 ```sh

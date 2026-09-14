@@ -155,7 +155,7 @@ func themed(t *testing.T, th theme.Theme, width, height int) *screen {
 	}
 
 	src := &source{at: r}
-	s := &screen{t: t, m: app.New(th, src, "zen-review", r), src: src}
+	s := &screen{t: t, m: app.New(th, src, "zen-review", r, app.Launch{}), src: src}
 	s.send(tea.WindowSizeMsg{Width: width, Height: height})
 	return s
 }
@@ -195,7 +195,7 @@ func replacing(t *testing.T, width, height int, block ...string) *screen {
 	}
 
 	src := &source{at: r}
-	s := &screen{t: t, m: app.New(testtheme.Dark, src, "zen-review", r), src: src}
+	s := &screen{t: t, m: app.New(testtheme.Dark, src, "zen-review", r, app.Launch{}), src: src}
 	s.send(tea.WindowSizeMsg{Width: width, Height: height})
 	return s
 }
@@ -215,7 +215,7 @@ func measured(t *testing.T, base review.Base, c review.Changeset, width, height 
 
 	r := app.Reload{Base: base, Generation: review.Generation{ID: 2, Seq: 2}, Changeset: c}
 	src := &source{at: r}
-	s := &screen{t: t, m: app.New(testtheme.Dark, src, "zen-review", r), src: src}
+	s := &screen{t: t, m: app.New(testtheme.Dark, src, "zen-review", r, app.Launch{}), src: src}
 	s.send(tea.WindowSizeMsg{Width: width, Height: height})
 	return s
 }
@@ -234,7 +234,7 @@ func with(t *testing.T, repo string, c review.Changeset, comments []store.Commen
 	}
 
 	src := &source{at: r}
-	s := &screen{t: t, m: app.New(testtheme.Dark, src, repo, r), src: src}
+	s := &screen{t: t, m: app.New(testtheme.Dark, src, repo, r, app.Launch{}), src: src}
 	s.send(tea.WindowSizeMsg{Width: width, Height: height})
 	return s
 }

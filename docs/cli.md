@@ -221,6 +221,15 @@ each time it is written.
 It is what `export` opens with, and the place a conclusion that is not about any
 one file goes.
 
+## Installing
+
+### `zen-review update`
+
+Install the latest release over the running binary. It stops when that is the
+version already running, and refuses `--base` and `--json`, since it reads no
+review. [Upgrading](install.md#upgrading) covers what it runs, and the check the
+reader makes at launch.
+
 ## JSON
 
 `--json` is on every command that answers with the changeset or with comments. A

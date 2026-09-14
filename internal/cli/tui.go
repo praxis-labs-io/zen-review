@@ -11,8 +11,11 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
+	"github.com/praxis-labs-io/zen-review/internal/config"
 	"github.com/praxis-labs-io/zen-review/internal/review"
 	"github.com/praxis-labs-io/zen-review/internal/tui/app"
+	"github.com/praxis-labs-io/zen-review/internal/update"
+	"github.com/praxis-labs-io/zen-review/internal/version"
 )
 
 func runRoot(cmd *cobra.Command, opts *options) error {
@@ -240,5 +243,29 @@ func runTUI(cmd *cobra.Command, opts *options) (err error) {
 		return err
 	}
 
-	return app.Run(cmd.Context(), src, s.Repo(), r)
+	return app.Run(cmd.Context(), src, s.Repo(), r, launch())
+}
+
+func launch() app.Launch {
+	cfg, err := config.Load()
+	if err != nil {
+		return app.Launch{Warning: fmt.Errorf("%w, so the release check is off", err)}
+	}
+	if !cfg.ChecksForUpdates() {
+		return app.Launch{}
+	}
+	return app.Launch{Check: newerRelease}
+}
+
+func newerRelease(ctx context.Context) (string, error) {
+	path, err := update.Path()
+	if err != nil {
+		return "", err
+	}
+
+	result, err := update.Check(ctx, update.Options{Current: version.Version, CachePath: path})
+	if !result.Available {
+		return "", err
+	}
+	return result.Latest, err
 }

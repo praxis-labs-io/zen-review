@@ -36,6 +36,7 @@ running?** If no, the logic is in the wrong package.
 - **`internal/git` is plumbing only.** It runs git and returns bytes and structs, never opinions. Nothing above it shells out to git.
 - **`internal/diff` turns unified diff text into files, hunks and lines, and knows nothing about review.** It never imports `review`. A parsed diff stays a parsed diff.
 - **`internal/store` is the only package importing `database/sql`.** Everything else goes through `review`.
+- **`internal/update` is the only package on the network.** It makes the anonymous latest-release lookup and downloads the installer. Only the reader's launch check and `zen-review update` call it, so no command an agent runs makes a request.
 - **`internal/review` is the engine, and the TUI holds none of it.** Every state change is a call into `review`, and `cli` calls the same functions. A behaviour reachable by key and not by subcommand is in the wrong place.
 - **`internal/tui/*` packages never import each other sideways.** Shared widgets live in `internal/tui/comp`.
 - **The visual layer stops at the TUI.** `tui/diffpane` and `tui/comp` import `tui/theme`, `tui/syntax` and `tui/paint`. Nothing below `tui/` imports any of the three.
