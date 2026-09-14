@@ -14,14 +14,22 @@ Everything is pure Go, so there is no libc to match.
 
 ## Install
 
+macOS and Linux:
+
 ```sh
 curl -fsSL https://raw.githubusercontent.com/praxis-labs-io/zen-review/main/install.sh | sh
 ```
 
-It downloads the binary for your platform and puts it in `~/.local/bin`. It is
-a POSIX script, so Windows takes the `.zip` off the
-[releases page](https://github.com/praxis-labs-io/zen-review/releases) instead.
-On a platform no release carries, the script says so and points you at Go:
+Windows:
+
+```powershell
+irm https://raw.githubusercontent.com/praxis-labs-io/zen-review/main/install.ps1 | iex
+```
+
+Both download the binary for your machine, check it against the `checksums.txt`
+the release publishes, and install nothing that doesn't match. `install.sh` puts
+it in `~/.local/bin` and `install.ps1` in `%LOCALAPPDATA%\Programs\zen-review`.
+On a platform no release carries, either one says so and points you at Go:
 
 ```sh
 go install github.com/praxis-labs-io/zen-review/cmd/zen-review@latest
@@ -38,8 +46,9 @@ curl -fsSL https://raw.githubusercontent.com/praxis-labs-io/zen-review/main/inst
 curl -fsSL https://raw.githubusercontent.com/praxis-labs-io/zen-review/main/install.sh | VERSION=v0.1.0 sh
 ```
 
-Every release carries a `checksums.txt` beside the archives if you want to
-verify one before it runs.
+```powershell
+$env:VERSION = 'v0.1.0'; irm https://raw.githubusercontent.com/praxis-labs-io/zen-review/main/install.ps1 | iex; Remove-Item Env:VERSION
+```
 
 From a clone, which is what you want if you intend to change anything:
 
@@ -54,14 +63,22 @@ after every change, or you keep running the old binary.
 
 ## PATH
 
-Both paths install to `~/.local/bin`. If it is not on your `PATH`, the installer
-says so and prints the line to add:
+`install.sh` and `make install` both put the binary in `~/.local/bin`. If it's
+not on your `PATH`, the installer says so and prints the line to add:
 
 ```sh
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
 Put it in `~/.zshrc` or `~/.bashrc` and open a new shell.
+
+On Windows:
+
+```powershell
+[Environment]::SetEnvironmentVariable('Path', [Environment]::GetEnvironmentVariable('Path', 'User') + ";$env:LOCALAPPDATA\Programs\zen-review", 'User')
+```
+
+Then open a new terminal. Neither installer edits `PATH` for you.
 
 ## Your first review
 

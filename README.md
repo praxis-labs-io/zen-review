@@ -68,14 +68,20 @@ Two other terminal reviewers cover ground this one does not, and
 
 ## Install
 
+macOS and Linux:
+
 ```sh
 curl -fsSL https://raw.githubusercontent.com/praxis-labs-io/zen-review/main/install.sh | sh
 ```
 
-Downloads the binary for macOS or Linux, on arm64 or amd64. Windows takes the
-`.zip` off the
-[releases page](https://github.com/praxis-labs-io/zen-review/releases), the
-installer being a POSIX script. On anything else:
+Windows:
+
+```powershell
+irm https://raw.githubusercontent.com/praxis-labs-io/zen-review/main/install.ps1 | iex
+```
+
+Either one downloads the binary for your machine: macOS and Linux on arm64 or
+amd64, Windows on amd64. On anything else:
 
 ```sh
 go install github.com/praxis-labs-io/zen-review/cmd/zen-review@latest
@@ -89,8 +95,9 @@ cd zen-review
 make install
 ```
 
-The installer and `make install` both put the binary in `~/.local/bin`, and
-`INSTALL_DIR` moves it. `go install` writes to `$(go env GOPATH)/bin` and takes
+`install.sh` and `make install` both put the binary in `~/.local/bin`,
+`install.ps1` in `%LOCALAPPDATA%\Programs\zen-review`, and `INSTALL_DIR` moves
+it. `go install` writes to `$(go env GOPATH)/bin` and takes
 neither. [docs/install.md](docs/install.md) has the requirements, the PATH setup
 and how to upgrade.
 

@@ -1,4 +1,4 @@
-.PHONY: help test build lint lint-fix fmt fmt-fix mod-tidy all clean coverage install golden
+.PHONY: help test build lint lint-actions lint-fix fmt fmt-fix mod-tidy all clean coverage install golden
 
 .DEFAULT_GOAL := help
 
@@ -6,6 +6,7 @@ BINARY_NAME := zen-review
 MAIN_PACKAGE := ./cmd/zen-review
 COVERAGE_FILE := coverage.out
 INSTALL_DIR := $(HOME)/.local/bin
+ACTIONLINT_VERSION := v1.7.12
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -52,10 +53,14 @@ mod-tidy: ## Check if go.mod and go.sum are tidy
 	@go mod tidy -diff
 	@echo "go.mod and go.sum are tidy."
 
-lint: fmt mod-tidy ## Run all linting checks (gofmt, mod-tidy, golangci-lint)
+lint: fmt mod-tidy lint-actions ## Run all linting checks (gofmt, mod-tidy, actionlint, golangci-lint)
 	@echo "Running golangci-lint..."
 	@golangci-lint run
 	@echo "All linting checks passed."
+
+lint-actions: ## Check the workflow files against the Actions schema
+	@echo "Running actionlint..."
+	@go run github.com/rhysd/actionlint/cmd/actionlint@$(ACTIONLINT_VERSION) .github/workflows/*.yml
 
 lint-fix: fmt-fix ## Fix linting issues automatically
 	@echo "Fixing linting issues..."
