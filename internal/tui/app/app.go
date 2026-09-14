@@ -33,6 +33,9 @@ type Model struct {
 	src  Source
 	busy bool
 
+	release ReleaseCheck
+	newer   string
+
 	// reading is separate from busy because a read neither blocks a write nor is blocked by one.
 	reading string
 
@@ -75,11 +78,12 @@ type Model struct {
 
 // New builds the screen over r, focused on the diff pane at the first unread hunk.
 // The panes point into r.Changeset's files, so it must not be appended to afterwards.
-func New(t theme.Theme, src Source, repo string, r Reload) Model {
+func New(t theme.Theme, src Source, repo string, r Reload, l Launch) Model {
 	m := Model{
 		keys:      NewKeyMap(),
 		theme:     t,
 		src:       src,
+		release:   l.Check,
 		repo:      repo,
 		base:      r.Base,
 		gen:       r.Generation,
@@ -100,21 +104,24 @@ func New(t theme.Theme, src Source, repo string, r Reload) Model {
 	if s, ok := m.opening(); ok {
 		m.land(s)
 	}
+	if l.Warning != nil {
+		m.note = notice{text: l.Warning.Error(), bad: true}
+	}
 	return m
 }
 
 // Run opens the reader on the terminal and returns when it closes. It can return
 // with a Source call still running, so the caller must wait before releasing the session.
-func Run(ctx context.Context, src Source, repo string, r Reload) error {
+func Run(ctx context.Context, src Source, repo string, r Reload, l Launch) error {
 	t := theme.Terminal(theme.Query(os.Stdin, os.Stdout))
 
-	if _, err := tea.NewProgram(New(t, src, repo, r), tea.WithContext(ctx)).Run(); err != nil {
+	if _, err := tea.NewProgram(New(t, src, repo, r, l), tea.WithContext(ctx)).Run(); err != nil {
 		return fmt.Errorf("running the reader: %w", err)
 	}
 	return nil
 }
 
-func (m Model) Init() tea.Cmd { return nil }
+func (m Model) Init() tea.Cmd { return checkRelease(m.release) }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.update(msg)
@@ -142,6 +149,10 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case tree.OpenMsg:
 		m.setFocus(focusDiff)
+		return m, nil
+
+	case newerReleaseMsg:
+		m.newer = msg.tag
 		return m, nil
 
 	case reloadedMsg:

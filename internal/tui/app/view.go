@@ -224,6 +224,9 @@ func (m Model) status() string {
 	room := max(m.width-lipgloss.Width(m.help.ShortHelpView(m.wayOut()))-2, 0)
 
 	right := m.said()
+	if right == "" {
+		right = m.releaseNotice()
+	}
 	if right == "" && !m.metaShown() {
 		right = m.factLine(room)
 	}

@@ -3,8 +3,12 @@ package cli
 import (
 	"errors"
 	"io"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/praxis-labs-io/zen-review/internal/config"
 	"github.com/praxis-labs-io/zen-review/internal/review"
 	"github.com/praxis-labs-io/zen-review/internal/testrepo"
 	"github.com/praxis-labs-io/zen-review/internal/tui/app"
@@ -165,6 +169,42 @@ func TestAReloadRefusedByAnotherInstanceIsOvertaken(t *testing.T) {
 			}
 			if got := overtaken(tt.err); !errors.Is(got, tt.want) {
 				t.Errorf("overtaken(%v) = %v, want %v", tt.err, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTheReaderChecksForAReleaseUnlessConfigSaysNot(t *testing.T) {
+	tests := []struct {
+		name    string
+		body    string
+		check   bool
+		warning string
+	}{
+		{name: "no config", check: true},
+		{name: "turned off", body: `{"update_check": false}`},
+		{name: "a key it does not know", body: `{"update_checks": false}`, warning: "the release check is off"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			t.Setenv(config.DirEnv, dir)
+			if tt.body != "" {
+				if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(tt.body), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			l := launch()
+			if (l.Check != nil) != tt.check {
+				t.Errorf("check set = %v, want %v", l.Check != nil, tt.check)
+			}
+			switch {
+			case tt.warning == "" && l.Warning != nil:
+				t.Errorf("warning = %v, want none", l.Warning)
+			case tt.warning != "" && (l.Warning == nil || !strings.Contains(l.Warning.Error(), tt.warning)):
+				t.Errorf("warning = %v, want it to say %q", l.Warning, tt.warning)
 			}
 		})
 	}
