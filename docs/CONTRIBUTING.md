@@ -60,6 +60,8 @@ internal/
   tui/theme/      the palette, derived from the terminal
   tui/syntax/     Chroma tokens, not rendered text
   tui/paint/      the diff-line painter. Pure functions
+  config/         ~/.zen-review/config.json
+  update/         the latest-release lookup and the installer run
   version/        the version stamped in at build time
 
   testrepo/       real git repos for tests. Imports nothing of ours
@@ -83,6 +85,8 @@ TUI running?** If not, the logic is in the wrong package.
 - `internal/git` runs git and returns bytes. Nothing above it shells out.
 - `internal/diff` never imports `review`.
 - `internal/store` is the only package importing `database/sql`.
+- `internal/update` is the only package on the network: the anonymous
+  latest-release lookup and the installer download.
 - `internal/review` is the engine, and the TUI holds none of it. A behaviour
   reachable by key and not by subcommand is in the wrong place.
 - `internal/tui/*` packages never import each other sideways. Shared widgets go
@@ -136,6 +140,7 @@ it is read at merge time and again before a release:
 | Changed | Read |
 | --- | --- |
 | `internal/cli/**` | [`cli.md`](cli.md), [`agents.md`](agents.md) |
+| `internal/update/**`, `internal/config/**` | [`install.md`](install.md) |
 | `internal/tui/**` | [`keys.md`](keys.md) |
 | `internal/review/**`, `internal/store/**` | [`guide.md`](guide.md) |
 | `internal/git/**`, `internal/diff/**` | [`guide.md`](guide.md) |

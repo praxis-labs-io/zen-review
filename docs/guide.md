@@ -173,3 +173,7 @@ review with it, and nothing lands in the working tree.
 It is SQLite in WAL with a busy timeout, so two instances on one repo do not
 deadlock. A `.git` that is not writable is a startup error rather than a degraded
 mode where the review is not saved.
+
+The one setting that isn't per repository lives in `~/.zen-review/config.json`,
+and it's whether the reader checks for a newer release.
+[Upgrading](install.md#the-launch-check) covers it.

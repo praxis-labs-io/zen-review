@@ -104,13 +104,46 @@ working tree.
 
 ## Upgrading
 
-Re-run the installer, or from a clone:
+```sh
+zen-review update
+```
+
+It asks GitHub for the latest release and stops if you already have it.
+Otherwise it runs the same installer as above into the directory the running
+binary is in, so the new one replaces it in place. If the lookup fails it says
+so and installs anyway. It refuses a binary renamed from `zen-review`, since the
+installer would write a new one beside it and leave the old one running.
+
+`zen-review --version` says what you're running. A build from a clone reports
+`dev`, because only the release workflow stamps a version, and
+`zen-review update` replaces it with the latest release. To stay on your own
+build, upgrade from the clone instead:
 
 ```sh
 git pull
 make install
 ```
 
-There is no update check and nothing phones home. `zen-review --version` says
-what you are running, and reports `dev` on a source build: the version is
-stamped in at link time, and only the release workflow stamps it.
+### The launch check
+
+When the reader opens, zen-review asks the same endpoint whether a newer release
+is out. When one is, the status bar names it and `zen-review update` until
+something else has to be said there. The answer is kept for a day in
+`~/.zen-review/update-check.json`, so it's at most one request a day. The request
+carries no token, only the running version in its user agent, and a failed one
+shows nothing.
+
+Only the reader asks. `status`, `comments` and every other command, and a bare
+`zen-review` with no terminal, never touch the network, so an agent or a hook
+running them doesn't either. A `dev` build never asks.
+
+To turn it off, put this in `~/.zen-review/config.json`:
+
+```json
+{ "update_check": false }
+```
+
+`ZEN_REVIEW_CONFIG_DIR` moves that directory. A key the file doesn't know, or a
+file that doesn't parse, is named on the status bar when the reader opens, and
+the check stays off until it's fixed. `zen-review update` checks regardless,
+since running it is the ask.
