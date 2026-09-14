@@ -63,6 +63,9 @@ jobs:
           # stop agreeing about what passes.
           version: v2.12.2
 
+      - name: Run actionlint
+        run: make lint-actions
+
   test:
     name: Test
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false

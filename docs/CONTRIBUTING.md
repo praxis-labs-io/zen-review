@@ -24,7 +24,8 @@ every change or you keep testing the old binary.
 | --- | --- |
 | `make all` | lint, test, build. What has to be green |
 | `make test` | `go test -race -coverprofile ./...` |
-| `make lint` | gofmt, go.mod tidiness, golangci-lint |
+| `make lint` | gofmt, go.mod tidiness, actionlint, golangci-lint |
+| `make lint-actions` | actionlint over the workflow files |
 | `make fmt-fix` | `gofmt -w .` |
 | `make golden` | Regenerate every golden file: diff, cli, tui/app, tui/paint |
 | `make coverage` | Coverage report from the last test run |
@@ -36,7 +37,8 @@ Run them directly, never through a pipe that swallows the exit code.
 
 CI pins golangci-lint to match the local brew version, in
 `.github/workflows/ci.yml`. Keep the pin current or CI and local runs stop
-agreeing.
+agreeing. actionlint is pinned once, in the `Makefile`, and CI runs it through
+`make lint-actions`.
 
 `go run ./cmd/paintdemo` is how a rendering change is judged. It paints a canned
 diff at a width where a row overflows, so a theme change shows everything it
