@@ -139,7 +139,7 @@ it is read at merge time and again before a release:
 | `internal/tui/**` | [`keys.md`](keys.md) |
 | `internal/review/**`, `internal/store/**` | [`guide.md`](guide.md) |
 | `internal/git/**`, `internal/diff/**` | [`guide.md`](guide.md) |
-| `install.sh`, `Makefile`, `.github/workflows/**` | [`install.md`](install.md), [`README.md`](../README.md) |
+| `install.sh`, `install.ps1`, `Makefile`, `.github/workflows/**` | [`install.md`](install.md), [`README.md`](../README.md) |
 | `.claude/rules/**`, the test conventions | this file |
 
 `git diff --name-only <ref>..HEAD` gives the left column, so the set of documents
