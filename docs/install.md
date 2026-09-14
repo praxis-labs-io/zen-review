@@ -47,7 +47,7 @@ curl -fsSL https://raw.githubusercontent.com/praxis-labs-io/zen-review/main/inst
 ```
 
 ```powershell
-$env:VERSION = 'v0.1.0'; irm https://raw.githubusercontent.com/praxis-labs-io/zen-review/main/install.ps1 | iex
+$env:VERSION = 'v0.1.0'; irm https://raw.githubusercontent.com/praxis-labs-io/zen-review/main/install.ps1 | iex; Remove-Item Env:VERSION
 ```
 
 From a clone, which is what you want if you intend to change anything:
@@ -75,7 +75,7 @@ Put it in `~/.zshrc` or `~/.bashrc` and open a new shell.
 On Windows:
 
 ```powershell
-[Environment]::SetEnvironmentVariable('Path', "$env:PATH;$env:LOCALAPPDATA\Programs\zen-review", 'User')
+[Environment]::SetEnvironmentVariable('Path', [Environment]::GetEnvironmentVariable('Path', 'User') + ";$env:LOCALAPPDATA\Programs\zen-review", 'User')
 ```
 
 Then open a new terminal. Neither installer edits `PATH` for you.
