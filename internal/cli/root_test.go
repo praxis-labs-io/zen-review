@@ -185,3 +185,31 @@ func TestTheVersionFlagReportsTheBuildVersion(t *testing.T) {
 		t.Errorf("version output = %q, want it to carry %q", got, version.Version)
 	}
 }
+
+// --mockup answers before the repository is looked for, so it runs anywhere.
+func TestMockupNeedsNoRepository(t *testing.T) {
+	f := newFixture(t)
+
+	_, _, err := f.runFrom(t.TempDir(), "--mockup")
+	if err == nil {
+		t.Fatal("--mockup opened the reader with no terminal to open it on")
+	}
+	if strings.Contains(err.Error(), "not a git repository") {
+		t.Errorf("err = %v, want --mockup to have skipped the repository lookup", err)
+	}
+	if !strings.Contains(err.Error(), "no terminal to open it on") {
+		t.Errorf("err = %v, want it to say it needs a terminal", err)
+	}
+}
+
+func TestSubcommandsDoNotTakeMockup(t *testing.T) {
+	f := branched(t)
+
+	_, _, err := f.run("status", "--mockup")
+	if err == nil {
+		t.Fatal("status took --mockup")
+	}
+	if !strings.Contains(err.Error(), "unknown flag") {
+		t.Errorf("err = %v, want it to call --mockup an unknown flag on status", err)
+	}
+}

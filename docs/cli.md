@@ -9,6 +9,7 @@ The concepts behind it are in [the guide](guide.md), the reader's keys in
 
 ```sh
 zen-review [--base <ref>] [--json]
+zen-review --mockup
 zen-review <command> [flags]
 ```
 
@@ -21,8 +22,23 @@ changeset when there is no terminal to open it on.
 | --- | --- |
 | `--base <ref>` | The ref to measure the changeset from. Detected when unset, and kept by the session until another is passed. Reads take it; writes refuse it, because the move would stick and it would recompute the changeset the write then anchors into. `zen-review status --base <ref>` is where it changes |
 | `--json` | Write the answer as JSON. `export` writes markdown and refuses it |
+| `--mockup` | Open the reader over a fixture changeset. The bare invocation only, and no subcommand takes it |
 | `--version` | Print the version |
 | `-h, --help` | Print help for the command |
+
+## `--mockup`
+
+`zen-review --mockup` opens the reader over a changeset built into the binary:
+no repository, no database, no release check and nothing written to disk. It is
+what a demo or a screenshot runs on, and it needs no repository to run in.
+
+Every key works. Marks, comments and the session note land in the fixture and
+show up in the next frame, and they are gone when the process is. `s` reports no
+news, because a fixture that reshuffled itself would move between screenshots.
+
+It refuses `--json`, which it has nothing to write, and `--base`, which it
+measures from a fixture base. With no terminal to open on it says so, rather
+than falling back to printing the changeset.
 
 ## Exit codes
 
