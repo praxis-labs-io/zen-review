@@ -16,6 +16,7 @@ import (
 type options struct {
 	baseRef string
 	asJSON  bool
+	mockup  bool
 }
 
 func NewRoot() *cobra.Command {
@@ -42,6 +43,8 @@ func NewRoot() *cobra.Command {
 	cmd.PersistentFlags().StringVar(&opts.baseRef, "base", "",
 		"ref to measure the changeset from, kept until another is passed (detected when unset)")
 	cmd.PersistentFlags().BoolVar(&opts.asJSON, "json", false, "write the changeset as JSON")
+	cmd.Flags().BoolVar(&opts.mockup, "mockup", false,
+		"open the reader over a fixture changeset, with no repository and no database")
 
 	cmd.AddCommand(
 		newStatus(&opts), newRefresh(&opts), newFiles(&opts),

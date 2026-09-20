@@ -1,0 +1,191 @@
+diff --git a/README.md b/README.md
+index f0c23599d5695a9b77290ec5421f5dbd25ffdb3b..bea616124c607ba8532e1f145f99a2fd7a34c4fb 100644
+--- a/README.md
++++ b/README.md
+@@ -17,4 +17,5 @@ brew install praxis-labs-io/tap/zen-review
+ Run `zen-review` in a repository. It opens one changeset: the merge base with
+ the base branch, through the working tree, untracked files included.
+ 
++Press `p` on a file to read it whole, with the changed lines still tinted.
+ Press `?` for the keymap.
+diff --git a/assets/preview.png b/assets/preview.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..a6a3e7f3bad02f24f974be4ecd3e7b95afcfa21e
+Binary files /dev/null and b/assets/preview.png differ
+diff --git a/docs/keys.md b/docs/keys.md
+index 3af823c11a4ef8debc8531a2dd07c96a7d852277..e8bf5916cf86cd43f51267b216599f3de4257bc3 100644
+--- a/docs/keys.md
++++ b/docs/keys.md
+@@ -21,6 +21,8 @@ the diff works from the tree as well.
+ | `R` | Mark the whole file reviewed |
+ | `u` / `U` | Take that mark back |
+ | `space` | Fold the hunk |
++| `p` | Read the whole file, changed lines still tinted |
++| `v` | Select a range of lines |
+ 
+ ## Writing
+ 
+diff --git a/internal/review/carry.go b/internal/review/carry.go
+deleted file mode 100644
+index c198b3bc3393be01664f1df436c3afccb49b9302..0000000000000000000000000000000000000000
+--- a/internal/review/carry.go
++++ /dev/null
+@@ -1,21 +0,0 @@
+-package review
+-
+-import "github.com/praxis-labs-io/zen-review/internal/store"
+-
+-// carry moved a generation's reviewed ranges forward by hand, before Translate took the job.
+-func carry(rows []store.ReviewedRange, moved map[string]Translation) []store.ReviewedRange {
+-	out := make([]store.ReviewedRange, 0, len(rows))
+-	for _, r := range rows {
+-		t, held := moved[r.Path]
+-		if !held {
+-			out = append(out, r)
+-			continue
+-		}
+-
+-		for _, next := range t.Ranges([]Range{{Start: r.Start, End: r.End}}) {
+-			r.Start, r.End = next.Start, next.End
+-			out = append(out, r)
+-		}
+-	}
+-	return out
+-}
+diff --git a/internal/review/reviewed.go b/internal/review/reviewed.go
+index 9305b37f92757fc827d9e643650d8d50f2787b1a..3cf77a8923cf7bd145399370bf067c0190d28faa 100644
+--- a/internal/review/reviewed.go
++++ b/internal/review/reviewed.go
+@@ -9,14 +9,19 @@ import (
+ 	"github.com/praxis-labs-io/zen-review/internal/store"
+ )
+ 
+-// StaleGenerationError refuses a write against generation Seq when Current is the latest.
++// StaleGenerationError refuses a write against generation Seq when Current is the latest, or 0
++// when the session has none.
+ type StaleGenerationError struct {
+ 	Seq     int
+ 	Current int
+ }
+ 
+ func (e *StaleGenerationError) Error() string {
+-	return fmt.Sprintf("generation %d is not the current one, %d is", e.Seq, e.Current)
++	if e.Current == 0 {
++		return fmt.Sprintf("generation %d is gone and this session has none: refresh before marking anything", e.Seq)
++	}
++	return fmt.Sprintf("generation %d is not the current one, %d is: refresh and mark against what is there now",
++		e.Seq, e.Current)
+ }
+ 
+ // Mark adds rs to what is reviewed of path on side at g.
+@@ -59,7 +64,13 @@ func removing(rs []Range) func([]store.LineRange) []store.LineRange {
+ 	}
+ }
+ 
++// fileAnchors spans every hunk, or the side f has bytes on when it has none, since a file with
++// no hunks still has to be markable.
+ func fileAnchors(f File) []Anchor {
++	if len(f.Hunks) == 0 {
++		return []Anchor{{Side: wholeSide(f.Diff.Status)}}
++	}
++
+ 	var out []Anchor
+ 	for _, h := range f.Hunks {
+ 		out = append(out, h.Anchors...)
+diff --git a/internal/tui/diffpane/preview.go b/internal/tui/diffpane/preview.go
+new file mode 100644
+index 0000000000000000000000000000000000000000..87799dbc187c99405a1c82ecdbe2bc9cb11241fd
+--- /dev/null
++++ b/internal/tui/diffpane/preview.go
+@@ -0,0 +1,41 @@
++package diffpane
++
++import (
++	"github.com/praxis-labs-io/zen-review/internal/diff"
++	"github.com/praxis-labs-io/zen-review/internal/review"
++)
++
++// preview is the whole file behind the hunks, filled in on p and dropped on the next reload.
++type preview struct {
++	path string
++	gen  int64
++	body review.Body
++}
++
++func (p preview) has(path string, gen int64) bool {
++	return p.path == path && p.gen == gen && len(p.body.Lines) > 0
++}
++
++// fill returns every line of the file as a row, the changed ones from the hunks and the rest as
++// context, so selection and the painter need no second path.
++func fill(f review.File, b review.Body) []diff.Line {
++	changed := make(map[int]diff.Line)
++	for _, h := range f.Hunks {
++		for _, l := range h.Lines {
++			if l.Kind != diff.Context {
++				changed[l.New] = l
++			}
++		}
++	}
++
++	out := make([]diff.Line, 0, len(b.Lines))
++	for i, text := range b.Lines {
++		no := i + 1
++		if l, ok := changed[no]; ok {
++			out = append(out, l)
++			continue
++		}
++		out = append(out, diff.Line{Kind: diff.Context, Old: no, New: no, Text: text})
++	}
++	return out
++}
+diff --git a/internal/tui/paint/paint.go b/internal/tui/paint/rows.go
+similarity index 90%
+rename from internal/tui/paint/paint.go
+rename to internal/tui/paint/rows.go
+index b13317594dd81387338bae1ded3f50de108d58a7..2af2a353bfcd2328c6634c55a46189385c3e3435 100644
+--- a/internal/tui/paint/paint.go
++++ b/internal/tui/paint/rows.go
+@@ -19,6 +19,8 @@ const (
+ 	Filler
+ )
+ 
++const tabWidth = 4
++
+ // Row is a painted line, padded to width so the tint reaches the edge of the pane.
+ type Row struct {
+ 	Kind   Kind
+@@ -34,7 +36,7 @@ func Render(t theme.Theme, r Row) string {
+ 		style = style.Background(bg)
+ 	}
+ 
+-	text := clip(r.Text, r.Width)
++	text := clip(expand(r.Text), r.Width)
+ 	return style.Render(text + strings.Repeat(" ", max(0, r.Width-lipgloss.Width(text))))
+ }
+ 
+@@ -48,6 +50,24 @@ func fill(t theme.Theme, k Kind) lipgloss.Color {
+ 	return nil
+ }
+ 
++// expand takes the tabs out, since a raw tab is a variable number of cells and one anywhere in a
++// line puts every column after it out of step with the line above.
++func expand(s string) string {
++	if !strings.ContainsRune(s, '\t') {
++		return s
++	}
++
++	var b strings.Builder
++	for _, r := range s {
++		if r != '\t' {
++			b.WriteRune(r)
++			continue
++		}
++		b.WriteString(strings.Repeat(" ", tabWidth-b.Len()%tabWidth))
++	}
++	return b.String()
++}
++
+ // clip cuts before lipgloss can wrap, since Style.Width folds a long line onto a second row.
+ func clip(s string, width int) string {
+ 	if lipgloss.Width(s) <= width {

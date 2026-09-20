@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/praxis-labs-io/zen-review/internal/config"
+	"github.com/praxis-labs-io/zen-review/internal/mockup"
 	"github.com/praxis-labs-io/zen-review/internal/review"
 	"github.com/praxis-labs-io/zen-review/internal/tui/app"
 	"github.com/praxis-labs-io/zen-review/internal/update"
@@ -19,10 +20,36 @@ import (
 )
 
 func runRoot(cmd *cobra.Command, opts *options) error {
-	if !interactive(opts.asJSON, term.IsTerminal(os.Stdout.Fd())) {
+	isTTY := term.IsTerminal(os.Stdout.Fd())
+
+	if opts.mockup {
+		return runMockup(cmd, isTTY)
+	}
+	if !interactive(opts.asJSON, isTTY) {
 		return runRefresh(cmd, opts)
 	}
 	return runTUI(cmd, opts)
+}
+
+// runMockup opens the reader on the fixture, ahead of finding a repository or a database. It
+// refuses the flags that would have to answer from a session it never opens.
+func runMockup(cmd *cobra.Command, isTTY bool) error {
+	switch {
+	case cmd.Flags().Changed("json"):
+		return errors.New("the mockup renders the reader and has no JSON to write, so it does not take --json")
+	case cmd.Flags().Changed("base"):
+		return errors.New("the mockup measures a fixture from a fixture base, so it does not take --base")
+	case !isTTY:
+		return errors.New("the mockup is the reader over a fixture, and there is no terminal to open it on")
+	}
+
+	src := mockup.New()
+
+	r, err := src.Reload()
+	if err != nil {
+		return err
+	}
+	return app.Run(cmd.Context(), src, mockup.Repo, r, app.Launch{})
 }
 
 func interactive(asJSON, isTTY bool) bool {

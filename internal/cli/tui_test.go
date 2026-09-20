@@ -209,3 +209,33 @@ func TestTheReaderChecksForAReleaseUnlessConfigSaysNot(t *testing.T) {
 		})
 	}
 }
+
+func TestMockupRefusesWhatItCannotAnswer(t *testing.T) {
+	tests := []struct {
+		name  string
+		args  []string
+		isTTY bool
+		says  string
+	}{
+		{"down a pipe", nil, false, "no terminal to open it on"},
+		{"with --json", []string{"--json"}, true, "does not take --json"},
+		{"with --base", []string{"--base", "main"}, true, "does not take --base"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := NewRoot()
+			if err := root.ParseFlags(append([]string{"--mockup"}, tt.args...)); err != nil {
+				t.Fatal(err)
+			}
+
+			err := runMockup(root, tt.isTTY)
+			if err == nil {
+				t.Fatal("the call went ahead")
+			}
+			if !strings.Contains(err.Error(), tt.says) {
+				t.Errorf("err = %v, want it to say %q", err, tt.says)
+			}
+		})
+	}
+}

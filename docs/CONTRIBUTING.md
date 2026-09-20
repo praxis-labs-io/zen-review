@@ -56,6 +56,7 @@ internal/
   review/         the engine. Sessions, generations, state, comments, remapping
   store/          SQLite and migrations
   cli/            the subcommands. A thin shell over review/
+  mockup/         the fixture changeset behind --mockup. No git, no database
   tui/            app, tree, diffpane, compose, comp
   tui/theme/      the palette, derived from the terminal
   tui/syntax/     Chroma tokens, not rendered text
@@ -120,6 +121,9 @@ Tests ship in the same commit as the behaviour they verify, never a follow-up.
   that proves anything.
 - `paint`'s goldens keep their escapes where the frame goldens are stripped.
   `cat` one to read it.
+- `internal/mockup` ships a patch and the whole text of each file it names, so a
+  test asserts every line the patch puts in the head is the line the body holds
+  at that number. Editing one fixture and not the other fails there.
 
 ## Commits and pull requests
 
@@ -139,7 +143,7 @@ it is read at merge time and again before a release:
 
 | Changed | Read |
 | --- | --- |
-| `internal/cli/**` | [`cli.md`](cli.md), [`agents.md`](agents.md) |
+| `internal/cli/**`, `internal/mockup/**` | [`cli.md`](cli.md), [`agents.md`](agents.md) |
 | `internal/update/**`, `internal/config/**` | [`install.md`](install.md) |
 | `internal/tui/**` | [`keys.md`](keys.md) |
 | `internal/review/**`, `internal/store/**` | [`guide.md`](guide.md) |

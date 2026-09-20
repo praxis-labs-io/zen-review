@@ -49,7 +49,7 @@ func Translate(f diff.File) Translation {
 // order. A whole-file range survives only a file whose bytes held.
 func (t Translation) Ranges(rs []Range) []Range {
 	if t.held {
-		return merge(rs)
+		return Merge(rs)
 	}
 
 	out := make([]Range, 0, len(rs))
@@ -59,7 +59,7 @@ func (t Translation) Ranges(rs []Range) []Range {
 		}
 		out = append(out, t.cut(r)...)
 	}
-	return merge(out)
+	return Merge(out)
 }
 
 // Anchor clamps r to the lines that survived, false when none did. A whole-file anchor holds
@@ -154,8 +154,9 @@ func contextOf(h diff.Hunk) []span {
 	return spans
 }
 
-func subtract(cur, rs []Range) []Range {
-	out := merge(cur)
+// Subtract cuts rs out of cur, splitting a range the cut lands inside. Both sides are merged first.
+func Subtract(cur, rs []Range) []Range {
+	out := Merge(cur)
 	for _, r := range rs {
 		var next []Range
 		for _, c := range out {
@@ -182,8 +183,9 @@ func (c Range) without(r Range) []Range {
 	return out
 }
 
-// merge joins only overlapping or touching ranges: a one-line gap is a line nobody read.
-func merge(rs []Range) []Range {
+// Merge joins only overlapping or touching ranges: a one-line gap is a line nobody read. A whole-file
+// range stays its own entry.
+func Merge(rs []Range) []Range {
 	if len(rs) == 0 {
 		return nil
 	}
