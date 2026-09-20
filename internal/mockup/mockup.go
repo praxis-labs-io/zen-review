@@ -2,7 +2,9 @@
 package mockup
 
 import (
+	"cmp"
 	"fmt"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -85,14 +87,21 @@ func (m *Mock) UnmarkFile(_ review.Generation, f review.File) (app.Reload, error
 	return m.marking(f.Diff.Path, review.FileAnchors(f), review.Subtract)
 }
 
+// AddComment files a base-side comment under the file's base-side name, the way the engine does,
+// or a comment on the base of a renamed file would be owned by nothing and drawn nowhere.
 func (m *Mock) AddComment(_ review.Generation, n review.Note) (app.Reload, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	f, found := m.file(n.Path)
+	if !found {
+		return app.Reload{}, fmt.Errorf("no file %s in the fixture", n.Path)
+	}
+
 	m.written++
 	now := time.Now().UTC()
 
-	c := comment("w"+strconv.Itoa(m.written), n.Path, n.Range.Start, n.Range.End, n.Scope, n.Body)
+	c := comment("w"+strconv.Itoa(m.written), anchoredAt(f, n.Side), n.Range.Start, n.Range.End, n.Scope, n.Body)
 	c.Side, c.CreatedAt, c.UpdatedAt = n.Side, now, now
 
 	m.comments = append(m.comments, c)
@@ -150,18 +159,39 @@ func (m *Mock) Body(_ review.Generation, path string) (review.Body, error) {
 // at is the fixture as one generation's worth of state. Every call derives a fresh changeset,
 // because the panes point into the files it hands back.
 func (m *Mock) at() app.Reload {
+	c := review.Derive(m.files, m.rows, cut())
+
 	return app.Reload{
 		Base:       m.base,
 		Generation: generation(),
-		Changeset:  review.Derive(m.files, m.rows, cut()),
-		Comments:   append([]store.Comment(nil), m.comments...),
+		Changeset:  c,
+		Comments:   inTreeOrder(c, m.comments),
 		Replaced:   replaced(),
 		Summary:    m.summary,
 	}
 }
 
-// marking applies arithmetic to every side the anchors touch, the way a write to the database
-// would: a base-side range is filed under the file's base-side name.
+// inTreeOrder walks the comments the way the ring does, since the engine hands them back sorted
+// and a comment written during the demo would otherwise land wherever it was appended.
+func inTreeOrder(c review.Changeset, comments []store.Comment) []store.Comment {
+	out := append([]store.Comment(nil), comments...)
+
+	slices.SortStableFunc(out, func(a, b store.Comment) int {
+		return cmp.Or(cmp.Compare(owner(c, a), owner(c, b)), cmp.Compare(a.Start, b.Start))
+	})
+	return out
+}
+
+func owner(c review.Changeset, comment store.Comment) int {
+	for i, f := range c.Files {
+		if f.Owns(comment) {
+			return i
+		}
+	}
+	return len(c.Files)
+}
+
+// marking applies arithmetic to every side the anchors touch, the way a write to the database would.
 func (m *Mock) marking(
 	path string,
 	anchors []review.Anchor,
@@ -186,10 +216,7 @@ func (m *Mock) marking(
 			continue
 		}
 
-		at := path
-		if side == store.SideBase {
-			at = f.BasePath()
-		}
+		at := anchoredAt(f, side)
 		m.rows = filed(m.rows, at, side, arithmetic(held(m.rows, at, side), rs))
 	}
 	return m.at(), nil
@@ -206,6 +233,14 @@ func (m *Mock) amend(id string, to func(*store.Comment)) (app.Reload, error) {
 		}
 	}
 	return app.Reload{}, fmt.Errorf("no comment %s in the fixture", id)
+}
+
+// anchoredAt is the name a comment on side is filed under, which a rename leaves behind on the base.
+func anchoredAt(f diff.File, side store.Side) string {
+	if side == store.SideBase {
+		return f.BasePath()
+	}
+	return f.Path
 }
 
 func (m *Mock) file(path string) (diff.File, bool) {

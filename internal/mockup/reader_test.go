@@ -135,3 +135,17 @@ func keystroke(k string) tea.KeyPressMsg {
 	}
 	return tea.KeyPressMsg{Code: rune(k[0]), Text: k}
 }
+
+// The fixture carries an orphan to show the "was" label, which only draws for an anchor the pane
+// found no row for. An orphan parked on a line the hunks still hold shows nothing.
+func TestTheOrphanedCardSaysWhereItsAnchorWas(t *testing.T) {
+	s := reader(t, 140, 44)
+
+	for range 6 {
+		s.press("]")
+		if strings.Contains(s.frame(), "was line") {
+			return
+		}
+	}
+	t.Errorf("no card said where its anchor was:\n%s", s.frame())
+}

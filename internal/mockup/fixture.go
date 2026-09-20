@@ -129,7 +129,7 @@ func comments() []store.Comment {
 			"Keyed on New only for added and context lines now, and removed lines fall through to the hunk rows."),
 		resolved("c4", rows, 22, 22, store.ScopeLine,
 			"Four looks small for a Go file. Eight is what gofmt assumes."),
-		orphaned("c5", rows, 71, 71, store.ScopeLine,
+		orphaned("c5", rows, 142, 142, store.ScopeLine,
 			"This clip runs on every row of the preview, which is the whole file."),
 		comment("c6", "assets/preview.png", 0, 0, store.ScopeFile,
 			"Worth checking the size of this before it lands in the README."),

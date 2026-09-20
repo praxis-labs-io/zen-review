@@ -150,7 +150,7 @@ func TestACommentIsWrittenEditedResolvedAndDeleted(t *testing.T) {
 		t.Fatalf("the fixture holds %d comments after one was written, want %d", len(r.Comments), was+1)
 	}
 
-	id := r.Comments[len(r.Comments)-1].ID
+	id := saying(t, r, "tabWidth belongs beside the row, not in the package").ID
 
 	r, err = m.EditComment(g, id, "tabWidth belongs beside the row")
 	if err != nil {
@@ -324,6 +324,19 @@ func stateOf(t *testing.T, r app.Reload, path string) review.State {
 	return fileOf(t, r, path).State
 }
 
+// saying finds a comment by its body, since the reload sorts and a new one is not last.
+func saying(t *testing.T, r app.Reload, body string) store.Comment {
+	t.Helper()
+
+	for _, c := range r.Comments {
+		if c.Body == body {
+			return c
+		}
+	}
+	t.Fatalf("no comment in the fixture reads %q", body)
+	return store.Comment{}
+}
+
 func commentOf(t *testing.T, r app.Reload, id string) store.Comment {
 	t.Helper()
 
@@ -334,4 +347,71 @@ func commentOf(t *testing.T, r app.Reload, id string) store.Comment {
 	}
 	t.Fatalf("the fixture holds no comment %s", id)
 	return store.Comment{}
+}
+
+// A comment on the base of a renamed file is filed under the base-side name, or nothing owns it
+// and no card draws it.
+func TestABaseSideCommentIsOwnedByTheFileItWasWrittenOn(t *testing.T) {
+	m := mockup.New()
+	g := generationOf(t, m)
+
+	r, err := m.AddComment(g, review.NoteOnLines(rows, store.SideBase, review.Range{Start: 37, End: 37},
+		"this clip ran on every row before the rename"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	c := saying(t, r, "this clip ran on every row before the rename")
+	f := fileOf(t, r, rows)
+
+	if c.Path != f.Diff.OldPath {
+		t.Errorf("the comment is filed under %s, want the base-side %s", c.Path, f.Diff.OldPath)
+	}
+	if !f.Owns(c) {
+		t.Errorf("%s does not own the comment written on its base side", rows)
+	}
+}
+
+// The engine hands comments back sorted, and the ring walks the slice it is given.
+func TestCommentsComeBackInTreeOrder(t *testing.T) {
+	m := mockup.New()
+
+	if _, err := m.AddComment(generationOf(t, m),
+		review.NoteOnLines(keys, store.SideHead, review.Range{Start: 24, End: 24}, "written mid-demo")); err != nil {
+		t.Fatal(err)
+	}
+
+	r, err := m.Reload()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	order := make(map[string]int, len(r.Changeset.Files))
+	for i, f := range r.Changeset.Files {
+		order[f.Diff.Path] = i
+	}
+
+	was := -1
+	for _, c := range r.Comments {
+		at, found := order[c.Path]
+		if !found {
+			at = order[fileOwning(t, r, c)]
+		}
+		if at < was {
+			t.Fatalf("comment %s on %s came back after a file further down the tree", c.ID, c.Path)
+		}
+		was = at
+	}
+}
+
+func fileOwning(t *testing.T, r app.Reload, c store.Comment) string {
+	t.Helper()
+
+	for _, f := range r.Changeset.Files {
+		if f.Owns(c) {
+			return f.Diff.Path
+		}
+	}
+	t.Fatalf("no file owns comment %s on %s", c.ID, c.Path)
+	return ""
 }
