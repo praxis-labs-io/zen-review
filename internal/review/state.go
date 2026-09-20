@@ -260,7 +260,7 @@ func coverageOf(rows []store.ReviewedRange) map[key]coverage {
 	}
 
 	for k, c := range out {
-		c.lines = merge(c.lines)
+		c.lines = Merge(c.lines)
 		out[k] = c
 	}
 	return out

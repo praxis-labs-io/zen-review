@@ -46,11 +46,11 @@ func (s *Session) UnmarkHunk(ctx context.Context, g Generation, path string, h H
 
 // MarkFile marks every hunk of f, or the file as a whole when it has none.
 func (s *Session) MarkFile(ctx context.Context, g Generation, f File) error {
-	return s.anchored(ctx, g, f.Diff.Path, "", fileAnchors(f), adding)
+	return s.anchored(ctx, g, f.Diff.Path, "", FileAnchors(f), adding)
 }
 
 func (s *Session) UnmarkFile(ctx context.Context, g Generation, f File) error {
-	return s.anchored(ctx, g, f.Diff.Path, f.Diff.Path, fileAnchors(f), removing)
+	return s.anchored(ctx, g, f.Diff.Path, f.Diff.Path, FileAnchors(f), removing)
 }
 
 // Reviewed is every range at g by path, side and start line. A base-side row carries the file's
@@ -85,17 +85,19 @@ func (s *Session) anchored(
 
 func adding(rs []Range) func([]store.LineRange) []store.LineRange {
 	return func(cur []store.LineRange) []store.LineRange {
-		return lineRanges(merge(append(ranges(cur), rs...)))
+		return lineRanges(Merge(append(ranges(cur), rs...)))
 	}
 }
 
 func removing(rs []Range) func([]store.LineRange) []store.LineRange {
 	return func(cur []store.LineRange) []store.LineRange {
-		return lineRanges(subtract(ranges(cur), rs))
+		return lineRanges(Subtract(ranges(cur), rs))
 	}
 }
 
-func fileAnchors(f File) []Anchor {
+// FileAnchors is every side and range marking f whole covers: each hunk's anchors, or the
+// side f has bytes on when it has no hunks.
+func FileAnchors(f File) []Anchor {
 	if len(f.Hunks) == 0 {
 		return []Anchor{{Side: wholeSide(f.Diff.Status)}}
 	}
