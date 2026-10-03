@@ -19,7 +19,7 @@ review reports code nobody read as read.
 The unit is a line range, so rewriting five lines of a forty-line hunk returns
 five lines unread and leaves the other thirty-five read.
 
-This is v0.1.0, an early release ahead of a launch.
+This is v0.2.0, an early release ahead of a launch.
 
 ![A review in progress: a comment, the agent's response, and the code it replaced](docs/images/comment-and-response.png)
 
@@ -152,12 +152,14 @@ facts. Closing is yours.
 from a failure:
 
 ```sh
-zen-review comments --state unresolved --exit-code
+zen-review comments --state open --exit-code
 ```
 
 `0` nothing open, `1` work waiting, `2` the call failed. A Stop hook reading only
 non-zero cannot tell an open comment from a broken git call, and blocks forever
-on the second.
+on the second. The gate asks for `open` and not `unresolved`: an agent that
+answered every comment leaves them `addressed`, which is still unresolved, so
+the gate it just cleared would hold it again.
 
 **Then look at what changed.** `s` rebuilds the changeset. Every reviewed range
 is translated through a diff of the two snapshots: a range that survives moves
