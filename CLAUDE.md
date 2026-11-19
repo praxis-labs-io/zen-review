@@ -128,7 +128,7 @@ Zen Review's five long-running buckets. Every ticket belongs to exactly one:
 
 ### Shipping
 
-Feature-complete work ships via the global `ship-feature` skill: `make all` green, push, draft PR, Copilot + `/code-review`, triage with no tech debt, push then mark ready as separate actions. Manual invocation only.
+Feature-complete work ships via the global `ship-feature` skill: `make all` green, push, draft PR, Codex + `/code-review`, triage with no tech debt, push then mark ready as separate actions. Manual invocation only.
 
 **There is no copy of it in this repo.**
 
