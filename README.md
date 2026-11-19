@@ -3,68 +3,18 @@
 A terminal code reviewer that keeps track of what you have read, for people
 reviewing changesets an agent wrote.
 
+[Install](#install) · [Docs](docs/guide.md) · [Releases](https://github.com/praxis-labs-io/zen-review/releases)
+
+![A review in progress: a comment, the agent's response, and the code it replaced](docs/images/comment-and-response.png)
+
 Agents write code faster than you can read it, and they rewrite code you have
 already read. zen-review stores what you have read as line ranges against the
 code itself, and carries those ranges through each new version of the
 changeset. A range that survives moves with its code. A range the rewrite
 destroyed comes back unread, and the file says it changed after you reviewed it.
-
-The ranges travel through a git diff of two committed snapshots. Each generation
-of the changeset is a real commit under `refs/zen-review/sessions/<id>`, so a
-rename, a base that moved, or a force-push that lost the fork point is answered
-by asking git where the lines went. Where git cannot answer, zen-review takes
-the lines back rather than guessing, because guessing they stayed put is how a
-review reports code nobody read as read.
-
-The unit is a line range, so rewriting five lines of a forty-line hunk returns
-five lines unread and leaves the other thirty-five read.
-
-This is v0.2.0, an early release ahead of a launch.
-
-![A review in progress: a comment, the agent's response, and the code it replaced](docs/images/comment-and-response.png)
-
-A real session against another repo: 28 files, 66 of 104 hunks read, five
-comments on it and none resolved yet. The tree marks what has been read and what
-has not.
-
-The card under the diff is a comment somebody answered. Hanging off it on a rail
-is the response, and under the words are the lines that response replaced. That
-block is the point: the state claims the work was done, and the code is what you
-confirm the claim against.
-
-The bar down the left of the cursor's row is where the next key acts. `n` walks
-to the next unreviewed hunk, `r` marks the one you are on and advances, and the
-count in the corner is what you are burning down.
-
-![The same changeset side by side, removals against their replacements](docs/images/side-by-side.png)
-
-`|` puts the two sides in two columns. A run of removals pairs against the run
-of additions after it, one row each, and the shorter side draws a blank rather
-than shifting up. The cursor lives in one column and only that column lights,
-so a comment written here is scoped to the side you are reading.
-
-Every question the reader answers, the CLI answers with no terminal attached:
-
-```
-base        main (fc8b758)  ·  no remote
-generation  1
-session     refs/zen-review/sessions/5817549abf0a013f
-
-M  main.go  reviewed    1 of 1  +2 -1
-     head  7  reviewed
-M  sum.go   unreviewed  0 of 1  +10 -3
-     head  4  unreviewed
-
-2 files, 1 of 2 reviewed
-```
-
-Bare `zen-review` opens one changeset: the merge base with the base branch,
-through the working tree, untracked files included. It takes no flag to narrow
-that, so what you are reviewing is the same thing on each run and every stored
-range measures against it.
-
-Two other terminal reviewers cover ground this one does not, and
-[Acknowledgments](#acknowledgments) says which one to reach for.
+This is v0.2.0, an early release ahead of a launch. Two other terminal reviewers
+cover ground this one does not, and [Acknowledgments](#acknowledgments) says
+which one to reach for.
 
 ## Install
 
@@ -111,13 +61,41 @@ zen-review
 It measures against your base branch, builds a snapshot of the changeset, and
 opens on the first hunk you have not read.
 
+Bare `zen-review` opens one changeset: the merge base with the base branch,
+through the working tree, untracked files included. It takes no flag to narrow
+that, so what you are reviewing is the same thing on each run and every stored
+range measures against it.
+
 `n` is the key that matters. A review is a burn-down and `n` walks to the next
 unreviewed hunk. `r` marks the one you are on and advances, so `r r r r` walks
 the whole thing. `c` writes a comment, `|` splits the diff into two columns, and
-`?` lists every key.
+`?` lists every key. The bar down the left of the cursor's row is where the next
+key acts, and the count in the corner is what you are burning down.
+
+![The same changeset side by side, removals against their replacements](docs/images/side-by-side.png)
+
+`|` puts the two sides in two columns. A run of removals pairs against the run
+of additions after it, one row each, and the shorter side draws a blank rather
+than shifting up. The cursor lives in one column and only that column lights,
+so a comment written here is scoped to the side you are reading.
 
 Come back tomorrow and it is where you left it. Let an agent rewrite half of it
 first and the review is still where you left it, minus the parts that moved.
+
+Every question the reader answers, the CLI answers with no terminal attached:
+
+```
+base        main (fc8b758)  ·  no remote
+generation  1
+session     refs/zen-review/sessions/5817549abf0a013f
+
+M  main.go  reviewed    1 of 1  +2 -1
+     head  7  reviewed
+M  sum.go   unreviewed  0 of 1  +10 -3
+     head  4  unreviewed
+
+2 files, 1 of 2 reviewed
+```
 
 ## Reviewing what an agent wrote
 
@@ -164,12 +142,25 @@ the gate it just cleared would hold it again.
 **Then look at what changed.** `s` rebuilds the changeset. Every reviewed range
 is translated through a diff of the two snapshots: a range that survives moves
 with its code, and a range the rewrite destroyed comes back unread with the file
-marked `changed after review`. Comments travel the same way. A comment whose
-code is gone is orphaned, and it stays on screen in that state.
+marked `changed after review`. The unit is a line range, so rewriting five
+lines of a forty-line hunk returns five lines unread and leaves the other
+thirty-five read. Comments travel the same way. A comment whose code is gone is
+orphaned, and it stays on screen in that state.
 
-An answered comment then draws the code its answer replaced, which is the first
-screenshot above. The state claims the work was done; the block is what you
-check the claim against without re-reading the file.
+The ranges travel through a git diff of two committed snapshots. Each generation
+of the changeset is a real commit under `refs/zen-review/sessions/<id>`, so a
+rename, a base that moved, or a force-push that lost the fork point is answered
+by asking git where the lines went. Where git cannot answer, zen-review takes
+the lines back rather than guessing, because guessing they stayed put is how a
+review reports code nobody read as read.
+
+An answered comment then draws the code its answer replaced, which is the
+screenshot at the top: a real session against another repo, 28 files, 66 of 104
+hunks read, five comments on it and none resolved yet. The tree marks what has
+been read and what has not. The card under the diff is the comment, and hanging
+off it on a rail is the response, with the lines it replaced under the words.
+The state claims the work was done; the block is what you check the claim
+against without re-reading the file.
 
 [Agents](docs/agents.md) has the whole loop, the JSON shape, and the hook config.
 
@@ -183,6 +174,12 @@ check the claim against without re-reading the file.
 - [Agents](docs/agents.md): driving the tool from a hook or a script
 - [Contributing](docs/CONTRIBUTING.md): building, testing and the layer
   boundaries
+
+## Contributing
+
+[docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) covers building, testing and the
+layer boundaries. Report vulnerabilities privately through the repository's
+Security tab.
 
 ## Acknowledgments
 
@@ -226,3 +223,5 @@ Drawn in your terminal's own colours. Rendered by
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+Part of the [Zen family](https://github.com/praxis-labs-io) from Praxis Labs.
