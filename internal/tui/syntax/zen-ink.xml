@@ -1,0 +1,31 @@
+<style name="zen-ink">
+  <entry type="Background" style="bg:#0a0d14"/>
+  <entry type="Text" style="#dce3ee"/>
+  <entry type="Other" style="#dce3ee"/>
+  <entry type="Error" style="#f2707a"/>
+  <entry type="Keyword" style="#b58cff"/>
+  <entry type="KeywordConstant" style="#ebc17a"/>
+  <entry type="KeywordType" style="#5cc8e0"/>
+  <entry type="Name" style="#dce3ee"/>
+  <entry type="NameAttribute" style="#ebc17a"/>
+  <entry type="NameBuiltin" style="#6e9bff"/>
+  <entry type="NameBuiltinPseudo" style="#ebc17a"/>
+  <entry type="NameClass" style="#5cc8e0"/>
+  <entry type="NameConstant" style="#ebc17a"/>
+  <entry type="NameFunction" style="#6e9bff"/>
+  <entry type="NameTag" style="#6e9bff"/>
+  <entry type="LiteralString" style="#6ee6b8"/>
+  <entry type="LiteralNumber" style="#ebc17a"/>
+  <entry type="Operator" style="#5cc8e0"/>
+  <entry type="OperatorWord" style="#b58cff"/>
+  <entry type="Punctuation" style="#4a5468"/>
+  <entry type="Comment" style="italic #4a5468"/>
+  <entry type="CommentPreproc" style="#b58cff"/>
+  <entry type="GenericDeleted" style="#f2707a"/>
+  <entry type="GenericEmph" style="italic"/>
+  <entry type="GenericHeading" style="bold #6ee6b8"/>
+  <entry type="GenericInserted" style="#6ee6b8"/>
+  <entry type="GenericStrong" style="bold #f1f5fb"/>
+  <entry type="GenericSubheading" style="bold #6ee6b8"/>
+  <entry type="GenericUnderline" style="underline"/>
+</style>

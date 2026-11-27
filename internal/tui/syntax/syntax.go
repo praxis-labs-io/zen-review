@@ -2,6 +2,9 @@
 package syntax
 
 import (
+	"bytes"
+	_ "embed"
+	"fmt"
 	"hash/fnv"
 	"image/color"
 	"strings"
@@ -11,6 +14,17 @@ import (
 	"github.com/alecthomas/chroma/v2/lexers"
 	"github.com/alecthomas/chroma/v2/styles"
 )
+
+//go:embed zen-ink.xml
+var zenInk []byte
+
+func init() {
+	style, err := chroma.NewXMLStyle(bytes.NewReader(zenInk))
+	if err != nil {
+		panic(fmt.Sprintf("parsing the bundled zen-ink style: %v", err))
+	}
+	styles.Register(style)
+}
 
 // Token is one run of code in one color. Color is nil where the style says nothing.
 type Token struct {

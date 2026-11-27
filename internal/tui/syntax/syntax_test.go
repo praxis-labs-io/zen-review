@@ -25,6 +25,31 @@ func TestTheDefaultThemeNamesAStyleChromaShips(t *testing.T) {
 	colorizer(t)
 }
 
+func TestZenInkIsBundled(t *testing.T) {
+	s, ok := syntax.New("zen-ink")
+	if !ok {
+		t.Fatal("zen-ink is not a known style")
+	}
+
+	got := make(map[string]string)
+	for _, tok := range s.Lines("a.go", `const n = "s" + 4 // c`)[0] {
+		got[strings.TrimSpace(tok.Text)] = hex(tok.Color)
+	}
+
+	tests := []struct{ text, want string }{
+		{"const", "#b58cff"},
+		{`"s"`, "#6ee6b8"},
+		{"4", "#ebc17a"},
+		{"// c", "#4a5468"},
+		{"n", "#dce3ee"},
+	}
+	for _, tt := range tests {
+		if got[tt.text] != tt.want {
+			t.Errorf("%s = %s, want %s", tt.text, got[tt.text], tt.want)
+		}
+	}
+}
+
 func TestAnUnknownStyleStillColorizes(t *testing.T) {
 	s, ok := syntax.New("not-a-chroma-style")
 	if ok {
