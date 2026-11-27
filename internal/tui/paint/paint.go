@@ -128,7 +128,7 @@ func (p Painter) weight(k Kind) (string, color.Color, color.Color) {
 	case Removed:
 		return "−", p.Theme.Error, p.Theme.RemovedBackground
 	}
-	return " ", p.Theme.Subtle, nil
+	return " ", p.Theme.Subtle, p.Theme.Background
 }
 
 type Header struct {
