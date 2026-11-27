@@ -175,7 +175,7 @@ It is JSON, and every key is optional:
 
 | Key | What it does |
 | --- | --- |
-| `syntaxTheme` | Any Chroma style name, or the bundled `zen-ink`. Unset pairs `github-dark` or `github` with the background. |
+| `syntaxTheme` | Any Chroma style name, or the bundled `zen-ink`, a dark style. Unset pairs `github-dark` or `github` with the background. |
 | `background`, `foreground` | The colours the palette is derived from, in place of what the terminal reports. A terminal that answers no colour query needs `background` to get shades at all. |
 | `addedHue`, `removedHue` | The hues the added and removed rows lean toward, in place of the terminal's green and red. Like `foreground`, they derive against a background, so with none reported or named they do nothing and the status bar says so. |
 | `paintBackground` | Off by default, so the terminal's own background, translucency included, shows through. On paints `background`, or the reported one. |
