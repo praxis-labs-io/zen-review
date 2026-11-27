@@ -64,6 +64,9 @@ func (c Config) FoldsSettled() bool {
 
 const legacyUpdateCheck = "update_check"
 
+// colorKeys fail together, because a palette with one colour missing reads as broken.
+var colorKeys = map[string]bool{"background": true, "foreground": true, "addedHue": true, "removedHue": true, "theme": true}
+
 var fields = map[string]func(*Config, json.RawMessage) error{
 	"updateCheck":     func(c *Config, raw json.RawMessage) error { return json.Unmarshal(raw, &c.UpdateCheck) },
 	"syntaxTheme":     func(c *Config, raw json.RawMessage) error { return json.Unmarshal(raw, &c.SyntaxTheme) },
@@ -175,6 +178,7 @@ func Load() (Config, error) {
 func decode(keys map[string]json.RawMessage) (Config, []string) {
 	var cfg Config
 	var problems []string
+	colorsFailed := false
 
 	names := make([]string, 0, len(keys))
 	for k := range keys {
@@ -194,9 +198,15 @@ func decode(keys map[string]json.RawMessage) (Config, []string) {
 		next := cfg
 		if err := set(&next, keys[key]); err != nil {
 			problems = append(problems, fmt.Sprintf("%s: %v", key, err))
+			colorsFailed = colorsFailed || colorKeys[key]
 			continue
 		}
 		cfg = next
+	}
+
+	if colorsFailed {
+		cfg.Background, cfg.Foreground, cfg.AddedHue, cfg.RemovedHue, cfg.Theme = "", "", "", "", nil
+		problems = append(problems, "a color key did not read, so no color from the config is applied")
 	}
 
 	if raw, ok := keys[legacyUpdateCheck]; ok {

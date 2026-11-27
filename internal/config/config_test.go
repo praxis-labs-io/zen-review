@@ -248,3 +248,18 @@ func TestAnUnreadableXDGDirectoryFallsBackToHome(t *testing.T) {
 		t.Errorf("Path() = %q, want %q", got, want)
 	}
 }
+
+func TestABadColorKeyDropsEveryColor(t *testing.T) {
+	writeConfig(t, `{"background": "#ffffff", "addedHue": "#00ff00", "paintBackground": true, "theme": {"text": false}}`)
+
+	got, err := config.Load()
+	if err == nil || !strings.Contains(err.Error(), "no color from the config is applied") {
+		t.Errorf("Load() error = %v, want it to say the colors were dropped", err)
+	}
+	if got.Background != "" || got.AddedHue != "" || got.Theme != nil {
+		t.Errorf("Background = %q, AddedHue = %q, Theme = %v, want every color dropped", got.Background, got.AddedHue, got.Theme)
+	}
+	if !got.PaintBackground {
+		t.Error("PaintBackground = false, want a key that is not a color kept")
+	}
+}
