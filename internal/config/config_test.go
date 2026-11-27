@@ -51,6 +51,7 @@ func TestPathPrefersTheOverrideThenAnXDGFileThenHome(t *testing.T) {
 		{"~/.config when XDG is unset", "", "", filepath.Join(home, ".config", "zen-review", "config.json"),
 			filepath.Join(home, ".config", "zen-review", "config.json")},
 		{"home with nothing else", "", "", "", filepath.Join(home, ".zen-review", "config.json")},
+		{"a relative XDG home", "", "relative", "", filepath.Join(home, ".zen-review", "config.json")},
 	}
 
 	for _, tt := range tests {
@@ -202,7 +203,6 @@ func TestTheOldUpdateCheckNameStillReadsAndSaysSo(t *testing.T) {
 		updates bool
 	}{
 		{"alone", `{"update_check": false}`, false},
-		{"beside the new name", `{"update_check": false, "updateCheck": true}`, true},
 	}
 
 	for _, tt := range tests {
@@ -217,5 +217,34 @@ func TestTheOldUpdateCheckNameStillReadsAndSaysSo(t *testing.T) {
 				t.Errorf("ChecksForUpdates() = %v, want %v", got.ChecksForUpdates(), tt.updates)
 			}
 		})
+	}
+}
+
+func TestTheOldUpdateCheckNameIsIgnoredBesideTheNewOne(t *testing.T) {
+	writeConfig(t, `{"update_check": false, "updateCheck": true}`)
+
+	got, err := config.Load()
+	if err != nil {
+		t.Errorf("Load() error = %v, want the rename notice gone once the file says updateCheck", err)
+	}
+	if !got.ChecksForUpdates() {
+		t.Error("ChecksForUpdates() = false, want updateCheck to win")
+	}
+}
+
+func TestAnUnreadableXDGDirectoryFallsBackToHome(t *testing.T) {
+	home := t.TempDir()
+	xdg := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv(config.DirEnv, "")
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	touch(t, filepath.Join(xdg, "zen-review"))
+
+	got, err := config.Path()
+	if err != nil {
+		t.Fatalf("Path() error = %v, want a fall back to home", err)
+	}
+	if want := filepath.Join(home, ".zen-review", "config.json"); got != want {
+		t.Errorf("Path() = %q, want %q", got, want)
 	}
 }

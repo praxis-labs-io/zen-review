@@ -105,7 +105,7 @@ func Dir() (string, error) {
 	return filepath.Join(home, dirName), nil
 }
 
-// Path returns the config file: under DirEnv when set, else the XDG one when it exists, else under Dir.
+// Path returns the config file: under DirEnv when set, else the XDG one when it can be read, else under Dir.
 func Path() (string, error) {
 	if override := os.Getenv(DirEnv); override != "" {
 		return filepath.Join(override, fileName), nil
@@ -117,8 +117,6 @@ func Path() (string, error) {
 	}
 	if _, err := os.Stat(xdg); err == nil {
 		return xdg, nil
-	} else if !errors.Is(err, fs.ErrNotExist) {
-		return "", fmt.Errorf("checking for %s: %w", xdg, err)
 	}
 
 	dir, err := Dir()
@@ -128,9 +126,10 @@ func Path() (string, error) {
 	return filepath.Join(dir, fileName), nil
 }
 
+// xdgPath ignores a relative XDG_CONFIG_HOME, as the XDG spec requires.
 func xdgPath() (string, error) {
 	base := os.Getenv(xdgHomeEnv)
-	if base == "" {
+	if !filepath.IsAbs(base) {
 		home, err := os.UserHomeDir()
 		if err != nil {
 			return "", fmt.Errorf("resolving the home directory: %w", err)
@@ -201,8 +200,8 @@ func decode(keys map[string]json.RawMessage) (Config, []string) {
 	}
 
 	if raw, ok := keys[legacyUpdateCheck]; ok {
-		problems = append(problems, legacyUpdateCheck+" is now updateCheck, and the old name stops working in the next release")
 		if _, named := keys["updateCheck"]; !named {
+			problems = append(problems, legacyUpdateCheck+" is now updateCheck, and the old name stops working in the next release")
 			next := cfg
 			if err := fields["updateCheck"](&next, raw); err != nil {
 				problems = append(problems, fmt.Sprintf("%s: %v", legacyUpdateCheck, err))
