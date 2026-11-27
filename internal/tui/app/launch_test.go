@@ -147,6 +147,15 @@ func TestTheLaunchThemeTakesTheConfig(t *testing.T) {
 			},
 		},
 		{
+			name: "the bundled syntax style",
+			cfg:  config.Config{SyntaxTheme: "zen-ink"},
+			check: func(t *testing.T, got theme.Theme) {
+				if got.Syntax != "zen-ink" {
+					t.Errorf("Syntax = %q, want zen-ink", got.Syntax)
+				}
+			},
+		},
+		{
 			name:    "an unknown syntax style",
 			cfg:     config.Config{SyntaxTheme: "nope"},
 			warning: `no style "nope"`,
