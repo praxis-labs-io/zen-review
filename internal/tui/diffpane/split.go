@@ -17,13 +17,13 @@ const splitRule = "│"
 
 // ToggleSplit flips side-by-side and returns 0, or how many columns short the pane is when it refuses to turn on.
 func (m *Model) ToggleSplit() int {
-	if !m.split {
+	if !m.splitting() {
 		if short := m.splitShort(); short > 0 {
 			return short
 		}
 	}
 
-	m.split = !m.split
+	m.split = !m.splitting()
 	m.remode()
 	m.reveal()
 	return 0

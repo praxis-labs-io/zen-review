@@ -61,7 +61,7 @@ internal/
   tui/theme/      the palette, derived from the terminal
   tui/syntax/     Chroma tokens, not rendered text
   tui/paint/      the diff-line painter. Pure functions
-  config/         ~/.zen-review/config.json
+  config/         the reader's settings file. Imports nothing from tui/
   update/         the latest-release lookup and the installer run
   version/        the version stamped in at build time
 

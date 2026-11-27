@@ -137,8 +137,10 @@ the bar says how many columns short the pane is. A terminal shrinking under a
 split pane falls back to unified and keeps the answer, so widening brings it back
 without a second press.
 
-The mode lasts the run. Nothing stores it: a default belongs with your other
-preferences, not in the session the review is kept in.
+The mode lasts the run, and the session stores nothing: a default belongs with
+your other preferences. `split` in the [config file](install.md#the-config-file)
+is that default. A pane too narrow for it opens unified with nothing on the bar,
+since nobody pressed anything, and splits once it is widened.
 
 ### Which column you are in
 
@@ -249,7 +251,9 @@ while it still wants you. Orphaned leaves the family, being a loss and not a
 stage.
 
 A settled card folds to one row and keeps its box, and takes its response and the
-replaced code with it. Its footer names the direction the key goes rather than
+replaced code with it. With `foldSettled` off in the
+[config file](install.md#the-config-file) it opens like any other, and `space`
+still folds it. Its footer names the direction the key goes rather than
 the state it is in.
 
 `x`, `e` and `D` are named in the lit card's own footer, because

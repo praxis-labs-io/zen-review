@@ -13,14 +13,6 @@ import (
 // ReleaseCheck returns the tag of a release newer than the running build, or "" when there is none.
 type ReleaseCheck func(ctx context.Context) (string, error)
 
-// Launch is what the reader is handed at open beside the review.
-type Launch struct {
-	// Check nil skips the release check.
-	Check ReleaseCheck
-	// Warning shows on the status bar until the first key.
-	Warning error
-}
-
 type newerReleaseMsg struct {
 	tag string
 }

@@ -176,3 +176,17 @@ func TestGoldenHeaderBarred(t *testing.T) {
 		Bar:  testtheme.Dark.Accent,
 	}, paint.CodeColumn(3), 40))
 }
+
+func TestGoldenContextOnAPaintedBackground(t *testing.T) {
+	th := testtheme.Dark
+	th.Background = testtheme.Surface.Background
+	p := paint.Painter{Theme: th}
+
+	line := paint.Line{Kind: paint.Context, Old: 11, New: 12, Tokens: tokens()}
+	gutter := paint.Gutter(12)
+	compare(t, "context_painted_background", strings.Join([]string{
+		p.Line(line, gutter, 40),
+		p.Body(line, 40),
+		p.Half(line, gutter, 30),
+	}, "\n"))
+}

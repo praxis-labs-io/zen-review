@@ -182,8 +182,12 @@ func TestTheReaderChecksForAReleaseUnlessConfigSaysNot(t *testing.T) {
 		warning string
 	}{
 		{name: "no config", check: true},
-		{name: "turned off", body: `{"update_check": false}`},
-		{name: "a key it does not know", body: `{"update_checks": false}`, warning: "the release check is off"},
+		{name: "turned off", body: `{"updateCheck": false}`},
+		{name: "turned off by the old name", body: `{"update_check": false}`, warning: "update_check is now updateCheck"},
+		{name: "a key it does not know", body: `{"updateChecks": false}`, warning: "the release check is off"},
+		{name: "a file that does not parse", body: `{"updateCheck": false,`, warning: "the release check is off"},
+		{name: "an opt-out of the wrong type", body: `{"updateCheck": "false"}`, warning: "the release check is off"},
+		{name: "a bad key beside an opt-in", body: `{"updateCheck": true, "tabWidth": 0}`, check: true, warning: "tabWidth"},
 	}
 
 	for _, tt := range tests {

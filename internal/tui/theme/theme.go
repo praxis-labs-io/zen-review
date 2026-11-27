@@ -24,7 +24,7 @@ type Theme struct {
 	Error   color.Color
 	Actor   color.Color
 
-	// Background stays nil, since painting it costs a translucent terminal its translucency.
+	// Background is nil unless config paints one, since painting it costs a translucent terminal its translucency.
 	Background         color.Color
 	SelectedBackground color.Color
 

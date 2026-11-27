@@ -103,7 +103,7 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 `
 
 	c := testchangeset.Derive(t, patch)
-	m := diffpane.New(testtheme.Dark)
+	m := diffpane.New(testtheme.Dark, diffpane.Prefs{})
 	m.SetSize(splitWide, 10)
 	m.SetFile(&c.Files[0], nil, nil, 2)
 	if short := m.ToggleSplit(); short > 0 {
@@ -137,7 +137,7 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 `
 
 	c := testchangeset.Derive(t, patch)
-	m := diffpane.New(testtheme.Dark)
+	m := diffpane.New(testtheme.Dark, diffpane.Prefs{})
 	m.SetSize(splitWide, 10)
 	m.SetFile(&c.Files[0], nil, nil, 2)
 	if short := m.ToggleSplit(); short > 0 {
@@ -238,7 +238,7 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 `
 
 	c := testchangeset.Derive(t, patch)
-	m := diffpane.New(testtheme.Dark)
+	m := diffpane.New(testtheme.Dark, diffpane.Prefs{})
 	m.SetSize(splitWide, 10)
 	m.SetFile(&c.Files[0], nil, nil, 2)
 	if short := m.ToggleSplit(); short > 0 {
@@ -358,7 +358,7 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 `
 
 	c := testchangeset.Derive(t, patch)
-	m := diffpane.New(testtheme.Dark)
+	m := diffpane.New(testtheme.Dark, diffpane.Prefs{})
 	m.SetSize(splitWide, 10)
 	m.SetFile(&c.Files[0], nil, nil, 2)
 	if short := m.ToggleSplit(); short > 0 {
@@ -496,7 +496,7 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 `
 
 	c := testchangeset.Derive(t, patch)
-	m := diffpane.New(testtheme.Dark)
+	m := diffpane.New(testtheme.Dark, diffpane.Prefs{})
 	m.SetSize(splitWide, 16)
 	m.SetFile(&c.Files[0], nil, nil, 2)
 	if short := m.ToggleSplit(); short > 0 {

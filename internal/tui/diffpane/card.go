@@ -97,7 +97,7 @@ func (m *Model) LeaveCard() {
 }
 
 func (m Model) folds(c store.Comment) bool {
-	return (c.State == store.CommentResolved) != m.folded[c.ID]
+	return (c.State == store.CommentResolved && !m.openSettled) != m.folded[c.ID]
 }
 
 func (m Model) cardBox() (int, int) {
