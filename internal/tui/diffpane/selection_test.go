@@ -271,7 +271,7 @@ func TestASelectionStandsWithoutAFill(t *testing.T) {
 	bare := func(t *testing.T) diffpane.Model {
 		t.Helper()
 
-		m := diffpane.New(testtheme.Bare)
+		m := diffpane.New(testtheme.Bare, diffpane.Prefs{})
 		m.SetSize(60, 10)
 		m.SetFile(fileAt(t, testchangeset.Nested(t), "internal/review/state.go"), nil, nil, 2)
 		m.Select(store.SideHead, 13)

@@ -137,13 +137,60 @@ Only the reader asks. `status`, `comments` and every other command, and a bare
 `zen-review` with no terminal, never touch the network, so an agent or a hook
 running them doesn't either. A `dev` build never asks.
 
-To turn it off, put this in `~/.zen-review/config.json`:
+To turn it off, put this in [the config file](#the-config-file):
 
 ```json
-{ "update_check": false }
+{ "updateCheck": false }
 ```
 
-`ZEN_REVIEW_CONFIG_DIR` moves that directory. A key the file doesn't know, or a
-file that doesn't parse, is named on the status bar when the reader opens, and
-the check stays off until it's fixed. `zen-review update` checks regardless,
-since running it is the ask.
+`update_check`, the name v0.2.0 shipped with, still reads for one release, and the
+status bar names the new key until the file says it. `zen-review update` checks
+regardless, since running it is the ask.
+
+## The config file
+
+The reader reads `$XDG_CONFIG_HOME/zen-review/config.json` (or
+`~/.config/zen-review/config.json`) when that file exists, and
+`~/.zen-review/config.json` otherwise. `zen-review config path` prints which.
+`ZEN_REVIEW_CONFIG_DIR` overrides both, and also moves the update cache.
+
+It is JSON, and every key is optional:
+
+```json
+{
+  "syntaxTheme": "dracula",
+  "background": "#0a0d14",
+  "foreground": "#dce3ee",
+  "addedHue": "#6ee6b8",
+  "removedHue": "#f2707a",
+  "paintBackground": true,
+  "theme": { "accent": "#6ee6b8", "selectedBackground": "#1c2536" },
+  "split": true,
+  "tabWidth": 8,
+  "foldSettled": false,
+  "updateCheck": true
+}
+```
+
+| Key | What it does |
+| --- | --- |
+| `syntaxTheme` | Any Chroma style name. Unset pairs `github-dark` or `github` with the background. |
+| `background`, `foreground` | The colours the palette is derived from, in place of what the terminal reports. A terminal that answers no colour query needs them to get shades at all. |
+| `addedHue`, `removedHue` | The hues the added and removed rows lean toward, in place of the terminal's green and red. |
+| `paintBackground` | Off by default, so the terminal's own background, translucency included, shows through. On paints `background`, or the reported one. |
+| `theme` | One colour per token, laid over the derived palette: `text`, `accent`, `subtle`, `muted`, `inverted`, `success`, `warning`, `error`, `actor`, `selectedBackground`, `addedBackground`, `removedBackground`, `border`, `borderSubtle`, `borderMuted`. |
+| `split` | Whether diffs open side by side, as if `|` had been pressed. |
+| `tabWidth` | Columns a tab takes, 1 to 16. Unset is 4. |
+| `foldSettled` | Whether resolved cards open folded. On by default. |
+| `updateCheck` | Whether the reader checks for a newer release. On by default. |
+
+A colour in `theme` is a hex like `"#c4a7e7"` or an ANSI index from 0 to 255,
+which follows the terminal's palette. The four derivation inputs take hex only:
+they are blended, and an index would blend as its standard colour rather than
+the one your terminal shows. A pinned `text` stops following a terminal
+recoloured mid-session, and a pinned `background` outranks one.
+
+Nothing in the file stops the reader opening. A key it doesn't know, or a value
+it can't use, is named on the status bar and that key keeps its default. One bad
+colour drops the whole set of colours, because a palette with one colour missing
+reads as broken. A file that doesn't parse is all defaults.

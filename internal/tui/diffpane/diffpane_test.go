@@ -30,7 +30,7 @@ func commented(t *testing.T, path string, width, height int, comments ...store.C
 	t.Helper()
 
 	c := testchangeset.Nested(t)
-	m := diffpane.New(testtheme.Dark)
+	m := diffpane.New(testtheme.Dark, diffpane.Prefs{})
 	m.SetSize(width, height)
 	m.SetFile(fileAt(t, c, path), comments, nil, 2)
 	return m
@@ -144,7 +144,7 @@ func TestSourceCannotWriteToTheTerminal(t *testing.T) {
 		"+const shout = \"\x1b[31mred\x1b[0m\a\"\n"
 
 	c := testchangeset.Derive(t, patch)
-	m := diffpane.New(testtheme.Dark)
+	m := diffpane.New(testtheme.Dark, diffpane.Prefs{})
 	m.SetSize(60, 4)
 	m.SetFile(&c.Files[0], nil, nil, 2)
 
@@ -166,7 +166,7 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 `
 
 	c := testchangeset.Derive(t, patch)
-	m := diffpane.New(testtheme.Dark)
+	m := diffpane.New(testtheme.Dark, diffpane.Prefs{})
 	m.SetSize(60, 6)
 	m.SetFile(&c.Files[0], nil, nil, 2)
 
@@ -208,7 +208,7 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 	}
 
 	c := testchangeset.Derive(t, patch)
-	m := diffpane.New(testtheme.Dark)
+	m := diffpane.New(testtheme.Dark, diffpane.Prefs{})
 	m.SetSize(60, 4)
 	m.SetFile(&c.Files[0], nil, nil, 2)
 
@@ -297,7 +297,7 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 `
 
 	c := testchangeset.Derive(t, patch)
-	m := diffpane.New(testtheme.Dark)
+	m := diffpane.New(testtheme.Dark, diffpane.Prefs{})
 	m.SetSize(60, 4)
 	m.SetFile(&c.Files[0], nil, nil, 2)
 
@@ -375,7 +375,7 @@ func TestAResizeKeepsTheReaderWhereTheyScrolledTo(t *testing.T) {
 func TestTheFirstSizingScrollsToTheCursor(t *testing.T) {
 	c := testchangeset.Nested(t)
 
-	m := diffpane.New(testtheme.Dark)
+	m := diffpane.New(testtheme.Dark, diffpane.Prefs{})
 	m.SetFile(fileAt(t, c, twoHunks), nil, nil, 2)
 	m.Select(store.SideHead, 124)
 	m.SetSize(60, 8)
@@ -1010,7 +1010,7 @@ index bab081fdb7372d4e471fcbb12b886e1a7cddcae2..a59766543cc0c21a4435adcb73723af1
 	c := testchangeset.Derive(t, patch)
 	old := testchangeset.OnBase(testchangeset.Comment("111111111111", "run.py", 1, 1, "python is gone"))
 
-	m := diffpane.New(testtheme.Dark)
+	m := diffpane.New(testtheme.Dark, diffpane.Prefs{})
 	m.SetSize(76, 10)
 	m.SetFile(&c.Files[0], []store.Comment{old}, nil, 2)
 
@@ -1080,7 +1080,7 @@ func TestACommentFrozenAtAnOlderGenerationDrawsWhereItPointed(t *testing.T) {
 	stale.GenerationID = 1
 
 	c := testchangeset.Nested(t)
-	m := diffpane.New(testtheme.Dark)
+	m := diffpane.New(testtheme.Dark, diffpane.Prefs{})
 	m.SetSize(76, 30)
 	m.SetFile(fileAt(t, c, twoHunks), []store.Comment{stale}, nil, 2)
 
@@ -1095,7 +1095,7 @@ func TestACommentFrozenAtThisGenerationStaysWhereItIs(t *testing.T) {
 		store.CommentResolved)
 
 	c := testchangeset.Nested(t)
-	m := diffpane.New(testtheme.Dark)
+	m := diffpane.New(testtheme.Dark, diffpane.Prefs{})
 	m.SetSize(76, 30)
 	m.SetFile(fileAt(t, c, twoHunks), []store.Comment{settled}, nil, 2)
 
@@ -1245,7 +1245,7 @@ func blocked(t *testing.T, comments []store.Comment, width, height int, block ..
 	t.Helper()
 
 	c := testchangeset.Nested(t)
-	m := diffpane.New(testtheme.Dark)
+	m := diffpane.New(testtheme.Dark, diffpane.Prefs{})
 	m.SetSize(width, height)
 	m.SetFile(fileAt(t, c, twoHunks), comments, map[string][]string{respondedCard: block}, 2)
 	return m
@@ -1433,7 +1433,7 @@ func TestABareCardStandsWithoutAFill(t *testing.T) {
 	const path = "internal/review/state.go"
 
 	c := testchangeset.Nested(t)
-	m := diffpane.New(testtheme.Bare)
+	m := diffpane.New(testtheme.Bare, diffpane.Prefs{})
 
 	m.SetSize(18, 20)
 	m.SetFile(fileAt(t, c, path), testchangeset.NestedComments(), nil, 2)

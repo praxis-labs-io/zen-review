@@ -92,7 +92,7 @@ func New(t theme.Theme, src Source, repo string, r Reload, l Launch) Model {
 		replaced:  r.Replaced,
 		summary:   r.Summary,
 		tree:      tree.New(t, r.Changeset),
-		diff:      diffpane.New(t),
+		diff:      diffpane.New(t, panePrefs(l.Config)),
 		help:      comp.Help(t),
 		compose:   compose.New(t),
 		picker:    newBasePicker(t),
@@ -113,7 +113,8 @@ func New(t theme.Theme, src Source, repo string, r Reload, l Launch) Model {
 // Run opens the reader on the terminal and returns when it closes. It can return
 // with a Source call still running, so the caller must wait before releasing the session.
 func Run(ctx context.Context, src Source, repo string, r Reload, l Launch) error {
-	t := theme.Terminal(theme.Query(os.Stdin, os.Stdout))
+	t, err := launchTheme(l.Config, theme.Query(os.Stdin, os.Stdout))
+	l.Warning = alsoWarn(l.Warning, err)
 
 	if _, err := tea.NewProgram(New(t, src, repo, r, l), tea.WithContext(ctx)).Run(); err != nil {
 		return fmt.Errorf("running the reader: %w", err)

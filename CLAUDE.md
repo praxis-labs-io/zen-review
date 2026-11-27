@@ -75,9 +75,14 @@ to keep true:
 - `Text` is `lipgloss.NoColor{}`, which writes no sequence and tracks a terminal
   recoloured mid-session. Its `RGBA()` is black, so anything spelling a colour
   out for a third party special-cases it.
-- `Background` is nil and stays nil. Every shade is derived against the
-  terminal's own background, so painting it changes nothing visible and costs a
-  translucent terminal its translucency.
+- `Background` is nil unless the config's `paintBackground` is on. Every shade
+  is derived against the terminal's own background, so painting it changes
+  nothing visible and costs a translucent terminal its translucency. Painted, a
+  context row takes it as its tint, or unchanged lines sit on the terminal's
+  colour between panes on the painted one.
+- A config colour that feeds the derivation (`background`, `foreground`,
+  `addedHue`, `removedHue`) is hex only, for the reason under Styling in the
+  rules. A token override may be a slot.
 - Nothing answered is not a guess. The three surfaces go nil rather than take a
   slot, because slot 0 is the background on many dark palettes.
 - With no background reported, the text weights take `NoColor`. Slot 7 vanishes

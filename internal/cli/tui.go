@@ -275,13 +275,11 @@ func runTUI(cmd *cobra.Command, opts *options) (err error) {
 
 func launch() app.Launch {
 	cfg, err := config.Load()
-	if err != nil {
-		return app.Launch{Warning: fmt.Errorf("%w, so the release check is off", err)}
+	l := app.Launch{Config: cfg, Warning: err}
+	if cfg.ChecksForUpdates() {
+		l.Check = newerRelease
 	}
-	if !cfg.ChecksForUpdates() {
-		return app.Launch{}
-	}
-	return app.Launch{Check: newerRelease}
+	return l
 }
 
 func newerRelease(ctx context.Context) (string, error) {

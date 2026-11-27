@@ -93,8 +93,9 @@ type Model struct {
 	comments []store.Comment
 	rows     []row
 
-	cards  []card
-	folded map[string]bool
+	cards       []card
+	folded      map[string]bool
+	openSettled bool
 
 	replaced map[string][]string
 	expanded map[string]bool
@@ -154,18 +155,30 @@ type row struct {
 	seq int
 }
 
+// Prefs are the reader's standing choices for how the pane opens. The zero value is the default.
+type Prefs struct {
+	// Split asks for side-by-side, which a pane too narrow defers until it is widened.
+	Split bool
+	// TabWidth is 0 for paint's default.
+	TabWidth int
+	// OpenSettled starts resolved cards unfolded.
+	OpenSettled bool
+}
+
 // New returns an empty pane. An unknown syntax style degrades to other colours rather than failing.
-func New(t theme.Theme) Model {
+func New(t theme.Theme, p Prefs) Model {
 	s, _ := syntax.New(t.Syntax)
 
 	return Model{
-		Keys:    NewKeyMap(),
-		theme:   t,
-		painter: paint.Painter{Theme: t},
-		syntax:  s,
-		cursor:  -1,
-		side:    store.SideHead,
-		anchor:  place{seq: -1},
+		Keys:        NewKeyMap(),
+		theme:       t,
+		painter:     paint.Painter{Theme: t, TabWidth: p.TabWidth},
+		syntax:      s,
+		split:       p.Split,
+		openSettled: p.OpenSettled,
+		cursor:      -1,
+		side:        store.SideHead,
+		anchor:      place{seq: -1},
 	}
 }
 
