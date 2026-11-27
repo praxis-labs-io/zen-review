@@ -12,7 +12,7 @@ already read. zen-review stores what you have read as line ranges against the
 code itself, and carries those ranges through each new version of the
 changeset. A range that survives moves with its code. A range the rewrite
 destroyed comes back unread, and the file says it changed after you reviewed it.
-This is v0.2.0, an early release ahead of a launch. Two other terminal reviewers
+This is v0.3.0, an early release ahead of a launch. Two other terminal reviewers
 cover ground this one does not, and [Acknowledgments](#acknowledgments) says
 which one to reach for.
 
@@ -209,9 +209,8 @@ hunk leaves the hunk marked. zen-review's `r` and its burn-down came from tuicr.
 Reach for tuicr when the review has to land on a pull request, because
 zen-review has no forge integration.
 
-Both are configurable in ways zen-review is not: config files and remappable
-keys, against a theme that follows your terminal without being asked and a fixed
-keymap.
+Both let you remap keys, where zen-review keeps a fixed keymap and a theme that
+follows your terminal without being asked.
 
 Neither project shares code with zen-review. The debt is to their ideas.
 
