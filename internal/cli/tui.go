@@ -276,7 +276,10 @@ func runTUI(cmd *cobra.Command, opts *options) (err error) {
 func launch() app.Launch {
 	cfg, err := config.Load()
 	l := app.Launch{Config: cfg, Warning: err}
-	if cfg.ChecksForUpdates() {
+	switch {
+	case err != nil && (cfg.UpdateCheck == nil || !*cfg.UpdateCheck):
+		l.Warning = fmt.Errorf("%w, so the release check is off", err)
+	case cfg.ChecksForUpdates():
 		l.Check = newerRelease
 	}
 	return l
