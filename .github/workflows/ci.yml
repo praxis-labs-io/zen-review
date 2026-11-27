@@ -61,7 +61,7 @@ jobs:
         with:
           # Keep this matching the local brew version, or local runs and CI
           # stop agreeing about what passes.
-          version: v2.12.2
+          version: v2.15.0
 
       - name: Run actionlint
         run: make lint-actions
