@@ -56,6 +56,19 @@ func TestASplitDefaultWaitsForTheWidth(t *testing.T) {
 	}
 }
 
+func TestBarOnADeferredSplitNamesTheShortfall(t *testing.T) {
+	s := configured(t, config.Config{Split: true}, testchangeset.Nested(t), nil, 100, 16).press("n", "n", "|")
+
+	if bar := s.bar(); !strings.Contains(bar, "more columns") {
+		t.Errorf("bar = %q, want | on a deferred split to name the shortfall", bar)
+	}
+	s.send(tea.WindowSizeMsg{Width: 120, Height: 16})
+	s.press("esc")
+	if got, want := s.frame(), open(t, 120, 16).press("n", "n", "|", "esc").frame(); got != want {
+		t.Errorf("the refused press dropped the split request:\n%s\nwant:\n%s", got, want)
+	}
+}
+
 func TestFoldSettledOffOpensAResolvedCard(t *testing.T) {
 	settled := answered(testchangeset.Comment("aaaaaaaaaaaa", "README.md", 2, 2, "an answered question\nand the rest of it"))
 	open := false
@@ -112,6 +125,7 @@ func TestTheLaunchThemeTakesTheConfig(t *testing.T) {
 	tests := []struct {
 		name    string
 		cfg     config.Config
+		surface *theme.Surface
 		warning string
 		check   func(t *testing.T, got theme.Theme)
 	}{
@@ -172,6 +186,17 @@ func TestTheLaunchThemeTakesTheConfig(t *testing.T) {
 			},
 		},
 		{
+			name:    "a foreground with no background anywhere",
+			cfg:     config.Config{Foreground: "#dce3ee"},
+			surface: &theme.Surface{},
+			warning: "until the config names a background",
+		},
+		{
+			name:    "a foreground over a named background",
+			cfg:     config.Config{Foreground: "#dce3ee", Background: "#0a0d14"},
+			surface: &theme.Surface{},
+		},
+		{
 			name:    "both problems at once",
 			cfg:     config.Config{SyntaxTheme: "nope", Theme: map[string]string{"accent": "nonsense"}},
 			warning: `, so no color from the config is applied; syntaxTheme`,
@@ -180,7 +205,11 @@ func TestTheLaunchThemeTakesTheConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := app.LaunchTheme(tt.cfg, testtheme.Surface)
+			s := testtheme.Surface
+			if tt.surface != nil {
+				s = *tt.surface
+			}
+			got, err := app.LaunchTheme(tt.cfg, s)
 			switch {
 			case tt.warning == "" && err != nil:
 				t.Errorf("warning = %v, want none", err)

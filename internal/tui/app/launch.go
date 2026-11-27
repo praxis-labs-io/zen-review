@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/praxis-labs-io/zen-review/internal/config"
@@ -31,6 +32,9 @@ func launchTheme(cfg config.Config, s theme.Surface) (theme.Theme, error) {
 	if err := colors.Validate(); err != nil {
 		problem = fmt.Errorf("%w, so no color from the config is applied", err)
 		colors = theme.Overrides{}
+	} else if derivesFromNothing(cfg, s) {
+		problem = errors.New("the terminal reported no background, so foreground, addedHue and removedHue " +
+			"have nothing to derive against until the config names a background")
 	}
 
 	t := colors.Resolve(s, cfg.PaintBackground)
@@ -42,6 +46,11 @@ func launchTheme(cfg config.Config, s theme.Surface) (theme.Theme, error) {
 	}
 	t.Syntax = cfg.SyntaxTheme
 	return t, problem
+}
+
+func derivesFromNothing(cfg config.Config, s theme.Surface) bool {
+	named := cfg.Foreground != "" || cfg.AddedHue != "" || cfg.RemovedHue != ""
+	return named && cfg.Background == "" && s.Background == nil
 }
 
 func panePrefs(cfg config.Config) diffpane.Prefs {

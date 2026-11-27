@@ -144,8 +144,9 @@ To turn it off, put this in [the config file](#the-config-file):
 ```
 
 `update_check`, the name v0.2.0 shipped with, still reads for one release, and the
-status bar names the new key until the file says it. `zen-review update` checks
-regardless, since running it is the ask.
+status bar names the new key until the file says it. A file with any error in it
+keeps the check off unless it says `"updateCheck": true`, so a typo never undoes
+an opt-out. `zen-review update` checks regardless, since running it is the ask.
 
 ## The config file
 
@@ -175,8 +176,8 @@ It is JSON, and every key is optional:
 | Key | What it does |
 | --- | --- |
 | `syntaxTheme` | Any Chroma style name. Unset pairs `github-dark` or `github` with the background. |
-| `background`, `foreground` | The colours the palette is derived from, in place of what the terminal reports. A terminal that answers no colour query needs them to get shades at all. |
-| `addedHue`, `removedHue` | The hues the added and removed rows lean toward, in place of the terminal's green and red. |
+| `background`, `foreground` | The colours the palette is derived from, in place of what the terminal reports. A terminal that answers no colour query needs `background` to get shades at all. |
+| `addedHue`, `removedHue` | The hues the added and removed rows lean toward, in place of the terminal's green and red. Like `foreground`, they derive against a background, so with none reported or named they do nothing and the status bar says so. |
 | `paintBackground` | Off by default, so the terminal's own background, translucency included, shows through. On paints `background`, or the reported one. |
 | `theme` | One colour per token, laid over the derived palette: `text`, `accent`, `subtle`, `muted`, `inverted`, `success`, `warning`, `error`, `actor`, `selectedBackground`, `addedBackground`, `removedBackground`, `border`, `borderSubtle`, `borderMuted`. |
 | `split` | Whether diffs open side by side, as if `|` had been pressed. |
@@ -193,4 +194,5 @@ recoloured mid-session, and a pinned `background` outranks one.
 Nothing in the file stops the reader opening. A key it doesn't know, or a value
 it can't use, is named on the status bar and that key keeps its default. One bad
 colour drops the whole set of colours, because a palette with one colour missing
-reads as broken. A file that doesn't parse is all defaults.
+reads as broken. A file that doesn't parse is all defaults, the release check
+excepted.
