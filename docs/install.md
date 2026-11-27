@@ -144,9 +144,9 @@ To turn it off, put this in [the config file](#the-config-file):
 ```
 
 `update_check`, the name v0.2.0 shipped with, still reads for one release, and the
-status bar names the new key until the file says it. A file with any error in it
-keeps the check off unless it says `"updateCheck": true`, so a typo never undoes
-an opt-out. `zen-review update` checks regardless, since running it is the ask.
+status bar names the new key until the file says it. A file that doesn't parse,
+or has a key it can't read, keeps the check off unless it says
+`"updateCheck": true`, so a typo never undoes an opt-out. `zen-review update` checks regardless, since running it is the ask.
 
 ## The config file
 
@@ -193,6 +193,6 @@ recoloured mid-session, and a pinned `background` outranks one.
 
 Nothing in the file stops the reader opening. A key it doesn't know, or a value
 it can't use, is named on the status bar and that key keeps its default. One bad
-colour drops the whole set of colours, because a palette with one colour missing
-reads as broken. A file that doesn't parse is all defaults, the release check
-excepted.
+colour, or a colour key of the wrong type, drops the whole set of colours,
+because a palette with one colour missing reads as broken. A file that doesn't
+parse is all defaults, the release check excepted.
